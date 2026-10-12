@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Community questions and fork announcements
+    url: https://github.com/gptkiosk/rbp-control-dashboard/discussions
+    about: Community interaction; no guaranteed upstream support.
+  - name: Private vulnerability report
+    url: https://github.com/gptkiosk/rbp-control-dashboard/security/advisories/new
+    about: Never disclose vulnerability details in public issues or comments.
+  - name: Documentation and wiki
+    url: https://github.com/gptkiosk/rbp-control-dashboard/wiki
+    about: Setup, feature guides, collaboration and known limitations.

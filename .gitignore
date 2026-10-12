@@ -1,0 +1,19 @@
+# Private installation and generated files
+.env
+.env.*
+!.env.example
+**/.venv/
+**/node_modules/
+**/dist/
+**/__pycache__/
+.pytest_cache/
+*.pyc
+*.db
+*.sqlite*
+*.key
+*.pem
+*.token
+client_secret*.json
+credentials*.json
+/.hermes.md
+/demo/out/

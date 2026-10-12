@@ -1,0 +1,27 @@
+name: Bug report
+description: Report reproducible behavior using sanitized data.
+title: "[bug] "
+labels: [bug, needs-triage]
+body:
+  - type: markdown
+    attributes:
+      value: "For vulnerabilities use the private reporting link in SECURITY.md, not this public form. No secrets or private logs."
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Expected and actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction steps and sanitized output
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment and revision
+      description: "OS/architecture, Python/Node, app revision, configured runtime/model (no keys), fixture/VM/physical hardware."
+    validations:
+      required: true
