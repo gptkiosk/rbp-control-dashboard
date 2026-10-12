@@ -13,7 +13,7 @@ This describes the local RCD prototype; the public repository is currently docs-
 | Chat | Agent conversation requires a configured runtime and explicit model/spending policy; a preview need not enable it. |
 | MCP | Reviewed tool integrations and bounded capabilities; read/draft grants do not approve dispatch or publication. |
 | GitHub | Repository activity through an existing scoped CLI login; no credentials should be committed or exposed. |
-| Ops reports | Read Markdown/UTF-8 reports from explicitly configured local folders. See [configuration](configuration.md). |
+| Ops reports | Read Markdown/UTF-8 reports from configured local folders; the updated local prototype includes operator-only host-folder controls. See [configuration](configuration.md). |
 | Help & how-tos / header Help | Feature guidance and deep links. Verify instructions against this product/revision. |
 | Settings / setup wizard | Profile preferences and write-only credentials; host/agent routes remain distinct. |
 

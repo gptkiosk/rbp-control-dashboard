@@ -11,3 +11,7 @@ The live UI preview uses fresh separate state, no provider/Google/Discord/GitHub
 Lima and its preview are temporary. Retire after app testing, explicit operator sign-off and public publication, preserving source and receipts outside the guest. Their later absence is normal; recreate only for requested further testing.
 
 Historical agent reports and completed board cards are evidence records, not new measurements. Label fixture/stub, VM, live-provider and physical-hardware results separately and name the source revision.
+
+## Report-folder follow-up verification
+
+The updated local prototype passed 46 targeted report/storage/authentication/serving/profile API checks on the Mac and 46 on the ARM64 Linux guest. Its web build/typecheck passed. Real-browser checks on isolated synthetic report previews verified selecting an approved folder, reading a report and restoring installation defaults on both platforms. No production database, agent execution or provider credentials were attached. This validates the bounded report workflow, not the whole app or Pi hardware. Application source remains held for operator sign-off.
