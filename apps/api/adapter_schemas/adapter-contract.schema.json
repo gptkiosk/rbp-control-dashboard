@@ -1,0 +1,456 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/gptkiosk/rbp-control-dashboard/schemas/adapter-contract/v1",
+  "title": "RCD agent adapter contract v1",
+  "description": "Messages exchanged between the RCD/MCD dispatcher and an AgentAdapter. Validate a message against one $defs entry (RunSpec, Event, RunResult, Decision, CancelRequest, Heartbeat, Capabilities, RecoveredRun). See docs/port/adapter-contract.md.",
+  "$defs": {
+    "SchemaVersion": {"const": "rcd.adapter.v1"},
+    "RunId": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"},
+    "IdempotencyKey": {"type": "string", "minLength": 8, "maxLength": 200, "pattern": "^[A-Za-z0-9._:/-]+$"},
+    "Timestamp": {"type": "integer", "minimum": 0, "description": "Unix seconds."},
+    "Sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "NonNegInt": {"type": ["integer", "null"], "minimum": 0},
+    "NonNegNum": {"type": ["number", "null"], "minimum": 0},
+
+    "RunStatus": {
+      "enum": ["queued", "running", "awaiting_approval", "succeeded", "failed", "cancelled", "timed_out"]
+    },
+    "TerminalStatus": {"enum": ["succeeded", "failed", "cancelled", "timed_out"]},
+
+    "Route": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["agent", "model"],
+      "properties": {
+        "agent": {"type": "string", "minLength": 1, "maxLength": 40},
+        "model": {"type": "string", "maxLength": 160, "description": "Empty string means the runtime default; adapters that pin models must reject it unless capabilities.default_model is reported."},
+        "agent_target": {"type": ["string", "null"], "maxLength": 80}
+      }
+    },
+
+    "ErrorCode": {
+      "enum": [
+        "INVALID_RUN_SPEC", "IDEMPOTENCY_CONFLICT", "RUNTIME_UNAVAILABLE", "RUNTIME_INCOMPATIBLE",
+        "MODEL_NOT_ALLOWED", "MODEL_NOT_ENFORCEABLE", "WORKSPACE_REJECTED", "CONCURRENCY_CONFLICT",
+        "PROVIDER_RATE_LIMITED", "PROVIDER_QUOTA_EXHAUSTED", "PROVIDER_AUTH", "PROVIDER_TIMEOUT", "PROVIDER_ERROR",
+        "MODEL_MISMATCH", "BUDGET_EXCEEDED", "TOOL_DENIED", "SANDBOX_VIOLATION",
+        "AGENT_ERROR", "RESULT_MISSING", "RESULT_INVALID", "RESULT_INCOMPLETE",
+        "TIMEOUT", "CANCELLED", "DECISION_REJECTED", "APPROVAL_TIMEOUT", "INTERRUPTED", "LOST",
+        "UNKNOWN_RUN", "INVALID_TRANSITION", "DECISION_CONFLICT",
+        "ADAPTER_INTERNAL"
+      ]
+    },
+    "ErrorCategory": {"enum": ["preflight", "provider", "policy", "agent", "lifecycle", "control", "internal"]},
+    "Error": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "category", "message", "retryable", "fallback_eligible", "requires_human"],
+      "properties": {
+        "code": {"$ref": "#/$defs/ErrorCode"},
+        "category": {"$ref": "#/$defs/ErrorCategory"},
+        "message": {"type": "string", "minLength": 1, "maxLength": 4000, "description": "Operator-facing, redacted. Never raw stderr, prompts or credentials."},
+        "retryable": {"type": "boolean", "description": "An explicit operator retry on the SAME route may succeed."},
+        "fallback_eligible": {"type": "boolean", "description": "MCD may move to the next APPROVED route without a new human decision."},
+        "requires_human": {"type": "boolean"},
+        "detail": {"type": "object", "description": "Structured, redacted extras (phase, exit_code, limit_usd...)."}
+      }
+    },
+
+    "Usage": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "input_tokens": {"$ref": "#/$defs/NonNegInt"},
+        "output_tokens": {"$ref": "#/$defs/NonNegInt"},
+        "cached_input_tokens": {"$ref": "#/$defs/NonNegInt"},
+        "cache_write_tokens": {"$ref": "#/$defs/NonNegInt"},
+        "requests": {"$ref": "#/$defs/NonNegInt"},
+        "tool_calls": {"$ref": "#/$defs/NonNegInt"}
+      }
+    },
+    "Cost": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["usd", "source", "billing"],
+      "properties": {
+        "usd": {"$ref": "#/$defs/NonNegNum"},
+        "source": {"enum": ["reported", "estimated", "not_reported"]},
+        "billing": {"enum": ["subscription", "api", "openrouter", "byok", "free", "unknown"]},
+        "limit_usd": {"$ref": "#/$defs/NonNegNum"}
+      }
+    },
+    "Resources": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["measured_by"],
+      "properties": {
+        "measured_by": {"enum": ["cgroup", "psutil_tree", "runtime", "not_measured"]},
+        "rss_bytes": {"$ref": "#/$defs/NonNegInt"},
+        "peak_rss_bytes": {"$ref": "#/$defs/NonNegInt"},
+        "cpu_user_s": {"$ref": "#/$defs/NonNegNum"},
+        "cpu_system_s": {"$ref": "#/$defs/NonNegNum"},
+        "wall_s": {"$ref": "#/$defs/NonNegNum"},
+        "processes": {"$ref": "#/$defs/NonNegInt"},
+        "disk_write_bytes": {"$ref": "#/$defs/NonNegInt"}
+      }
+    },
+    "Artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "path"],
+      "properties": {
+        "kind": {"enum": ["file", "markdown_output", "git_commit", "patch", "log", "report"]},
+        "path": {"type": "string", "minLength": 1, "maxLength": 1000, "description": "Inside the run workspace or MCD's private output dir; adapters never choose MCD output paths."},
+        "sha256": {"$ref": "#/$defs/Sha256"},
+        "bytes": {"$ref": "#/$defs/NonNegInt"},
+        "change": {"enum": ["created", "modified", "deleted", "unchanged"]},
+        "description": {"type": "string", "maxLength": 500}
+      }
+    },
+
+    "ApprovalRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["approval_id", "kind", "question", "resume_mode", "requested_at"],
+      "properties": {
+        "approval_id": {"type": "string", "minLength": 1, "maxLength": 120},
+        "kind": {"enum": ["tool_permission", "output_approval", "human_decision", "budget_increase"]},
+        "question": {"type": "string", "minLength": 1, "maxLength": 12000},
+        "options": {
+          "type": "array", "maxItems": 20,
+          "items": {
+            "type": "object", "additionalProperties": false, "required": ["id", "label"],
+            "properties": {"id": {"type": "string", "maxLength": 80}, "label": {"type": "string", "maxLength": 500}}
+          }
+        },
+        "proposed_output": {
+          "type": "object", "additionalProperties": false, "required": ["format", "sha256"],
+          "properties": {
+            "format": {"enum": ["markdown", "json", "text", "tool_call"]},
+            "preview": {"type": "string", "maxLength": 12000},
+            "sha256": {"$ref": "#/$defs/Sha256"}
+          }
+        },
+        "resume_mode": {"enum": ["live", "checkpoint"], "description": "live = process is paused and waiting; checkpoint = process exited and resume relaunches from session/checkpoint."},
+        "checkpoint": {
+          "type": "object", "additionalProperties": false,
+          "properties": {"session_id": {"type": ["string", "null"], "maxLength": 160}, "state_ref": {"type": ["string", "null"], "maxLength": 500}}
+        },
+        "requested_at": {"$ref": "#/$defs/Timestamp"},
+        "expires_at": {"type": ["integer", "null"], "minimum": 0}
+      }
+    },
+
+    "RunSpec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "run_id", "idempotency_key", "work_key", "attempt", "origin", "prompt",
+                   "model_policy", "workspace", "limits", "budget", "session", "output"],
+      "properties": {
+        "schema_version": {"$ref": "#/$defs/SchemaVersion"},
+        "run_id": {"$ref": "#/$defs/RunId"},
+        "idempotency_key": {"$ref": "#/$defs/IdempotencyKey", "description": "One per start attempt; MCD uses mcd:run:<run_id>."},
+        "work_key": {"$ref": "#/$defs/IdempotencyKey", "description": "Stable per unit of work across retries/fallbacks (mcd:story:<card_id>); seeds preassigned session ids."},
+        "attempt": {"type": "integer", "minimum": 1},
+        "origin": {
+          "type": "object", "additionalProperties": false, "required": ["kind"],
+          "properties": {
+            "kind": {"enum": ["story", "card", "chat_turn", "planning", "output_continuation"]},
+            "project_id": {"type": ["integer", "null"]},
+            "revision": {"type": ["integer", "null"]},
+            "manifest_hash": {"type": ["string", "null"], "maxLength": 128},
+            "story_key": {"type": ["string", "null"], "pattern": "^[A-Za-z0-9_-]{1,80}$"},
+            "story_title": {"type": ["string", "null"], "maxLength": 300},
+            "acceptance": {"type": ["string", "null"], "maxLength": 20000},
+            "card_id": {"type": ["integer", "null"]},
+            "thread_id": {"type": ["integer", "null"]},
+            "message_id": {"type": ["integer", "null"]}
+          }
+        },
+        "prompt": {"type": "string", "minLength": 1, "maxLength": 400000, "description": "Composed by MCD (card body + MCD SHARED PROJECT CONTEXT). Delivered verbatim; never logged."},
+        "context": {
+          "type": "object", "additionalProperties": false, "required": ["digest"],
+          "properties": {
+            "digest": {"$ref": "#/$defs/Sha256", "description": "sha256 of prompt; echoed in RunResult.context_digest."},
+            "memory_refs": {
+              "type": "array", "maxItems": 200,
+              "items": {
+                "type": "object", "additionalProperties": false, "required": ["id", "kind"],
+                "properties": {"id": {"type": "integer"}, "kind": {"enum": ["handoff", "decision", "checkpoint", "proposal", "context", "incident"]},
+                               "sha256": {"$ref": "#/$defs/Sha256"}}
+              }
+            },
+            "artifact_refs": {
+              "type": "array", "maxItems": 200,
+              "items": {
+                "type": "object", "additionalProperties": false, "required": ["story_key"],
+                "properties": {"story_key": {"type": "string", "maxLength": 80}, "workspace": {"type": ["string", "null"]},
+                               "branch": {"type": ["string", "null"]}, "head": {"type": ["string", "null"]},
+                               "path": {"type": ["string", "null"]}, "sha256": {"$ref": "#/$defs/Sha256"}}
+              }
+            }
+          }
+        },
+        "model_policy": {
+          "type": "object", "additionalProperties": false,
+          "required": ["assigned", "approved_fallback_routes", "allow_runtime_fallback", "require_model_report"],
+          "properties": {
+            "assigned": {"$ref": "#/$defs/Route"},
+            "approved_fallback_routes": {"type": "array", "maxItems": 20, "items": {"$ref": "#/$defs/Route"},
+              "description": "Informational for the adapter. Only MCD switches routes; adapters must never use these themselves."},
+            "allow_runtime_fallback": {"const": false, "description": "Native fallback chains must be disabled for MCD runs."},
+            "require_model_report": {"type": "boolean", "description": "If true and the runtime cannot report the served model, the run fails MODEL_NOT_ENFORCEABLE before inference."}
+          }
+        },
+        "workspace": {
+          "type": "object", "additionalProperties": false, "required": ["path", "mode"],
+          "properties": {
+            "path": {"type": "string", "minLength": 1, "maxLength": 1000, "pattern": "^/"},
+            "mode": {"enum": ["read", "edit"]},
+            "expected_branch": {"type": ["string", "null"], "maxLength": 250},
+            "denied_tools": {"type": "array", "maxItems": 100, "items": {"type": "string", "maxLength": 200}},
+            "allowed_tools": {"type": ["array", "null"], "maxItems": 100, "items": {"type": "string", "maxLength": 200}}
+          }
+        },
+        "limits": {
+          "type": "object", "additionalProperties": false, "required": ["timeout_s"],
+          "properties": {
+            "timeout_s": {"type": "integer", "minimum": 1, "maximum": 86400, "description": "Wall clock while running; paused in awaiting_approval."},
+            "kill_grace_s": {"type": "number", "minimum": 0, "maximum": 60, "default": 5},
+            "approval_timeout_s": {"type": ["integer", "null"], "minimum": 1},
+            "heartbeat_interval_s": {"type": "integer", "minimum": 1, "maximum": 300, "default": 15},
+            "max_turns": {"type": ["integer", "null"], "minimum": 1},
+            "max_transient_retries": {"type": "integer", "minimum": 0, "maximum": 5, "default": 2,
+              "description": "In-run retries of the SAME request on the SAME model (e.g. HTTP 5xx). Never a model switch."},
+            "memory_limit_bytes": {"type": ["integer", "null"], "minimum": 0}
+          }
+        },
+        "budget": {
+          "type": "object", "additionalProperties": false, "required": ["billing", "max_cost_usd"],
+          "properties": {
+            "billing": {"enum": ["subscription", "api", "openrouter", "byok", "free", "unknown"]},
+            "max_cost_usd": {"type": ["number", "null"], "minimum": 0, "description": "Hard per-run cap; null only for subscription billing."},
+            "max_output_tokens": {"type": ["integer", "null"], "minimum": 1}
+          },
+          "if": {"properties": {"billing": {"enum": ["api", "openrouter", "byok"]}}},
+          "then": {"properties": {"max_cost_usd": {"type": "number"}}}
+        },
+        "session": {
+          "type": "object", "additionalProperties": false, "required": ["mode"],
+          "properties": {
+            "mode": {"enum": ["new", "preassigned", "resume"]},
+            "session_id": {"type": ["string", "null"], "maxLength": 160}
+          },
+          "if": {"properties": {"mode": {"enum": ["preassigned", "resume"]}}},
+          "then": {"required": ["session_id"], "properties": {"session_id": {"type": "string", "minLength": 1}}}
+        },
+        "output": {
+          "type": "object", "additionalProperties": false, "required": ["format"],
+          "properties": {
+            "format": {"enum": ["handoff_text", "json"]},
+            "json_schema": {"type": "object"}
+          },
+          "if": {"properties": {"format": {"const": "json"}}},
+          "then": {"required": ["json_schema"]}
+        }
+      }
+    },
+
+    "Event": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "run_id", "seq", "ts", "type", "data"],
+      "properties": {
+        "schema_version": {"$ref": "#/$defs/SchemaVersion"},
+        "run_id": {"$ref": "#/$defs/RunId"},
+        "seq": {"type": "integer", "minimum": 1, "description": "Strictly increasing per run, gap-free, survives adapter restart."},
+        "segment": {"type": "integer", "minimum": 1, "default": 1, "description": "Increments on each resume."},
+        "ts": {"$ref": "#/$defs/Timestamp"},
+        "type": {"enum": ["status", "log", "tool_call", "tool_result", "model", "usage", "retry",
+                           "approval_requested", "decision_applied", "artifact", "resource", "heartbeat", "error"]},
+        "data": {"type": "object"}
+      },
+      "allOf": [
+        {"if": {"properties": {"type": {"const": "status"}}}, "then": {"properties": {"data": {
+          "type": "object", "required": ["from", "to"],
+          "properties": {"from": {"anyOf": [{"$ref": "#/$defs/RunStatus"}, {"type": "null"}]}, "to": {"$ref": "#/$defs/RunStatus"},
+                         "reason": {"type": "string", "maxLength": 2000}}}}}},
+        {"if": {"properties": {"type": {"const": "log"}}}, "then": {"properties": {"data": {
+          "type": "object", "required": ["stream", "text"],
+          "properties": {"stream": {"enum": ["agent", "stdout", "stderr", "adapter"]}, "text": {"type": "string", "maxLength": 65536},
+                         "truncated": {"type": "boolean"}}}}}},
+        {"if": {"properties": {"type": {"const": "tool_call"}}}, "then": {"properties": {"data": {
+          "type": "object", "required": ["call_id", "name"],
+          "properties": {"call_id": {"type": "string"}, "name": {"type": "string"}, "summary": {"type": "string", "maxLength": 2000}}}}}},
+        {"if": {"properties": {"type": {"const": "tool_result"}}}, "then": {"properties": {"data": {
+          "type": "object", "required": ["call_id", "ok"],
+          "properties": {"call_id": {"type": "string"}, "ok": {"type": "boolean"}, "denied": {"type": "boolean"},
+                         "summary": {"type": "string", "maxLength": 2000}}}}}},
+        {"if": {"properties": {"type": {"const": "model"}}}, "then": {"properties": {"data": {
+          "type": "object", "required": ["requested", "reported"],
+          "properties": {"requested": {"type": ["string", "null"]}, "reported": {"type": ["string", "null"]},
+                         "provider": {"type": ["string", "null"]}, "session_id": {"type": ["string", "null"]}}}}}},
+        {"if": {"properties": {"type": {"const": "usage"}}}, "then": {"properties": {"data": {
+          "type": "object", "required": ["cumulative"],
+          "properties": {"cumulative": {"$ref": "#/$defs/Usage"}, "cost": {"$ref": "#/$defs/Cost"}}}}}},
+        {"if": {"properties": {"type": {"const": "retry"}}}, "then": {"properties": {"data": {
+          "type": "object", "required": ["attempt", "reason"],
+          "properties": {"attempt": {"type": "integer", "minimum": 1}, "reason": {"type": "string", "maxLength": 2000},
+                         "delay_s": {"type": "number", "minimum": 0}, "same_model": {"const": true}}}}}},
+        {"if": {"properties": {"type": {"const": "approval_requested"}}}, "then": {"properties": {"data": {"$ref": "#/$defs/ApprovalRequest"}}}},
+        {"if": {"properties": {"type": {"const": "decision_applied"}}}, "then": {"properties": {"data": {
+          "type": "object", "required": ["decision_id", "approval_id", "verdict"],
+          "properties": {"decision_id": {"type": "string"}, "approval_id": {"type": "string"},
+                         "verdict": {"enum": ["approve", "reject", "answer"]}}}}}},
+        {"if": {"properties": {"type": {"const": "artifact"}}}, "then": {"properties": {"data": {"$ref": "#/$defs/Artifact"}}}},
+        {"if": {"properties": {"type": {"enum": ["resource", "heartbeat"]}}}, "then": {"properties": {"data": {
+          "type": "object", "required": ["resources"],
+          "properties": {"resources": {"$ref": "#/$defs/Resources"}, "status": {"$ref": "#/$defs/RunStatus"}}}}}},
+        {"if": {"properties": {"type": {"const": "error"}}}, "then": {"properties": {"data": {"$ref": "#/$defs/Error"}}}}
+      ]
+    },
+
+    "RunResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "run_id", "idempotency_key", "status", "started_at", "ended_at", "model",
+                   "usage", "cost", "resources", "artifacts", "result_text", "structured_output", "error", "context_digest", "last_seq"],
+      "properties": {
+        "schema_version": {"$ref": "#/$defs/SchemaVersion"},
+        "run_id": {"$ref": "#/$defs/RunId"},
+        "idempotency_key": {"$ref": "#/$defs/IdempotencyKey"},
+        "status": {"enum": ["awaiting_approval", "succeeded", "failed", "cancelled", "timed_out"]},
+        "started_at": {"type": ["integer", "null"], "minimum": 0},
+        "ended_at": {"type": ["integer", "null"], "minimum": 0},
+        "duration_s": {"$ref": "#/$defs/NonNegNum"},
+        "exit_code": {"type": ["integer", "null"]},
+        "model": {
+          "type": "object", "additionalProperties": false, "required": ["requested", "reported", "provider", "route"],
+          "properties": {
+            "requested": {"type": ["string", "null"]},
+            "reported": {"type": ["string", "null"]},
+            "provider": {"type": ["string", "null"]},
+            "route": {"$ref": "#/$defs/Route"},
+            "matches_assignment": {"type": ["boolean", "null"], "description": "null = runtime did not report a model."}
+          }
+        },
+        "session": {
+          "type": "object", "additionalProperties": false,
+          "properties": {"session_id": {"type": ["string", "null"]}, "resumable": {"type": "boolean"}}
+        },
+        "usage": {"$ref": "#/$defs/Usage"},
+        "cost": {"$ref": "#/$defs/Cost"},
+        "resources": {"$ref": "#/$defs/Resources"},
+        "artifacts": {"type": "array", "maxItems": 500, "items": {"$ref": "#/$defs/Artifact"}},
+        "result_text": {"type": ["string", "null"], "maxLength": 300000, "description": "Final assistant text / handoff. Proposed evidence, not acceptance."},
+        "structured_output": {"description": "Parsed JSON when RunSpec.output.format == json, validated against its json_schema; else null."},
+        "approval": {"$ref": "#/$defs/ApprovalRequest"},
+        "error": {"anyOf": [{"$ref": "#/$defs/Error"}, {"type": "null"}]},
+        "context_digest": {"anyOf": [{"$ref": "#/$defs/Sha256"}, {"type": "null"}]},
+        "last_seq": {"type": "integer", "minimum": 0}
+      },
+      "allOf": [
+        {"if": {"properties": {"status": {"const": "succeeded"}}},
+         "then": {"properties": {"error": {"type": "null"}, "ended_at": {"type": "integer"}}}},
+        {"if": {"properties": {"status": {"enum": ["failed", "cancelled", "timed_out"]}}},
+         "then": {"properties": {"error": {"$ref": "#/$defs/Error"}, "ended_at": {"type": "integer"}}}},
+        {"if": {"properties": {"status": {"const": "awaiting_approval"}}},
+         "then": {"required": ["approval"], "properties": {"error": {"type": "null"}}}}
+      ]
+    },
+
+    "Decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "run_id", "decision_id", "approval_id", "verdict", "actor", "decided_at"],
+      "properties": {
+        "schema_version": {"$ref": "#/$defs/SchemaVersion"},
+        "run_id": {"$ref": "#/$defs/RunId"},
+        "decision_id": {"$ref": "#/$defs/IdempotencyKey", "description": "Applied at most once; replay returns the original acknowledgement."},
+        "approval_id": {"type": "string", "minLength": 1, "maxLength": 120},
+        "verdict": {"enum": ["approve", "reject", "answer"]},
+        "option_id": {"type": ["string", "null"], "maxLength": 80},
+        "answer_text": {"type": ["string", "null"], "maxLength": 12000},
+        "approved_output_sha256": {"anyOf": [{"$ref": "#/$defs/Sha256"}, {"type": "null"}],
+          "description": "Must equal ApprovalRequest.proposed_output.sha256 when one was shown."},
+        "actor": {"type": "string", "minLength": 1, "maxLength": 255},
+        "decided_at": {"$ref": "#/$defs/Timestamp"}
+      },
+      "allOf": [
+        {"if": {"properties": {"verdict": {"const": "answer"}}},
+         "then": {"anyOf": [{"required": ["option_id"], "properties": {"option_id": {"type": "string"}}},
+                            {"required": ["answer_text"], "properties": {"answer_text": {"type": "string", "minLength": 1}}}]}}
+      ]
+    },
+
+    "CancelRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "run_id", "request_id", "reason", "actor"],
+      "properties": {
+        "schema_version": {"$ref": "#/$defs/SchemaVersion"},
+        "run_id": {"$ref": "#/$defs/RunId"},
+        "request_id": {"$ref": "#/$defs/IdempotencyKey"},
+        "reason": {"enum": ["operator", "shutdown", "lost", "superseded"]},
+        "actor": {"type": "string", "minLength": 1, "maxLength": 255}
+      }
+    },
+
+    "Heartbeat": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "run_id", "status", "alive", "last_seq", "ts", "resources"],
+      "properties": {
+        "schema_version": {"$ref": "#/$defs/SchemaVersion"},
+        "run_id": {"$ref": "#/$defs/RunId"},
+        "status": {"$ref": "#/$defs/RunStatus"},
+        "alive": {"type": "boolean", "description": "Process group (or live suspension) verified to exist. False in checkpoint-mode awaiting_approval is normal."},
+        "pid": {"type": ["integer", "null"]},
+        "last_seq": {"type": "integer", "minimum": 0},
+        "last_activity_at": {"type": ["integer", "null"], "minimum": 0},
+        "deadline_at": {"type": ["integer", "null"], "minimum": 0},
+        "ts": {"$ref": "#/$defs/Timestamp"},
+        "resources": {"$ref": "#/$defs/Resources"}
+      }
+    },
+
+    "RecoveredRun": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["run_id", "idempotency_key", "outcome", "status", "last_seq"],
+      "properties": {
+        "run_id": {"$ref": "#/$defs/RunId"},
+        "idempotency_key": {"$ref": "#/$defs/IdempotencyKey"},
+        "outcome": {"enum": ["reattached", "awaiting_approval", "finished_while_down", "interrupted"]},
+        "status": {"$ref": "#/$defs/RunStatus"},
+        "last_seq": {"type": "integer", "minimum": 0}
+      }
+    },
+
+    "Capabilities": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "adapter", "runtime_version", "pins_model", "reports_model", "disables_native_fallback",
+                   "enforces_mode", "structured_output", "streams_events", "tool_events", "session", "suspend_modes",
+                   "reports_cost", "enforces_budget", "resource_measurement"],
+      "properties": {
+        "schema_version": {"$ref": "#/$defs/SchemaVersion"},
+        "adapter": {"type": "string", "minLength": 1, "maxLength": 40},
+        "runtime_version": {"type": ["string", "null"], "maxLength": 120},
+        "pins_model": {"type": "boolean"},
+        "reports_model": {"enum": ["at_start", "at_end", "never"]},
+        "disables_native_fallback": {"type": "boolean"},
+        "enforces_mode": {"type": "boolean", "description": "Runtime sandbox enforces read vs edit (not just a prompt instruction)."},
+        "structured_output": {"enum": ["native_schema", "prompted_json", "none"]},
+        "streams_events": {"type": "boolean", "description": "False = one document at exit (OpenClaw today)."},
+        "tool_events": {"type": "boolean"},
+        "session": {"enum": ["agent_assigned", "preassigned", "none"]},
+        "suspend_modes": {"type": "array", "uniqueItems": true, "items": {"enum": ["live", "checkpoint"]}},
+        "reports_cost": {"type": "boolean"},
+        "enforces_budget": {"enum": ["runtime", "adapter", "none"]},
+        "resource_measurement": {"enum": ["cgroup", "psutil_tree", "runtime", "not_measured"]},
+        "default_model": {"type": ["string", "null"]}
+      }
+    }
+  }
+}

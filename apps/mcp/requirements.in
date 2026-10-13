@@ -1,0 +1,3 @@
+# MCD tool server for agents (Hermes first). Talks to the dashboard API over loopback.
+mcp>=1.10
+pytest>=8.3
