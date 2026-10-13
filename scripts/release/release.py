@@ -808,7 +808,9 @@ CONTENT_RULES = (
     ("home-path", re.compile(rb"/(?:Users|home)/(?!(?:you|user|username|example|USER|runner|pi)/)[a-z_][a-z0-9_.-]{1,31}/")),
     ("lan-address", re.compile(rb"(?<![\d.])(?:10\.\d{1,3}|192\.168|172\.(?:1[6-9]|2\d|3[01]))\.\d{1,3}\.\d{1,3}(?![\d.])")),
     ("tailnet-address", re.compile(rb"(?<![\d.])100\.(?:6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.\d{1,3}\.\d{1,3}(?![\d.])|[a-z0-9-]+\.[a-z0-9-]+\.ts\.net\b")),
-    ("email", re.compile(rb"\b[A-Za-z0-9._%+-]+@(?!example\.(?:com|org|net)\b)(?!users\.noreply\.github\.com\b)[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b")),
+    # The domain is matched in lowercase, as addresses are written: minified bundles contain binary-like runs
+    # ("eb@Wl'z@aPeb95Si.ebcp") that an any-case domain pattern reads as an address.
+    ("email", re.compile(rb"\b[A-Za-z0-9._%+-]+@(?!example\.(?:com|org|net)\b)(?!users\.noreply\.github\.com\b)[a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z]{2,}\b")),
 )
 
 

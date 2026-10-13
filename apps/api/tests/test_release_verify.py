@@ -587,3 +587,17 @@ class TestSshSignature:
         link.symlink_to(signers)
         linked = policy(release, authenticator=SshSignature(link, "release@synthetic.invalid"))
         assert "cannot open allowed signers file" in refused(release, linked, signature_path=sig)
+
+
+def test_content_scan_flags_addresses_but_not_binary_like_runs_in_a_bundle():
+    tool_path = REPO_ROOT / "scripts" / "release" / "release.py"
+    if not tool_path.is_file():
+        pytest.skip("release builder is not in this checkout")
+    spec = importlib.util.spec_from_file_location("release_tool_scan", tool_path)
+    tool = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(tool)
+    # A real address is found (the allowed example domains are not), a minified-bundle run that merely
+    # contains '@' between characters of any case is not.
+    assert tool.scan_contents({"a.txt": b"contact someone@company.io for access"}, [])
+    assert not tool.scan_contents({"a.txt": b"contact someone@example.com for access"}, [])
+    assert not tool.scan_contents({"assets/x.js": b"_@Wl(g;u1Si/ebKu'B&!*Sh?eb@Wl'z@aPeb95Si.ebcpputyvjB)!,&a+0a"}, [])
