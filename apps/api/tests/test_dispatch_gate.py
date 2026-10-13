@@ -129,7 +129,9 @@ def test_rcd_default_is_free_only():
     from settings import Settings
     # Field defaults are independent of local dotenv/environment.
     from pathlib import Path
-    rcd = 'rbp-control-dashboard' in str(Path(__file__).resolve())
+    import json
+    product = json.loads((Path(__file__).resolve().parents[3] / 'packaging/product.json').read_text())
+    rcd = product['product'] == 'rcd'
     assert Settings.model_fields['dispatch_free_only'].default == rcd
     assert Settings.model_fields['default_budget_usd'].default == (0.0 if rcd else 1.0)
 

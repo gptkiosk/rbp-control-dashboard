@@ -32,7 +32,8 @@ products before the minor is raised, and a release note lists what the feature l
 
 | Feature level | Contents |
 |---|---|
-| 0.2 | Branch-scoped agent git access; subscription limits (lift time, one notice, same-grade reroute, Discord status); context digests with a full ledger file and a cache-friendly prompt order; deletable duplicate project cards; the standard footer with a modified marker; failure mining for Hermes; the release flow scripts. RCD reaches 0.2 when it has all of these. |
+| 0.2 | Branch-scoped agent git access; subscription limits (lift time, one notice, same-grade reroute, Discord status); context digests with a full ledger file and a cache-friendly prompt order; deletable duplicate project cards; the standard footer with a modified marker; failure mining for Hermes; the release flow scripts. Close project; GitHub repository checklist and per-repository errors; task Model column; price catalog and usage pricing. |
+| 0.3 | Grok Build subscription dispatch and support for any mix of installed agents. Both products have in-app release checking and verified package staging; platform installers and Agent tools validation have separate evidence. Roles/Delegator is planned and is not included yet. |
 
 ## Am I on the latest?
 

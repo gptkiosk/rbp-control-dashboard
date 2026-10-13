@@ -10,12 +10,15 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-13
+
 ### Added
 - Grok Build is a supported agent, next to Claude Code, Codex, Hermes and OpenClaw: tasks, chat, project story
   agent and approved fallback, on a SuperGrok subscription only (the CLI has no dollar cap, so an API route is
-  refused). It has a native 64-bit ARM build, so it runs on a Raspberry Pi. Runs are confined: telemetry and
+  refused). It has a native Linux arm64 build, verified in Lima; Raspberry Pi hardware remains untested. Runs are confined: telemetry and
   trace upload off, a filesystem sandbox, git push and merge denied. xAI prices are in the price catalog and
   the price checker reads docs.x.ai. See `docs/configuration/grok.md`. Not run against a signed-in account.
+- Operator-only Agent tools panel for pinned per-user installation, update, removal and rollback of Claude Code, Codex CLI, OpenClaw and Hermes on Linux arm64. Confirmation shows sources, commands, disk and memory. System packages remain manual and sign-in is never automated. Install/remove and version checks were exercised in an Ubuntu arm64 Lima VM; Raspberry Pi hardware, Mac installers and Grok installation remain unverified or pending. See `docs/install/agent-tools.md`.
 
 ### Changed
 - RCD works with any mix of agents installed. Setup readiness needs any one subscription CLI and any one of
@@ -67,7 +70,8 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
   collector's `/api/updates`.
 - Claude Code stories may use web search and fetch without any shell, credential or publish permission.
 
-[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.2.0...HEAD
+[0.3.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.0
+[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.3.0...HEAD
 [0.2.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.2.0
 
 ## Before versioned releases

@@ -55,3 +55,5 @@ Physical Raspberry Pi hardware, Raspberry Pi OS, thermal and throttle readings, 
 - A systemd user session for the service user
 
 Other operating systems and 32-bit OS images are refused by the installer.
+
+- [Agent tools](agent-tools.md): pinned per-user CLI installation and its validation limits.
