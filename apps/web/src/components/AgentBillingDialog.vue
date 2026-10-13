@@ -104,6 +104,10 @@ async function save() {
               :disabled="settings.accounts[a.id].mode !== 'subscription'"
               :aria-label="`${a.name} monthly subscription`"
           /></label>
+          <p v-if="a.id === 'grok'" class="muted small grok-note">
+            Grok Build only runs on a Subscription here. Saving Subscription also means you accept that it sends the
+            task and the files it reads to xAI. Runs have telemetry and trace upload off and stay inside a sandbox.
+          </p>
         </div>
       </div>
       <details v-if="settings" class="rate-settings">
@@ -223,6 +227,10 @@ p {
   display: flex;
   flex-direction: column;
   gap: var(--gap);
+}
+.grok-note {
+  grid-column: 1 / -1;
+  margin: 0;
 }
 .account {
   display: grid;

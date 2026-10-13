@@ -113,7 +113,7 @@ def test_subscription_routes_are_off_until_the_operator_saves_them(make_client):
 def test_agents_and_workdirs(make_client, tmp_path):
     client = make_client()
     agents = {a["id"]: a for a in client.get("/api/agents").json()["agents"]}
-    assert set(agents) == {"claude", "codex", "hermes", "openclaw"}
+    assert set(agents) == {"claude", "codex", "grok", "hermes", "openclaw"}
     assert agents["hermes"]["role"] == "manager"
     paths = [w["path"] for w in client.get("/api/workdirs").json()["workdirs"]]
     assert any(p.endswith("/ws/proj") for p in paths)

@@ -170,6 +170,22 @@ def read_google(text: str) -> dict:
     return out
 
 
+def read_xai(text: str) -> dict:
+    """xAI's Text API pricing table: one row per model for prompts under 200k tokens and one for 200k and over
+    (billed at the higher rate for every token in the request)."""
+    out: dict = {}
+    row = re.compile(r"^\|\s*(grok-[\w.\-]+)\s*\((<|≥)\s*200k prompt tokens\)\s*\|[^|]*\|\s*\$([\d.]+)\s*\|\s*\$([\d.]+)\s*\|\s*\$([\d.]+)\s*\|", re.M)
+    for model, tier, i, c, o in row.findall(text):
+        values = {"input": float(i), "cached": float(c), "output": float(o)}
+        if tier == "<":
+            out.setdefault(model, {}).update(values, write=float(i))
+        else:
+            out.setdefault(model, {})["long_rate"] = {"after": 200_000, **values}
+    if not out:
+        raise ValueError("xAI page: no price rows found")
+    return out
+
+
 def read_openrouter(text: str) -> dict:
     data = json.loads(text)["data"]
     out: dict = {}
@@ -183,7 +199,7 @@ def read_openrouter(text: str) -> dict:
     return out
 
 
-READERS = {"openai": read_openai, "anthropic": read_anthropic, "google": read_google, "openrouter": read_openrouter}
+READERS = {"openai": read_openai, "anthropic": read_anthropic, "google": read_google, "xai": read_xai, "openrouter": read_openrouter}
 
 
 # ---------------------------------------------------------------------------- comparison
@@ -259,6 +275,8 @@ def new_on_page(catalog: dict, source: str, page: dict) -> list[str]:
         names = [m for m in page if re.match(r"gpt-\d", m) and "pro" not in m]
     elif source == "anthropic":
         names = [m for m in page if m.startswith("claude-") and not m.endswith("-4") and not m.endswith("-4-1")]
+    elif source == "xai":
+        names = [m for m in page if m.startswith("grok-") and "imagine" not in m]
     elif source == "google":
         names = [m for m in page if m.startswith("gemini-") and not m.startswith("_") and not re.search(r"tts|image|live|audio|embedding|robotics|transcribe|translate", m)]
     else:
@@ -269,7 +287,7 @@ def new_on_page(catalog: dict, source: str, page: dict) -> list[str]:
 # ---------------------------------------------------------------------------- models in use
 
 
-PLATFORMS = {"openai": "OpenAI", "anthropic": "Anthropic", "google": "Google"}
+PLATFORMS = {"openai": "OpenAI", "anthropic": "Anthropic", "google": "Google", "xai": "xAI"}
 
 
 def used_unpriced(session) -> dict[str, set[str]]:
@@ -293,7 +311,7 @@ def match_page(model: str, pages: dict) -> tuple[str, str, dict] | None:
     for i in range(len(parts)):
         name = "/".join(parts[i:])
         for key in (name, re.sub(r"-\d{8}$", "", name)):
-            for source in ("openai", "anthropic", "google"):
+            for source in ("openai", "anthropic", "google", "xai"):
                 found = pages.get(source, {}).get(key)
                 if found:
                     return source, key, found
@@ -334,8 +352,8 @@ def candidate_entry(model: str, source: str, found: dict, agents: set[str], toda
 # ---------------------------------------------------------------------------- run
 
 
-def fetch(url: str) -> str:
-    request = urllib.request.Request(url, headers={"User-Agent": "rcd-pricing-check/1"})
+def fetch(url: str, headers: dict | None = None) -> str:
+    request = urllib.request.Request(url, headers={"User-Agent": "rcd-pricing-check/1", **(headers or {})})
     with urllib.request.urlopen(request, timeout=60) as response:
         return response.read().decode("utf-8", "replace")
 
@@ -406,7 +424,7 @@ def main(argv=None) -> int:
         if args.source and source != args.source:
             continue
         try:
-            text = (Path(args.offline) / f"{source}.txt").read_text() if args.offline else fetch(spec["url"])
+            text = (Path(args.offline) / f"{source}.txt").read_text() if args.offline else fetch(spec["url"], spec.get("headers"))
             pages[source] = READERS[source](text)
         except Exception as exc:  # a source that cannot be read is reported, never treated as unchanged
             print(f"{source}: could not read {spec['url']}: {exc}")

@@ -13,6 +13,7 @@ the model and session flags are extracted; the command line itself is never retu
 from __future__ import annotations
 
 import json
+import os
 import re
 import time
 from typing import Any
@@ -47,6 +48,8 @@ def classify(argv: list[str]) -> tuple[str, str] | None:
         return "claude", "desktop session"
     if exe.endswith("/bin/claude") or exe == "claude" or exe.endswith("claude.exe"):
         return "claude", "cli session"
+    if os.path.basename(exe) in ("grok", "agent") and "/.grok/" in exe or exe == "grok":
+        return "grok", "headless" if any(a in ("-p", "--single") for a in argv[1:]) else "session"
     if exe.endswith("/codex") or "codex-cli/bin/codex" in exe:
         return "codex", "exec" if "exec" in argv[1:3] else "session"
     if "hermes_cli.main" in joined:
@@ -63,7 +66,7 @@ def classify(argv: list[str]) -> tuple[str, str] | None:
 
 def running_processes(now: float | None = None) -> dict[str, list[dict[str, Any]]]:
     now = now or time.time()
-    out: dict[str, list[dict[str, Any]]] = {"claude": [], "codex": [], "hermes": [], "openclaw": []}
+    out: dict[str, list[dict[str, Any]]] = {"claude": [], "codex": [], "grok": [], "hermes": [], "openclaw": []}
     for proc in psutil.process_iter(["pid", "cmdline", "create_time"]):
         argv = proc.info.get("cmdline") or []
         hit = classify(argv)

@@ -10,6 +10,18 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+### Added
+- Grok Build is a supported agent, next to Claude Code, Codex, Hermes and OpenClaw: tasks, chat, project story
+  agent and approved fallback, on a SuperGrok subscription only (the CLI has no dollar cap, so an API route is
+  refused). It has a native 64-bit ARM build, so it runs on a Raspberry Pi. Runs are confined: telemetry and
+  trace upload off, a filesystem sandbox, git push and merge denied. xAI prices are in the price catalog and
+  the price checker reads docs.x.ai. See `docs/configuration/grok.md`. Not run against a signed-in account.
+
+### Changed
+- RCD works with any mix of agents installed. Setup readiness needs any one subscription CLI and any one of
+  Hermes or OpenClaw instead of all of them, a new project story starts on an agent that is installed, and the
+  story agent picker marks agents that are not installed. A test runs every one of the 32 combinations.
+
 ## [0.2.0] - 2026-10-13
 
 RCD reaches the 0.2 feature level it shares with MCD. These were built and tested against the MCD

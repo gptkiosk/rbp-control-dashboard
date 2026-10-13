@@ -276,6 +276,19 @@ This is the pre-dispatch spending guard, not a fault. A :free model name, a bill
 
 [Open Billing & rates](http://127.0.0.1:8800/agents?action=billing) · [Open Tasks](http://127.0.0.1:8800/tasks) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=price-unknown)
 
+## Use Grok Build as an agent
+
+Grok Build is xAI’s terminal coding agent. MCD can run it on a SuperGrok subscription, next to or instead of any other agent.
+
+1. Install the CLI on the host and sign in with grok login (or grok login --device-code on a machine without a browser). MCD never sees the sign-in.
+2. Open Agents, then Billing & rates, set Grok Build to Subscription and save. Until you do, MCD refuses to start it, because the CLI has no dollar cap and an API-billed route cannot be bounded.
+3. Create a task or choose Grok Build as a project story agent or fallback. Pick a model such as grok-4.6, grok-4.5 or grok-build-0.1, or leave it blank for the CLI default.
+4. Read the data notice first: Grok sends the task and the files it reads to xAI. MCD runs it with telemetry and trace upload off, inside a filesystem sandbox (read-only for a read task, the working directory for an edit task), with git push and merge blocked.
+
+MCD works with any mix of agents installed, including only Grok Build. Usage for Grok comes from the runs MCD dispatches; it does not read the CLI’s own session history. Grok is not used as a project planner, and subscription limit notices cover Claude Code and Codex only.
+
+[Open Billing & rates](http://127.0.0.1:8800/agents?action=billing) · [Open Agents](http://127.0.0.1:8800/agents) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=grok-build)
+
 ## A Claude or Codex limit was reached
 
 RCD notes when a subscription limit lifts, moves stories to an approved alternate on its own, and lets you send the rest across in one click.

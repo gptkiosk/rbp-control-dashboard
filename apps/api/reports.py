@@ -31,7 +31,7 @@ def open_directory(path: Path):
 SECRET_NAMES = {"secrets", "secret", "credentials", "credential", "config", "private",
                 "keys", "key", "tokens", "token", "passwords", "password", "auth", "oauth",
                 "vault", "agent-tokens", "ssh", "aws", "gnupg", "keychains", "library",
-                "codex", "openclaw", "git", "env", "kube", "docker", "azure", "gcloud", "keyring", "keyrings"}
+                "codex", "grok", "openclaw", "git", "env", "kube", "docker", "azure", "gcloud", "keyring", "keyrings"}
 
 def sensitive_component(name):
     return name.lower().lstrip(".") in SECRET_NAMES

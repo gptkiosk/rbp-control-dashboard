@@ -443,8 +443,12 @@ class Dispatcher:
     # ------------------------------------------------------------------ execution
 
     @staticmethod
-    def _env() -> dict[str, str]:
-        return LegacyAgentAdapter.env()
+    def _env(agent: str | None = None) -> dict[str, str]:
+        env = LegacyAgentAdapter.env()
+        spec = REGISTRY.get(agent) if agent else None
+        if spec is not None:
+            env.update(spec.env)   # for example Grok's telemetry and trace upload switches, always off
+        return env
 
     def _dispatch_admission(self, run_id, argv):
         with self.sessions.begin() as db:

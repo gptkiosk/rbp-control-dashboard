@@ -41,7 +41,7 @@ BRANCH_RE = re.compile(r"^project-(\d+)/[a-z0-9][a-z0-9.-]{0,40}$")
 COMMAND_RE = re.compile(r"^Bash\([A-Za-z0-9 ._/:*=@+-]{1,120}\)$")
 MAX_CLONES = 4
 MAX_COMMANDS = 20
-GRANTED_AGENTS = {"claude", "codex", "openclaw"}
+GRANTED_AGENTS = {"claude", "codex", "grok", "openclaw"}
 
 # What the sentence in the shared project context says when no grant exists.
 NO_PUSH_SENTENCE = ("Do not commit, push or merge automatically; the operator reviews and "

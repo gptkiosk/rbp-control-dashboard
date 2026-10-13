@@ -6,6 +6,8 @@ The launch snapshot is saved at claim time so edits cannot increase a claimed ca
 import json
 import math
 
+from agents import SUBSCRIPTION_AGENTS
+
 
 class DispatchDenied(ValueError):
     pass
@@ -67,7 +69,7 @@ def admit(settings, run, argv, *, default_free_only=True, current_price_class=_U
     # Native default models must never drift after admission. Pi adapters pin the
     # assigned model in their RunSpec instead of argv; their separate scope gate
     # also requires a provider budget boundary.
-    flags = {"claude": "--model", "codex": "-m", "hermes": "-m", "openclaw": "--model"}
+    flags = {"claude": "--model", "codex": "-m", "grok": "--model", "hermes": "-m", "openclaw": "--model"}
     if run.agent in flags:
         flag = flags[run.agent]
         if argv.count(flag) != 1 or argv.index(flag) + 1 >= len(argv) or argv[argv.index(flag) + 1] != model:
@@ -111,7 +113,7 @@ def reviewed_route_class(s, settings, source, model: str | None) -> str | None:
         # and used by project planning. An unchanged dialog save must not be a
         # hidden prerequisite for dispatch.
         account = billing.config(s)["accounts"].get(agent, {})
-        if agent in {"claude", "codex"} and account.get("mode") == "subscription":
+        if agent in SUBSCRIPTION_AGENTS and account.get("mode") == "subscription":
             return "subscription"
     except (ValueError, TypeError, AttributeError):
         return None

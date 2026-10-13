@@ -543,6 +543,7 @@ class LegacyAgentAdapter:
                     for path in vars(files).values():
                         path.unlink(missing_ok=True)
                     env = self.env()
+                    env.update(self.spec.env)   # for example Grok's telemetry and trace upload switches, always off
                     with self.sessions() as db:
                         row = db.get(Run, run_id)
                         env["RCD_IDEMPOTENCY_KEY"] = row.idempotency_key or run_key(run_id)

@@ -14,7 +14,7 @@ const agents = usePolledJson<AgentsPayload>('/api/agents', 5000)
 const usage = usePolledJson<UsagePayload>('/api/agents/usage?period=24h', 15000)
 const receivedAt = ref(now.value)
 watch(agents.data, () => (receivedAt.value = now.value))
-const order: AgentId[] = ['openclaw', 'hermes', 'claude', 'codex']
+const order: AgentId[] = ['openclaw', 'hermes', 'claude', 'codex', 'grok']
 const fleet = computed(() =>
   [...(agents.data.value?.agents ?? [])].sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id)),
 )

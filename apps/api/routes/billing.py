@@ -28,8 +28,8 @@ class Rate(BaseModel):
 
 class BillingPatch(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    accounts: dict[Literal["openclaw", "hermes", "claude", "codex"], Account] = Field(
-        default_factory=dict, max_length=4
+    accounts: dict[Literal["openclaw", "hermes", "claude", "codex", "grok"], Account] = Field(
+        default_factory=dict, max_length=5
     )
     rates: dict[
         Annotated[
@@ -68,7 +68,7 @@ def patch_billing(body: BillingPatch, s: Session = Depends(get_session)):
 def usage_dashboard(
     request: Request,
     period: Literal["24h", "7d", "month"] = "month",
-    agent: Literal["openclaw", "hermes", "claude", "codex"] | None = None,
+    agent: Literal["openclaw", "hermes", "claude", "codex", "grok"] | None = None,
     target: str | None = Query(default=None, max_length=160),
     s: Session = Depends(get_session),
 ):

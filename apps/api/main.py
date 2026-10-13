@@ -84,7 +84,7 @@ def create_app() -> FastAPI:
             )
             collector.agent_binaries = {
                 "openclaw": settings.openclaw_path, "hermes": settings.hermes_path,
-                "codex": settings.codex_path, "claude": settings.claude_path,
+                "codex": settings.codex_path, "claude": settings.claude_path, "grok": settings.grok_path,
             }
             collector.start()
         app.state.collector = collector

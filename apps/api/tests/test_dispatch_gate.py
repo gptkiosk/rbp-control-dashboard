@@ -13,8 +13,8 @@ from dispatcher import Dispatcher, _reviewed_route_class
 from models import (BillingConfig, Card, ChatMessage, ChatThread, Project,
                     ProjectTask, Run, RunEvent)
 
-AGENTS = ('claude', 'codex', 'hermes', 'openclaw')
-FLAGS = dict(claude='--model', codex='-m', hermes='-m', openclaw='--model')
+AGENTS = ('claude', 'codex', 'grok', 'hermes', 'openclaw')
+FLAGS = dict(claude='--model', codex='-m', grok='--model', hermes='-m', openclaw='--model')
 
 
 def settings(tmp_path, agent, price_class=None, **kw):

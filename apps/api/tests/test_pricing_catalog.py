@@ -63,10 +63,10 @@ GOOGLE_PAGE = '''## Gemini 3.8 Flash
 
 
 def test_catalog_is_complete_and_consistent():
-    assert set(CATALOG["sources"]) == {"openai", "anthropic", "google", "openrouter"}
+    assert set(CATALOG["sources"]) == {"openai", "anthropic", "google", "xai", "openrouter"}
     for model, e in CATALOG["models"].items():
         assert e["source"] in CATALOG["sources"], model
-        assert e["agents"] and set(e["agents"]) <= {"claude", "codex", "hermes", "openclaw"}, model
+        assert e["agents"] and set(e["agents"]) <= {"claude", "codex", "grok", "hermes", "openclaw"}, model
         assert e["status"] in ("current", "legacy"), model
         for field in ("input", "output", "cached", "write", "write_1h", "verified"):
             assert field in e, (model, field)
@@ -78,7 +78,8 @@ def test_catalog_is_complete_and_consistent():
         assert model.endswith(":free") and e["input"] == 0 and e["output"] == 0
     # what each platform is configured to use here is priced
     for needed in ("gpt-6.1-sol", "gpt-6-astra", "gpt-6-sol", "gpt-6-luna", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna",
-                   "gpt-5.5", "claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5", "gemini-2.5-flash"):
+                   "gpt-5.5", "claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5", "gemini-2.5-flash",
+                   "grok-4.7", "grok-4.6", "grok-4.5", "grok-build-0.1"):
         assert needed in billing.DEFAULT_RATES, needed
 
 
@@ -138,7 +139,7 @@ def test_apply_writes_changed_prices_and_the_date(tmp_path, capsys):
     catalog = copy.deepcopy(CATALOG)
     catalog["models"]["gpt-5.5"]["output"] = 25.0
     catalog["models"]["gpt-5.5"]["verified"] = "2000-01-01"
-    for name in ("anthropic", "google"):
+    for name in ("anthropic", "google", "xai"):
         del catalog["sources"][name]
     del catalog["sources"]["openrouter"]
     file = tmp_path / "catalog.json"
@@ -174,3 +175,32 @@ def test_models_used_without_a_price_are_found_and_can_be_added(sessions, tmp_pa
     assert entry["agents"] == ["codex"] and entry["max_input"] == 272_000   # the page states only the short-context price
     claude = check.candidate_entry("claude-opus-5-9", "anthropic", {"input": 5, "output": 25, "cached": 0.5, "write": 6.25, "write_1h": 10}, {"claude"}, "x")
     assert claude["max_input"] is None
+
+
+XAI_PAGE = """| Model | Context | Input / 1M tokens | Cached input / 1M tokens | Output / 1M tokens |
+| --- | --- | --- | --- | --- |
+| grok-4.6 (< 200k prompt tokens) | 500k | $2.00 | $0.50 | $6.00 |
+| grok-4.6 (\u2265 200k prompt tokens) | 500k | $4.00 | $1.00 | $12.00 |
+| grok-build-0.1 (< 200k prompt tokens) | 256k | $1.00 | $0.20 | $2.00 |
+| grok-build-0.1 (\u2265 200k prompt tokens) | 256k | $2.00 | $0.40 | $4.00 |
+| grok-imagine-image | $0.02 / image |
+"""
+
+
+def test_xai_reader_and_the_grok_prices_in_the_catalog():
+    page = check.read_xai(XAI_PAGE)
+    assert page["grok-4.6"] == {"input": 2.0, "cached": 0.5, "output": 6.0, "write": 2.0,
+                                "long_rate": {"after": 200_000, "input": 4.0, "cached": 1.0, "output": 12.0}}
+    assert "grok-imagine-image" not in page
+    report = check.compare(CATALOG, "xai", page)
+    assert report["differs"] == [], report["differs"]
+    # a long-context tier that changed is a difference the checker reports
+    changed = copy.deepcopy(CATALOG)
+    changed["models"]["grok-4.6"]["long_output_multiplier"] = 3
+    assert check.compare(changed, "xai", page)["differs"][0]["fields"]["long_output_multiplier"]["source"] == 2.0
+    with pytest.raises(ValueError):
+        check.read_xai("nothing here")
+    # priced like any other model: 300k prompt tokens are billed at the long-context rate for every token
+    cfg = {"rates": billing.DEFAULT_RATES}
+    cost = billing.price({"model": "grok-4.6", "input_tokens": 300_000, "output_tokens": 100_000}, cfg)[0]
+    assert round(cost, 6) == round(300_000 * 4 / 1e6 + 100_000 * 12 / 1e6, 6)

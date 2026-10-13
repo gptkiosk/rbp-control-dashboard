@@ -18,7 +18,7 @@ import { useGuideAction } from '@/composables/useGuideAction'
 const route = useRoute()
 const router = useRouter()
 const now = useNow()
-const ids: AgentId[] = ['openclaw', 'hermes', 'claude', 'codex']
+const ids: AgentId[] = ['openclaw', 'hermes', 'claude', 'codex', 'grok']
 const selectedId = ref<AgentId>(
   ids.includes(route.query.agent as AgentId) ? (route.query.agent as AgentId) : 'openclaw',
 )

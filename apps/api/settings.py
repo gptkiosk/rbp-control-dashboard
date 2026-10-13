@@ -25,7 +25,7 @@ IS_MACOS = sys.platform == "darwin"
 
 def tool_search_dirs() -> tuple[str, ...]:
     """Folders searched for optional host tools: the process PATH, then common user/package folders."""
-    extra = [str(Path.home() / ".local" / "bin"), "/usr/local/bin"]
+    extra = [str(Path.home() / ".local" / "bin"), str(Path.home() / ".grok" / "bin"), "/usr/local/bin"]
     if IS_MACOS:
         extra.append("/opt/homebrew/bin")  # Homebrew's standard Apple-silicon prefix
     return tuple(dict.fromkeys(d for d in (*os.environ.get("PATH", "").split(os.pathsep), *extra) if d))
@@ -108,12 +108,13 @@ class Settings(BaseSettings):
     )
     claude_path: str = Field(default_factory=lambda: find_tool("claude"))
     codex_path: str = Field(default_factory=lambda: find_tool("codex"))
+    grok_path: str = Field(default_factory=lambda: find_tool("grok"))
     hermes_path: str = Field(default_factory=lambda: find_tool("hermes"))
     openclaw_path: str = Field(default_factory=lambda: find_tool("openclaw"))
     hermes_config_path: Path | None = None
     openclaw_config_path: Path | None = None
     agent_executables: tuple[str, ...] = Field(
-        default=("claude", "codex", "hermes", "openclaw"),
+        default=("claude", "codex", "grok", "agent", "hermes", "openclaw"),
         description="Processes started from these executables (and their children) are agents: "
                     "operator APIs refuse them, as they refuse every dispatched runner.",
     )

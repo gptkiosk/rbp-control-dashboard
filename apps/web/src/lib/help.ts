@@ -181,6 +181,14 @@ export const helpGuides: HelpGuide[] = [
     note: 'This is the pre-dispatch spending guard, not a fault. A :free model name, a billing estimate or a past successful run does not classify a route. Paid OpenClaw and Hermes routes are always refused.',
   },
   {
+    id: 'grok-build', title: 'Use Grok Build as an agent', area: 'Agents',
+    summary: 'Grok Build is xAI\u2019s terminal coding agent. MCD can run it on a SuperGrok subscription, next to or instead of any other agent.',
+    keywords: ['grok', 'grok build', 'xai', 'supergrok', 'agent', 'install', 'login', 'subscription'],
+    steps: ['Install the CLI on the host and sign in with grok login (or grok login --device-code on a machine without a browser). MCD never sees the sign-in.', 'Open Agents, then Billing & rates, set Grok Build to Subscription and save. Until you do, MCD refuses to start it, because the CLI has no dollar cap and an API-billed route cannot be bounded.', 'Create a task or choose Grok Build as a project story agent or fallback. Pick a model such as grok-4.6, grok-4.5 or grok-build-0.1, or leave it blank for the CLI default.', 'Read the data notice first: Grok sends the task and the files it reads to xAI. MCD runs it with telemetry and trace upload off, inside a filesystem sandbox (read-only for a read task, the working directory for an edit task), with git push and merge blocked.'],
+    links: [{ label: 'Open Billing & rates', to: '/agents?action=billing' }, { label: 'Open Agents', to: '/agents' }],
+    note: 'MCD works with any mix of agents installed, including only Grok Build. Usage for Grok comes from the runs MCD dispatches; it does not read the CLI\u2019s own session history. Grok is not used as a project planner, and subscription limit notices cover Claude Code and Codex only.',
+  },
+  {
     id: 'subscription-limits', title: 'A Claude or Codex limit was reached', area: 'Costs',
     summary: 'RCD notes when a subscription limit lifts, moves stories to an approved alternate on its own, and lets you send the rest across in one click.',
     keywords: ['limit', 'limit reached', 'session limit', 'usage limit', 'resets', 'quota', 'reroute', 'fallback', 'alternate', 'codex', 'claude', 'resume time'],

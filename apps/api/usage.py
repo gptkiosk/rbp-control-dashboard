@@ -18,7 +18,7 @@ from sqlalchemy import select
 from sqlalchemy.dialects.sqlite import insert
 from models import UsageCursor, UsageRecord
 
-AGENTS = ("openclaw", "hermes", "claude", "codex")
+AGENTS = ("openclaw", "hermes", "claude", "codex", "grok")
 
 
 def timestamp(v):

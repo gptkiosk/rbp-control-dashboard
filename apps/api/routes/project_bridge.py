@@ -34,7 +34,7 @@ class Bridge(BaseModel):
     hours:int|None=Field(default=None,ge=1,le=336,strict=True)
     limit:int|None=Field(default=None,ge=1,le=25,strict=True)
     category:Literal['price_gate','subscription_limit','hook_rejection','permission','gateway','incomplete_handoff','test_failure','cancelled','interrupted','timeout','other']|None=None
-    agent:Literal['claude','codex','hermes','openclaw']|None=None
+    agent:Literal['claude','codex','grok','hermes','openclaw']|None=None
     run_id:int|None=Field(default=None,ge=1)
     document:Document|None=None
 

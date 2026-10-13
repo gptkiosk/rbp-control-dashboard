@@ -243,7 +243,7 @@ export type UpdatesPayload = UpdatesOk | UpdatesError
 
 // ---- Phase 3: agents, workdirs, cards, runs ----
 
-export type AgentId = 'claude' | 'codex' | 'hermes' | 'openclaw'
+export type AgentId = 'claude' | 'codex' | 'grok' | 'hermes' | 'openclaw'
 export type RunStage = 'running' | 'succeeded' | 'failed' | 'timeout' | 'cancelled' | 'interrupted' | 'awaiting_approval'
 export type CardColumn = 'backlog' | 'queued' | 'running' | 'review' | 'done' | 'failed'
 export type CardMode = 'read' | 'edit'

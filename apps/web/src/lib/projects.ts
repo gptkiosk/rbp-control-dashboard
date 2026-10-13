@@ -1,9 +1,9 @@
 export interface ProjectNode {
   key: string; kind: 'phase' | 'story'; title: string; description: string; acceptance: string; scope: string
-  parent: string | null; depends_on: string[]; assignee: 'human' | 'claude' | 'codex' | 'hermes' | 'openclaw'
+  parent: string | null; depends_on: string[]; assignee: 'human' | 'claude' | 'codex' | 'grok' | 'hermes' | 'openclaw'
   model: string; agent_target: string; mode: 'read' | 'edit'; rationale: string; x: number; y: number
-  fallbacks: ('claude' | 'codex')[]
-  routes: { agent: 'claude' | 'codex' | 'hermes' | 'openclaw'; model: string }[]
+  fallbacks: ('claude' | 'codex' | 'grok')[]
+  routes: { agent: 'claude' | 'codex' | 'grok' | 'hermes' | 'openclaw'; model: string }[]
 }
 export interface ProjectDocument {
   title: string; brief: string; constraints: string; working_dir: string

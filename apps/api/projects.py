@@ -21,7 +21,7 @@ import billing
 import cards
 import project_workspaces as workspaces
 import provider_limits
-from agents import REGISTRY
+from agents import REGISTRY, SUBSCRIPTION_AGENTS
 import native_routes
 import project_outputs
 from settings import get_settings
@@ -247,7 +247,7 @@ def save(s, p, doc, revision, settings, actor):
     memory(s,p,'decision',f'Plan saved as revision {p.revision}; story planning bias {data["planning_bias"]}/100. Preference is advisory; prior approval does not apply.',actor)
 
 def subscription(s, agent):
-    return agent in {'claude','codex'} and billing.config(s)['accounts'][agent]['mode']=='subscription'
+    return agent in SUBSCRIPTION_AGENTS and billing.config(s)['accounts'][agent]['mode']=='subscription'
 
 def _queue(s, p, role, agent, model, prompt, settings, node_key=''):
     # Operator approved this bounded pipeline at its current revision. New model output

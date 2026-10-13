@@ -6,7 +6,7 @@ class Strict(BaseModel):
     model_config = ConfigDict(extra='forbid', allow_inf_nan=False)
 
 class Route(Strict):
-    agent: Literal['claude', 'codex', 'hermes', 'openclaw']
+    agent: Literal['claude', 'codex', 'grok', 'hermes', 'openclaw']
     model: str = Field(min_length=1, max_length=120)
 
 class Node(Strict):
@@ -18,12 +18,12 @@ class Node(Strict):
     scope: str = Field(default='', max_length=3000)
     parent: str | None = None
     depends_on: list[str] = Field(default_factory=list, max_length=100)
-    assignee: Literal['human', 'claude', 'codex', 'hermes', 'openclaw'] = 'codex'
+    assignee: Literal['human', 'claude', 'codex', 'grok', 'hermes', 'openclaw'] = 'codex'
     model: str = Field(default='', max_length=120)
     agent_target: str = Field(default='', max_length=80)
     mode: Literal['read', 'edit'] = 'read'
     rationale: str = Field(default='', max_length=2000)
-    fallbacks: list[Literal['claude','codex']] = Field(default_factory=list, max_length=2)
+    fallbacks: list[Literal['claude','codex','grok']] = Field(default_factory=list, max_length=3)
     routes: list[Route] = Field(default_factory=list, max_length=6)
 
     @field_validator('parent', mode='before')

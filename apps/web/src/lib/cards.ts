@@ -52,11 +52,12 @@ export function canMoveTo(card: Pick<Card, 'assignee_type' | 'column'>, column: 
 const AGENT_LABELS: Record<AgentId, string> = {
   claude: 'Claude',
   codex: 'Codex',
+  grok: 'Grok Build',
   hermes: 'Hermes',
   openclaw: 'OpenClaw',
 }
 
-export const AGENT_IDS: readonly AgentId[] = ['claude', 'codex', 'hermes', 'openclaw']
+export const AGENT_IDS: readonly AgentId[] = ['claude', 'codex', 'grok', 'hermes', 'openclaw']
 
 export function agentLabel(id: string | null | undefined): string {
   if (!id) return '—'

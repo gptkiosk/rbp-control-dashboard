@@ -10,6 +10,11 @@ Formats were verified on this Mac on 2026-10-09 with one read-only probe per age
                                             result (tokens, exit_code)
   openclaw agent --json                     one JSON document at exit (status, payloads,
                                             meta.agentMeta: provider, model, usage, sessionId)
+  grok     -p --output-format streaming-messages-json
+                                            JSONL in Claude Code's stream-json shape: system/init
+                                            (model, session), assistant, result (cost, usage, is_error).
+                                            Verified against xai-org/grok-build 1.0.52 source and
+                                            `grok --help`; not run against a signed-in account.
 
 Each parser turns output lines into short human-readable log lines and fills RunMeta.
 Fields an agent does not report stay None and the UI shows "not reported".
@@ -141,6 +146,58 @@ def build_claude(card, prompt: str, model: str | None, budget: float, binary: st
         # MCP tools are exposed to the continuation agent.
         argv += ["--tools", "Read,Glob,Grep", "--strict-mcp-config", "--mcp-config",
                  '{"mcpServers":{}}', "--disable-slash-commands"]
+    return argv
+
+
+# ----------------------------------------------------------------------------- Grok Build
+
+
+class GrokParser(ClaudeParser):
+    """Grok Build's `--output-format streaming-messages-json` is Claude Code's stream-json shape
+    (system/init, assistant, user tool results, result with usage and total_cost_usd), so the
+    Claude parser reads it. What differs is who the provider is, and that an error can arrive as a
+    bare `{"type":"error","message":...}` line (for example when nobody is signed in)."""
+
+    def feed(self, line: str) -> list[str]:
+        ev = _json(line)
+        if ev is not None and ev.get("type") == "error":
+            self.meta.error = str(ev.get("message") or "agent reported an error")
+            return [f"error: {self.meta.error}"]
+        out = super().feed(line)
+        if ev is not None and ev.get("type") == "system" and ev.get("subtype") == "init":
+            self.meta.provider = "xai"
+        return out
+
+
+# Telemetry and trace upload are the operator's choice, never the agent's: a dashboard-dispatched run
+# turns them off and keeps the agent inside a filesystem sandbox. See docs/configuration/grok.md.
+GROK_PRIVACY_ENV = {"GROK_TELEMETRY_ENABLED": "false", "GROK_TELEMETRY_TRACE_UPLOAD": "false",
+                    "GROK_TELEMETRY_MIXPANEL_ENABLED": "false"}
+
+
+def build_grok(card, prompt: str, model: str | None, budget: float, binary: str,
+               session_id: str | None = None) -> list[str]:
+    read_only = card.mode == "read"
+    grant = getattr(card, "agent_git_grant", None)
+    # Same rules as Claude (Grok accepts Claude's `Bash(cmd:*)` syntax; deny beats allow): git push and
+    # merges stay blocked unless the operator granted one exact push for this project.
+    denied = (agent_git.claude_denied(grant) if grant else
+              ["Bash(git push:*)", "Bash(git merge:*)", "Bash(gh pr merge:*)"])
+    argv = [binary, "--no-auto-update", "-p", prompt, "--output-format", "streaming-messages-json",
+            "--permission-mode", "plan" if read_only else "acceptEdits",
+            # Landlock on Linux, Seatbelt on macOS: read-only for a read task, the working directory
+            # (plus /tmp and ~/.grok) for an edit task. Without a profile nothing is restricted.
+            "--sandbox", "read-only" if read_only else "workspace"]
+    for rule in denied:
+        argv += ["--deny", rule]
+    if grant:
+        for rule in agent_git.claude_allowed(grant):
+            if rule != "--allowedTools":
+                argv += ["--allow", rule]
+    if model:
+        argv += ["--model", model]
+    if session_id:
+        argv += ["--resume", session_id]
     return argv
 
 
@@ -350,6 +407,8 @@ class AgentSpec:
     # True when the dashboard must choose the session id before the first turn (OpenClaw);
     # False when the agent reports its own session id and we resume it.
     preassigned_session: bool = False
+    # Environment this agent's runs always get, on top of the scrubbed one (never from agent output).
+    env: dict[str, str] = field(default_factory=dict)
 
     def binary(self, settings) -> str:
         return str(getattr(settings, self.binary_setting))
@@ -370,6 +429,14 @@ REGISTRY: dict[str, AgentSpec] = {
         default_model=codex_default_model,
         notes="Read = read-only sandbox; Edit = workspace-write sandbox. Model is not reported by Codex.",
     ),
+    "grok": AgentSpec(
+        "grok", "Grok Build", "worker", "grok_path", build_grok, GrokParser,
+        suggested_models=("grok-4.6", "grok-4.5", "grok-build-0.1"),
+        notes="Read = plan mode in a read-only sandbox; Edit = file edits in a workspace sandbox. "
+              "git push/merge blocked. Sends the task and the files it reads to xAI. Subscription use only: "
+              "the CLI has no dollar cap, so an API-billed route is refused.",
+        env=GROK_PRIVACY_ENV,
+    ),
     "hermes": AgentSpec(
         "hermes", "Hermes", "manager", "hermes_path", build_hermes, HermesParser,
         enforces_mode=False,
@@ -381,6 +448,12 @@ REGISTRY: dict[str, AgentSpec] = {
         notes="Runs one turn via the OpenClaw gateway (default agent mm-main). Replies are never delivered to a channel.",
     ),
 }
+
+
+# Agents sold as a flat-fee plan, which a subscription account can classify as a subscription route.
+SUBSCRIPTION_AGENTS = ("claude", "codex", "grok")
+# Every agent with a billing account, in the order the dashboards list them.
+BILLED_AGENTS = ("openclaw", "hermes", "claude", "codex", "grok")
 
 
 def redact(argv: list[str], prompt: str) -> list[str]:
