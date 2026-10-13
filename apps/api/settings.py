@@ -23,12 +23,19 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 IS_MACOS = sys.platform == "darwin"
 
 
+def default_agent_tools_root(product_short_name: str = "RCD") -> Path:
+    """Where the Agent tools panel installs the agent CLIs (per user, no sudo): one folder, removable as a whole."""
+    base = os.environ.get("XDG_DATA_HOME") or str(Path.home() / ".local" / "share")
+    return Path(base) / ("rcd-agent-tools" if product_short_name.upper() == "RCD" else "mcd-agent-tools")
+
+
 def tool_search_dirs() -> tuple[str, ...]:
-    """Folders searched for optional host tools: the process PATH, then common user/package folders."""
+    """Folders searched for optional tools: managed installs, PATH, then common user folders."""
+    managed = os.environ.get("MAC_CONTROL_AGENT_TOOLS_ROOT") or str(default_agent_tools_root(os.environ.get("MAC_CONTROL_PRODUCT_SHORT_NAME", "RCD")))
     extra = [str(Path.home() / ".local" / "bin"), str(Path.home() / ".grok" / "bin"), "/usr/local/bin"]
     if IS_MACOS:
         extra.append("/opt/homebrew/bin")  # Homebrew's standard Apple-silicon prefix
-    return tuple(dict.fromkeys(d for d in (*os.environ.get("PATH", "").split(os.pathsep), *extra) if d))
+    return tuple(dict.fromkeys(d for d in (os.path.join(managed, "bin"), *os.environ.get("PATH", "").split(os.pathsep), *extra) if d))
 
 
 def find_tool(name: str) -> str:
@@ -142,6 +149,13 @@ class Settings(BaseSettings):
 
     # --- Packaged updates: off unless a helper-managed update root is set up -------
     update_root: Path | None = Field(default=None, description="Install root with helper/helper.json; see packaging/README.md.")
+
+    # --- Agent tools panel: where the pinned agent CLIs are installed (per user, no sudo) ---------
+    agent_tools_root: Path | None = Field(default=None, description="Install folder for the Agent tools panel; see docs/install/agent-tools.md.")
+
+    @property
+    def agent_tools_path(self) -> Path:
+        return self.agent_tools_root or default_agent_tools_root(self.product_short_name)
 
     @property
     def reports_path(self) -> Path:

@@ -1,0 +1,269 @@
+{
+  "schema": "dashboard-tool-catalog/v1",
+  "checked": "2026-10-13",
+  "requirements": {
+    "platforms": [
+      "linux-arm64"
+    ],
+    "min_free_disk_mb": 2048,
+    "disk_headroom_mb": 512,
+    "warn_ram_mb": 3584,
+    "warn_available_ram_mb": 1024
+  },
+  "system_packages": {
+    "build-essential": {
+      "why": "compiles native add-ons when a dependency has no prebuilt version",
+      "commands": [
+        "gcc",
+        "g++",
+        "make"
+      ]
+    },
+    "curl": {
+      "why": "downloads",
+      "commands": [
+        "curl"
+      ]
+    },
+    "ffmpeg": {
+      "why": "audio and video tools",
+      "commands": [
+        "ffmpeg"
+      ]
+    },
+    "git": {
+      "why": "fetches the pinned Hermes commit",
+      "commands": [
+        "git"
+      ]
+    },
+    "ripgrep": {
+      "why": "fast code search used by the agents",
+      "commands": [
+        "rg"
+      ]
+    }
+  },
+  "runtimes": {
+    "node": {
+      "name": "Node.js",
+      "installer": "archive",
+      "version": "24.21.0",
+      "size_mb": 230,
+      "note": "Shared by the npm tools and Hermes. OpenClaw needs Node 24.16 or newer, which Raspberry Pi OS does not ship.",
+      "archive": {
+        "linux-arm64": {
+          "url": "https://nodejs.org/dist/v24.21.0/node-v24.21.0-linux-arm64.tar.xz",
+          "sha256": "6ad1325edbdb5649c379b75a237147a666c95d4f9ae8d340fef2d1575d289ad2",
+          "size": 30843004,
+          "format": "tar.xz",
+          "root": "node-v24.21.0-linux-arm64",
+          "shasums_url": "https://nodejs.org/dist/v24.21.0/SHASUMS256.txt"
+        }
+      },
+      "bins": [],
+      "check": {
+        "argv": [
+          "bin/node",
+          "--version"
+        ],
+        "expect": "v24.21.0"
+      }
+    }
+  },
+  "tools": {
+    "claude-code": {
+      "name": "Claude Code",
+      "installer": "npm-lock",
+      "version": "2.1.296",
+      "package": "@anthropic-ai/claude-code",
+      "lock_dir": "tool_locks/claude-code",
+      "lock": {
+        "package_json_sha256": "b6c5aced52c513f6a43a69cc6350029842d7cf60e38653e5084547ff21f1cc6e",
+        "package_lock_sha256": "8bcacaa11e7a82c6074e110ce54cf1549ea4182813965f2ec080c7fa0e57c7be"
+      },
+      "allow_scripts": [
+        {
+          "package": "@anthropic-ai/claude-code",
+          "script": "install.cjs"
+        }
+      ],
+      "requires": [
+        "node"
+      ],
+      "bins": [
+        {
+          "name": "claude",
+          "argv": [
+            "node_modules/.bin/claude"
+          ]
+        }
+      ],
+      "size_mb": 490,
+      "check": {
+        "argv": [
+          "claude",
+          "--version"
+        ],
+        "expect": "2.1.296"
+      },
+      "login": {
+        "command": "claude auth login",
+        "note": "Opens a sign-in link to paste into a browser on another device. Use a subscription or an Anthropic API key held in your own account."
+      },
+      "system_packages": {
+        "required": [],
+        "recommended": [
+          "ripgrep"
+        ]
+      },
+      "peak_ram_mb": 300
+    },
+    "codex": {
+      "name": "Codex CLI",
+      "installer": "npm-lock",
+      "version": "0.162.1",
+      "package": "@openai/codex",
+      "lock_dir": "tool_locks/codex",
+      "lock": {
+        "package_json_sha256": "d1785caa7558dbb39c2531c0e66e8761f3ab650abb16319255ff1f1701ea74eb",
+        "package_lock_sha256": "6721361c23f1adf90397b0fedd789d151698bde54218927f9218fc3a29bd1899"
+      },
+      "allow_scripts": [],
+      "requires": [
+        "node"
+      ],
+      "bins": [
+        {
+          "name": "codex",
+          "argv": [
+            "node_modules/.bin/codex"
+          ]
+        }
+      ],
+      "size_mb": 390,
+      "check": {
+        "argv": [
+          "codex",
+          "--version"
+        ],
+        "expect": "0.162.1"
+      },
+      "login": {
+        "command": "codex login --device-auth",
+        "note": "Shows a code to enter in a browser on another device. A ChatGPT sign-in or an OpenAI API key held in your own account."
+      },
+      "system_packages": {
+        "required": [],
+        "recommended": [
+          "ripgrep"
+        ]
+      },
+      "peak_ram_mb": 250
+    },
+    "openclaw": {
+      "name": "OpenClaw",
+      "installer": "npm-lock",
+      "version": "2026.10.3",
+      "package": "openclaw",
+      "lock_dir": "tool_locks/openclaw",
+      "lock": {
+        "package_json_sha256": "f651964ce0488383e96b87ba2c662fc68f045b18ed122130292d060c0523fe7a",
+        "package_lock_sha256": "00a45a58787eb5f94a710f92a99f61fcb926786b8cd1939942128ec0b2d870e7"
+      },
+      "allow_scripts": [],
+      "requires": [
+        "node"
+      ],
+      "bins": [
+        {
+          "name": "openclaw",
+          "argv": [
+            "node_modules/.bin/openclaw"
+          ]
+        }
+      ],
+      "size_mb": 620,
+      "check": {
+        "argv": [
+          "openclaw",
+          "--version"
+        ],
+        "expect": "2026.10.3"
+      },
+      "login": {
+        "command": "openclaw onboard",
+        "note": "Guided setup for the model sign-in, workspace and channels. This button installs the program only; no gateway service is installed or started."
+      },
+      "system_packages": {
+        "required": [],
+        "recommended": []
+      },
+      "peak_ram_mb": 450
+    },
+    "hermes": {
+      "name": "Hermes",
+      "installer": "pinned-script",
+      "version": "0.21.7",
+      "note": "Hermes's own installer downloads and checks its toolchain (uv, Python, Node, ripgrep, ffmpeg) against the sha256 values in pm/lock.json of the pinned commit, into the Hermes data folder. System packages are optional.",
+      "repository": "https://github.com/NousResearch/hermes-agent.git",
+      "tag": "v0.21.7",
+      "commit": "71d34bad1045610252eda02ee79549436896e784",
+      "script": {
+        "url": "https://raw.githubusercontent.com/NousResearch/hermes-agent/71d34bad1045610252eda02ee79549436896e784/scripts/install.sh",
+        "sha256": "034845e34289813ff5fb7fd3e071ec69f6b14aee8ba297a477b31dda6374cb86",
+        "size": 52776
+      },
+      "script_args": [
+        "--non-interactive",
+        "--skip-setup",
+        "--skip-browser",
+        "--skip-computer-use",
+        "--commit",
+        "{commit}",
+        "--dir",
+        "{install_dir}",
+        "--hermes-home",
+        "{hermes_home}"
+      ],
+      "requires": [],
+      "bins": [
+        {
+          "name": "hermes",
+          "argv": [
+            "hermes-agent/.hermes/bin/hermes"
+          ]
+        }
+      ],
+      "size_mb": 2400,
+      "check": {
+        "argv": [
+          "hermes",
+          "--version"
+        ],
+        "expect": "0.21.7"
+      },
+      "login": {
+        "command": "hermes model",
+        "note": "Chooses the model provider and signs in. Keys are kept by Hermes in its own data folder, not by this dashboard."
+      },
+      "system_packages": {
+        "required": [
+          "git",
+          "curl"
+        ],
+        "recommended": [
+          "build-essential",
+          "ripgrep",
+          "ffmpeg"
+        ]
+      },
+      "external_state": {
+        "root": "hermes_home",
+        "subdir": "installs"
+      },
+      "peak_ram_mb": 1700,
+      "system_packages_note": "Hermes downloads its own ripgrep and ffmpeg, so these only matter if you also want them for other work."
+    }
+  }
+}

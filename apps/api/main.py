@@ -41,6 +41,7 @@ from db import make_engine, make_session_factory
 from migrate import upgrade_to_head
 from routes import billing as billing_routes, chat, health, mcp as mcp_routes, metrics, release, services, system, tasks
 from routes import updates
+from routes import tool_installs
 from settings import get_settings
 from spa import mount_spa
 from version import __version__
@@ -205,6 +206,7 @@ def create_app() -> FastAPI:
     app.include_router(health.router)
     app.include_router(release.router)
     app.include_router(updates.router)
+    app.include_router(tool_installs.router)
     app.include_router(metrics.router)
     app.include_router(services.router)
     app.include_router(system.router)

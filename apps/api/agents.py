@@ -411,7 +411,12 @@ class AgentSpec:
     env: dict[str, str] = field(default_factory=dict)
 
     def binary(self, settings) -> str:
-        return str(getattr(settings, self.binary_setting))
+        path = str(getattr(settings, self.binary_setting))
+        if not os.path.isabs(path):
+            # Nothing was found at startup. A copy installed since by the Agent tools panel is used without a restart.
+            from tool_install import managed_bin
+            return managed_bin(getattr(settings, "agent_tools_path", None), path) or path
+        return path
 
     def available(self, settings) -> bool:
         path = self.binary(settings)
