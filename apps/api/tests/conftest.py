@@ -72,3 +72,13 @@ def sessions(tmp_path):
     upgrade_to_head(engine)
     yield make_session_factory(engine)
     engine.dispose()
+
+
+@pytest.fixture
+def subscriptions(monkeypatch):
+    """RCD ships free-only: no Claude or Codex subscription exists until the operator saves one.
+    Tests of subscription flows opt in with this fixture."""
+    import billing
+    monkeypatch.setattr(billing, "DEFAULT_ACCOUNTS", {**billing.DEFAULT_ACCOUNTS,
+                        "claude": {"mode": "subscription", "monthly_usd": 20.0},
+                        "codex": {"mode": "subscription", "monthly_usd": 20.0}})

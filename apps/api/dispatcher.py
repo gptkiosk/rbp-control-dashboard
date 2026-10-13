@@ -114,6 +114,9 @@ class Dispatcher:
         self._loop_task: asyncio.Task | None = None
         self._last_prune = 0.0
         self._adapters_recovered = False
+        # Turns a previous process left running are older than this one; a message sent while the first
+        # recovery is still pending belongs to this process and must not be failed by it.
+        self._boot_at = _now()
         self._recovery_outcomes: dict[tuple[str, str], dict] = {}
         self._adapter_recovery_lock = asyncio.Lock()
         self._decision_lock = asyncio.Lock()
@@ -149,8 +152,11 @@ class Dispatcher:
             return len(stuck)
 
     @staticmethod
-    def _fail_chat_turns(s, note: str, now: int) -> None:
-        for msg in s.execute(select(ChatMessage).where(ChatMessage.status == "running")).scalars():
+    def _fail_chat_turns(s, note: str, now: int, before: int | None = None) -> None:
+        query = select(ChatMessage).where(ChatMessage.status == "running")
+        if before is not None:
+            query = query.where(ChatMessage.created_at < before)
+        for msg in s.execute(query).scalars():
             msg.status = "failed"
             s.add(ChatMessage(thread_id=msg.thread_id, role="assistant", status="failed",
                               text=f"(turn interrupted: {note})", created_at=now))
@@ -404,7 +410,7 @@ class Dispatcher:
                                     now, requeue=False)
                 else:
                     self._interrupt(s, run, RESTART_NOTE, now)
-            self._fail_chat_turns(s, RESTART_NOTE, now)
+            self._fail_chat_turns(s, RESTART_NOTE, now, before=self._boot_at)
         return follow
 
     def _follow(self, run_id: int, card_id: int, agent: str) -> None:

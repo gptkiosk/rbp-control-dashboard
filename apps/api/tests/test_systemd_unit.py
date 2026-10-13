@@ -22,7 +22,9 @@ def test_template_placeholders_are_all_rendered_by_the_installer():
 def test_template_restarts_only_after_failure_and_holds_no_secret():
     assert "Restart=on-failure" in TEMPLATE
     assert "WantedBy=default.target" in TEMPLATE
-    assert not re.search(r"SECRET|TOKEN|PASSWORD|KEY=", TEMPLATE, re.I)
+    # No credential may be configured in the unit; comments may say so.
+    settings = "\n".join(l for l in TEMPLATE.splitlines() if not l.lstrip().startswith("#"))
+    assert not re.search(r"SECRET|TOKEN|PASSWORD|KEY=", settings, re.I)
 
 
 def test_unit_name_is_the_one_the_update_helper_and_probe_use():

@@ -34,7 +34,7 @@ def wait_until(predicate, timeout=15):
 def test_sigkill_recovery_one_completion_artifact_and_receipt(sessions, tmp_path, failure):
     now = int(time.time())
     with sessions.begin() as db:
-        db.add(Card(id=1, title='chaos', body='synthetic', agent='synthetic', mode='read',
+        db.add(Card(id=1, title='chaos', body='synthetic', agent='synthetic', model='synthetic:free', mode='read',
             working_dir=str(tmp_path), column='queued', position=1, timeout_s=30,
             needs_approval=False, created_by='test', created_at=now, updated_at=now))
     worker = Path(__file__).with_name('durable_worker.py')

@@ -450,7 +450,9 @@ def test_openclaw_targets_are_serialized_with_separate_story_sessions(app):
     n=lambda key: dict(node(key),assignee='openclaw',model='openrouter/thinkingmachines/inkling:free',agent_target='mm-main')
     p=active(app,[n('a'),n('b'),node('c')],dispatch_mode='parallel')
     tasks={t['node_key']:t for t in p['tasks'] if t['role']=='story'}
-    d=Dispatcher(s,settings);claimed=d._claim(3)
+    d=Dispatcher(s,settings)
+    d._adapters_recovered=True   # a dispatcher that is already running has reconciled at startup; these direct claims are its own runs
+    claimed=d._claim(3)
     assert {a['id'] for a,_ in claimed}=={tasks['a']['card_id'],tasks['c']['card_id']}
     first=next(a['argv'] for a,_ in claimed if a['agent']=='openclaw')
     c.app.state.dispatcher=d

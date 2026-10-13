@@ -156,11 +156,17 @@ def test_buffer_memory_stays_flat_over_a_long_soak():
         full = tracemalloc.get_traced_memory()[0]
         for i in range(50_000):  # ~14 hours of one transition per second
             bus.publish([event(i)])
+        settled = tracemalloc.get_traced_memory()[0]
+        for i in range(50_000):  # and as long again
+            bus.publish([event(i)])
         after = tracemalloc.get_traced_memory()[0]
     finally:
         tracemalloc.stop()
     assert full - empty < live_status.BUFFER_LIMIT_BYTES
-    assert after - full < 16 * 1024
+    # Flat means no growth with more events. A small one-off allocator overhead differs between Python
+    # builds (about 24 KiB on macOS), so the bound is on the second 50,000 events, not the first.
+    assert after - settled < 4 * 1024
+    assert settled - full < 64 * 1024
 
 
 def test_subscriber_cap():

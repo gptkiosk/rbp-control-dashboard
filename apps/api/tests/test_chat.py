@@ -39,6 +39,9 @@ def _build(ctx, prompt, model, budget, binary, session_id=None):
 def tc(make_client, tmp_path, monkeypatch):
     """A client whose dispatcher runs the fake agent; registry and client are restored after."""
     client = make_client()
+    from settings import get_settings   # RCD ships free-only; the fake agent runs through the paid path
+    for name, value in (("dispatch_free_only", False), ("default_budget_usd", 1.0), ("dispatch_max_budget_usd", 1.0)):
+        monkeypatch.setattr(get_settings(), name, value)
     spec = agents.AgentSpec("fake", "Fake", "worker", "claude_path", _build, SessionParser)
     import routes.chat as chat_routes
     monkeypatch.setattr(chat_routes, "REGISTRY", {**agents.REGISTRY, "fake": spec})

@@ -167,7 +167,7 @@ def test_claude_chunks_deduplicate_and_preserve_subagent(sessions):
         assert r["output_tokens"] == 8 and r["input_tokens"] == 60
 
 
-def test_month_savings_negative_and_native_supersedes_mcd(sessions):
+def test_month_savings_negative_and_native_supersedes_mcd(sessions, subscriptions):
     with sessions.begin() as s:
         put(
             s,
@@ -249,7 +249,8 @@ def test_target_selection_keeps_full_picker_and_overview(sessions):
 def test_billing_preferences_validation_and_persistence(make_client):
     with make_client() as client:
         cfg = client.get("/api/billing").json()
-        assert cfg["accounts"]["claude"]["monthly_usd"] == 20
+        # Free-only by default: no subscription exists until the operator saves one.
+        assert cfg["accounts"]["claude"] == {"mode": "api", "monthly_usd": 0.0}
         response = client.patch(
             "/api/billing",
             json={

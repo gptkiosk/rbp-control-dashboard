@@ -40,7 +40,9 @@ class SyntheticParser(Parser):
 async def host(root):
     sessions = make_session_factory(make_engine(root / 'test.db'))
     settings = SimpleNamespace(runs_dir=root / 'runs', max_concurrent_runs=1,
-        default_budget_usd=0, claude_path=sys.executable, run_retention_days=90)
+        default_budget_usd=0, claude_path=sys.executable, run_retention_days=90,
+        # The price gate: a reviewed free route for the synthetic runtime, whatever the host's settings say.
+        dispatch_free_only=True, dispatch_max_budget_usd=0, dispatch_route_classes={'synthetic||synthetic:free': 'free'})
     def build(card, prompt, model, budget, binary):
         return [sys.executable, str(Path(__file__).resolve()), 'runtime', str(root)]
     registry = {'synthetic': AgentSpec('synthetic', 'Synthetic', 'worker', 'claude_path', build, SyntheticParser)}

@@ -26,6 +26,13 @@ from tests.test_release_verify import OTHER_PLATFORM, OTHER_PRODUCT, PLATFORM, P
 TAG = "v1.2.0"
 
 
+@pytest.fixture(autouse=True)
+def _linux_arm64_host(monkeypatch):
+    """The packages are synthetic Linux arm64 releases; the logic under test must not depend on the host
+    the suite runs on (a Mac developer machine reports darwin-arm64)."""
+    monkeypatch.setattr(rv, "host_platform", lambda: PLATFORM)
+
+
 class Server:
     """Tiny GitHub stand-in. routes: path -> bytes | (status, headers, body) | callable(handler)."""
 
