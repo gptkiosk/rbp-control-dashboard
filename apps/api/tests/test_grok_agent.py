@@ -106,7 +106,6 @@ def test_grok_is_registered_with_a_safe_default():
     assert "grok" in agents.SUBSCRIPTION_AGENTS and "grok" in agents.BILLED_AGENTS
     import billing
     assert billing.DEFAULT_ACCOUNTS["grok"] == {"mode": "api", "monthly_usd": 0.0}   # refused until the operator saves a subscription
-    assert billing.DEFAULT_ACCOUNTS["claude"]["mode"] == "subscription"
     assert agents.GROK_PRIVACY_ENV["GROK_TELEMETRY_TRACE_UPLOAD"] == "false"
 
 

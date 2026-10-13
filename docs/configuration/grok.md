@@ -1,33 +1,33 @@
 # Grok Build
 
-Grok Build is xAI's terminal coding agent (`grok`, Apache-2.0 client, closed models). MCD runs it like Claude
+Grok Build is xAI's terminal coding agent (`grok`, Apache-2.0 client, closed models). RCD runs it like Claude
 Code or Codex: as a task or chat agent, as a project story agent, and as an approved fallback route.
 
 ## Set it up
 
 1. Install the CLI on the host: `curl -fsSL https://x.ai/cli/install.sh | bash` puts `grok` in `~/.grok/bin`
-   (macOS and Linux, Apple Silicon, x86-64 and 64-bit ARM including the Raspberry Pi). The installer does not
+   (Linux on 64-bit ARM, which includes a Raspberry Pi 4 or 5 running 64-bit Raspberry Pi OS, and x86-64; macOS too). The installer does not
    verify a checksum; if that matters, pin the version and compare the binary's SHA-256 yourself.
-2. Sign in on the host: `grok login`, or `grok login --device-code` on a machine without a browser. MCD never
+2. Sign in on the host: `grok login`, or `grok login --device-code` on a machine without a browser. RCD never
    sees the sign-in. `XAI_API_KEY` is an alternative, but see Billing below.
-3. Agents, then Billing & rates: set Grok Build to **Subscription** and save. Until then MCD refuses to start
-   it. Setting the path is only needed when `grok` is not in `~/.grok/bin`: `MAC_CONTROL_GROK_PATH`.
+3. Agents, then Billing & rates: set Grok Build to **Subscription** and save. Until then RCD refuses to start
+   it. Setting the path is only needed when `grok` is not found on `PATH` or in `~/.grok/bin`: `MAC_CONTROL_GROK_PATH`.
 
 ## Billing: subscription only
 
-The Grok CLI has no dollar cap, so MCD cannot bound an API-billed run and refuses it
-(`BUDGET_UNENFORCED`). A SuperGrok subscription is a flat fee, so MCD classifies a Grok route as a
+The Grok CLI has no dollar cap, so RCD cannot bound an API-billed run and refuses it
+(`BUDGET_UNENFORCED`). A SuperGrok subscription is a flat fee, so RCD classifies a Grok route as a
 subscription route once you save that account. Saving it is also your acceptance of the data notice below.
 
 Prices come from the price catalog (`grok-4.7`, `grok-4.6`, `grok-4.5`, `grok-build-0.1`, from
 docs.x.ai/docs/models, long-context tier above 200k prompt tokens). `scripts/pricing/check.py --source xai`
 compares them with the page. A run's own reported cost wins when the CLI reports one.
 
-## What it sends, and how MCD runs it
+## What it sends, and how RCD runs it
 
 Grok sends your prompt and the files it reads to xAI. Third-party reports from July 2026 said an earlier version
 also uploaded repository contents even with data sharing off, and that xAI changed a server setting on the
-same day; MCD has not verified either claim. So every run MCD starts is confined:
+same day; RCD has not verified either claim. So every run RCD starts is confined:
 
 - telemetry, anonymous analytics and **trace upload are switched off** through the run's environment
   (`GROK_TELEMETRY_ENABLED`, `GROK_TELEMETRY_TRACE_UPLOAD`, `GROK_TELEMETRY_MIXPANEL_ENABLED` set to false);
@@ -45,9 +45,9 @@ Use Grok only on work you are willing to share with xAI.
 | Task, chat, project story agent, approved fallback | yes |
 | Operator-granted git push to a project branch | yes (same rules as Claude Code) |
 | Project planner (Hermes, Claude Code or Codex plan; auto assignment by planning bias) | no: only chosen by hand |
-| Usage and cost | from the runs MCD dispatches (tokens and the CLI's reported cost); the CLI's own session history is not read |
+| Usage and cost | from the runs RCD dispatches (tokens and the CLI's reported cost); the CLI's own session history is not read |
 | Subscription limit notice and reroute | no (the CLI's limit wording is not known yet) |
-| MCP server management from MCD | no |
+| MCP server management from RCD | no |
 
 ## Verification status
 
@@ -58,6 +58,6 @@ real task output was recorded: the parser is tested with lines shaped like the s
 
 ## Any mix of agents
 
-MCD works with any mix of agents installed: Claude Code, Codex, Grok Build, Hermes, OpenClaw, any subset
+RCD works with any mix of agents installed: Claude Code, Codex, Grok Build, Hermes, OpenClaw, any subset
 (`tests/test_agent_mix.py` runs all 32). Readiness, defaults and pickers never assume a particular agent. A task
 for an agent that is not installed fails with a reason; a project can only use installed agents.

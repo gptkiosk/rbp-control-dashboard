@@ -182,11 +182,11 @@ export const helpGuides: HelpGuide[] = [
   },
   {
     id: 'grok-build', title: 'Use Grok Build as an agent', area: 'Agents',
-    summary: 'Grok Build is xAI\u2019s terminal coding agent. MCD can run it on a SuperGrok subscription, next to or instead of any other agent.',
+    summary: 'Grok Build is xAI\u2019s terminal coding agent. RCD can run it on a SuperGrok subscription, next to or instead of any other agent.',
     keywords: ['grok', 'grok build', 'xai', 'supergrok', 'agent', 'install', 'login', 'subscription'],
-    steps: ['Install the CLI on the host and sign in with grok login (or grok login --device-code on a machine without a browser). MCD never sees the sign-in.', 'Open Agents, then Billing & rates, set Grok Build to Subscription and save. Until you do, MCD refuses to start it, because the CLI has no dollar cap and an API-billed route cannot be bounded.', 'Create a task or choose Grok Build as a project story agent or fallback. Pick a model such as grok-4.6, grok-4.5 or grok-build-0.1, or leave it blank for the CLI default.', 'Read the data notice first: Grok sends the task and the files it reads to xAI. MCD runs it with telemetry and trace upload off, inside a filesystem sandbox (read-only for a read task, the working directory for an edit task), with git push and merge blocked.'],
+    steps: ['Install the CLI on the Pi and sign in with grok login (or grok login --device-code on a machine without a browser). RCD never sees the sign-in.', 'Open Agents, then Billing & rates, set Grok Build to Subscription and save. Until you do, RCD refuses to start it, because the CLI has no dollar cap and an API-billed route cannot be bounded.', 'Create a task or choose Grok Build as a project story agent or fallback. Pick a model such as grok-4.6, grok-4.5 or grok-build-0.1, or leave it blank for the CLI default.', 'Read the data notice first: Grok sends the task and the files it reads to xAI. RCD runs it with telemetry and trace upload off, inside a filesystem sandbox (read-only for a read task, the working directory for an edit task), with git push and merge blocked.'],
     links: [{ label: 'Open Billing & rates', to: '/agents?action=billing' }, { label: 'Open Agents', to: '/agents' }],
-    note: 'MCD works with any mix of agents installed, including only Grok Build. Usage for Grok comes from the runs MCD dispatches; it does not read the CLI\u2019s own session history. Grok is not used as a project planner, and subscription limit notices cover Claude Code and Codex only.',
+    note: 'RCD works with any mix of agents installed, including only Grok Build. Usage for Grok comes from the runs RCD dispatches; it does not read the CLI\u2019s own session history. Grok is not used as a project planner, and subscription limit notices cover Claude Code and Codex only.',
   },
   {
     id: 'subscription-limits', title: 'A Claude or Codex limit was reached', area: 'Costs',
