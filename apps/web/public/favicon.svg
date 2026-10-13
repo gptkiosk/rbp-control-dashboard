@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Raspberry Pi Control Dashboard</title>
+  <defs>
+    <linearGradient id="mcd-g" x1="6" y1="4" x2="58" y2="60" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#4c9aff"/>
+      <stop offset="1" stop-color="#39c5cf"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="15" fill="#0e1116"/>
+  <rect x="3.5" y="3.5" width="57" height="57" rx="13" fill="url(#mcd-g)"/>
+  <polyline points="9,38 17,38 22.5,19 32,41 41.5,19 47,38 55,38" fill="none" stroke="#ffffff"
+            stroke-width="5.2" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="50" cy="50.5" r="3" fill="#ffffff" opacity="0.92"/>
+</svg>
