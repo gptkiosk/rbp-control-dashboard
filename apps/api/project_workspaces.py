@@ -53,11 +53,25 @@ def prepare(path, artifacts, existing):
             raise HTTPException(409, 'Story workspace has changes before prerequisite integration; inspect it first.')
         before = git(path, 'rev-parse', 'HEAD')
         try:
-            git(path, 'cherry-pick', '--empty=drop', *pending)
+            # One commit at a time, dropping any that the story already has: `cherry-pick --empty=drop`
+            # needs git 2.45, and Raspberry Pi OS and Ubuntu ship older versions.
+            for commit in pending:
+                try:
+                    git(path, 'cherry-pick', commit)
+                except HTTPException:
+                    unresolved = git(path, 'diff', '--name-only', '--diff-filter=U')
+                    if unresolved or git(path, 'status', '--porcelain'):
+                        raise
+                    git(path, 'cherry-pick', '--skip')   # the pick became empty: nothing to carry over
         except HTTPException:
             # git cherry-pick --abort restores all picks from this sequence.
             try: git(path, 'cherry-pick', '--abort')
             except HTTPException: pass
+            if git(path, 'rev-parse', 'HEAD') != before:
+                # Picks made before the conflict are ours and the workspace was clean when we started:
+                # return to where it was, as one sequence would have.
+                try: git(path, 'reset', '--hard', before)
+                except HTTPException: pass
             if git(path, 'rev-parse', 'HEAD') != before:
                 raise HTTPException(409, 'Prerequisite integration stopped. Inspect the story branch before retrying.')
             raise HTTPException(409, 'Accepted prerequisite commits conflict. Resolve the story workspace explicitly, then retry. The source branch was not changed.')

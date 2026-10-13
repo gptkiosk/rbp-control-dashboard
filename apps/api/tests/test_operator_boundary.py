@@ -192,3 +192,24 @@ def test_agent_processes_are_refused_over_real_loopback(tmp_path):
         for proc, group in ((executable_agent, False), (runner, True), (server, False)):
             if proc is not None:
                 _stop(proc, group)
+
+
+def test_a_zombie_runner_does_not_make_the_caller_unverifiable(monkeypatch):
+    """A runner that exited and is not yet reaped holds no sockets. On Linux psutil reports it as
+    AccessDenied, which must not turn every operator request into 'could not be verified'."""
+    import time
+    from types import SimpleNamespace
+    import psutil
+    from operator_boundary import OperatorBoundary
+
+    child = subprocess.Popen([sys.executable, "-c", "pass"])
+    try:
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline and psutil.Process(child.pid).status() != psutil.STATUS_ZOMBIE:
+            time.sleep(0.02)
+        assert psutil.Process(child.pid).status() == psutil.STATUS_ZOMBIE
+        boundary = OperatorBoundary(SimpleNamespace(agent_executables=()), None)
+        monkeypatch.setattr(boundary, "_agent_processes", lambda: {child.pid: 7})
+        assert boundary.peer(("127.0.0.1", 50123), ("127.0.0.1", 8800)) is None
+    finally:
+        child.wait()

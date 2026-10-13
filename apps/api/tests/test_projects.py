@@ -41,6 +41,10 @@ def test_direct_incomplete_handoff_language_is_not_completion(result):
 @pytest.fixture
 def app(make_client, monkeypatch, tmp_path):
     monkeypatch.setattr(AgentSpec,'available',lambda self,settings:True)
+    # The Codex default model comes from the host's ~/.codex/config.toml; a test must not depend on it.
+    from agents import REGISTRY
+    import dataclasses
+    monkeypatch.setitem(REGISTRY,'codex',dataclasses.replace(REGISTRY['codex'],default_model=lambda:'gpt-6-luna'))
     # RCD ships free-only; these flows exercise Claude and Codex subscriptions, so the tests opt in to them.
     import billing
     monkeypatch.setattr(billing,'DEFAULT_ACCOUNTS',{**billing.DEFAULT_ACCOUNTS,
@@ -939,3 +943,22 @@ def test_story_context_drops_unrelated_decisions_but_keeps_lineage_and_recent_gl
     assert 'Lineage decision for story A.' in raw
     assert 'Global decision 5' in raw and 'Global decision 4' in raw and 'Global decision 3' in raw and 'Global decision 0' not in raw
     assert 'Other story decision 0' not in raw
+
+
+def test_prerequisite_integration_works_without_cherry_pick_empty_drop(app,monkeypatch):
+    """Older git (2.43 on Ubuntu 24.04, 2.39 on Raspberry Pi OS) has no `cherry-pick --empty=drop`: the
+    integration must not rely on it, and a commit the story already holds is skipped, not an error."""
+    import project_workspaces
+    c,s,wd,settings=app;init_repo(wd)
+    real=project_workspaces.git
+    def old_git(path,*args):
+        if '--empty=drop' in args: raise HTTPException(409,'unknown option')
+        return real(path,*args)
+    monkeypatch.setattr(project_workspaces,'git',old_git)
+    git(wd,'checkout','-q','-b','story');(wd/'a.txt').write_text('a');git(wd,'add','.');git(wd,'commit','-m','a')
+    commit=git(wd,'rev-parse','HEAD');git(wd,'checkout','-q','codex/test-project')
+    included,head=project_workspaces.prepare(wd,[{'commits':[commit]}],[])
+    assert included==[commit] and (wd/'a.txt').read_text()=='a'
+    # the same commit again is already present: it becomes empty and is dropped without an error
+    included,head2=project_workspaces.prepare(wd,[{'commits':[commit]}],[])
+    assert included==[commit] and head2==head

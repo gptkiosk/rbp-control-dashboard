@@ -194,6 +194,13 @@ class OperatorBoundary:
             except (psutil.NoSuchProcess, psutil.ZombieProcess):
                 continue
             except psutil.AccessDenied:
+                # On Linux a zombie (a runner that exited and is not yet reaped) reports AccessDenied
+                # instead of ZombieProcess. It holds no sockets, so it is not an uninspectable process.
+                try:
+                    if psutil.Process(pid).status() == psutil.STATUS_ZOMBIE:
+                        continue
+                except psutil.Error:
+                    pass
                 unverified = True
                 continue
             for c in connections:
