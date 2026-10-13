@@ -1,0 +1,26 @@
+# RCD API + web app, as a systemd user service. Rendered by scripts/install/bootstrap-rcd.sh;
+# do not edit the installed copy by hand. No secrets belong here: sign-in and agent settings
+# stay in the private <data dir>/.env, which the application reads itself.
+# Restart=on-failure restarts only after an abnormal exit; a normal stop stays stopped.
+[Unit]
+Description=RCD control dashboard API
+After=network.target
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+WorkingDirectory=__WORKING_DIRECTORY__
+Environment=PYTHONUNBUFFERED=1
+Environment=MAC_CONTROL_DATA_DIR=__DATA_DIR__
+ExecStart=__PYTHON_PATH__ __SERVE_SCRIPT__
+Restart=on-failure
+RestartSec=__RESTART_SEC__
+# serve.py closes live-status streams within 5 s; allow a little more before SIGKILL.
+TimeoutStopSec=20
+KillMode=control-group
+NoNewPrivileges=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=default.target

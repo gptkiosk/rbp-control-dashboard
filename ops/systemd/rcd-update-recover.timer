@@ -1,0 +1,11 @@
+# Runs rcd-update-recover.service at login/boot and every 5 minutes. Template; enable by hand:
+# systemctl --user enable --now rcd-update-recover.timer
+[Unit]
+Description=RCD update recovery timer
+
+[Timer]
+OnStartupSec=30
+OnUnitActiveSec=300
+
+[Install]
+WantedBy=timers.target

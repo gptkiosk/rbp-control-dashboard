@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  mac-control API + web app. Rendered by scripts/install-launchagent.sh; do not edit the
+  installed copy by hand.
+  KeepAlive restarts only on an abnormal exit. The installer supplies all deployment values
+  from environment variables or its safe local defaults.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>__LABEL__</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>__PYTHON_PATH__</string>
+    <string>__SERVE_SCRIPT__</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>__WORKING_DIRECTORY__</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>__PATH__</string>
+    <key>PYTHONUNBUFFERED</key>
+    <string>__PYTHONUNBUFFERED__</string>
+  </dict>
+  <key>RunAtLoad</key>
+  __RUN_AT_LOAD__
+  <key>KeepAlive</key>
+  <dict>
+    <key>SuccessfulExit</key>
+    __KEEP_ALIVE_SUCCESSFUL_EXIT__
+  </dict>
+  <key>ThrottleInterval</key>
+  <integer>__THROTTLE_INTERVAL__</integer>
+  <key>StandardOutPath</key>
+  <string>__STDOUT_PATH__</string>
+  <key>StandardErrorPath</key>
+  <string>__STDERR_PATH__</string>
+</dict>
+</plist>

@@ -1,0 +1,121 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "dashboard-release-manifest/v1",
+  "title": "Dashboard release manifest",
+  "description": "Written next to each <product>-<version>-<platform>.tar.gz by scripts/release/release.py build. `release.py verify` enforces this schema plus the cross-checks it cannot express: channel derivation, product/platform pairing, required files, sorted unique paths, totals, and the artifact, inner manifest, lock and BUILD_INFO digests.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "product", "product_name", "repository", "version", "channel", "platform", "runtime",
+               "source", "build", "dependencies", "artifact", "contents", "files"],
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "relpath": {"type": "string", "minLength": 1, "maxLength": 1024,
+                "pattern": "^(?!/)(?!.*(^|/)\\.{1,2}(/|$))(?!.*//)[^\\\\\\u0000-\\u001f\\u007f]+$"},
+    "file": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256", "size", "mode"],
+      "properties": {
+        "path": {"$ref": "#/$defs/relpath"},
+        "sha256": {"$ref": "#/$defs/sha256"},
+        "size": {"type": "integer", "minimum": 0, "maximum": 20971520},
+        "mode": {"enum": ["0644", "0755"]}
+      }
+    }
+  },
+  "properties": {
+    "schema": {"const": "dashboard-release-manifest/v1"},
+    "product": {"enum": ["mcd", "rcd"]},
+    "product_name": {"type": "string"},
+    "repository": {"type": "string", "pattern": "^[A-Za-z0-9-]+/[A-Za-z0-9._-]+$"},
+    "version": {"type": "string",
+                "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(-[0-9A-Za-z][0-9A-Za-z.-]*)?$"},
+    "channel": {"enum": ["stable", "prerelease", "dev"]},
+    "platform": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "os", "arch"],
+      "properties": {
+        "key": {"enum": ["darwin-arm64", "linux-arm64"]},
+        "os": {"enum": ["darwin", "linux"]},
+        "arch": {"const": "arm64"}
+      }
+    },
+    "runtime": {
+      "type": "object",
+      "required": ["python", "python_abi", "pip_platforms"],
+      "properties": {
+        "python": {"type": "string", "pattern": "^3\\.\\d+$"},
+        "python_abi": {"type": "string", "pattern": "^cp3\\d+$"},
+        "pip_platforms": {"type": "array", "items": {"type": "string"}, "minItems": 1}
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["commit", "dirty", "release_eligible", "tree_sha256"],
+      "properties": {
+        "commit": {"type": ["string", "null"], "pattern": "^[0-9a-f]{40}$"},
+        "dirty": {"type": ["boolean", "null"]},
+        "release_eligible": {"type": "boolean"},
+        "tree_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "build": {
+      "type": "object",
+      "required": ["source_date_epoch", "source_date_epoch_from", "web_build", "tools"],
+      "properties": {
+        "source_date_epoch": {"type": "integer", "minimum": 0},
+        "source_date_epoch_from": {"enum": ["argument", "environment", "commit", "newest-source-mtime"]},
+        "web_build": {"enum": ["npm-ci", "prebuilt"]},
+        "tools": {"type": "object", "additionalProperties": {"type": "string"}}
+      }
+    },
+    "dependencies": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["lock_path", "lock_sha256", "packages"],
+      "properties": {
+        "lock_path": {"const": "apps/api/requirements.release.txt"},
+        "lock_sha256": {"$ref": "#/$defs/sha256"},
+        "packages": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "version"],
+            "properties": {
+              "name": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"},
+              "version": {"type": "string", "minLength": 1}
+            }
+          }
+        }
+      }
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "root", "format", "sha256", "size"],
+      "properties": {
+        "name": {"type": "string", "pattern": "^(mcd|rcd)-[0-9A-Za-z.-]+-(darwin|linux)-arm64\\.tar\\.gz$"},
+        "root": {"type": "string"},
+        "format": {"const": "tar+gzip"},
+        "sha256": {"$ref": "#/$defs/sha256"},
+        "size": {"type": "integer", "minimum": 1, "maximum": 104857600}
+      }
+    },
+    "contents": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["manifest_path", "manifest_sha256", "file_count", "total_size"],
+      "properties": {
+        "manifest_path": {"const": "manifest.json"},
+        "manifest_sha256": {"$ref": "#/$defs/sha256"},
+        "file_count": {"type": "integer", "minimum": 1, "maximum": 5000},
+        "total_size": {"type": "integer", "minimum": 0}
+      }
+    },
+    "files": {"type": "array", "minItems": 1, "maxItems": 5000, "items": {"$ref": "#/$defs/file"}}
+  }
+}
