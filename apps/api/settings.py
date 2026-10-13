@@ -92,6 +92,10 @@ class Settings(BaseSettings):
     default_budget_usd: float = Field(default=0.0, ge=0.0, le=50.0)
     dispatch_free_only: bool = Field(default=True)
     dispatch_max_budget_usd: float = Field(default=0.0, ge=0.0, le=50.0)
+    agent_git_grants_file: Path = Field(
+        default=DEFAULT_DATA_DIR / "agent-git" / "grants.json",
+        description="Operator-owned branch-scoped git grants for project stories (see agent_git.py).",
+    )
     dispatch_route_classes: dict[str, str] = Field(
         default_factory=dict,
         description="Reviewed exact agent|target|model routes: free, subscription or paid. Unknown denies.",

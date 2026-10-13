@@ -109,8 +109,9 @@ async function save() {
       <details v-if="settings" class="rate-settings">
         <summary>Model rates · USD per million tokens</summary>
         <p class="muted small">
-          Source-reported cost takes precedence. Missing rates stay unpriced. Default estimates use standard
-          short-context rates verified October 9, 2026; tools, taxes and speed/residency surcharges are
+          Source-reported cost takes precedence. Models whose name ends in :free cost 0. Other missing rates stay
+          unpriced. Default estimates use standard published rates, with long-context tiers where the provider
+          has one, verified October 13, 2026; tools, taxes and speed/residency surcharges are
           excluded. Requests above a configured input limit stay unpriced. A custom rate applies uniformly up
           to that limit.
         </p>

@@ -1,0 +1,25 @@
+#!/bin/bash
+# Conventional commit subject, and MCD trailers when the clone requires them.
+msg_file="$1"
+msg=$(grep -v '^#' "$msg_file")
+subject=$(printf '%s\n' "$msg" | head -n 1)
+re='^(feat|fix|docs|test|refactor|perf|build|ci|chore|revert)(\([a-z0-9._/-]+\))?!?: .+'
+case "$subject" in "Merge "*|"Revert \""*) exit 0;; esac
+if ! printf '%s' "$subject" | grep -Eq "$re"; then
+  echo "commit-msg: use a conventional subject, e.g. 'fix(update): refuse downgrade without confirmation'." >&2
+  echo "           types: feat fix docs test refactor perf build ci chore revert" >&2
+  exit 1
+fi
+if [ "${#subject}" -gt 72 ]; then
+  echo "commit-msg: subject is ${#subject} characters; keep it at 72 or fewer." >&2
+  exit 1
+fi
+if [ "$(git config --type=bool --get mcd.requireTrailers 2>/dev/null)" = "true" ]; then
+  for t in MCD-Project MCD-Story; do
+    if ! printf '%s\n' "$msg" | grep -Eq "^${t}: .+"; then
+      echo "commit-msg: add the trailer '${t}: <value>' (see the story context for the values)." >&2
+      exit 1
+    fi
+  done
+fi
+exit 0

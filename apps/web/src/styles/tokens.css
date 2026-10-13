@@ -150,9 +150,9 @@
   --table-min-width: 52rem;
   --service-col-min-width: 15rem;
   --column-width: 17rem;
-  /* Task list: one grid shared by the header row and every task row (Name, Assignee, Due, Estimate, Priority, Depends on, Last run) */
-  --task-grid: minmax(17rem, 1fr) 9rem 7.5rem 6.5rem 7.5rem 8rem 8rem;
-  --task-list-min-width: 72rem;
+  /* Task list: one grid shared by the header row and every task row (Name, Assignee, Model, Due, Estimate, Priority, Depends on, Last run) */
+  --task-grid: minmax(17rem, 1fr) 9rem 9.5rem 7.5rem 6.5rem 7.5rem 8rem 8rem;
+  --task-list-min-width: 82rem;
   --row-min-height: 2.5rem;
   --menu-min-width: 13rem;
   --menu-max-width: 20rem;

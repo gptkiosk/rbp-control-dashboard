@@ -223,3 +223,15 @@ Open a task to inspect its definition of done and latest result, then use its bl
 - **Record decision** opens a form on Tasks for the actual operator choices or sign-off. Write the required decision before **Approve decision**. No human decision is inferred.
 
 The full artifact review remains available under Projects → Stories & runs. Failed and dependency-blocked stories do not offer these approval shortcuts.
+
+## Closing a project without finishing it
+
+**Close project…** (Projects, in the project heading) ends a project that will not be finished, for example
+one replaced by a newer plan. It needs a reason, which is kept in the project ledger with the rest of the
+history. The project becomes **Closed**, never Complete: Complete is for projects whose stories finished.
+
+- No new story starts, and a story that is running must be cancelled first.
+- The failed tasks of a Closed or Complete project can then be removed from the board, with a confirmation.
+  The ledger keeps their handoff and incident entries; only their run history on the board is deleted.
+- A failed task that another task already carries (an unneeded duplicate) can be removed from any project.
+- Everything else on a project stays protected: only the Projects page changes a story.

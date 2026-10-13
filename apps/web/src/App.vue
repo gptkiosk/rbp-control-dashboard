@@ -9,6 +9,7 @@ import { useAuthStore } from '@/stores/auth'
 import LoginGate from '@/components/LoginGate.vue'
 import HelpChat from '@/components/HelpChat.vue'
 import SetupPrompt from '@/components/SetupPrompt.vue'
+import LimitBanner from '@/components/LimitBanner.vue'
 import { useThemeStore } from '@/stores/theme'
 import { getJson } from '@/lib/api'
 import type { Profile } from '@/lib/profile'
@@ -111,6 +112,7 @@ onBeforeUnmount(() => {
         <div class="content-inner" :class="{ 'project-content': route.name === 'projects' }">
           <main id="main-content" tabindex="-1">
             <SetupPrompt />
+            <LimitBanner />
             <RouterView />
           </main>
           <AppFooter />

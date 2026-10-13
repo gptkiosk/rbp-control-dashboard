@@ -38,6 +38,8 @@ class Preferences(BaseModel):
     discord_channel_id: str = Field(default='',pattern=r'^([0-9]{16,22})?$')
     notify_plans: bool = True
     allow_discord_planning: bool = False
+    allow_discord_control: bool = False
+    allow_discord_diagnostics: bool = False
     github: GithubPreferences = Field(default_factory=GithubPreferences)
     setup: SetupProgress = Field(default_factory=SetupProgress)
 

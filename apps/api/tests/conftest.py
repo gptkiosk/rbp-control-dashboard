@@ -40,6 +40,9 @@ def make_client(tmp_path, monkeypatch):
         monkeypatch.setenv("MAC_CONTROL_WEB_DIST", str(dist))
         monkeypatch.setenv("MAC_CONTROL_COLLECTOR_ENABLED", "false")
         monkeypatch.setenv("MAC_CONTROL_DISPATCHER_ENABLED", "false")
+        # The operator's own ~/.rcd-control/.env is read by Settings; pin what tests assert on so it cannot leak in.
+        monkeypatch.setenv("MAC_CONTROL_ORGANIZATION_NAME", "RCD")
+        monkeypatch.setenv("MAC_CONTROL_PRODUCT_NAME", "Raspberry Pi Control Dashboard")
         monkeypatch.setenv("MAC_CONTROL_ALLOWED_HOSTS_EXTRA", '["testserver"]')
         workspace = tmp_path / "ws"
         (workspace / "proj").mkdir(parents=True, exist_ok=True)

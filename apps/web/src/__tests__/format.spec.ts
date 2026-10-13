@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  formatAge, formatBytes, formatGB, formatKBps, formatPct, formatRate, formatRpm, formatTemp, formatWatts,
+  formatAge, formatBytes, formatModelShort, unpricedModels, formatGB, formatKBps, formatPct, formatRate, formatRpm, formatTemp, formatWatts,
 } from '@/lib/format'
 
 describe('format helpers', () => {
@@ -57,5 +57,21 @@ describe('format helpers', () => {
     expect(formatAge(3 * 86400)).toBe('3 d ago')
     expect(formatAge(null)).toBe('—')
     expect(formatAge(undefined)).toBe('—')
+  })
+
+  it('formatModelShort keeps the part that tells models apart', () => {
+    expect(formatModelShort('openrouter/thinkingmachines/inkling:free')).toBe('inkling \u00b7 free')
+    expect(formatModelShort('openrouter/nvidia/nemotron-3-ultra-550b-a55b:free')).toBe('nemotron-3-ultra-550b-a55b \u00b7 free')
+    expect(formatModelShort('claude-opus-5-5')).toBe('claude-opus-5-5')
+    expect(formatModelShort('gpt-6.1-sol')).toBe('gpt-6.1-sol')
+    expect(formatModelShort(null)).toBe('\u2014')
+    expect(formatModelShort('  ')).toBe('\u2014')
+  })
+
+  it('unpricedModels names the first models and counts the rest', () => {
+    expect(unpricedModels(undefined)).toBe('')
+    expect(unpricedModels([])).toBe('')
+    expect(unpricedModels(['a'])).toBe('no price for a')
+    expect(unpricedModels(['a', 'b', 'c', 'd'])).toBe('no price for a, b +2 more')
   })
 })

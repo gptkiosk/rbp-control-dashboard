@@ -439,3 +439,24 @@ class ProjectDelivery(Base):
     created_at: Mapped[int] = mapped_column(Integer)
     message_id: Mapped[str | None] = mapped_column(String(40))
     error: Mapped[str | None] = mapped_column(String(300))
+
+
+class ProviderLimit(Base):
+    """One subscription limit event (Claude or Codex) and what MCD did about it.
+
+    ``lift_at`` is parsed from the CLI's own message and is None when it was not reported. The
+    event is active until it lifts, a later run on the same provider succeeds, or (when no lift
+    time was reported) a few hours pass. ``rerouting`` is the operator's choice to send stories
+    that have not started to an approved alternate route while the limit lasts.
+    """
+    __tablename__ = "provider_limit"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    provider: Mapped[str] = mapped_column(String(16), index=True)
+    detected_at: Mapped[int] = mapped_column(Integer)
+    last_seen_at: Mapped[int] = mapped_column(Integer)
+    lift_at: Mapped[int | None] = mapped_column(Integer)
+    run_id: Mapped[int | None] = mapped_column(Integer)
+    rerouting: Mapped[bool] = mapped_column(Boolean, default=False)
+    handoffs: Mapped[int] = mapped_column(Integer, default=0)
+    rerouted: Mapped[int] = mapped_column(Integer, default=0)
+    resolved_at: Mapped[int | None] = mapped_column(Integer)

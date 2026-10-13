@@ -59,6 +59,18 @@ describe('Overview live agents', () => {
     w.unmount()
   })
 
+  it('names the models used without a recorded price, so the catalog can be updated', async () => {
+    vi.useFakeTimers(); vi.setSystemTime(epoch * 1000)
+    const gap = { ...summary, unpriced: 3, unpriced_models: ['brand-new-model', 'other-model', 'third', 'fourth'] }
+    stubFetch(url => url === '/api/agents' ? { body: { agents: [openclaw], subagents_checked_at: epoch } } : { body: { ...usage(), overview: [{ ...gap, agent: 'openclaw' }] } })
+    const w = await mountSummary()
+    const line = w.get('[data-agent="openclaw"] .warning-text')
+    expect(line.text()).toContain('3 unpriced records')
+    expect(line.text()).toContain('no price for brand-new-model, other-model +2 more')
+    expect(line.attributes('title')).toContain('scripts/pricing/check.py --used')
+    w.unmount()
+  })
+
   it('refreshes running chat work, preserves it with a stale warning on failure and recovers', async () => {
     vi.useFakeTimers(); vi.setSystemTime(epoch * 1000)
     let current = openclaw

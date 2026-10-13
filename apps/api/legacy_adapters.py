@@ -341,7 +341,7 @@ class LegacyAgentAdapter:
             if stage == "timeout" and meta.timed_out and message and "provider timed out" in message:
                 code = "PROVIDER_TIMEOUT"
             if stage == "failed" and code == "AGENT_ERROR" and message:
-                if re.search(r"usage limit|quota exceeded|quota exhausted|limit reached", message, re.I):
+                if re.search(r"usage limit|session limit|quota exceeded|quota exhausted|limit reached", message, re.I):
                     code = "PROVIDER_QUOTA_EXHAUSTED"
                 elif re.search(r"rate.?limit|too many requests|HTTP.?429", message, re.I):
                     code = "PROVIDER_RATE_LIMITED"
@@ -515,7 +515,7 @@ class LegacyAgentAdapter:
                 raw.write(("! " if is_stderr else "") + line + "\n")
                 if is_stderr:
                     parser.feed_stderr(line)
-                    quota_reported |= bool(re.search(r"usage limit|rate.?limit|quota exceeded|quota exhausted|too many requests|limit reached|HTTP.?429",line,re.I))
+                    quota_reported |= bool(re.search(r"usage limit|session limit|rate.?limit|quota exceeded|quota exhausted|too many requests|limit reached|HTTP.?429",line,re.I))
                     if line.strip():
                         write(f"! {line}")
                 else:

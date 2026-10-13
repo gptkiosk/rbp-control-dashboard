@@ -8,6 +8,7 @@ const year = new Date().getFullYear()
 const webSha = import.meta.env.VITE_APP_VERSION ?? ''
 const label = computed(() => releaseLabel(release.value, webSha))
 const owner = computed(() => release.value?.owner || 'RCD')
+const product = computed(() => release.value?.product || 'Raspberry Pi Control Dashboard')
 
 onMounted(async () => {
   try {
@@ -20,7 +21,7 @@ onMounted(async () => {
 
 <template>
   <footer class="footer">
-    <p class="copyright">© {{ year }} Raspberry Pi Control Dashboard · {{ owner }}</p>
+    <p class="copyright">© {{ year }} {{ product }} · {{ owner }}</p>
     <p v-if="label" class="release" data-testid="release-label">{{ label }}</p>
   </footer>
 </template>

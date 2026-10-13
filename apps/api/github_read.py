@@ -5,7 +5,10 @@ from github_config import GithubConfigStore, SLUG
 REPO_FIELDS = "{name: .full_name, description: .description, private: .private, archived: .archived, updated_at: .updated_at, branch: .default_branch}"
 ITEM_FIELDS = "[.[] | {number: .number, title: .title, user: .user.login, updated_at: .updated_at, draft: (.draft // false), is_pull: (.pull_request != null), labels: [.labels[].name]}]"
 LOGIN = re.compile(r"account ([A-Za-z0-9-]+)")
+OWNER = re.compile(r"[A-Za-z0-9-]{1,39}\Z")
 class GithubUnavailable(Exception): pass
+class GithubNotFound(GithubUnavailable): pass   # HTTP 404: the repository name is wrong or not visible to this login
+class GithubDenied(GithubUnavailable): pass     # HTTP 401/403 or a rate limit
 class GithubReader:
  def __init__(self,binary,config=None):self.binary=binary;self.config_store=config;self.cache={};self.lock=threading.RLock();self.last_manual=0.0
  def status(self):return self.config_store.status() if self.config_store else {"state":"ready","configured":True}
@@ -18,7 +21,13 @@ class GithubReader:
  def query(self,endpoint,fields,object_result=False):
   try:
    result=subprocess.run([self.binary,"api","--method","GET",endpoint,"--jq",fields],capture_output=True,timeout=12,check=False)
-   if result.returncode or len(result.stdout)>4*1024*1024:raise GithubUnavailable()
+   if result.returncode:
+    # Only the status class is read from stderr; the text itself is never kept or shown.
+    err=(result.stderr or b"")[:4000].lower()
+    if b"http 404" in err or b"not found" in err:raise GithubNotFound()
+    if b"http 401" in err or b"http 403" in err or b"rate limit" in err or b"bad credentials" in err:raise GithubDenied()
+    raise GithubUnavailable()
+   if len(result.stdout)>4*1024*1024:raise GithubUnavailable()
    value=json.loads(result.stdout)
    if not isinstance(value,dict if object_result else list):raise GithubUnavailable()
    return value
@@ -44,13 +53,45 @@ class GithubReader:
    result=self.cached("repos",legacy,force);result.setdefault("repos",[]);result.setdefault("limited",False);return result
   allowed=config.repos if config else ();public_only=config.public_only if config else False
   def load():
-   repos=[]
+   repos=[];problems=[];failures=[]
    for name in allowed:
-    item=self.query(f"repos/{name}",REPO_FIELDS,object_result=True)
-    if item.get("name")!=name or not isinstance(item.get("private"),bool):raise GithubUnavailable()
+    try:
+     item=self.query(f"repos/{name}",REPO_FIELDS,object_result=True)
+     if item.get("name")!=name or not isinstance(item.get("private"),bool):raise GithubUnavailable()
+    except GithubNotFound:problems.append({"name":name,"reason":"not_found","hint":self.closest(name,allowed)});continue
+    except GithubUnavailable as exc:
+     failures.append(exc);problems.append({"name":name,"reason":"denied" if isinstance(exc,GithubDenied) else "unavailable","hint":None});continue
     if not (public_only and item["private"]):repos.append({**item,"url":"https://github.com/"+name})
-   return {"repos":repos,"limited":False}
+   # One bad name must not blank the others. Only when nothing could be read and a real access
+   # problem (not a misspelling) is the cause does the whole page report GitHub as unavailable.
+   if failures and not repos and len(failures)==len(problems):raise failures[0]
+   return {"repos":repos,"limited":False,"problems":problems}
   result=self.cached(("repos",allowed,public_only),load,force);result.setdefault("repos",[]);result.setdefault("limited",False);return result
+ def closest(self,name,configured=()):
+  """The visible repository whose name is closest to a misspelled one, or None. One extra read."""
+  import difflib
+  try:names=self.query("user/repos?per_page=100&sort=updated","[.[] | .full_name]")
+  except GithubUnavailable:return None
+  matches=difflib.get_close_matches(name,[n for n in names if isinstance(n,str) and n not in configured],n=1,cutoff=0.8)
+  return matches[0] if matches else None
+ def missing(self,repos):
+  """Names that GitHub says do not exist for this login, each with a hint. Other failures are not blockers."""
+  found=[]
+  for name in repos:
+   try:self.query(f"repos/{name}",REPO_FIELDS,object_result=True)
+   except GithubNotFound:found.append({"name":name,"hint":self.closest(name,repos)})
+   except GithubUnavailable:pass
+  return found
+ def account_repos(self,owner):
+  """The repositories of one account or organisation, for the settings checklist: up to 100, newest first.
+  Read only. Private ones are included only for the account that is signed in with gh."""
+  if not OWNER.fullmatch(owner or ""):raise ValueError("owner")
+  mine=self.auth_status();own=bool(mine["available"] and mine["account"].lower()==owner.lower())
+  endpoint="user/repos?per_page=100&sort=updated&affiliation=owner" if own else f"users/{owner}/repos?per_page=100&sort=updated&type=owner"
+  raw=self.query(endpoint,"[.[] | "+REPO_FIELDS+"]")
+  repos=[{**r,"url":"https://github.com/"+r["name"]} for r in raw if isinstance(r,dict) and isinstance(r.get("name"),str)
+         and SLUG.fullmatch(r["name"]) and r["name"].lower().startswith(owner.lower()+"/")]
+  return {"owner":owner,"repos":repos[:100],"limited":len(raw)>=100,"private_included":own}
  def details(self,name,force=False):
   config=self.config()
   if self.config_store and (config is None or name not in config.repos):return None

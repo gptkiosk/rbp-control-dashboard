@@ -29,6 +29,10 @@ import project_outputs
     'This story is **incomplete**: no release archive was built or receipt produced.',
     ('## Long handoff\n\n' + ('Implemented detail. ' * 250) +
      '\n\nThis story is **incomplete**: no release archive was built.'),
+    '# Evidence handoff\n\n**Status:** INCOMPLETE. The pack lists what exists.',
+    'The docs are updated, but story `s17_docs_rcd` is **incomplete**.',
+    '## Handoff: s16_docs_mcd is incomplete\n\nNothing was executed.',
+    'The evidence pack is incomplete, so nothing should be marked done.',
     '## Handoff — incomplete verification\n\nChanges were written but require host testing.',
 ])
 def test_direct_incomplete_handoff_language_is_not_completion(result):
@@ -37,7 +41,12 @@ def test_direct_incomplete_handoff_language_is_not_completion(result):
 @pytest.fixture
 def app(make_client, monkeypatch, tmp_path):
     monkeypatch.setattr(AgentSpec,'available',lambda self,settings:True)
+    # RCD ships free-only; these flows exercise Claude and Codex subscriptions, so the tests opt in to them.
+    import billing
+    monkeypatch.setattr(billing,'DEFAULT_ACCOUNTS',{**billing.DEFAULT_ACCOUNTS,
+        'claude':{'mode':'subscription','monthly_usd':20.0},'codex':{'mode':'subscription','monthly_usd':20.0}})
     client=make_client()
+    st=get_settings();st.dispatch_free_only=False;st.default_budget_usd=1.0;st.dispatch_max_budget_usd=1.0   # the paid and subscription flows under test
     config=tmp_path/'openclaw.json'
     config.write_text(json.dumps({'agents':{'list':[{'id':'mm-main'},{'id':'mm-developer'},{'id':'mm-security'}]}}))
     get_settings().openclaw_config_path=config
@@ -407,12 +416,13 @@ def test_parallel_refuses_dirty_base_and_commit_conflict_stops(app):
     claimed=d._claim(2);assert len(claimed)==1 and claimed[0][0]['id']==story['d']['card_id']
     assert (Path(story['d']['working_dir'])/'base.txt').read_text()=='Reviewed combined resolution'
 
-def test_quota_reported_only_on_stderr_still_hands_off_without_exposing_stderr(app):
+@pytest.mark.parametrize('initial_error', ['usage limit reached', "You've hit your session limit"])
+def test_quota_reported_only_on_stderr_still_hands_off_without_exposing_stderr(app,initial_error):
     import asyncio,sys
     from tests.test_dispatcher import FakeParser,_drain
     p=active(app,[node('a',routes=[{'agent':'claude','model':'claude-sonnet-5-5'}])]);c,s,wd,settings=app
     cid=next(t['card_id'] for t in p['tasks'] if t['role']=='story')
-    def fake_build(*args): return [sys.executable,'-c',"import sys; print('usage limit reached; sensitive-debug-value',file=sys.stderr); sys.exit(1)"]
+    def fake_build(card,prompt,model,*a,**k): return [sys.executable,'-c',f"import sys; print({(initial_error+'; sensitive-debug-value')!r},file=sys.stderr); sys.exit(1)",'-m',model]   # pinned model, as the gate requires
     registry={'codex':AgentSpec('codex','Fake subscription','worker','codex_path',fake_build,FakeParser)}
     d=Dispatcher(s,settings,registry=registry);asyncio.run(_drain(d))
     with s() as db:
@@ -759,7 +769,7 @@ def test_diamond_release_and_run_spec_context_logs_without_handoff_clicks(app,mo
     assert spec['context']['artifact_refs'][0]['head']=='a'*40
     assert spec['context']['artifact_refs'][1]['sha256']=='f'*64
     assert spec['context']['artifact_refs'][1]['path']==str(wd/'a.md')
-    payload=json.loads(spec['prompt'].split('Run output is proposed evidence; operator acceptance is required.\n',1)[1])
+    payload=json.loads(spec['prompt'].split('Run output is proposed evidence; operator acceptance is required.\n',1)[1].split('\n\nYOUR STORY (do this now)\n',1)[0])
     assert set(payload['upstream_outputs'])=={'a','b','c'}
     assert payload['accepted_artifacts']['a']['files']==['a.txt']
     assert payload['upstream_outputs']['a']['result_text']=='Root artifact A checked.'
@@ -856,3 +866,74 @@ def test_shared_memory_round_trip_through_adapter_and_automatic_dispatch(app):
         captured=db.scalar(select(projects.ProjectMemory).where(projects.ProjectMemory.kind=='context',
             projects.ProjectMemory.run_id==int(downstream['run_id'])))
         assert captured.text==downstream['prompt']
+
+
+# ------------------------------------------------------------------ context: digests, ledger file, cache-friendly order
+
+def long_handoff(tag, n=4000):
+    return (f'# {tag} handoff\n\n**Status:** done with one caveat.\n\n## Changes\n- changed module {tag}\n\n## Checks\n- pytest: 12 passed\n\n'
+            + ('Filler detail line. ' * (n // 20)) + '\n\n## Remaining risks\n- {tag} needs a real device\n\n## Next-story guidance\n- start from {tag}\n')
+
+def test_digest_keeps_status_changes_checks_and_risks_and_points_at_the_ledger():
+    text = long_handoff('alpha')
+    d = projects._digest(text, 700, 'ledger #9')
+    assert len(d) <= 700 and d.startswith('# alpha handoff')
+    for needle in ('Status', 'Changes', 'Checks', 'Remaining risks', 'Next-story guidance', 'ledger #9'):
+        assert needle in d
+    assert 'Filler detail line.' not in d
+    assert projects._digest('short text', 700, 'ledger #1') == 'short text'
+    assert len(projects._digest('x' * 5000, 300, 'ledger #2')) <= 300                     # no headings: still bounded
+
+def test_story_context_digests_the_lineage_keeps_direct_text_and_writes_the_full_ledger(app):
+    p=active(app,[node('a'),node('b',depends_on=['a']),node('c',depends_on=['b'])]);c,s,wd,settings=app
+    ids={t['node_key']:t['card_id'] for t in p['tasks'] if t['role']=='story'}
+    with s.begin() as db:
+        project=db.get(Project,1)
+        projects.memory(db,project,'handoff',long_handoff('A',6000),'claude',ids['a'])
+        projects.memory(db,project,'handoff',long_handoff('B',3000),'claude',ids['b'])
+        projects.memory(db,project,'decision','Operator selected approved retry route for the unrelated story.','operator',ids['a'])
+    with s() as db:
+        raw=projects.context(db,db.get(Project,1),'c')
+        payload=json.loads(raw.split('Run output is proposed evidence; operator acceptance is required.\n',1)[1])
+        by_card={m['card_id']:m for m in payload['accepted_memory'] if m['kind']=='handoff'}
+        assert '[digest of' in by_card[ids['a']]['text'] and len(by_card[ids['a']]['text'])<=projects.CONTEXT_DIGEST_LIMIT     # earlier story: digest
+        assert len(by_card[ids['b']]['text'])>projects.CONTEXT_DIGEST_LIMIT                                                    # direct prerequisite: fuller text
+        assert payload['memory_compaction']['digested']>=1
+        path=Path(payload['memory_compaction']['full_ledger'])
+        assert path.is_file() and path.stat().st_mode & 0o777==0o600 and path.parent.name=='project-ledgers'
+        ledger=path.read_text()
+        assert 'Filler detail line.' in ledger and ledger.count('# A handoff')==1 and ledger.count('# B handoff')==1            # nothing omitted there
+        assert ledger.startswith('<!-- last_id:')
+        before=path.stat().st_mtime_ns; projects.context(db,db.get(Project,1),'c'); assert path.stat().st_mtime_ns==before        # rewritten only when it changed
+
+def test_prompt_puts_the_stable_parts_first_and_the_story_last(app):
+    p=active(app,[dict(node('a'),title='Story A'),dict(node('b'),title='Story B')]);c,s,wd,settings=app
+    ids={t['node_key']:t['card_id'] for t in p['tasks'] if t['role']=='story'}
+    with s() as db:
+        pa=projects.claim_context(db,db.get(Card,ids['a']))
+        # RCD holds a sequential story until its predecessor is accepted, so the second prompt is built the
+        # way the claim builds it: the shared context first, the story's own text last.
+        pb=projects.context(db,db.get(Project,1),'b',db.get(Card,ids['b']).working_dir)+'\n\nYOUR STORY (do this now)\n'+db.get(Card,ids['b']).body
+        bodies={ids['a']:db.get(Card,ids['a']).body.rstrip(),ids['b']:db.get(Card,ids['b']).body.rstrip()}
+    for prompt,card in ((pa,ids['a']),(pb,ids['b'])):
+        assert prompt.index('YOUR STORY (do this now)')>prompt.index('"brief"')>prompt.index('MCD SHARED PROJECT CONTEXT')
+        assert bodies[card] and prompt.rstrip().endswith(bodies[card])                              # the story's own text is last
+    shared=0
+    for x,y in zip(pa,pb):
+        if x!=y:break
+        shared+=1
+    assert shared>2000 and shared>len(pa)*0.4                                                    # a long shared prefix for prompt caching
+
+def test_story_context_drops_unrelated_decisions_but_keeps_lineage_and_recent_global_ones(app):
+    p=active(app,[node('a'),node('b',depends_on=['a']),node('other')]);c,s,wd,settings=app
+    ids={t['node_key']:t['card_id'] for t in p['tasks'] if t['role']=='story'}
+    with s.begin() as db:
+        project=db.get(Project,1)
+        for i in range(8):projects.memory(db,project,'decision',f'Other story decision {i}','operator',ids['other'])
+        projects.memory(db,project,'decision','Lineage decision for story A.','operator',ids['a'])
+        for i in range(6):projects.memory(db,project,'decision',f'Global decision {i}','operator')
+    with s() as db:
+        raw=projects.context(db,db.get(Project,1),'b')
+    assert 'Lineage decision for story A.' in raw
+    assert 'Global decision 5' in raw and 'Global decision 4' in raw and 'Global decision 3' in raw and 'Global decision 0' not in raw
+    assert 'Other story decision 0' not in raw

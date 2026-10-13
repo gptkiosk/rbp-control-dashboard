@@ -6,7 +6,7 @@ from fastapi import APIRouter, Request
 
 from migrate import migrations_pending
 from settings import get_settings
-from version import __version__, git_sha
+from version import __version__, git_dirty, git_sha
 
 router = APIRouter(prefix="/api")
 
@@ -18,6 +18,7 @@ def release(request: Request) -> dict[str, object]:
         "version": __version__,
         "environment": settings.environment,
         "commit_sha": git_sha(),
+        "dirty": git_dirty(),
         "has_migrations": migrations_pending(request.app.state.engine),
         "owner": settings.organization_name,
         "product": settings.product_name,

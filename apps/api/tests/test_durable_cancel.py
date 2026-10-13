@@ -29,11 +29,12 @@ def _runner(marker, partial):
 
 
 def _alive(pid):
+    # A killed child that nobody has reaped yet is a zombie: it is gone for every purpose here.
+    import psutil
     try:
-        os.kill(pid, 0)
-    except ProcessLookupError:
+        return psutil.Process(pid).status() != psutil.STATUS_ZOMBIE
+    except psutil.NoSuchProcess:
         return False
-    return True
 
 
 def _assert_cancelled_and_quarantined(sessions, tmp_path, cid):

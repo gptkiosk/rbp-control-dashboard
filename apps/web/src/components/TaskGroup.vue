@@ -107,6 +107,7 @@ function onBlur(): void {
         <div class="row head-row" role="row">
           <div class="cell" role="columnheader">Name</div>
           <div class="cell" role="columnheader">Assignee</div>
+          <div class="cell" role="columnheader">Model</div>
           <div class="cell" role="columnheader">Due date</div>
           <div class="cell" role="columnheader">Estimate</div>
           <div class="cell" role="columnheader">Priority</div>

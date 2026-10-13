@@ -10,7 +10,7 @@ import { stubFetch } from './helpers'
 import type { Profile } from '@/lib/profile'
 afterEach(() => { vi.unstubAllGlobals(); localStorage.clear(); document.body.innerHTML = '' })
 async function setup(step=0, component: typeof SetupView | typeof SetupPrompt = SetupView) {
-  let profile: Profile = {owner:'operator@example.com',preferences:{theme:'dark',planning_bias:81,working_dir:'/workspace',dashboard_origin:'',discord_channel_id:'',notify_plans:true,allow_discord_planning:false},credentials:[],discord_linked:false,discord_user_id:null,origins:['http://127.0.0.1:8800','https://example.test:9443']}
+  let profile: Profile = {owner:'operator@example.com',preferences:{theme:'dark',planning_bias:81,working_dir:'/workspace',dashboard_origin:'',discord_channel_id:'',notify_plans:true,allow_discord_planning:false,allow_discord_control:false,allow_discord_diagnostics:false},credentials:[],discord_linked:false,discord_user_id:null,origins:['http://127.0.0.1:8800','https://example.test:9443']}
   const fetch=stubFetch((url,init)=>{
     if(url==='/auth/status') return {body:{enabled:true,user:{email:profile.owner,method:'google',expires_at:10000},local_recovery:false}}
     if(url==='/api/profile/setup') {profile.preferences.setup=JSON.parse(String(init?.body));return {body:{...profile,origins:undefined}}}

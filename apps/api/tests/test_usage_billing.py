@@ -345,24 +345,88 @@ def test_same_subagent_nickname_keeps_distinct_sessions(sessions):
         assert all(r["name"] == "explorer" for r in d["sessions"])
 
 
-def test_mcd_missing_tokens_stay_missing(sessions):
+def test_run_with_no_usage_is_not_a_usage_record(sessions):
     with sessions.begin() as s:
-        s.add(
-            Run(
-                agent="codex",
-                stage="failed",
-                started_at=int(NOW),
-                working_dir="/ws",
-                command="[]",
-                log_path="",
-            )
-        )
+        s.add(Run(agent="codex", stage="failed", started_at=int(NOW), working_dir="/ws", command="[]", log_path=""))
     with sessions() as s:
         d = dashboard(s, agent="codex", now=NOW + 1)
-        assert (
-            d["summary"]["input_tokens"] is None
-            and d["summary"]["output_tokens"] is None
-        )
-        assert (
-            d["summary"]["api_equivalent_usd"] is None and d["summary"]["unpriced"] == 1
-        )
+        # Nothing recorded means no model usage to price: not shown as unpriced either.
+        assert d["summary"]["responses"] == 0 and d["summary"]["unpriced"] == 0
+        assert d["summary"]["input_tokens"] == 0 and d["summary"]["api_equivalent_usd"] is None
+
+
+def test_published_rates_for_models_seen_in_use(sessions):
+    with sessions() as s:
+        cfg = config(s)
+
+        def cost(model, n_in, n_out=1_000_000):
+            return price({"model": model, "input_tokens": n_in, "output_tokens": n_out}, cfg)[0]
+
+        # Standard tier, then the long-context tier above 272K input (2x input, 1.5x output).
+        assert round(cost("gpt-5.6-sol", 200_000), 6) == 20.8
+        assert round(cost("gpt-5.6-sol", 300_000, 1_000_000), 6) == 8 * 0.3 + 30
+        assert round(cost("gpt-5.6-terra", 300_000, 1_000_000), 6) == 4 * 0.3 + 18
+        assert round(cost("gpt-5.6-luna", 100_000), 6) == 1.22
+        assert round(cost("gemini-2.5-flash", 1_000_000), 6) == 2.8
+        # A gateway or vendor prefix does not hide the rate.
+        assert round(cost("google/gemini-2.5-flash", 1_000_000), 6) == 2.8
+        assert round(cost("openrouter/google/gemini-2.5-flash", 1_000_000), 6) == 2.8
+
+
+def test_free_models_cost_zero_even_without_token_counts(sessions):
+    with sessions() as s:
+        cfg = config(s)
+        for model in (
+            "thinkingmachines/inkling:free",
+            "openrouter/cohere/north-mini-code:free",
+            "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free",
+        ):
+            assert price({"model": model}, cfg) == (0.0, "free model")
+            assert price({"model": model, "input_tokens": 5, "output_tokens": 5}, cfg)[0] == 0.0
+        # Only the :free suffix counts, and a reported cost still wins.
+        assert price({"model": "openrouter/cohere/north-mini-code"}, cfg) == (None, "unpriced")
+        assert price({"model": "x:free", "reported_cost_usd": 0.01}, cfg)[0] == 0.01
+        # An explicit rate the operator saved for a free-named model is respected.
+        cfg["rates"]["x:free"] = {**cfg["rates"]["gpt-6-luna"], "input": 1, "output": 1, "source": "custom"}
+        assert price({"model": "x:free", "input_tokens": 100_000, "output_tokens": 0}, cfg)[0] == 0.1
+
+
+def test_published_rates_for_older_models_in_history(sessions):
+    with sessions() as s:
+        cfg = config(s)
+        row = {"input_tokens": 100_000, "output_tokens": 100_000, "cached_input_tokens": 50_000,
+               "cache_write_tokens": 10_000}
+        # (50k uncached x input + 50k cached x cache-hit + 10k... ) written tokens are part of input here.
+        def cost(model):
+            return round(price({**row, "model": model}, cfg)[0], 6)
+
+        assert cost("claude-opus-4-8") == cost("claude-opus-4-7") == round((40_000 * 5 + 50_000 * 0.5 + 10_000 * 6.25 + 100_000 * 25) / 1e6, 6)
+        assert cost("claude-fable-5") == round((40_000 * 10 + 50_000 * 1 + 10_000 * 12.5 + 100_000 * 50) / 1e6, 6)
+        assert cost("claude-fable-5-1") == round((40_000 * 10 + 50_000 * 0.25 + 10_000 * 12.5 + 100_000 * 50) / 1e6, 6)
+        assert cost("claude-sonnet-5") == round((40_000 * 2 + 50_000 * 0.2 + 10_000 * 2.5 + 100_000 * 10) / 1e6, 6)
+        assert price({"model": "gpt-5.4", "input_tokens": 131_210, "output_tokens": 372, "cached_input_tokens": 128_384}, cfg)[0] is not None
+        assert price({"model": "gpt-5.5", "input_tokens": 55_058, "output_tokens": 26, "cached_input_tokens": 54_144}, cfg)[0] is not None
+
+
+def test_only_used_models_without_a_price_are_unpriced(sessions):
+    def run(**kw):
+        return Run(agent="codex", started_at=int(NOW), working_dir="/ws", command="[]", log_path="", **kw)
+
+    with sessions.begin() as s:
+        s.add(run(stage="failed", error="PRICE_UNKNOWN: route has no reviewed pricing class", model_requested="gpt-6-sol"))
+        s.add(run(stage="failed", error='{"message": "You\\u2019ve hit your usage limit."}', model_requested="gpt-6-sol"))
+        s.add(run(stage="interrupted", error="service stopped while the run was in progress", model_requested="gpt-6-sol"))
+        s.add(run(stage="succeeded", model_requested="gpt-6-sol", input_tokens=1000, output_tokens=100))
+        s.add(run(stage="succeeded", model_requested="brand-new-model", input_tokens=1000, output_tokens=100))
+    with sessions() as s:
+        d = dashboard(s, agent="codex", now=NOW + 1)
+        assert d["summary"]["responses"] == 2 and d["summary"]["unpriced"] == 1   # only the model with no recorded price
+        assert [m["model"] for m in d["summary"]["models"] if m["unpriced"]] == ["brand-new-model"]
+
+
+def test_jobs_that_call_no_model_are_not_usage_records(sessions):
+    with sessions.begin() as s:
+        s.add(Run(agent="mcd-monitor", stage="succeeded", started_at=int(NOW), working_dir="/ws", command="[]", log_path=""))
+    with sessions() as s:
+        d = dashboard(s, now=NOW + 1)
+        assert all(a["responses"] == 0 for a in d["overview"])

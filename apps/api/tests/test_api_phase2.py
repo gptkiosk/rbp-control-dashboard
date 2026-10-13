@@ -106,3 +106,13 @@ def test_services_do_not_flag_scheduled_job(make_client):
     assert svc["runs_24h"] == 288
     assert svc["flags"] == []
     assert svc["schedule"] == "every 5 min"
+
+
+def test_no_two_routes_share_a_method_and_path(make_client):
+    """A later router silently shadowed /api/updates once; every method and path must be unique."""
+    seen = {}
+    for route in make_client().app.routes:
+        for method in getattr(route, "methods", None) or ():
+            key = (method, getattr(route, "path", ""))
+            assert key not in seen, f"{key} is registered twice: {seen[key]} and {route.name}"
+            seen[key] = route.name

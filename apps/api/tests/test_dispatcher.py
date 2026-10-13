@@ -335,3 +335,4 @@ def test_deleting_card_removes_run_logs(make_client, tmp_path):
     assert not os.path.exists(run.log_path.replace(".log", ".raw.log"))
     with sessions() as s:
         assert s.execute(select(Run).where(Run.card_id == cid)).first() is None
+

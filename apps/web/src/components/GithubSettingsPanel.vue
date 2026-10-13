@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { ApiError, getJson, postJson, putJson } from '@/lib/api'
 import type { Profile } from '@/lib/profile'
 interface GithubStatus {
@@ -13,15 +13,26 @@ const emit = defineEmits<{ changed: [] }>()
 const SLUG = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/, LOGIN = /^[A-Za-z0-9-]{1,39}$/
 const cadences = [[300, 'Every 5 minutes'], [900, 'Every 15 minutes (recommended)'], [1800, 'Every 30 minutes'], [3600, 'Every hour'], [21600, 'Every 6 hours'], [86400, 'Once a day']] as const
 const status = ref<GithubStatus | null>(null), login = ref<Login | null>(null)
-const enabled = ref(true), account = ref(''), repoText = ref(''), publicOnly = ref(false), poll = ref(900)
+const enabled = ref(true), account = ref(''), selected = ref<string[]>([]), publicOnly = ref(false), poll = ref(900)
 const mine = ref<string[]>([]), minePublic = ref(false), personal = ref<Profile | null>(null)
 const busy = ref(false), error = ref(''), notice = ref(''), forbidden = ref(false)
-const repos = computed(() => [...new Set(repoText.value.split(/[\s,]+/).filter(Boolean))])
+interface RepoChoice { name: string; private: boolean; archived: boolean; description: string | null; updated_at: string | null }
+const choices = ref<RepoChoice[]>([]), listState = ref<'idle' | 'loading' | 'ready' | 'error'>('idle'), listError = ref(''), listLimited = ref(false)
+const filter = ref(''), extra = ref(''), extraError = ref('')
+let timer: number | undefined, listSeq = 0
+const repos = computed(() => selected.value)
+const known = computed(() => new Set(choices.value.map(c => c.name)))
+// Saved or added by hand but not in this account's list (another owner, or a name GitHub no longer shows).
+const unlisted = computed(() => selected.value.filter(r => !known.value.has(r)))
+const shown = computed(() => {
+  const q = filter.value.trim().toLowerCase()
+  return choices.value.filter(c => !q || c.name.toLowerCase().includes(q) || (c.description ?? '').toLowerCase().includes(q))
+})
 const hostRepos = computed(() => status.value?.repos ?? [])
 const problem = computed(() => {
   if (!enabled.value) return ''
   if (!LOGIN.test(account.value.trim())) return 'Enter the GitHub account name of your existing gh login.'
-  if (!repos.value.length) return 'Add at least one repository as owner/name, one per line.'
+  if (!repos.value.length) return 'Choose at least one repository.'
   if (repos.value.length > 100) return 'Choose at most 100 repositories.'
   const bad = repos.value.find(r => !SLUG.test(r))
   return bad ? `“${bad.slice(0, 60)}” is not in owner/name form.` : ''
@@ -38,7 +49,7 @@ const summary = computed(() => {
 function fill(s: GithubStatus) {
   status.value = s
   if (s.state === 'ready' || s.state === 'disabled' || s.state === 'unconfigured') {
-    enabled.value = s.state !== 'disabled'; account.value = s.account ?? ''; repoText.value = (s.repos ?? []).join('\n')
+    enabled.value = s.state !== 'disabled'; account.value = s.account ?? ''; selected.value = [...(s.repos ?? [])]
     publicOnly.value = !!s.public_only; poll.value = s.poll_seconds ?? 900
   }
 }
@@ -46,8 +57,36 @@ function denied(e: unknown, fallback: string) {
   forbidden.value = e instanceof ApiError && (e.status === 401 || e.status === 403)
   return forbidden.value ? 'Operator sign-in is required to change host GitHub settings.' : e instanceof Error ? e.message : fallback
 }
+async function loadChoices() {
+  const owner = account.value.trim()
+  if (!enabled.value || !LOGIN.test(owner)) { listState.value = 'idle'; return }
+  const mine = ++listSeq
+  listState.value = 'loading'; listError.value = ''
+  try {
+    const r = await getJson<{ repos: RepoChoice[]; limited: boolean }>(`/api/github/account-repos?owner=${encodeURIComponent(owner)}`)
+    if (mine !== listSeq) return
+    choices.value = r.repos; listLimited.value = r.limited; listState.value = 'ready'
+  } catch (e) {
+    if (mine !== listSeq) return
+    choices.value = []; listState.value = 'error'; listError.value = denied(e, 'The repository list could not be loaded.')
+  }
+}
+// Typing waits for a pause; leaving the field or pressing Enter loads at once.
+function accountTyped() { window.clearTimeout(timer); choices.value = []; listState.value = 'idle'; if (LOGIN.test(account.value.trim())) timer = window.setTimeout(loadChoices, 600) }
+function accountDone() { window.clearTimeout(timer); void loadChoices() }
+function addExtra() {
+  const name = extra.value.trim()
+  extraError.value = ''
+  if (!SLUG.test(name)) { extraError.value = 'Use the owner/name form, for example owner/repository.'; return }
+  if (!selected.value.includes(name)) selected.value = [...selected.value, name]
+  extra.value = ''
+}
+function chooseShown() { selected.value = [...new Set([...selected.value, ...shown.value.map(c => c.name)])] }
+function clearAll() { selected.value = [] }
+onBeforeUnmount(() => window.clearTimeout(timer))
+watch(enabled, on => { if (on) void loadChoices() })
 async function load() {
-  try { fill(await getJson<GithubStatus>('/api/github/status')) } catch { error.value = 'GitHub settings are unavailable right now.' }
+  try { fill(await getJson<GithubStatus>('/api/github/status')); void loadChoices() } catch { error.value = 'GitHub settings are unavailable right now.' }
   if (!props.wizard) {
     try { personal.value = await getJson<Profile>('/api/profile'); const g = (personal.value.preferences as unknown as { github?: { repos: string[]; public_only: boolean } }).github; mine.value = g?.repos ?? []; minePublic.value = !!g?.public_only } catch { personal.value = null }
   }
@@ -95,10 +134,33 @@ onMounted(load)
     <form v-if="status && status.state !== 'configuration_error'" @submit.prevent="save()">
       <label class="check"><input v-model="enabled" type="checkbox" />Enable GitHub</label>
       <template v-if="enabled">
-        <label>GitHub account<input v-model="account" class="input" autocomplete="off" spellcheck="false" placeholder="your-github-login" /></label>
+        <label>GitHub account<input v-model="account" class="input" autocomplete="off" spellcheck="false" placeholder="your-github-login" @input="accountTyped" @blur="accountDone" @keydown.enter.prevent="accountDone" /></label>
         <p class="muted small">The account must be the one already signed in with <code>gh</code> on the host. The dashboard uses that existing login and never asks for, reads or stores a token.</p>
-        <label>Repositories to show<textarea v-model="repoText" class="input" rows="4" spellcheck="false" placeholder="owner/repository" /></label>
-        <p class="muted small">One <code>owner/name</code> per line. Only these repositories are read. {{ repos.length }} selected.</p>
+        <fieldset class="repo-list" :aria-busy="listState === 'loading'">
+          <legend>Repositories to show</legend>
+          <p v-if="listState === 'idle' && !selected.length" class="muted small">Enter the account above and its repositories appear here to tick.</p>
+          <p v-else-if="listState === 'loading'" class="muted small" role="status">Loading repositories for {{ account.trim() }}…</p>
+          <p v-else-if="listState === 'error'" class="notice-warn small" role="alert">{{ listError }} You can still add a repository by name below.</p>
+          <template v-if="choices.length || unlisted.length">
+            <div class="list-tools">
+              <input v-if="choices.length > 8" v-model="filter" class="input" type="search" placeholder="Find a repository" aria-label="Find a repository" />
+              <button v-if="choices.length" type="button" class="btn" @click="chooseShown">{{ filter.trim() ? 'Select shown' : 'Select all' }}</button>
+              <button type="button" class="btn" :disabled="!selected.length" @click="clearAll">Clear</button>
+            </div>
+            <label v-for="c in shown" :key="c.name" class="check"><input v-model="selected" type="checkbox" :value="c.name" />
+              <span>{{ c.name }}<small v-if="c.private" class="tag">private</small><small v-if="c.archived" class="tag">archived</small><span v-if="c.description" class="muted small desc"> {{ c.description }}</span></span></label>
+            <p v-if="choices.length && !shown.length" class="muted small">No repository matches this search.</p>
+            <label v-for="r in unlisted" :key="r" class="check unlisted"><input v-model="selected" type="checkbox" :value="r" />
+              <span>{{ r }}<small class="tag">not in {{ account.trim() || 'this' }}’s list</small></span></label>
+          </template>
+          <p v-if="listLimited" class="muted small">Showing the newest 100 repositories. Add any other by name below.</p>
+          <p class="muted small">{{ selected.length }} selected. Only these repositories are read.</p>
+        </fieldset>
+        <details class="by-name">
+          <summary class="small">Add a repository by name (another owner)</summary>
+          <div class="add-row"><input v-model="extra" class="input" spellcheck="false" placeholder="owner/repository" aria-label="Repository name" @keydown.enter.prevent="addExtra" /><button type="button" class="btn" @click="addExtra">Add</button></div>
+          <p v-if="extraError" class="notice-warn small" role="alert">{{ extraError }}</p>
+        </details>
         <label class="check"><input v-model="publicOnly" type="checkbox" />Public repositories only</label>
         <label>How often to check<select v-model.number="poll" class="input"><option v-for="[v, l] in cadences" :key="v" :value="v">{{ l }}</option></select></label>
       </template>
@@ -137,6 +199,14 @@ label { display: grid; gap: var(--gap-sm); }
 .small { font-size: var(--font-size-xs); margin: 0; }
 .actions { display: flex; gap: var(--gap); flex-wrap: wrap; }
 fieldset { display: grid; gap: var(--gap-sm); border: 1px solid var(--surface-border); border-radius: var(--radius); padding: var(--gap); }
+.repo-list { max-height: 22rem; overflow: auto; }
+.list-tools { display: flex; gap: var(--gap-sm); flex-wrap: wrap; align-items: center; }
+.list-tools .input { flex: 1 1 12rem; }
+.tag { margin-left: var(--gap-xs); padding: 0 var(--gap-xs); border: 1px solid var(--surface-border); border-radius: var(--radius); color: var(--text-muted); font-size: var(--font-size-xs); }
+.unlisted { opacity: 0.85; }
+.desc { overflow-wrap: anywhere; }
+.add-row { display: flex; gap: var(--gap-sm); margin-top: var(--gap-sm); }
+.add-row .input { flex: 1; }
 .personal { display: grid; gap: var(--gap-sm); }
 code { overflow-wrap: anywhere; }
 </style>

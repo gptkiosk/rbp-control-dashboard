@@ -24,6 +24,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
+import agent_git
+
 PROMPT_PLACEHOLDER = "<prompt>"
 
 
@@ -113,11 +115,21 @@ class ClaudeParser(Parser):
 def build_claude(card, prompt: str, model: str | None, budget: float, binary: str,
                  session_id: str | None = None) -> list[str]:
     mode = "plan" if card.mode == "read" else "acceptEdits"
+    grant = None if getattr(card, "output_only", False) else getattr(card, "agent_git_grant", None)
+    # Belt and braces: in print mode shell commands are denied unless allowed, and these
+    # stay blocked even if a future setting allows Bash. With an operator grant, the blanket
+    # `git push` deny gives way to one exact allowed push (a deny would beat the allow).
+    denied = (agent_git.claude_denied(grant) if grant else
+              ["Bash(git push:*)", "Bash(git merge:*)", "Bash(gh pr merge:*)"])
     argv = [binary, "-p", prompt, "--output-format", "stream-json", "--verbose",
-            "--permission-mode", mode,
-            # Belt and braces: in print mode shell commands are denied unless allowed, and these
-            # stay blocked even if a future setting allows Bash.
-            "--disallowedTools", "Bash(git push:*)", "Bash(git merge:*)", "Bash(gh pr merge:*)"]
+            "--permission-mode", mode, "--disallowedTools", *denied]
+    if not getattr(card, 'output_only', False):
+        # Print-mode jobs cannot answer native approval prompts. Public research is
+        # available without granting shell, credential or publication permissions, unless the
+        # operator granted branch-scoped git access for this project.
+        argv += ["--allowedTools", "WebSearch", "WebFetch"]
+        if grant:
+            argv += agent_git.claude_allowed(grant)
     if not getattr(card,"subscription_billing",False):
         argv += ["--max-budget-usd", f"{budget:.2f}"]
     if model:
@@ -170,15 +182,19 @@ class CodexParser(Parser):
 def build_codex(card, prompt: str, model: str | None, budget: float, binary: str,
                 session_id: str | None = None) -> list[str]:
     sandbox = "read-only" if card.mode == "read" else "workspace-write"
+    grant = getattr(card, "agent_git_grant", None)
+    # With an operator grant the plain workspace-write sandbox (read-only .git, no network) is
+    # replaced by a permission profile that lets the story commit and reach GitHub only.
+    profile = [a for o in agent_git.codex_overrides() for a in ("-c", o)] if grant else []
     if session_id:
         # `codex exec resume` has no -s/-C flags, so the sandbox is forced with a config override;
         # otherwise a resumed turn would use whatever sandbox Codex's own config defaults to.
-        argv = [binary, "-c", f'sandbox_mode="{sandbox}"', "exec", "resume", "--json",
+        argv = [binary, *(profile or ["-c", f'sandbox_mode="{sandbox}"']), "exec", "resume", "--json",
                 "--skip-git-repo-check"]
         if model:
             argv += ["-m", model]
         return argv + [session_id, prompt]
-    argv = [binary, "exec", "--json", "--skip-git-repo-check", "-s", sandbox, "-C", card.working_dir]
+    argv = [binary, "exec", "--json", "--skip-git-repo-check", *(profile or ["-s", sandbox]), "-C", card.working_dir]
     if model:
         argv += ["-m", model]
     return argv + [prompt]

@@ -50,8 +50,10 @@ def tc(make_client, tmp_path, monkeypatch):
 
 def _settings(tmp_path):
     from types import SimpleNamespace
+    # The price gate (SEC-013) needs an explicit model with a reviewed route class, as for any real agent.
     return SimpleNamespace(runs_dir=tmp_path / "runs", max_concurrent_runs=2, default_budget_usd=1.0,
-                           claude_path=sys.executable, run_retention_days=90)
+                           claude_path=sys.executable, run_retention_days=90, dispatch_free_only=False,
+                           dispatch_max_budget_usd=1.0, dispatch_route_classes={"fake||fake-model": "free"})
 
 
 def _wait(tc, tid, pred, timeout=15):
@@ -65,7 +67,7 @@ def _wait(tc, tid, pred, timeout=15):
 
 
 def _thread(tc, tmp_path, **kw):
-    body = {"agent": "fake", "working_dir": str(tmp_path / "ws" / "proj"), **kw}
+    body = {"agent": "fake", "model": "fake-model", "working_dir": str(tmp_path / "ws" / "proj"), **kw}
     r = tc.post("/api/chat/threads", json=body)
     assert r.status_code == 201, r.text
     return r.json()

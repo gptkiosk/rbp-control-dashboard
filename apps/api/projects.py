@@ -7,23 +7,33 @@ from __future__ import annotations
 import re
 import hashlib
 import json
+import os
 import time
+from datetime import datetime
 from pathlib import Path
 from fastapi import HTTPException
 from pydantic import ValidationError
-from sqlalchemy import select
+from sqlalchemy import func, select
 from models import Project, ProjectTask, ProjectMemory, ProjectDelivery, Card, Run, RunEvent
 from project_schemas import Document, Node, Accept, DEFAULT_PLANNING_BIAS
 import approval
 import billing
 import cards
 import project_workspaces as workspaces
+import provider_limits
 from agents import REGISTRY
 import native_routes
 import project_outputs
 from settings import get_settings
 
 BUSY = {'planning', 'dispatching', 'active', 'paused', 'complete'}
+AUTO_HANDOFF_PREFIX = 'Agent-reported completion passed under operator project-wide handoff approval; not independently verified.\n'
+CONTEXT_PAYLOAD_BUDGET = 16 * 1024
+CONTEXT_MEMORY_LIMIT = 2000
+CONTEXT_DIRECT_LIMIT = 3500   # a direct prerequisite's handoff keeps this much of its own text
+CONTEXT_DIGEST_LIMIT = 700    # an earlier story in the lineage is a digest; the rest is in the ledger file
+CONTEXT_TAIL_LIMIT = 450
+CONTEXT_LEDGER_SCAN = 250
 
 def now(): return int(time.time())
 def fail(message, status=409): raise HTTPException(status, message)
@@ -427,7 +437,7 @@ def advance(s,settings):
         c=s.get(Card,pipeline['card_id'])
         if c and c.column in {'queued','running'}: continue
         r=s.scalar(select(Run).where(Run.card_id==pipeline['card_id']).order_by(Run.id.desc()).limit(1))
-        if c and r and r.stage=='failed' and pipeline['step']=='plan' and re.search(r'usage limit|rate.?limit|quota|limit reached|429', (r.error or '')+'\n'+(r.result_text or ''),re.I):
+        if c and r and r.stage=='failed' and pipeline['step']=='plan' and re.search(r'usage limit|session limit|rate.?limit|quota|limit reached|429', (r.error or '')+'\n'+(r.result_text or ''),re.I):
             attempted={(v.agent,v.model_requested or '') for v in s.scalars(select(Run).join(ProjectTask,ProjectTask.card_id==Run.card_id).where(ProjectTask.project_id==p.id,ProjectTask.role=='plan',ProjectTask.revision==p.revision))}
             alternative=next((v for v in pipeline['choices'] if (v['agent'],v['model']) not in attempted),None)
             memory(s,p,'checkpoint','Planner stopped on a reported quota/limit. No implementation started.\n'+(r.error or '')+'\n'+(r.result_text or ''),r.agent,c.id,r.id)
@@ -470,20 +480,155 @@ def advance(s,settings):
         p.updated_at=now()
 
 def binding(s,card_id): return s.get(ProjectTask,card_id)
+def superseded_by(s,card,link=None):
+    """The finished sibling card when this failed project card is an unneeded duplicate of it, else None.
+    Another card with the same project, revision, role and story key (a story, or a coordinate, plan,
+    return-plan or dispatch step) must already be Done or in Review, so unfinished work is never deletable."""
+    link=link or binding(s,card.id)
+    if not link or card.column!='failed':return None
+    return s.scalar(select(ProjectTask.card_id).join(Card,Card.id==ProjectTask.card_id).where(
+        ProjectTask.project_id==link.project_id,ProjectTask.revision==link.revision,ProjectTask.role==link.role,
+        ProjectTask.node_key==link.node_key,ProjectTask.card_id!=card.id,Card.column.in_(('done','review'))).limit(1))
+
+def forget_duplicate(s,card,sibling):
+    """Remove the binding of a superseded duplicate so the card can be deleted; the ledger keeps the record."""
+    link=binding(s,card.id)
+    what=link.node_key or link.role
+    memory(s,get(s,link.project_id),'decision',f'Deleted duplicate failed card #{card.id} ({card.title}); {what} is carried by #{sibling}.','operator',card.id)
+    s.delete(link);s.flush()
+
+def running_stories(s,p):
+    return list(s.scalars(select(ProjectTask.card_id).join(Card,Card.id==ProjectTask.card_id).where(ProjectTask.project_id==p.id,Card.column=='running')))
+
+def closed_project(s,card,link=None):
+    """The project id when this failed card belongs to a project that was closed out (state complete or closed), else None.
+    Nothing more can happen on such a card, and its handoff and incident entries stay in the project ledger."""
+    link=link or binding(s,card.id)
+    if not link or card.column!='failed':return None
+    p=s.get(Project,link.project_id)
+    return p.id if p and p.state in ('complete','closed') else None
+
+def forget_closed(s,card):
+    link=binding(s,card.id)
+    memory(s,get(s,link.project_id),'decision',f'Deleted failed card #{card.id} ({card.title}) after project {link.project_id} was closed out; its handoff and incident entries remain in this ledger.','operator',card.id)
+    s.delete(link);s.flush()
+
 def protect(s,card):
     if binding(s,card.id): fail('This task belongs to an approved project. Use Projects for handoff acceptance/retry; its scope and dependencies cannot be changed on the board.')
+
+def _context_excerpt(value,limit):
+    """Bound repeated context without changing the append-only source evidence."""
+    value=str(value or '')
+    if len(value)<=limit:return value
+    digest=hashlib.sha256(value.encode()).hexdigest()[:12]
+    marker=f'\n[… {len(value)-limit} characters omitted; full text in Projects; sha256 {digest}]'
+    return value[:max(0,limit-len(marker))]+marker
+
+
+_DIGEST_KEYS = re.compile(r'^(?:#{1,4}\s*|\*\*|[-*]\s+|\d+\.\s+)?(?:status|result|decision|decisions|check|checks|risk|risks|blocker|blockers|next|remaining|changes|artifacts|verified|not verified|incomplete|done|handoff)\b', re.I)
+
+def _digest(value, limit, ref=''):
+    """Deterministic short form of a long entry: its first line and the lines that state status,
+    changes, checks, decisions, risks or next steps. The full text stays in the ledger file."""
+    text = str(value or '').strip()
+    if len(text) <= limit: return text
+    lines = [l.strip() for l in text.splitlines() if l.strip()]
+    marker = f'\n[digest of {len(text)} characters{"; full text: " + ref if ref else ""}]'
+    room = max(0, limit - len(marker))
+    picked, out = [lines[0][:200]] if lines else [], ''
+    picked += [l[:180] for l in lines[1:] if _DIGEST_KEYS.match(l)]
+    for l in picked:
+        if len(out) + len(l) + 1 > room: break
+        out += l + '\n'
+    return (out.rstrip() or text[:room]) + marker
+
+def ledger_path(settings, p):
+    return settings.data_dir / 'project-ledgers' / f'project-{p.id}.md'
+
+def write_ledger(s, p):
+    """The complete, uncompacted ledger as one Markdown file, rewritten only when it changed.
+    Prompts carry digests and point here, so compaction loses nothing an agent may need."""
+    try:
+        last = s.scalar(select(func.max(ProjectMemory.id)).where(ProjectMemory.project_id == p.id, ProjectMemory.kind != 'context')) or 0
+        path = ledger_path(get_settings(), p)
+        stamp = f'<!-- last_id: {last} -->'
+        if path.exists():
+            with open(path, encoding='utf-8') as f:
+                if f.readline().strip() == stamp: return str(path)
+        rows = s.scalars(select(ProjectMemory).where(ProjectMemory.project_id == p.id, ProjectMemory.kind != 'context').order_by(ProjectMemory.id)).all()
+        lines = [stamp, f'# RCD project {p.id} ledger: full text, nothing omitted', '']
+        for r in rows:
+            when = datetime.fromtimestamp(r.created_at).isoformat(timespec='seconds') if r.created_at else ''
+            lines += [f'## #{r.id} · {r.kind} · {r.actor} · story card {r.card_id or "-"} · run {r.run_id or "-"} · {when}', '', r.text or '', '']
+        path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        tmp = path.with_suffix('.tmp')
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, 'w', encoding='utf-8') as f: f.write('\n'.join(lines))
+        os.replace(tmp, path)
+        return str(path)
+    except OSError:
+        return None
+
+def _context_lineage(document,story):
+    by_key={n['key']:n for n in document['nodes'] if n['kind']=='story'}
+    ordered_keys=[]
+    def visit(key):
+        for dep in by_key.get(key,{}).get('depends_on',[]):
+            visit(dep)
+            if dep not in ordered_keys:ordered_keys.append(dep)
+    if story:visit(story)
+    return ordered_keys+([story] if story else []),by_key
 
 def context_payload(s,p,story=None,workspace=None):
     manifest=json.loads(p.approved_manifest) if p.approved_manifest else {'document':document(p),'revision':p.revision}
     d=manifest['document']
-    rows=list(s.scalars(select(ProjectMemory).where(ProjectMemory.project_id==p.id,ProjectMemory.kind.in_(['handoff','decision','checkpoint'])).order_by(ProjectMemory.id.desc()).limit(20)))
-    records=[{'id':r.id,'kind':r.kind,'actor':r.actor,'card_id':r.card_id,'run_id':r.run_id,'text':r.text[:3000]} for r in reversed(rows)]
-    nodes=[{k:n[k] for k in ('key','title','assignee','model')} for n in d['nodes'] if n['kind']=='story']
-    payload={'execution_workspace':workspace or d['working_dir'],'project_id':p.id,'revision':manifest['revision'],'title':d['title'],'brief':d['brief'],
-        'constraints':d['constraints'],'stories':nodes,'accepted_memory':records,'accepted_artifacts':{k:{f:a.get(f) for f in ('workspace','branch','head','commits','files')} for k,a in manifest.get('artifacts',{}).items()},'memory_window':'20 recent entries plus required upstream handoffs; results capped at 12000 characters; 180 KiB context limit; full ledger remains in Projects'}
-    payload['accepted_outputs']={k:{f:g[f] for f in ('path','sha256')} for k,g in manifest.get('output_continuations',{}).items() if g['state']=='accepted'}
+    rows=list(s.scalars(select(ProjectMemory).where(ProjectMemory.project_id==p.id,ProjectMemory.kind.in_(['handoff','decision','checkpoint'])).order_by(ProjectMemory.id.desc()).limit(CONTEXT_LEDGER_SCAN)))
+    # Retracted automatic handoffs stay in the ledger, but no longer instruct agents
+    # that the unfinished prerequisite was accepted successfully.
+    rows=[r for r in rows if not (r.kind=='handoff' and r.text.startswith(AUTO_HANDOFF_PREFIX)
+        and r.run_id and (run:=s.get(Run,r.run_id)) and run.stage=='failed' and project_outputs.incomplete_error(run))]
+    lineage,by_key=_context_lineage(d,story)
+    visible=set(lineage)
+    task_rows=list(s.scalars(select(ProjectTask).where(ProjectTask.project_id==p.id,ProjectTask.revision==manifest['revision'],ProjectTask.role=='story')))
+    relevant_cards={t.card_id for t in task_rows if t.node_key in visible}
+    # Keep one newest entry per story/kind, recent global operator decisions, and a
+    # small recent tail. This avoids repeatedly sending unrelated branch history.
+    # Decisions about this story's own lineage and the three newest global ones matter; decisions
+    # about unrelated stories stay in the ledger file, not in every prompt.
+    candidates=[];seen=set();global_decisions=0
+    for index,r in enumerate(rows):
+        if story is None:  # the project-wide view has no lineage to filter by: the twelve newest decisions
+            is_decision=counted=r.kind=='decision' and global_decisions<12
+        else:
+            lineage_decision=r.kind=='decision' and r.card_id in relevant_cards
+            counted=r.kind=='decision' and r.card_id is None and global_decisions<3
+            is_decision=lineage_decision or counted
+        key=(r.card_id,r.kind,r.id if is_decision else None)
+        relevant=r.card_id in relevant_cards or is_decision or index<(5 if story else 8)
+        if relevant and key not in seen:
+            seen.add(key);candidates.append(r)
+            if counted:global_decisions+=1
+    direct_keys=set(by_key[story].get('depends_on',[])) if story and story in by_key else set()
+    direct_cards={t.card_id for t in task_rows if t.node_key in direct_keys}
+    ledger=write_ledger(s,p)
+    story_nodes=[by_key[k] for k in lineage if k in by_key] if story else [n for n in d['nodes'] if n['kind']=='story']
+    nodes=[{k:n.get(k) for k in ('key','title','assignee','model','depends_on')} for n in story_nodes]
+    artifact_keys=visible if story else set(manifest.get('artifacts',{}))
+    payload={'execution_workspace':workspace or d['working_dir'],'project_id':p.id,'revision':manifest['revision'],'title':d['title'],
+        'brief':_context_excerpt(d['brief'],5000),'constraints':_context_excerpt(d['constraints'],3000),'stories':nodes,'accepted_memory':[],
+        'accepted_artifacts':{k:{f:(a.get(f)[:50] if isinstance(a.get(f),list) else a.get(f)) for f in ('workspace','branch','head','commits','files')} for k,a in manifest.get('artifacts',{}).items() if k in artifact_keys},
+        'memory_compaction':{'mode':'deterministic_dependency_aware','budget_bytes':CONTEXT_PAYLOAD_BUDGET,
+            'ledger_entries_scanned':len(rows),'entries_included':0,'entries_omitted':0,'digested':0,
+            'full_ledger':ledger or 'Projects > Shared memory'}}
+    payload['accepted_outputs']={k:{f:g[f] for f in ('path','sha256')} for k,g in manifest.get('output_continuations',{}).items() if g['state']=='accepted' and (not story or k in visible)}
     if story:
-        payload['current_story']=next(n for n in d['nodes'] if n['key']==story)
+        current=by_key[story]
+        payload['current_story']={k:current.get(k) for k in ('key','title','depends_on','assignee','model','agent_target')}
+    if story and (free:=manifest.get('free_retries',{}).get(story)):
+        payload['free_retry']=free
+    if story:
+        # Accepted predecessors' own results travel with the story (adapters rely on them); each is
+        # bounded, and the full text stays in the ledger file named in the digest.
         payload['upstream_outputs']={}
         for key in predecessors(manifest,story):
             link=s.scalar(select(ProjectTask).where(ProjectTask.project_id==p.id,
@@ -491,18 +636,38 @@ def context_payload(s,p,story=None,workspace=None):
             if not link or prerequisite_reason(s,link.card_id): continue
             handoff=s.scalar(select(ProjectMemory).where(ProjectMemory.project_id==p.id,
                 ProjectMemory.card_id==link.card_id,ProjectMemory.kind=='handoff').order_by(ProjectMemory.id.desc()).limit(1))
+            if not handoff: continue
             run=s.get(Run,handoff.run_id) if handoff.run_id else None
-            payload['upstream_outputs'][key]={'card_id':link.card_id,'run_id':handoff.run_id,
-                'memory_id':handoff.id,'handoff':handoff.text,'result_text':(run.result_text or '')[:12000] if run else handoff.text}
-            records[:]=[r for r in records if r['id']!=handoff.id]
-            if handoff:
-                records.append({'id':handoff.id,'kind':handoff.kind,'actor':handoff.actor,
-                    'card_id':handoff.card_id,'run_id':handoff.run_id,'text':handoff.text})
-    required={v['memory_id'] for v in payload.get('upstream_outputs',{}).values()}
-    while len(json.dumps(payload,ensure_ascii=False).encode())>180000:
-        removable=next((r for r in records if r['id'] not in required),None)
-        if removable is None: fail('Required upstream context exceeds 180 KiB. Review and reduce accepted handoffs before dispatch.')
-        records.remove(removable)
+            payload['upstream_outputs'][key]={'card_id':link.card_id,'run_id':handoff.run_id,'memory_id':handoff.id,
+                'handoff':_digest(handoff.text,CONTEXT_DIRECT_LIMIT,f'ledger #{handoff.id}'),
+                'result_text':_digest((run.result_text or '') if run else handoff.text,CONTEXT_DIRECT_LIMIT,f'run {handoff.run_id}')}
+    selected=[]
+    digested=0
+    for r in candidates:
+        ref=f'ledger #{r.id}'
+        # Full text for what the story builds on directly, a digest for the rest of the lineage and a
+        # shorter one for everything else. Nothing is lost: the full text is in the ledger file.
+        if r.card_id in direct_cards and r.kind in ('handoff','checkpoint'):text=_digest(r.text,CONTEXT_DIRECT_LIMIT,ref)
+        elif r.card_id in relevant_cards:text=_digest(r.text,CONTEXT_DIGEST_LIMIT,ref)
+        elif r.kind=='decision':text=_digest(r.text,300,ref)
+        else:text=_digest(r.text,CONTEXT_TAIL_LIMIT,ref)
+        record={'id':r.id,'kind':r.kind,'actor':r.actor,'card_id':r.card_id,'run_id':r.run_id,'text':text}
+        digested+=len(text)<len(str(r.text or '').strip())
+        payload['accepted_memory'].append(record)
+        if len(json.dumps(payload,ensure_ascii=False).encode())>CONTEXT_PAYLOAD_BUDGET:
+            payload['accepted_memory'].pop()
+        else:selected.append(record)
+    payload['accepted_memory']=list(reversed(selected))
+    payload['memory_compaction']['digested']=sum(1 for m in payload['accepted_memory'] if '[digest of' in m['text'])
+    # Stable keys first (identical across the stories of a revision, so a prompt cache can reuse
+    # them), what varies per story after, and the story's own location and identity last.
+    order=['project_id','revision','title','brief','constraints','stories','accepted_artifacts','accepted_outputs',
+        'memory_compaction','accepted_memory','upstream_outputs','execution_workspace','current_story','free_retry']
+    payload={k:payload[k] for k in order if k in payload}
+    payload['memory_compaction']['entries_included']=len(payload['accepted_memory'])
+    payload['memory_compaction']['entries_omitted']=max(0,len(rows)-len(payload['accepted_memory']))
+    if len(json.dumps(payload,ensure_ascii=False).encode())>180000:
+        fail('Required upstream context exceeds 180 KiB. Review and reduce accepted handoffs before dispatch.')
     return payload
 
 def context(s,p,story=None,workspace=None,payload=None):
@@ -555,7 +720,7 @@ def claim_context(s,card,run_id=None):
     card.project_context=payload
     card.project_origin={'project_id':p.id,'revision':m['revision'],'manifest_hash':m['hash'],
         'story_key':link.node_key,'card_id':card.id}
-    prompt=card.body+'\n\n'+context(s,p,payload=payload)
+    prompt=context(s,p,payload=payload)+'\n\nYOUR STORY (do this now)\n'+card.body
     grant=m.get('output_continuations',{}).get(link.node_key)
     card.output_only=bool(grant and grant['state']=='queued')
     if card.output_only:
@@ -661,7 +826,7 @@ def on_finish(s,card,run,stage):
             memory(s,p,'proposal',(run.result_text or 'Agent returned no handoff text.'),run.agent,card.id,run.id)
         else:
             text = (run.error or '') + '\n' + (run.result_text or '')
-            quota = stage == 'failed' and not (grant and grant.get('run_id')==run.id) and bool(re.search(r'usage limit|rate.?limit|quota|too many requests|limit reached|429', text, re.I))
+            quota = stage == 'failed' and not (grant and grant.get('run_id')==run.id) and bool(re.search(r'usage limit|session limit|rate.?limit|quota|too many requests|limit reached|429', text, re.I))
             if quota:
                 attempted={(r.agent,r.model_requested or '') for r in s.scalars(select(Run).where(Run.card_id==card.id))}
                 choices=approved_story_routes(p,link)
@@ -670,6 +835,7 @@ def on_finish(s,card,run,stage):
                 if alternative:
                     card.agent=alternative['agent']; card.model=alternative['model'] or None
                     card.agent_target=None;card.column='queued'
+                    provider_limits.note_handoff(s,run.agent,now())
                     memory(s,p,'decision',f'Pre-approved quota handoff to {alternative} for the same story #{card.id}; only reviewed routes are eligible.', 'mcd',card.id,run.id)
                     return
             memory(s,p,'incident',f'{stage}: story #{card.id} stopped; explicit retry required.',run.agent,card.id,run.id)

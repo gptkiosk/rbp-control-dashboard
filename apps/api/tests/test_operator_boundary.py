@@ -110,7 +110,7 @@ def test_unverifiable_caller_cannot_change_state(make_client, monkeypatch):
 
 def test_operator_flows_unaffected_without_agent_peer(make_client, tmp_path):
     client = make_client()
-    created = client.post("/api/cards", json={"title": "operator card", "agent": "claude",
+    created = client.post("/api/cards", json={"title": "operator card", "agent": "claude", "body": "Do the thing.",
                                               "working_dir": str(tmp_path / "ws" / "proj")})
     assert created.status_code == 201
     assert client.get("/api/cards").status_code == 200
@@ -142,7 +142,7 @@ def test_agent_processes_are_refused_over_real_loopback(tmp_path):
 
         # The operator (this process) is served.
         assert _request(base, "GET", "/api/cards")[0] == 200
-        assert _request(base, "POST", "/api/cards", {"title": "operator card", "agent": "claude",
+        assert _request(base, "POST", "/api/cards", {"title": "operator card", "agent": "claude", "body": "Do the thing.",
                                                      "working_dir": str(ws / "proj")})[0] == 201
 
         # A runner in its own session, as the dispatcher starts it, inheriting everything.

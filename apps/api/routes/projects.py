@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from deps import get_session
 from settings import get_settings
 from models import Project, ProjectTask, Card, CardDependency, Run
-from project_schemas import Document, Save, Action, Retry, ContinueOutput, Note, Accept, HandoffPolicy
+from project_schemas import Close, Document, Save, Action, Retry, ContinueOutput, Note, Accept, HandoffPolicy
 import projects
 
 router=APIRouter(prefix='/api/projects')
@@ -113,6 +113,19 @@ def continue_output(project_id:int,card_id:int,body:ContinueOutput,request:Reque
 @router.get('/{project_id}/context',response_class=PlainTextResponse)
 def context(project_id:int,request:Request,s:Session=Depends(get_session)):
     actor(request);return projects.context(s,projects.get(s,project_id))
+
+@router.post('/{project_id}/close')
+def close(project_id:int,body:Close,request:Request,s:Session=Depends(get_session)):
+    """End a project without finishing it. Its state becomes `closed`, never `complete`; the reason and the whole
+    ledger are kept, no new story starts, and its failed cards can then be removed from the board."""
+    identity=actor(request);write(s);p=projects.get(s,project_id);projects.check_revision(p,body.revision)
+    if p.state=='closed': return projects.detail(s,p)
+    if p.state not in {'active','paused','draft','review','planning_failed','dispatch_failed'}:
+        raise HTTPException(409,'Only a project that is not mid-planning, not mid-dispatch and not already complete can be closed.')
+    if projects.running_stories(s,p): raise HTTPException(409,'Cancel the story that is running first, then close the project.')
+    p.state='closed';p.pipeline=None;p.error=None
+    projects.memory(s,p,'decision',f'Project closed without finishing all stories. Reason: {body.reason.strip()}',identity)
+    s.commit();return projects.detail(s,p)
 
 @router.post('/{project_id}/pause')
 def pause(project_id:int,body:Action,request:Request,s:Session=Depends(get_session)):

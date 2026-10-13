@@ -17,6 +17,7 @@ async function setup(state='draft', tasks: import('@/lib/projects').ProjectTask[
   if(url==='/api/projects') return {body:{projects:[{id:1,title:doc.title,state,revision:1,updated_at:1}]}}
   if(url==='/api/projects/1' && init?.method==='PATCH') { const body=JSON.parse(String(init.body)); p={...p,document:body.document,revision:2}; return {body:p} }
   if(url==='/api/projects/1/handoff-policy') { const body=JSON.parse(String(init?.body));p={...p,handoff_approval:{...p.handoff_approval,mode:body.mode==='automatic'?'automatic':'manual'}};return {body:p} }
+  if(url==='/api/projects/1/close') { p={...p,state:'closed'};return {body:p} }
   if(url==='/api/projects/1') return {body:p}
   if(url==='/api/projects/1/stories/5/artifact') return {body:{files:[],diff:'',head:null,output:proposedOutput}}
   if(url==='/api/projects/1/stories/5/accept') { p={...p,tasks:tasks.map(t=>({...t,column:'done'}))};return {body:p} }
@@ -242,4 +243,23 @@ it('shows upstream failure reasons on blocked stories without offering a handoff
  expect(w.get('.work-row [role=status]').text()).toBe(reason)
  expect(w.findAll('button').some(b=>b.text()==='Review handoff')).toBe(false)
  w.unmount()
+})
+
+it('closes an unfinished project only with a reason and shows it as Closed, never Complete',async()=>{
+ const prompt=vi.spyOn(window,'prompt').mockReturnValueOnce('').mockReturnValueOnce('Superseded by the RCD project')
+ const {w,f}=await setup('active')
+ const closeButton=()=>w.findAll('button').find(b=>b.text()==='Close project…')!
+ await closeButton().trigger('click');await flushPromises()
+ expect(f.mock.calls.some(([url])=>url==='/api/projects/1/close')).toBe(false)
+ await closeButton().trigger('click');await flushPromises()
+ const write=f.mock.calls.find(([url])=>url==='/api/projects/1/close')!
+ expect(JSON.parse(String(write[1]?.body))).toEqual({revision:1,reason:'Superseded by the RCD project'})
+ expect(prompt).toHaveBeenCalledTimes(2);expect(w.text()).toContain('Closed');expect(w.text()).not.toContain('Complete')
+ expect(w.findAll('button').some(b=>b.text()==='Close project…')).toBe(false);w.unmount()
+})
+
+it('offers no close action for a completed or planning project',async()=>{
+ for(const state of ['complete','planning','dispatching']){
+  const {w}=await setup(state);expect(w.findAll('button').some(b=>b.text()==='Close project…')).toBe(false);w.unmount()
+ }
 })

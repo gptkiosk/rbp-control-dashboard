@@ -9,7 +9,7 @@ const REPOSITORY = 'gptkiosk/rbp-control-dashboard'
 const POLL_MS = 2000, MAX_POLLS = 150, NOT_STARTED_POLLS = 15 // about 5 minutes overall; 30 seconds before "never started"
 const DOWNLOAD_POLLS = 300 // three assets can take up to 10 minutes; polling only reads status, it never starts anything
 
-// Shapes of GET /api/updates/check, GET /api/updates and the release description the server returns.
+// Shapes of GET /api/app-updates/check, GET /api/app-updates and the release description the server returns.
 interface Asset { kind: string; name: string; size: number }
 interface Candidate {
   product: string; platform: string; repository: string; channel: string; tag: string; version: string
@@ -110,7 +110,7 @@ function refusal(e: unknown, fallback: string) {
 // Reads this host's install state only. It never contacts GitHub.
 async function read(): Promise<boolean> {
   try {
-    status.value = await getJson<UpdateStatus>('/api/updates')
+    status.value = await getJson<UpdateStatus>('/api/app-updates')
     reconnecting.value = false; error.value = ''
     return true
   } catch (e) {
@@ -126,7 +126,7 @@ async function check() {
   if (busy.value || !!operation.value) return
   busy.value = true; error.value = ''; notice.value = ''; cancelDownload()
   try {
-    const body = await getJson<CheckResponse>(`/api/updates/check?channel=${encodeURIComponent(channel.value)}`)
+    const body = await getJson<CheckResponse>(`/api/app-updates/check?channel=${encodeURIComponent(channel.value)}`)
     found.value = body
     pinnedManifestDigest.value = ''
     checkedAt.value = Date.now()
@@ -147,7 +147,7 @@ async function download() {
   if (!c || !downloadConfirmed.value || busy.value || refused.value || !/^[0-9a-f]{64}$/i.test(pinnedManifestDigest.value)) return
   busy.value = true; downloading.value = true; error.value = ''; notice.value = ''; cancelDownload()
   try {
-    await postJson('/api/updates/fetch', { version: c.version, channel: channel.value, confirm: true, manifest_sha256: pinnedManifestDigest.value.toLowerCase() })
+    await postJson('/api/app-updates/fetch', { version: c.version, channel: channel.value, confirm: true, manifest_sha256: pinnedManifestDigest.value.toLowerCase() })
     const ready = await waitForStaged(c.version)
     if (ready) notice.value = `Verified and staged ${c.version}. It is not installed until you confirm the install below.`
     else error.value = 'Not staged yet. Nothing was installed. If the download is still running, check again shortly; otherwise check helper.log on the host.'
@@ -179,7 +179,7 @@ async function submit() {
   if (!p || !confirmed.value) return
   busy.value = true; error.value = ''; notice.value = ''
   try {
-    await postJson('/api/updates/apply', { version_id: p.version.id })
+    await postJson('/api/app-updates/apply', { version_id: p.version.id })
     operation.value = { kind: p.kind, target: p.version.id, beforeTx: install.value?.last?.tx ?? null, sawTx: false, polls: 0 }
     pending.value = null; confirmed.value = false
     notice.value = `${p.kind === 'rollback' ? 'Rollback' : 'Install'} started on the host. Progress is shown below.`

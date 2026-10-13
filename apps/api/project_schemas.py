@@ -56,6 +56,10 @@ class Action(Strict):
     approve_api_planning: bool = False
     approve_api_work: bool = False
 
+class Close(Strict):
+    revision: int = Field(ge=1)
+    reason: str = Field(min_length=3, max_length=300)
+
 class Retry(Action):
     route: Route | None = None
 

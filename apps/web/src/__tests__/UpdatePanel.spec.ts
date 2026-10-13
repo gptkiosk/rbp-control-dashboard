@@ -29,34 +29,34 @@ const tick = async (ms = 0) => { await vi.advanceTimersByTimeAsync(ms); await ne
 const button = (w: ReturnType<typeof mount>, text: string) => w.findAll('button').find(b => b.text() === text)!
 
 it('says what is available on an unmanaged host and offers no GitHub check, download, install or rollback', async () => {
-  const f = stubFetch(url => url === '/api/updates' ? { body: { kind: 'dev', detail: 'this is a source checkout', configured: false, problems: [], manual_instructions: ['Automatic updates are off for this install.'] } } : undefined)
+  const f = stubFetch(url => url === '/api/app-updates' ? { body: { kind: 'dev', detail: 'this is a source checkout', configured: false, problems: [], manual_instructions: ['Automatic updates are off for this install.'] } } : undefined)
   const w = mount(UpdatePanel); await flushPromises()
   expect(w.text()).toContain('Managed updates are off: this is a source checkout.')
   expect(w.text()).toContain('Automatic updates are off for this install.')
   expect(w.findAll('button').map(b => b.text())).toEqual([])
   expect(w.find('a').exists()).toBe(false)
-  expect(f.mock.calls.map(([url]) => url)).toEqual(['/api/updates'])
+  expect(f.mock.calls.map(([url]) => url)).toEqual(['/api/app-updates'])
   w.unmount()
 })
 
 it('does not contact GitHub on mount: only the local status is read', async () => {
-  const f = stubFetch(url => url === '/api/updates' ? { body: managed() } : undefined)
+  const f = stubFetch(url => url === '/api/app-updates' ? { body: managed() } : undefined)
   const w = mount(UpdatePanel); await flushPromises()
-  expect(f.mock.calls.map(([url, init]) => `${init?.method ?? 'GET'} ${url}`)).toEqual(['GET /api/updates'])
+  expect(f.mock.calls.map(([url, init]) => `${init?.method ?? 'GET'} ${url}`)).toEqual(['GET /api/app-updates'])
   expect(w.text()).not.toContain('Checked GitHub')
   w.unmount()
 })
 
 it('checks the RCD repository only when the operator asks, on the chosen channel, and downloads nothing', async () => {
   const f = stubFetch(url => {
-    if (url === '/api/updates') return { body: managed() }
-    if (url.startsWith('/api/updates/check')) return { body: { available: true, candidate: candidate(), installed: '1.0' } }
+    if (url === '/api/app-updates') return { body: managed() }
+    if (url.startsWith('/api/app-updates/check')) return { body: { available: true, candidate: candidate(), installed: '1.0' } }
     return undefined
   })
   const w = mount(UpdatePanel); await flushPromises()
   await button(w, 'Check for updates').trigger('click'); await flushPromises()
-  expect(calls(f, 'GET', '/api/updates/check')[0]![0]).toBe('/api/updates/check?channel=stable')
-  expect(calls(f, 'POST', '/api/updates')).toHaveLength(0)
+  expect(calls(f, 'GET', '/api/app-updates/check')[0]![0]).toBe('/api/app-updates/check?channel=stable')
+  expect(calls(f, 'POST', '/api/app-updates')).toHaveLength(0)
   expect(w.text()).toContain('Update available: 1.1')
   expect(w.text()).toContain(REPO)
   expect(w.text()).toContain('a'.repeat(64))
@@ -70,23 +70,23 @@ it('checks the RCD repository only when the operator asks, on the chosen channel
 
 it('sends the prerelease channel the operator selected', async () => {
   const f = stubFetch(url => {
-    if (url === '/api/updates') return { body: managed() }
-    if (url.startsWith('/api/updates/check')) return { body: { available: false, candidate: null, installed: '1.0' } }
+    if (url === '/api/app-updates') return { body: managed() }
+    if (url.startsWith('/api/app-updates/check')) return { body: { available: false, candidate: null, installed: '1.0' } }
     return undefined
   })
   const w = mount(UpdatePanel); await flushPromises()
   await w.get('[role="combobox"][aria-label="Update channel"]').trigger('click'); await flushPromises()
   await w.findAll('[role="option"]')[1]!.trigger('click'); await flushPromises()
   await button(w, 'Check for updates').trigger('click'); await flushPromises()
-  expect(calls(f, 'GET', '/api/updates/check')[0]![0]).toBe('/api/updates/check?channel=prerelease')
+  expect(calls(f, 'GET', '/api/app-updates/check')[0]![0]).toBe('/api/app-updates/check?channel=prerelease')
   expect(w.text()).toContain('No newer prerelease release than the installed version.')
   w.unmount()
 })
 
 it('refuses a release that is not rcd from this repository and offers no download button', async () => {
   stubFetch(url => {
-    if (url === '/api/updates') return { body: managed({}, { versions: [version('v1', { change: 'install' })] }) }
-    if (url.startsWith('/api/updates/check')) return { body: { available: true, candidate: candidate({ product: 'mcd', repository: 'gptkiosk/mac-control-dashboard' }), installed: '1.0' } }
+    if (url === '/api/app-updates') return { body: managed({}, { versions: [version('v1', { change: 'install' })] }) }
+    if (url.startsWith('/api/app-updates/check')) return { body: { available: true, candidate: candidate({ product: 'mcd', repository: 'gptkiosk/mac-control-dashboard' }), installed: '1.0' } }
     return undefined
   })
   const w = mount(UpdatePanel); await flushPromises()
@@ -99,9 +99,9 @@ it('refuses a release that is not rcd from this repository and offers no downloa
 it('requires an explicit confirmation and an independently entered digest before downloading', async () => {
   let staged = false
   const f = stubFetch((url, init) => {
-    if (url === '/api/updates') return { body: managed({}, staged ? { versions: [version('v1', { change: 'install' }), version('v2', { version: '1.1', repository: REPO })] } : {}) }
-    if (url.startsWith('/api/updates/check')) return { body: { available: true, candidate: candidate(), installed: '1.0' } }
-    if (url === '/api/updates/fetch' && init?.method === 'POST') { staged = true; return { status: 202, body: { started: 'fetch', poll: '/api/updates' } } }
+    if (url === '/api/app-updates') return { body: managed({}, staged ? { versions: [version('v1', { change: 'install' }), version('v2', { version: '1.1', repository: REPO })] } : {}) }
+    if (url.startsWith('/api/app-updates/check')) return { body: { available: true, candidate: candidate(), installed: '1.0' } }
+    if (url === '/api/app-updates/fetch' && init?.method === 'POST') { staged = true; return { status: 202, body: { started: 'fetch', poll: '/api/app-updates' } } }
     return undefined
   })
   const w = mount(UpdatePanel); await flushPromises()
@@ -109,13 +109,13 @@ it('requires an explicit confirmation and an independently entered digest before
   await button(w, 'Download and verify 1.1').trigger('click'); await flushPromises()
   const go = w.get('.confirm').findAll('button')[0]!
   expect(go.attributes('disabled')).toBeDefined()
-  expect(calls(f, 'POST', '/api/updates/fetch')).toHaveLength(0)
+  expect(calls(f, 'POST', '/api/app-updates/fetch')).toHaveLength(0)
   await w.get('.confirm input[maxlength="64"]').setValue('c'.repeat(64))
   await w.get('.confirm input[type="checkbox"]').setValue(true)
   expect(w.get('.confirm').findAll('button')[0]!.attributes('disabled')).toBeUndefined()
   vi.useFakeTimers()
   await w.get('.confirm').findAll('button')[0]!.trigger('click'); await tick(0)
-  const [, init] = calls(f, 'POST', '/api/updates/fetch')[0]!
+  const [, init] = calls(f, 'POST', '/api/app-updates/fetch')[0]!
   expect(JSON.parse(init!.body as string)).toEqual({ version: '1.1', channel: 'stable', confirm: true, manifest_sha256: 'c'.repeat(64) })
   expect(headerOf(init, 'X-Mac-Control')).toBe('1')
   await tick(2000)
@@ -126,9 +126,9 @@ it('requires an explicit confirmation and an independently entered digest before
 
 it('reports a download the server refuses, with its problems, and installs nothing', async () => {
   stubFetch((url, init) => {
-    if (url === '/api/updates') return { body: managed({}, { versions: [version('v1', { change: 'install' })] }) }
-    if (url.startsWith('/api/updates/check')) return { body: { available: true, candidate: candidate(), installed: '1.0' } }
-    if (url === '/api/updates/fetch' && init?.method === 'POST') return { status: 502, body: { detail: { message: 'Could not check for updates.', problems: ['GitHub rate limit reached; resets at epoch 1700000000'] } } }
+    if (url === '/api/app-updates') return { body: managed({}, { versions: [version('v1', { change: 'install' })] }) }
+    if (url.startsWith('/api/app-updates/check')) return { body: { available: true, candidate: candidate(), installed: '1.0' } }
+    if (url === '/api/app-updates/fetch' && init?.method === 'POST') return { status: 502, body: { detail: { message: 'Could not check for updates.', problems: ['GitHub rate limit reached; resets at epoch 1700000000'] } } }
     return undefined
   })
   const w = mount(UpdatePanel); await flushPromises()
@@ -143,7 +143,7 @@ it('reports a download the server refuses, with its problems, and installs nothi
 })
 
 it('shows a staged-version list only for this repository, and never offers a dev build or partial package', async () => {
-  stubFetch(url => url === '/api/updates' ? { body: managed({}, { versions: [
+  stubFetch(url => url === '/api/app-updates' ? { body: managed({}, { versions: [
     version('v1', { change: 'install' }), version('v2'), version('v3', { channel: 'dev' }), version('v4', { complete: false }),
     version('v5', { channel: 'docs' }), version('v0', { repository: 'gptkiosk/mac-control-dashboard' }),
   ] }) } : undefined)
@@ -161,7 +161,7 @@ it('shows a staged-version list only for this repository, and never offers a dev
 })
 
 it('requires an explicit confirmation before posting the operator-only install', async () => {
-  const f = stubFetch((url, init) => url === '/api/updates' ? { body: managed() } : url === '/api/updates/apply' && init?.method === 'POST' ? { status: 202, body: { started: 'apply' } } : undefined)
+  const f = stubFetch((url, init) => url === '/api/app-updates' ? { body: managed() } : url === '/api/app-updates/apply' && init?.method === 'POST' ? { status: 202, body: { started: 'apply' } } : undefined)
   const w = mount(UpdatePanel); await flushPromises()
   await button(w, 'Install 1.1').trigger('click'); await flushPromises()
   const confirm = w.get('.confirm')
@@ -171,7 +171,7 @@ it('requires an explicit confirmation before posting the operator-only install',
   await w.get('.confirm input[type="checkbox"]').setValue(true)
   expect(confirm.findAll('button')[0]!.attributes('disabled')).toBeUndefined()
   await confirm.findAll('button')[0]!.trigger('click'); await flushPromises()
-  const [, init] = calls(f, 'POST', '/api/updates/apply')[0]!
+  const [, init] = calls(f, 'POST', '/api/app-updates/apply')[0]!
   expect(JSON.parse(init!.body as string)).toEqual({ version_id: 'v2' })
   expect(headerOf(init, 'X-Mac-Control')).toBe('1')
   expect(w.text()).toContain('Install started on the host')
@@ -179,7 +179,7 @@ it('requires an explicit confirmation before posting the operator-only install',
 })
 
 it('disables install and rollback while work is running and says to drain first', async () => {
-  stubFetch(url => url === '/api/updates' ? { body: managed({ blockers: ['1 live agent run'] }, { previous: 'v0', versions: [version('v0', { change: 'upgrade' }), version('v1', { change: 'install' }), version('v2')] }) } : undefined)
+  stubFetch(url => url === '/api/app-updates' ? { body: managed({ blockers: ['1 live agent run'] }, { previous: 'v0', versions: [version('v0', { change: 'upgrade' }), version('v1', { change: 'install' }), version('v2')] }) } : undefined)
   const w = mount(UpdatePanel); await flushPromises()
   expect(w.text()).toContain('Drain first. Nothing is stopped or cancelled for you.')
   expect(button(w, 'Install 1.1').attributes('disabled')).toBeDefined()
@@ -188,7 +188,7 @@ it('disables install and rollback while work is running and says to drain first'
 })
 
 it('shows the server refusal and the blockers it names, unpacked from the 409 body', async () => {
-  stubFetch((url, init) => url === '/api/updates' ? { body: managed() } : url === '/api/updates/apply' && init?.method === 'POST' ? { status: 409, body: { detail: { message: 'Drain first. Nothing was stopped.', blockers: ['1 queued task'] } } } : undefined)
+  stubFetch((url, init) => url === '/api/app-updates' ? { body: managed() } : url === '/api/app-updates/apply' && init?.method === 'POST' ? { status: 409, body: { detail: { message: 'Drain first. Nothing was stopped.', blockers: ['1 queued task'] } } } : undefined)
   const w = mount(UpdatePanel); await flushPromises()
   await button(w, 'Install 1.1').trigger('click'); await flushPromises()
   await w.get('.confirm input[type="checkbox"]').setValue(true)
@@ -205,15 +205,15 @@ it('follows progress through a service restart and reports the health result', a
   const replies = [{ body: idle }, { body: switching }, { status: 503, body: { detail: 'restarting' } }, { body: committed }]
   let reads = 0
   const f = stubFetch((url, init) => {
-    if (url === '/api/updates/apply' && init?.method === 'POST') return { status: 202, body: { started: 'apply' } }
-    if (url === '/api/updates') return replies[Math.min(reads++, replies.length - 1)]
+    if (url === '/api/app-updates/apply' && init?.method === 'POST') return { status: 202, body: { started: 'apply' } }
+    if (url === '/api/app-updates') return replies[Math.min(reads++, replies.length - 1)]
     return undefined
   })
   const w = mount(UpdatePanel); await tick(0)
   await button(w, 'Install 1.1').trigger('click'); await tick(0)
   await w.get('.confirm input[type="checkbox"]').setValue(true)
   await w.get('.confirm').findAll('button')[0]!.trigger('click'); await tick(0)
-  expect(calls(f, 'POST', '/api/updates/apply')).toHaveLength(1)
+  expect(calls(f, 'POST', '/api/app-updates/apply')).toHaveLength(1)
   await tick(2000); expect(w.text()).toContain('Switching versions')
   await tick(2000); expect(w.text()).toContain('Reconnecting to the service')
   await tick(2000)

@@ -18,7 +18,7 @@ import {
   stageTone,
   todayIso,
 } from '@/lib/cards'
-import { DASH, formatDueDate, formatDuration, formatEstimate } from '@/lib/format'
+import { DASH, formatDueDate, formatDuration, formatEstimate, formatModelShort } from '@/lib/format'
 
 const props = defineProps<{
   card: Card
@@ -39,6 +39,9 @@ const draggable = computed(() => canDrag(props.card))
 const overdue = computed(() => isOverdue(props.card, todayIso()))
 const blocked = computed(() => isBlocked(props.card))
 const run = computed(() => props.card.last_run)
+// What actually ran when there is a run, otherwise what the task asks for; a human task has no model.
+const modelFull = computed(() => (human.value ? null : run.value?.model_reported || run.value?.model_requested || props.card.model || null))
+const modelText = computed(() => formatModelShort(modelFull.value))
 const elapsed = computed(() => {
   const r = run.value
   if (!r || r.stage !== 'running') return null
@@ -88,6 +91,11 @@ const elapsed = computed(() => {
     <div class="cell" role="cell" data-col="assignee">
       <ChipTag v-if="human" tone="muted"><AppIcon name="user" size="sm" />You</ChipTag>
       <ChipTag v-else tone="accent"><AppIcon name="cpu" size="sm" />{{ agentLabel(card.agent) }}</ChipTag>
+    </div>
+
+    <div class="cell" role="cell" data-col="model">
+      <span v-if="modelFull" class="model" :title="modelFull">{{ modelText }}</span>
+      <span v-else class="muted" data-missing="true">{{ DASH }}</span>
     </div>
 
     <div class="cell" role="cell" data-col="due">
@@ -214,6 +222,14 @@ const elapsed = computed(() => {
   gap: var(--gap-xs);
 }
 
+.model {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
 .due,
 .est,
 .prio {
@@ -284,6 +300,9 @@ const elapsed = computed(() => {
   .cell:not(.name)::before {
     color: var(--text-muted);
     font-size: var(--font-size-xs);
+  }
+  [data-col='model']::before {
+    content: 'Model';
   }
   [data-col='due']::before {
     content: 'Due';

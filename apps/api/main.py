@@ -23,6 +23,8 @@ from github_read import GithubReader
 from github_config import GithubConfigStore
 from github_actions import GithubActionGuard
 from routes import github_actions as github_action_routes
+from routes import limits as limit_routes
+from routes import failures as failure_routes
 from alerts import AlertMonitor, HermesSender
 from agent_access import AgentAccessService
 from operator_boundary import OperatorBoundary
@@ -213,6 +215,8 @@ def create_app() -> FastAPI:
     app.include_router(operations.router)
     app.include_router(github_action_routes.router)
     app.include_router(project_routes.router)
+    app.include_router(limit_routes.router)
+    app.include_router(failure_routes.router)
     app.include_router(profile_routes.router)
     app.include_router(project_bridge.router)
     # The SPA catch-all is registered last so API routes win.

@@ -30,6 +30,6 @@ def test_setup_progress_isolated_between_users(secured):
 def test_setup_requires_operator_and_validates_bounded_state(secured):
     assert secured.patch('/api/profile/setup',json={'step':0}).status_code==401
     signed(secured)
-    for body in [{'step':6},{'step':-1},{'step':'3'},{'status':'approved'},{'confirmed':['credential']},{'key':'private-key'}]:
+    for body in [{'step':7},{'step':-1},{'step':'3'},{'status':'approved'},{'confirmed':['credential']},{'key':'private-key'}]:
         assert secured.patch('/api/profile/setup',json=body).status_code==422
     assert secured.get('/api/profile').json()['preferences']['setup']['status']=='new'

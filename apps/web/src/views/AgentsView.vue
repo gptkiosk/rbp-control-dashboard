@@ -10,7 +10,7 @@ import AgentBillingDialog from '@/components/AgentBillingDialog.vue'
 import { useNow } from '@/composables/useNow'
 import { usePolledJson } from '@/composables/usePolledJson'
 import type { Agent, AgentId, AgentsPayload, UsagePayload, UsageSummary } from '@/lib/api'
-import { formatCount, formatDuration, formatSince, formatUsd } from '@/lib/format'
+import { formatCount, formatDuration, formatSince, formatUsd, unpricedModels, UNPRICED_HINT } from '@/lib/format'
 import { stageLabel, stageTone } from '@/lib/cards'
 import { agentName } from '@/lib/selectLabels'
 import { useGuideAction } from '@/composables/useGuideAction'
@@ -163,8 +163,10 @@ function saved() {
           agents</span
         >
         <span class="small muted">Source: {{ usage?.coverage[a.id]?.state || 'starting' }}</span>
-        <span v-if="overview(a.id)?.unpriced" class="small warning-text"
-          >{{ overview(a.id)?.unpriced }} unpriced usage records</span
+        <span v-if="overview(a.id)?.unpriced" class="small warning-text" :title="UNPRICED_HINT"
+          >{{ overview(a.id)?.unpriced }} unpriced usage records<template v-if="overview(a.id)?.unpriced_models?.length">
+            · {{ unpricedModels(overview(a.id)?.unpriced_models) }}</template
+          ></span
         >
         <span v-if="!a.available" class="small muted binary">{{ a.binary }}</span>
       </button>
@@ -240,8 +242,10 @@ function saved() {
       </p>
       <div id="usage-summary" class="section-head">
         <h3>{{ lifetime ? 'Session lifetime usage' : periodLabel + ' usage' }}</h3>
-        <span v-if="summary?.unpriced" class="warning-text small"
-          >{{ summary.unpriced }} records unpriced · cost is partial</span
+        <span v-if="summary?.unpriced" class="warning-text small" :title="UNPRICED_HINT"
+          >{{ summary.unpriced }} records unpriced · cost is partial<template v-if="summary.unpriced_models?.length">
+            · {{ unpricedModels(summary.unpriced_models) }}</template
+          ></span
         >
       </div>
       <dl class="metrics">

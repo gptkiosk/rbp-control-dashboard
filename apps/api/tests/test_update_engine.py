@@ -676,14 +676,14 @@ def test_update_api_is_operator_only_and_refuses_dev_installs(make_client):
             request.state.agent_grant = {"id": "test"}
         return await call_next(request)
     with client:
-        assert client.get("/api/updates").status_code == 403
-        assert client.post("/api/updates/apply", json={"version_id": "1.2.0-abc"}).status_code == 403
+        assert client.get("/api/app-updates").status_code == 403
+        assert client.post("/api/app-updates/apply", json={"version_id": "1.2.0-abc"}).status_code == 403
         signed_in = True
-        body = client.get("/api/updates").json()
+        body = client.get("/api/app-updates").json()
         assert body["configured"] is False and body["manual_instructions"]
-        refused = client.post("/api/updates/apply", json={"version_id": "1.2.0-abc"})
+        refused = client.post("/api/app-updates/apply", json={"version_id": "1.2.0-abc"})
         assert refused.status_code == 409 and "manual_instructions" in refused.text
-        assert client.post("/api/updates/stage", json={"name": "../x"}).status_code == 422
-        assert client.post("/api/updates/apply", json={"version_id": "x", "force": True}).status_code == 422
+        assert client.post("/api/app-updates/stage", json={"name": "../x"}).status_code == 422
+        assert client.post("/api/app-updates/apply", json={"version_id": "x", "force": True}).status_code == 422
         agent = True
-        assert client.get("/api/updates").status_code == 403
+        assert client.get("/api/app-updates").status_code == 403

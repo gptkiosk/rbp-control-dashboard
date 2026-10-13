@@ -34,6 +34,21 @@ async function mountBoard(cards: Card[], extra?: Parameters<typeof stubFetch>[0]
 const COLUMN_ORDER = ['running', 'review', 'queued', 'backlog', 'failed', 'done']
 
 describe('Tasks board', () => {
+  it('shows a condensed model per task: what ran, else what was asked for, a dash for a human task', async () => {
+    const { w } = await mountBoard([
+      card({ id: 1, column: 'backlog', title: 'Asked', agent: 'openclaw', model: 'openrouter/thinkingmachines/inkling:free' }),
+      card({ id: 2, column: 'backlog', title: 'Ran', agent: 'claude', model: 'claude-haiku-5-5',
+        last_run: run({ stage: 'succeeded', model_requested: 'claude-haiku-5-5', model_reported: 'claude-opus-5-5' }) }),
+      card({ id: 3, column: 'backlog', title: 'Mine', agent: null, assignee_type: 'human', model: null }),
+    ])
+    const cell = (id: number) => w.get(`[data-card-id="${id}"] [data-col="model"]`)
+    expect(cell(1).text()).toBe('inkling \u00b7 free')
+    expect(cell(1).get('.model').attributes('title')).toBe('openrouter/thinkingmachines/inkling:free')
+    expect(cell(2).text()).toBe('claude-opus-5-5')
+    expect(cell(3).text()).toBe('\u2014')
+    expect(w.findAll('[role="columnheader"]').some((h) => h.text() === 'Model')).toBe(true)
+  })
+
   it('groups cards into the six columns, in order, with counts', async () => {
     const { w } = await mountBoard([
       card({ id: 1, column: 'backlog', title: 'B1' }),

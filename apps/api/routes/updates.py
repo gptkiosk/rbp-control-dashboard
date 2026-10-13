@@ -19,7 +19,7 @@ import update_engine as ue
 from routes.agent_tools import operator
 from settings import REPO_ROOT, get_settings
 
-router = APIRouter(prefix="/api/updates")
+router = APIRouter(prefix="/api/app-updates")
 
 
 class StageIn(BaseModel):
@@ -178,4 +178,4 @@ def _spawn(cfg: ue.HelperConfig, args: list[str]) -> dict:
         raise HTTPException(409, "The update helper could not be started.") from None
     finally:
         os.close(log)
-    return {"started": args[0], "poll": "/api/updates"}
+    return {"started": args[0], "poll": "/api/app-updates"}

@@ -128,3 +128,23 @@ export function formatDueDate(iso: string | null | undefined, now: Date = new Da
   const day = Number(m[3])
   return Number(m[1]) === now.getFullYear() ? `${month} ${day}` : `${month} ${day}, ${m[1]}`
 }
+
+/** A model id cut down to what tells models apart: "openrouter/thinkingmachines/inkling:free" becomes
+ *  "inkling · free" and "claude-opus-5-5" stays as it is. Falls back to the full id when nothing is left. */
+export function formatModelShort(id: string | null | undefined): string {
+  const full = (id ?? '').trim()
+  if (!full) return DASH
+  const [path, ...tags] = full.split(':')
+  const name = path.split('/').pop() || path
+  const tag = tags.join(':')
+  return tag ? `${name} \u00b7 ${tag}` : name
+}
+
+/** "no price for a, b +2 more" for the models used without a recorded price; empty when none are named. */
+export function unpricedModels(models: string[] | null | undefined, show = 2): string {
+  if (!models?.length) return ''
+  const rest = models.length - show
+  return `no price for ${models.slice(0, show).join(', ')}${rest > 0 ? ` +${rest} more` : ''}`
+}
+
+export const UNPRICED_HINT = 'A model was used that the price catalog has no price for. Update the catalog: scripts/pricing/check.py --used'

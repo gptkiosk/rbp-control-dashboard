@@ -1,7 +1,15 @@
 export interface Freshness { checked_at: number | null; error: string | null; stale: boolean }
 export interface Repository { name: string; description: string | null; url: string; private: boolean; archived: boolean; branch: string; updated_at: string }
 export interface GithubSetup { state: 'migration_required' | 'configuration_error' | 'disabled' | 'unconfigured' | 'ready'; message?: string; error?: string }
-export interface Repositories extends Freshness { repos: Repository[]; limited: boolean; setup?: GithubSetup }
+export interface RepositoryProblem { name: string; reason: 'not_found' | 'denied' | 'unavailable'; hint?: string | null }
+export interface Repositories extends Freshness { repos: Repository[]; limited: boolean; setup?: GithubSetup; problems?: RepositoryProblem[] }
+
+/** One plain sentence per repository RCD could not read, with the real reason. */
+export function problemLine(p: RepositoryProblem): string {
+  if (p.reason === 'not_found') return `${p.name} was not found for this GitHub login. Check the spelling in Settings > GitHub.${p.hint ? ` Did you mean ${p.hint}?` : ''}`
+  if (p.reason === 'denied') return `GitHub refused access to ${p.name}. Check the gh login, the repository permission or the rate limit.`
+  return `${p.name} could not be read right now. It will be tried again.`
+}
 export interface GithubItem { number: number; title: string; user: string; updated_at: string; draft: boolean; labels: string[]; url: string }
 export interface GithubStream extends Freshness { items?: GithubItem[]; limited?: boolean }
 export interface RepositoryDetails { name: string; pulls: GithubStream; issues: GithubStream }

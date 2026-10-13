@@ -10,6 +10,19 @@ For the operator: inspect open work across repositories using the existing GitHu
 
 - Pending capture: `github-repo.png` (repository view). No RCD capture exists yet. Repository search and PR/issue detail controls appear only after a catalog is available.
 
+## Choosing which repositories to show
+
+Open **Settings > GitHub** (also in the setup wizard). Enter the GitHub account that is already signed
+in with `gh` on the host and its repositories appear as a checklist, newest first, with private and
+archived ones marked. Tick the ones to show, use **Select all** or **Clear**, and search when the list is
+long. Repositories already saved are ticked for you. A saved name that is not in the account's list (another
+owner, or a name GitHub no longer shows) stays visible and marked so it can be removed. To add a repository
+from another owner, use **Add a repository by name**.
+
+Saving checks that each name exists for the signed-in login and suggests the closest match for a
+misspelling. On the GitHub page, a repository that cannot be read is named with the reason (not found, access
+refused, or temporarily unreadable) while the others keep loading.
+
 ## Controls
 
 ### Start here

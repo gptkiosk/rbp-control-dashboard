@@ -1,0 +1,70 @@
+#!/bin/bash
+# Small commits, no secrets, and the tests that cover what changed.
+# These hooks are guidance and a safety net for agents; they are not a security boundary.
+set -u
+cd "$(git rev-parse --show-toplevel)" || exit 1
+max_lines=$(git config --int --get mcd.maxCommitLines 2>/dev/null || echo 400)
+max_files=$(git config --int --get mcd.maxCommitFiles 2>/dev/null || echo 25)
+limit() { perl -e 'alarm shift; exec @ARGV or die "exec failed\n"' "$@"; }
+clean() { env -u GIT_DIR -u GIT_INDEX_FILE -u GIT_WORK_TREE -u GIT_PREFIX "$@"; }
+
+# 1. Size. Lock files, generated output and binary assets do not count.
+skip='(^|/)(package-lock\.json|[^/]*\.lock|requirements[^/]*\.txt|dist/|[^/]*\.min\.[a-z]+|[^/]*\.(png|jpe?g|gif|svg|ico|woff2?|webp))$'
+total=0; files=0
+while IFS=$'\t' read -r add del name; do
+  [ -n "${name:-}" ] || continue
+  files=$((files + 1))
+  printf '%s' "$name" | grep -Eq "$skip" && continue
+  [ "$add" = "-" ] && continue
+  total=$((total + add + del))
+done < <(git diff --cached --numstat)
+if [ "$total" -gt "$max_lines" ] || [ "$files" -gt "$max_files" ]; then
+  echo "pre-commit: this commit changes $total lines in $files files (limit $max_lines lines, $max_files files)." >&2
+  echo "           Split it into smaller commits that each do one thing and keep tests passing." >&2
+  exit 1
+fi
+
+# 2. Secrets in what is staged.
+if command -v gitleaks >/dev/null 2>&1; then
+  gitleaks git --pre-commit --staged --redact --no-banner -l warn >/dev/null 2>&1 || {
+    echo "pre-commit: gitleaks found a possible secret in the staged changes. Remove it and unstage." >&2
+    exit 1
+  }
+fi
+
+# 3. Tests related to the staged code. Documentation-only commits skip this.
+staged=$(git diff --cached --name-only --diff-filter=ACMR)
+py_tests=""; web_files=""; uncovered=""
+for f in $staged; do
+  case "$f" in
+    apps/api/tests/test_*.py) py_tests="$py_tests ${f#apps/api/}";;
+    apps/api/*.py|apps/api/routes/*.py)
+      base=$(basename "$f" .py); found=0
+      for t in apps/api/tests/test_${base}*.py; do
+        [ -f "$t" ] && { py_tests="$py_tests ${t#apps/api/}"; found=1; }
+      done
+      [ "$found" = 0 ] && uncovered="$uncovered $f";;
+    apps/web/src/__tests__/*) web_files="$web_files ${f#apps/web/}";;
+    apps/web/src/*.ts|apps/web/src/*.vue|apps/web/src/*/*.ts|apps/web/src/*/*.vue) web_files="$web_files ${f#apps/web/}";;
+  esac
+done
+if [ -n "$py_tests" ]; then
+  if [ -x apps/api/.venv/bin/python ]; then
+    # shellcheck disable=SC2086
+    (cd apps/api && clean limit 300 .venv/bin/python -m pytest -q -x --no-header -p no:cacheprovider $(printf '%s\n' $py_tests | sort -u)) \
+      || { echo "pre-commit: related Python tests failed. Fix them before committing." >&2; exit 1; }
+  else
+    echo "pre-commit: apps/api/.venv is missing, so Python tests were NOT run." >&2
+  fi
+fi
+if [ -n "$web_files" ]; then
+  if [ -d apps/web/node_modules ]; then
+    # shellcheck disable=SC2086
+    (cd apps/web && clean limit 300 npx vitest related --run $web_files) \
+      || { echo "pre-commit: related web tests failed. Fix them before committing." >&2; exit 1; }
+  else
+    echo "pre-commit: apps/web/node_modules is missing, so web tests were NOT run." >&2
+  fi
+fi
+[ -n "$uncovered" ] && echo "pre-commit: warning, no test file matches:$uncovered (add one with the next commit)." >&2
+exit 0

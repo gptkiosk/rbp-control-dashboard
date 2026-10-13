@@ -37,4 +37,9 @@ describe('releaseLabel', () => {
       'v0.1.0 • local • api b2bf245 · web 4594185 • migrations',
     )
   })
+
+  it('says so when the running build differs from its commit', () => {
+    expect(releaseLabel({ ...base, dirty: true }, 'b2bf245')).toBe('v0.1.0 • local • api b2bf245 · web b2bf245 • modified')
+    expect(releaseLabel({ ...base, dirty: false }, '')).toBe('v0.1.0 • local • b2bf245')
+  })
 })

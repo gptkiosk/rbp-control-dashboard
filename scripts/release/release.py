@@ -386,6 +386,17 @@ def build_once(args: argparse.Namespace, out_dir: Path) -> dict:
         state = "unversioned (no git)" if source["commit"] is None else "dirty"
         die(f"source tree is {state}; pass --dev to build a non-release artifact marked channel=dev")
 
+    if not args.dev:
+        # A release carries its notes: the build stops when CHANGELOG.md has no dated section for this version.
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("mcd_changelog", REPO_ROOT / "scripts" / "release" / "changelog.py")
+        changelog = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(changelog)
+        try:
+            changelog.check((REPO_ROOT / "CHANGELOG.md").read_text(encoding="utf-8"), version)
+        except (changelog.ChangelogError, OSError) as exc:
+            die(f"release notes missing: {exc}")
+
     lock = lock_path(key)
     packages = parse_lock(lock)
     sources = collect_sources(product["include"])

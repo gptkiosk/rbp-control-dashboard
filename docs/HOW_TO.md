@@ -8,16 +8,16 @@ Help conversation stays in memory and clears on sign-out or reload. Never paste 
 
 On Tailscale, use your dashboard origin on port 9443 instead of localhost; in-app links retain the current origin.
 
-## Set up MCD on your Mac
+## Set up RCD on your Raspberry Pi
 
 A six-step wizard for local installation, Google access, agents, provider keys, subscriptions and navigation.
 
 1. Open Setup wizard from the header account icon, Settings or this guide. New profiles also see Start setup wizard above their dashboard. Later hides the welcome prompt; the wizard remains available.
-2. Review the Mac prerequisites and save an allowed default working directory. Agent binaries run on the host Mac even when you browse from a phone.
+2. Review the Pi prerequisites (Raspberry Pi OS on a Pi 4 or newer) and save an allowed default working directory. Agent binaries run on the Pi even when you browse from a phone.
 3. Configure Google OAuth privately on the host and sign in with an allowed account. The wizard explains callbacks, test users and the local importer; it does not collect OAuth client secrets.
 4. Install Hermes and OpenClaw using their official guides. Check executable detection and independently confirm native provider/model routing and fallback spending caps. The wizard does not launch agents or grant permissions.
 5. Save your OpenRouter key in encrypted, write-only profile storage. Check key with OpenRouter reads actual key spending; inference credentials still need native agent configuration.
-6. Install and sign into Codex and Claude Code using eligible subscriptions on the Mac. Desktop app login alone does not establish CLI readiness. Confirm the host sign-in yourself; MCD does not collect tokens or verify entitlement.
+6. Install and sign into Codex and Claude Code using eligible subscriptions on the Pi, or route them through OpenRouter. Desktop app login alone does not establish CLI readiness. Confirm the host sign-in yourself; RCD does not collect tokens or verify entitlement.
 7. Try header Help chat and browse the main menu. Finish walkthrough saves your reviewed progress; pending items stay listed. Reopen and refresh checks after changes.
 
 Setup progress belongs to your profile. Finishing the walkthrough does not complete project tasks, install software, change model routes, authorize paid usage or enable remote access.
@@ -26,13 +26,13 @@ Setup progress belongs to your profile. Finishing the walkthrough does not compl
 
 ## Connect your profile to Hermes on Discord
 
-Create, revise and receive project plans without opening MCD; keep settings and credentials private.
+Create, revise and receive project plans without opening RCD; keep settings and credentials private.
 
 1. Open Profile. Save your default workspace and assignment preference. Balanced is centered at 50 and is the default for new profiles.
 2. Enter the Discord channel where Hermes replies and choose your configured HTTPS dashboard address. Enable plan notifications. If you want to start planning from Discord, select Allow my Discord requests to start subscription planning with Hermes coordination; this covers its configured free-first / capped BYOK route, not paid API planners or execution.
 3. Choose Get pairing code and send the displayed instruction to Hermes in that channel within 10 minutes. Choose Check pairing. Unlink Discord revokes remote project access.
-4. Ask Hermes to plan a project. It asks for missing goal, name or workspace and creates a draft with your preference. Request planning when ready. In MCD, New project → Submit to Hermes starts planning after the coordination checkbox is reviewed; Save draft starts no models.
-5. Projects shows actual planning stages and Discord delivery status. When the map is ready, edit its stories in Projects or tell Hermes your changes. Hermes asks whether a diagram is needed; request the image to review dependencies and assignments off-app. Execution still needs Review & submit in MCD.
+4. Ask Hermes to plan a project. It asks for missing goal, name or workspace and creates a draft with your preference. Request planning when ready. In RCD, New project → Submit to Hermes starts planning after the coordination checkbox is reviewed; Save draft starts no models.
+5. Projects shows actual planning stages and Discord delivery status. When the map is ready, edit its stories in Projects or tell Hermes your changes. Hermes asks whether a diagram is needed; request the image to review dependencies and assignments off-app. Execution still needs Review & submit in RCD.
 6. Save provider credentials using the password fields. Values are encrypted and write-only. OpenRouter checks report actual key spending; saving a key does not change native agent routing or its cap. Export/import preferences copies settings only and excludes secrets and Discord identity; review installation-specific paths and re-pair on a new Mac.
 
 Keep the database and vault.key together in a private backup to recover encrypted credentials. Subscription logins, Google OAuth and gateway credentials remain private host setup. Uncertain Discord sends are not automatically retried.
@@ -45,11 +45,11 @@ Turn a brief into reviewed stories, model assignments and shared handoffs.
 
 1. Choose New project. Write the brief and select an allowed working directory. Set Story assignment preference: Economy favors OpenClaw free-first tasks; Capability favors Claude/Codex subscriptions; Balanced splits routine and difficult work. Save changes before requesting a plan.
 2. Plan with Hermes starts a reviewed coordinator → subscription planner → Hermes review workflow. The slider guides suggestions rather than guaranteeing cost or quality. Change it under Project brief & planner and save/replan to revise recommendations; existing assignments stay untouched until you replan or edit them. The returned map is a proposal: select nodes to edit instructions, scope, definition of done, agents, models and prerequisites. Drag nodes or use Arrange.
-3. Choose sequential execution or parallel isolated Git stories. Parallel mode requires a clean repository root; MCD creates story worktrees and local branches from its reviewed commit.
-4. Review & submit freezes the saved revision and its approved model routes. Hermes orders the stories; MCD creates them once. Pause dispatch stops new stories while running ones can finish.
+3. Choose sequential execution or parallel isolated Git stories. Parallel mode requires a clean repository root; RCD creates story worktrees and local branches from its reviewed commit.
+4. Review & submit freezes the saved revision and its approved model routes. Hermes orders the stories; RCD creates them once. Pause dispatch stops new stories while running ones can finish.
 5. In Stories & runs, verify artifacts and checks, then accept the handoff. Dependent stories wait for acceptance and receive approved context. Review tracked diffs and explicitly select changed files to create a local handoff snapshot (or commit them yourself); prerequisite conflicts stop for review. Source branches are never merged automatically.
 
-Shared memory is a project ledger injected into MCD project runs. Native private histories are not merged; Export context supports independent sessions. Up to 20 latest accepted handoffs/decisions/checkpoints fit within a bounded prompt; full records remain in Projects. Read/Edit is advisory for Hermes and OpenClaw.
+Shared memory is a project ledger injected into RCD project runs. Native private histories are not merged; Export context supports independent sessions. Up to 20 latest accepted handoffs/decisions/checkpoints fit within a bounded prompt; full records remain in Projects. Read/Edit is advisory for Hermes and OpenClaw.
 
 [Create a project brief](http://127.0.0.1:8800/projects?action=new) · [Open project library](http://127.0.0.1:8800/projects) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=projects)
 
@@ -57,7 +57,7 @@ Shared memory is a project ledger injected into MCD project runs. Native private
 
 Batch routine agent handoffs or enable automatic handoffs for one approved revision.
 
-1. Open the project library and select your running project. Live map is view-only and updates within about a second of each task, run or project change (it falls back to a three-second refresh while the live connection is down); opening it does not save or replace the plan.
+1. Open the project library and select your running project. Live map is view-only and refreshes every three seconds; opening it does not save or replace the plan.
 2. Read the story and phase colors: blue running, amber review or approval, teal queued, gray blocked, green done and red failed. The project bubble and completion counter summarize progress. Select a story and Open task for details.
 3. Choose Approve all except human-required tasks. Review Included and Requires human input or approval. Keep the future-handoffs option selected to pass successful eligible results automatically, or clear it for a one-time batch.
 4. Acknowledge the listed scope and submit. The same assignments, model routes and dependencies remain in force. Only a completed successful result with handoff text can pass; this does not independently verify artifacts.
@@ -76,16 +76,16 @@ Set the primary model per story and review an ordered list of alternate routes.
 3. Use Review & submit to inspect every route. Hermes/OpenClaw API routes require a separate acknowledgment. Automatic alternate API routes are limited to Inkling free, Gemma free and Google Gemini 2.5 Flash.
 4. Open Agents to inspect actual key-wide spending and the current monthly limit. The shared key has a $20 monthly cap including recorded BYOK usage. Google calls outside that key and differences in upstream invoicing are outside the cap.
 
-Quota handoff is reactive; MCD cannot predict all subscription windows or guarantee free-model availability. A model switch within one subscription may share the same exhausted quota. No unapproved paid model is selected automatically.
+Quota handoff is reactive; RCD cannot predict all subscription windows or guarantee free-model availability. A model switch within one subscription may share the same exhausted quota. No unapproved paid model is selected automatically.
 
 [Review project models](http://127.0.0.1:8800/projects) · [Inspect actual key spending](http://127.0.0.1:8800/agents#openrouter-spending) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=project-models)
 
-## Get started with MCD
+## Get started with RCD
 
-Use Overview to check your Mac and agents, then open a feature for details.
+Use Overview to check your Pi and agents, then open a feature for details.
 
-1. Sign in with an allowed Google account. Overview shows Mac health, agent activity and alert delivery.
-2. Use the sun/moon button in the header to switch the whole app between light and dark mode. Your choice is saved in this browser; without a saved choice, MCD follows your device appearance.
+1. Sign in with an allowed Google account. Overview shows Pi health, agent activity and alert delivery.
+2. Use the sun/moon button in the header to switch the whole app between light and dark mode. Your choice is saved in this browser; without a saved choice, RCD follows your device appearance.
 3. Open Agents for sub-agents and costs, Tasks for work, or Chat for a direct agent conversation.
 4. Open Help chat in the header from any page. Ask a question or choose a topic; Open links take you to the feature.
 
@@ -93,27 +93,28 @@ Use Overview to check your Mac and agents, then open a feature for details.
 
 ## Check live fleet status
 
-Overview combines Mac health with top-level agent and sub-agent activity.
+Overview combines Pi health with top-level agent and sub-agent activity.
 
-1. Read the sample age above the Mac tiles to check freshness.
-2. In Agents, compare current MCD turns, recent captured activity and observed processes.
+1. Read the sample age above the Pi tiles to check freshness.
+2. In Agents, compare current RCD turns, recent captured activity and observed processes.
 3. Select an agent or named sub-agent to open its explorer. Activity updates every five seconds; usage every fifteen seconds.
 
 An observed process can be idle. “Recent activity” means a captured update within the last minute; missing telemetry is not zero usage.
 
 [Open live agents](http://127.0.0.1:8800/#overview-agents-title) · [Open agent explorer](http://127.0.0.1:8800/agents) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=overview)
 
-## Inspect Mac resource usage
+## Inspect Pi health
 
-Inspect CPU, GPU, memory, swap, disk, temperatures, power and busy applications.
+Inspect temperature, throttling and undervoltage flags, SD/NVMe disk, memory, swap, CPU and busy processes.
 
-1. Open Mac and choose a chart time window to compare resource trends.
-2. Review Memory used alongside pressure and swap. Check sample freshness before drawing conclusions.
-3. Scroll to Top apps for process CPU and resident memory; Tailscale peers and available updates are below.
+1. Open Pi health. The tiles at the top show the latest temperature, throttling, undervoltage, CPU, memory, swap and disk readings.
+2. Throttling and Undervoltage read the Pi firmware flags. Active means the condition is happening now; Since boot means it happened earlier. Repeated undervoltage usually points to a weak power supply or cable.
+3. Choose a chart time window to compare trends, and check sample freshness before drawing conclusions.
+4. Scroll to Top processes for process CPU and resident memory; Tailscale peers and pending updates are below.
 
-Disk used is used bytes divided by total bytes; macOS df Capacity uses a different available-space definition. Process memory and system memory are different measurements.
+Disk used is used bytes divided by total bytes on the data volume (SD card or NVMe); df Use% is calculated differently. Process memory and system memory are different measurements.
 
-[Open Mac charts](http://127.0.0.1:8800/mac#mac-title) · [Open Top apps](http://127.0.0.1:8800/mac#apps-title) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=hardware)
+[Open Pi health](http://127.0.0.1:8800/pi#pi-title) · [Open Top processes](http://127.0.0.1:8800/pi#apps-title) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=hardware)
 
 ## Investigate a service problem
 
@@ -121,19 +122,32 @@ The service table shows background jobs, their schedules, exits and crash-loop f
 
 1. Open Services. The most severe jobs appear first.
 2. Compare State, PID, Last exit and Runs in 24 h with the allowed launches for that schedule.
-3. Use the Mac or agent explorer to investigate related resource/activity changes. This page observes services; stopping or restarting a job is an operator action outside this table.
+3. Use Pi health or the agent explorer to investigate related resource/activity changes. This page observes services; stopping or restarting a job is an operator action outside this table.
 
 [Open service health](http://127.0.0.1:8800/services#services-title) · [Open alert history](http://127.0.0.1:8800/#alerts-title) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=services)
 
-## Review Mac updates and Tailscale peers
+## Review Pi updates and Tailscale peers
 
 Check updates and peer connectivity without changing the machine.
 
-1. Open Updates on the Mac page and review the available items and restart requirements.
-2. Install updates in macOS System Settings; MCD lists them read-only.
+1. Open Pending updates on the Pi health page and review the available items and restart requirements.
+2. Install updates with apt in a terminal on the Pi; RCD lists them read-only.
 3. Open Tailscale peers to inspect reachability. Existing Serve proxies are not changed by viewing this page.
 
-[Open available updates](http://127.0.0.1:8800/mac#upd-title) · [Open Tailscale peers](http://127.0.0.1:8800/mac#ts-title) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=updates)
+[Open available updates](http://127.0.0.1:8800/pi#upd-title) · [Open Tailscale peers](http://127.0.0.1:8800/pi#ts-title) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=updates)
+
+## Review and install a staged dashboard update
+
+Check staged releases of this dashboard and install or roll one back, with operator sign-in.
+
+1. Sign in as the operator. Only the operator can see or change dashboard updates; other sessions get a sign-in message.
+2. Open Updates in Settings. The panel reads only this host: it makes no network or provider call and lists each staged version with its channel and authenticity status.
+3. Only complete stable or prerelease packages get an install button. Development builds and partly staged packages say why they cannot be installed.
+4. Confirm the version in the dialog. The helper stops the service, saves a data snapshot, switches versions and runs a health check; a failed check rolls the version back. Progress is shown until the update finishes or the page reconnects.
+
+Install and rollback stay disabled while an update is in progress or a blocker is listed. If managed updates are not set up, the panel shows the manual steps instead.
+
+[Open dashboard updates](http://127.0.0.1:8800/profile#updates) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=app-updates)
 
 ## Create and run an agent task
 
@@ -185,9 +199,9 @@ Inspect the requested action and approval reasons before allowing sensitive work
 
 1. Tasks shows ready approvals in Needs approval, including project operator decisions whose prerequisites are finished. Open the task to inspect the description, definition of done, result and artifacts first.
 2. Use the blue Approve run button for a task awaiting execution permission. Approval reasons appear beside it. Editing approved task details clears that approval.
-3. For an unfinished read-only project plan, choose Approve & continue directly on its task row. This resumes the same scoped story; MCD saves one private Markdown document and the agent remains read-only.
-4. For a successful project story, choose Approve handoff directly on its task row or details. This accepts the latest displayed result and current Markdown hash and releases ready dependents. Workspace changes still require explicit file review in Projects; MCD never automatically snapshots them.
-5. Choose Record decision for a ready human project story. Write the required choices or sign-off, then Approve decision. MCD does not invent decisions or approve blocked or failed work. MCP changes retain their separate review on the MCP page.
+3. For an unfinished read-only project plan, choose Approve & continue directly on its task row. This resumes the same scoped story; RCD saves one private Markdown document and the agent remains read-only.
+4. For a successful project story, choose Approve handoff directly on its task row or details. This accepts the latest displayed result and current Markdown hash and releases ready dependents. Workspace changes still require explicit file review in Projects; RCD never automatically snapshots them.
+5. Choose Record decision for a ready human project story. Write the required choices or sign-off, then Approve decision. RCD does not invent decisions or approve blocked or failed work. MCP changes retain their separate review on the MCP page.
 
 [Open task reviews](http://127.0.0.1:8800/tasks) · [Open project story reviews](http://127.0.0.1:8800/projects?view=work) · [Open MCP change reviews](http://127.0.0.1:8800/mcp#changes-title) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=approvals)
 
@@ -241,13 +255,39 @@ Read/Edit restrictions depend on the agent. Check the explanatory note in New ch
 
 Compare captured API-equivalent usage against each agent’s full monthly subscription.
 
-1. Open Agents → Billing & rates. For Claude Code or Codex, choose Subscription and enter your USD per month, such as 20.
-2. Save. Select This month in Agents and read the agent’s subscription and savings summary.
+1. RCD is free-only by default. If this installation deliberately provides a native Claude Code or Codex subscription route, open Agents → Billing & rates and explicitly save that account as Subscription.
+2. Select This month in Agents and read the agent’s subscription and savings summary.
 3. Savings compare captured API-equivalent usage for this calendar month against the full monthly subscription, counted once across that agent’s sub-agents.
 
 These are captured-usage estimates, not provider invoices. Partial coverage or missing prices limits the comparison; a negative result means captured API-equivalent usage is below the subscription fee.
 
 [Open Billing & rates](http://127.0.0.1:8800/agents?agent=codex&action=billing) · [Open cost summary](http://127.0.0.1:8800/agents?agent=codex#usage-summary) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=subscriptions)
+
+## A task fails with PRICE_UNKNOWN
+
+Dispatch refuses any route that has no reviewed pricing class. The run fails in under a second and never starts an agent.
+
+1. Claude Code or Codex: the effective Billing & rates configuration is authoritative. Standard membership defaults are Subscription; save only if you intentionally changed a mode or amount.
+2. OpenClaw: an approved project story automatically reviews its exact pinned :free model and target. Go Free records its exact route separately. Standalone tasks need an exact free entry in MAC_CONTROL_DISPATCH_ROUTE_CLASSES (for example openclaw|mm-developer|<exact model id>). Restart RCD after changing a host setting.
+3. Hermes: project coordination pins the configured native free model. Other Hermes tasks need an explicit configured free route.
+4. Rerun the task. Each rerun takes a fresh claim, so a fix applies to new runs only; failed runs keep the class they froze.
+
+This is the pre-dispatch spending guard, not a fault. A :free model name, a billing estimate or a past successful run does not classify a route. Paid OpenClaw and Hermes routes are always refused.
+
+[Open Billing & rates](http://127.0.0.1:8800/agents?action=billing) · [Open Tasks](http://127.0.0.1:8800/tasks) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=price-unknown)
+
+## A Claude or Codex limit was reached
+
+RCD notes when a subscription limit lifts, moves stories to an approved alternate on its own, and lets you send the rest across in one click.
+
+1. When a run stops on a limit, a notice appears at the top of every page with the time it lifts in your time zone. It appears once per limit; use the × to hide it.
+2. Each story that meets the limit already moves to its approved alternate route by itself. The notice counts these rather than announcing every one.
+3. To avoid wasted attempts, select Send the waiting stories to the other subscription. Stories that have not started then go to the approved alternate of the same grade (Haiku to Luna, Sonnet to Terra, Opus to Sol) until the limit lifts, and return to their own route afterwards. Turn it off in the same notice.
+4. If the other subscription is limited too, or a story has no approved alternate, it waits. You can also ask Hermes in Discord for the status; changing the routing from Discord needs Allow my Discord requests to change how work is routed in your profile.
+
+Only routes the approved plan already lists are ever used, and nothing is approved, dispatched or spent beyond that. A limit with no reported lift time expires after a few hours or at the first later success.
+
+[Open Projects](http://127.0.0.1:8800/projects) · [Open your profile](http://127.0.0.1:8800/profile) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=subscription-limits)
 
 ## Price an unrecognized model
 
@@ -257,7 +297,7 @@ Add explicit token rates when a model’s usage is captured but its API equivale
 2. Choose or enter the exact model ID, enable Save custom rates for this model, and fill all five non-negative input/output/cache rates.
 3. Save and review usage again. Source-reported cost takes precedence; custom rates apply uniformly up to their input limit.
 
-Use rates from the model provider. Missing rates remain unpriced; tools, taxes and other surcharges are outside token estimates.
+Use rates from the model provider. Models ending in :free cost 0. Other missing rates remain unpriced; tools, taxes and other surcharges are outside token estimates.
 
 [Open model rate settings](http://127.0.0.1:8800/agents?action=billing) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=model-rates)
 
@@ -278,10 +318,10 @@ Key-wide spending includes every app using that key. A shared-key total cannot b
 MCP changes are prepared as requests and applied only when you approve them.
 
 1. Choose Request a server. Select the agent, server name and stdio command/arguments or HTTP URL.
-2. Name required environment variables without entering secret values in the request. Supply their values privately in the Mac’s MCD configuration.
+2. Name required environment variables without entering secret values in the request. Supply their values privately in the Pi’s RCD configuration.
 3. Inspect the request under Changes, then Approve or Reject it. Refresh the server list and verify the result. A failed change is not a connected server.
 
-Account-managed Claude connectors are managed in claude.ai. Granting MCD task access is a separate action from registering the MCD MCP server.
+Account-managed Claude connectors are managed in claude.ai. Granting RCD task access is a separate action from registering the RCD MCP server.
 
 [Open MCP servers](http://127.0.0.1:8800/mcp) · [Open change reviews](http://127.0.0.1:8800/mcp#changes-title) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=mcp)
 
@@ -291,7 +331,7 @@ Give Hermes expiring access to read tasks or manage its own Backlog drafts.
 
 1. Open MCP → Agent access and choose Review Hermes access.
 2. Select Read only or Read + planning drafts, and an expiry of 1, 7 or 30 days. Read the limits, then approve. A new grant replaces the previous grant.
-3. Register the MCD server through its separate MCP change. Start a new Hermes session to load it. Use Revoke access here to block the grant immediately.
+3. Register the RCD server through its separate MCP change. Start a new Hermes session to load it. Use Revoke access here to block the grant immediately.
 
 Draft access cannot queue/start runs, approve/complete/delete tasks, change integrations, or read chats/logs/billing/credentials. An expired grant must be reviewed by you; never give Hermes a browser session or recovery token.
 
@@ -301,9 +341,10 @@ Draft access cannot queue/start runs, approve/complete/delete tasks, change inte
 
 Inspect accessible repositories and their current open work using the existing GitHub login.
 
-1. Open GitHub and search the repository list.
-2. Select a repository to load its open pull requests and issues. Select an item’s link to open it on GitHub.
-3. Use Refresh to check again. Notice partial, stale or capped results; this panel does not merge PRs, edit issues or broaden your token’s scopes.
+1. GitHub is optional. If it is not set up, open Settings > GitHub (optional), choose the account already signed in with gh, list the repositories to show, and save. Your profile’s public contribution graph is a separate GitHub setting: Profile > Contribution settings > Private contributions.
+2. Open GitHub and search the repository list.
+3. Select a repository to load its open pull requests and issues. Select an item’s link to open it on GitHub.
+4. Use Refresh to check again. Notice partial, stale or capped results; this panel does not merge PRs, edit issues or broaden your token’s scopes.
 
 [Open GitHub projects](http://127.0.0.1:8800/github#github-title) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=github)
 
@@ -314,6 +355,7 @@ Read actual Markdown/text reports with their source and timestamp.
 1. Open Ops reports. The newest modified report is selected first; choose another from the list.
 2. Check the source, timestamp and historical warning before interpreting its findings.
 3. Use Refresh to rescan. Hermes cron archives show the actual Response, omitting archived Prompt instructions. Viewing does not generate a new report or enable a schedule.
+4. For collector reports, a warning or critical finding can become one Backlog task from the report. The task keeps a link back to the report; choosing the same finding again opens the existing task.
 
 The catalog is capped at 200 files. Oversized/binary files are not previewed. An empty source is different from an unavailable source; old reports do not describe current fleet health.
 
@@ -327,30 +369,30 @@ Overview shows failed-run and crash-loop alert delivery and recent outcomes.
 2. Read the outcome and any delivery acknowledgement. Failed/timed-out/interrupted runs and new crash-loop incidents can alert; successful and cancelled runs do not.
 3. For uncertain delivery, inspect the Discord channel before taking further action. Mark reviewed records your inspection without resending.
 
-Rules are configured in the Mac’s private alerts.toml. MCD does not automatically retry uncertain sends, restart services or send task prompts/logs. It uses the channel authorized by the operator.
+Rules are configured in the Pi’s private alerts.toml. RCD does not automatically retry uncertain sends, restart services or send task prompts/logs. It uses the channel authorized by the operator.
 
 [Open alert history](http://127.0.0.1:8800/#alerts-title) · [Inspect service health](http://127.0.0.1:8800/services) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=alerts)
 
 ## Sign in and resolve a login problem
 
-Use an allowed Google account; MCD requests identity access only.
+Use an allowed Google account; RCD requests identity access only.
 
-1. Open MCD and select Sign in with Google, then choose an allowed account.
+1. Open RCD and select Sign in with Google, then choose an allowed account.
 2. If a Gmail test account sees org_internal, the OAuth app audience must allow External users and list that account as a test user during testing.
 3. For redirect mismatch, check the exact origin and /auth/callback in Google’s OAuth client. Local and tailnet HTTPS origins use separate callbacks; use Sign out when finished.
 
-Google sign-in does not grant Gmail or Drive access. Local recovery is for the operator on this Mac only; do not paste credentials into help chat.
+Google sign-in does not grant Gmail or Drive access. Local recovery is for the operator on this Pi only; do not paste credentials into help chat.
 
 [Open Overview](http://127.0.0.1:8800/) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=sign-in)
 
-## Open MCD from another Tailscale device
+## Open RCD from another Tailscale device
 
-Use MCD’s own HTTPS Serve port on a device signed into your tailnet.
+Use RCD’s own HTTPS Serve port on a device signed into your tailnet.
 
 1. On another Tailscale-connected device, open your configured HTTPS dashboard address/.
 2. Sign in with an allowed Google account on that device. Verify Overview and an agent drill-down load.
-3. Keep the :9443 port in MCD links and its OAuth callback. Port 443 serves OpenClaw; other existing proxies remain separate.
+3. Keep the :9443 port in RCD links and its OAuth callback. Port 443 serves OpenClaw; other existing proxies remain separate.
 
 This is tailnet access, not public hosting. A successful local login does not verify login from a separate device.
 
-[Open Tailscale peers](http://127.0.0.1:8800/mac#ts-title) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=remote)
+[Open Tailscale peers](http://127.0.0.1:8800/pi#ts-title) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=remote)

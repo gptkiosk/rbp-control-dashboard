@@ -120,10 +120,12 @@ def _dependency_maps(s: Session, card_ids: list[int]) -> tuple[dict, dict, dict]
     return depends_on, blocked_by, dependents
 
 
-def _card_dict(c: Card, last_run: Run | None = None, deps: tuple[dict, dict, dict] | None = None, project=None) -> dict:
+def _card_dict(c: Card, last_run: Run | None = None, deps: tuple[dict, dict, dict] | None = None, project=None, superseded_by: int | None = None, closed_project: bool = False) -> dict:
     depends_on, blocked_by, dependents = deps or ({}, {}, {})
     return {
         "project": {"id":project.project_id,"node_key":project.node_key,"role":project.role} if project else None,
+        "superseded_by": superseded_by,
+        "closed_project": closed_project,
         "id": c.id, "title": c.title, "body": c.body, "agent": c.agent,
         "assignee_type": c.assignee_type, "priority": c.priority, "due_date": c.due_date,
         "estimate_minutes": c.estimate_minutes, "tags": json.loads(c.tags) if c.tags else [],
@@ -249,7 +251,7 @@ def _actor(request: Request) -> str:
 
 def _one(s: Session, card: Card) -> dict:
     last = _last_runs(s, [card.id]).get(card.id)
-    return _card_dict(card, last, _dependency_maps(s, [card.id]), projects.binding(s,card.id))
+    return _card_dict(card, last, _dependency_maps(s, [card.id]), projects.binding(s,card.id), projects.superseded_by(s, card), projects.closed_project(s, card) is not None)
 
 
 @router.get("/cards")
@@ -258,7 +260,7 @@ def list_cards(s: Session = Depends(get_session)):
     ids = [c.id for c in cards]
     last = _last_runs(s, ids)
     deps = _dependency_maps(s, ids)
-    return {"cards": [_card_dict(c, last.get(c.id), deps, projects.binding(s,c.id)) for c in cards]}
+    return {"cards": [_card_dict(c, last.get(c.id), deps, (link := projects.binding(s,c.id)), projects.superseded_by(s, c, link), projects.closed_project(s, c, link) is not None) for c in cards]}
 
 
 @router.get("/tags")
@@ -301,7 +303,7 @@ def remove_dependency(card_id: int, depends_on_id: int, s: Session = Depends(get
 def get_card(card_id: int, s: Session = Depends(get_session)):
     card = _get_card(s, card_id)
     runs = s.execute(select(Run).where(Run.card_id == card_id).order_by(Run.id.desc())).scalars().all()
-    data = _card_dict(card, runs[0] if runs else None, _dependency_maps(s, [card_id]), projects.binding(s,card.id))
+    data = _card_dict(card, runs[0] if runs else None, _dependency_maps(s, [card_id]), projects.binding(s,card.id), projects.superseded_by(s, card), projects.closed_project(s, card) is not None)
     data["runs"] = [_run_dict(r) for r in runs]
     return data
 
@@ -349,7 +351,13 @@ def delete_card(card_id: int, s: Session = Depends(get_session)):
     _protect_paused(s, card_id)
     if card.column == "running":
         raise HTTPException(status_code=409, detail="Cancel the run before deleting the card.")
-    projects.protect(s, card)
+    sibling = projects.superseded_by(s, card)
+    if sibling is not None:
+        projects.forget_duplicate(s, card, sibling)
+    elif projects.closed_project(s, card) is not None:
+        projects.forget_closed(s, card)
+    else:
+        projects.protect(s, card)
     # Runs go with the card (ON DELETE CASCADE); remove their log files too, or they would
     # never be pruned (retention walks runs, and these runs no longer exist).
     log_paths = s.execute(select(Run.log_path).where(Run.card_id == card_id)).scalars().all()

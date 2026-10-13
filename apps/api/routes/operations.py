@@ -8,7 +8,7 @@ from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 from deps import get_session
 from models import AlertEvent, Card, FindingDraftLink, Run
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 
 router = APIRouter(prefix="/api")
 
@@ -47,19 +47,42 @@ def _operator(request):
 def github_status(request: Request):
     return request.app.state.github.status()
 
+@router.get("/github/account-repos")
+def github_account_repos(request: Request, owner: str = Query(default="", max_length=60)):
+    """The checklist behind the GitHub settings: one account's repositories, read only, operator only."""
+    _operator(request)
+    from github_read import GithubDenied, GithubNotFound, GithubUnavailable
+    try:
+        return request.app.state.github.account_repos(owner.strip())
+    except ValueError:
+        raise HTTPException(422, "Enter a GitHub account or organisation name.") from None
+    except GithubNotFound:
+        raise HTTPException(404, f"No GitHub account or organisation named {owner.strip()} is visible to this login.") from None
+    except GithubDenied:
+        raise HTTPException(502, "GitHub refused the request. Check the gh login or the rate limit.") from None
+    except GithubUnavailable:
+        raise HTTPException(502, "GitHub could not be reached right now.") from None
+
 @router.put("/github/config")
 async def github_config(request: Request):
     _operator(request)
     try:
         body=await request.json()
         if body.get("enabled") is True:
-            status=request.app.state.github.auth_status()
-            if status["available"] and status["account"]!=body.get("account"):raise HTTPException(422,"The selected account is not the active scoped gh login.")
-        else:status={"available":False,"account":""}
-        result=request.app.state.github_config.save(body)
-    except (ValueError,TypeError,OSError):
-        raise HTTPException(422,"GitHub configuration must use a valid account, non-empty repository allowlist, and a 5 minute or slower cadence.") from None
-    task=request.app.state.github_poll_task
+            status = request.app.state.github.auth_status()
+            if status["available"] and status["account"] != body.get("account"):
+                raise HTTPException(422, "The selected account is not the active scoped gh login.")
+            gone = request.app.state.github.missing([r for r in body.get("repos", []) if isinstance(r, str)]) if status["available"] else []
+            if gone:
+                first = gone[0]
+                raise HTTPException(422, f"{first['name']} was not found for this GitHub login. Check the spelling."
+                                    + (f" Did you mean {first['hint']}?" if first["hint"] else ""))
+        else:
+            status = {"available": False, "account": ""}
+        result = request.app.state.github_config.save(body)
+    except (ValueError, TypeError, OSError):
+        raise HTTPException(422, "GitHub configuration must use a valid account, non-empty repository allowlist, and a 5 minute or slower cadence.") from None
+    task = request.app.state.github_poll_task
     if result["configured"] and (task is None or task.done()):
         request.app.state.github_poll_stop=asyncio.Event();request.app.state.github_poll_task=asyncio.create_task(request.app.state.github.poll(request.app.state.github_poll_stop))
     return {**result,"login":status}

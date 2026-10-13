@@ -7,7 +7,7 @@ import ChipTag from '@/components/ChipTag.vue'
 import { useNow } from '@/composables/useNow'
 import { usePolledJson } from '@/composables/usePolledJson'
 import type { Agent, AgentId, AgentsPayload, UsagePayload } from '@/lib/api'
-import { formatDuration, formatSince, formatUsd } from '@/lib/format'
+import { formatDuration, formatSince, formatUsd, unpricedModels, UNPRICED_HINT } from '@/lib/format'
 
 const now = useNow()
 const agents = usePolledJson<AgentsPayload>('/api/agents', 5000)
@@ -90,7 +90,7 @@ function detail(id: AgentId, target?: string) {
           <div><dt>API equivalent · 24h</dt><dd>{{ formatUsd(stats(a.id)?.api_equivalent_usd) }}</dd></div>
           <div><dt>Captured sessions · 24h</dt><dd>{{ stats(a.id)?.sessions ?? '—' }}</dd></div>
         </dl>
-        <p v-if="stats(a.id)?.unpriced" class="warning-text small">{{ stats(a.id)!.unpriced }} unpriced records · cost is partial</p>
+        <p v-if="stats(a.id)?.unpriced" class="warning-text small" :title="UNPRICED_HINT">{{ stats(a.id)!.unpriced }} unpriced records · cost is partial<template v-if="stats(a.id)?.unpriced_models?.length"> · {{ unpricedModels(stats(a.id)?.unpriced_models) }}</template></p>
         <div class="related">
           <span class="small muted">Sub-agents & sessions</span>
           <ul v-if="related(a).length">
