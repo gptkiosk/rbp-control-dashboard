@@ -1,7 +1,16 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { createMemoryHistory } from 'vue-router'
 import { createAppRouter } from '@/router'
 import { navItems } from '@/router/routes'
+
+// uPlot reads matchMedia when its module loads (the pi route loads it); jsdom does not provide it.
+vi.hoisted(() => {
+  window.matchMedia = ((query: string) => ({
+    matches: false, media: query, onchange: null,
+    addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {},
+    dispatchEvent: () => false,
+  })) as unknown as typeof window.matchMedia
+})
 
 const NAMES = ['overview', 'pi', 'services', 'projects', 'tasks', 'agents', 'chat', 'mcp', 'github', 'reports', 'help', 'profile']
 
@@ -17,10 +26,11 @@ describe('router', () => {
     expect(router.getRoutes()).toHaveLength(16)
   })
 
-  it('redirects the old /mac path, keeping the hash', () => {
-    const r = router.resolve('/mac#ts-title')
-    expect(r.name).toBe('pi')
-    expect(r.hash).toBe('#ts-title')
+  it('redirects the old /mac path, keeping the hash', async () => {
+    // resolve() does not follow a redirect; navigating does.
+    await router.push('/mac#ts-title')
+    expect(router.currentRoute.value.name).toBe('pi')
+    expect(router.currentRoute.value.hash).toBe('#ts-title')
   })
 
   it('keeps sidebar order and paths', () => {

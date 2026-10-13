@@ -1,9 +1,19 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
+import { createPinia } from 'pinia'
 import { createMemoryHistory } from 'vue-router'
 import { createAppRouter } from '@/router'
 import PiView from '@/views/PiView.vue'
 import { throttlingStatus, undervoltageStatus } from '@/lib/piHealth'
+
+// uPlot reads matchMedia when its module loads; jsdom does not provide it.
+vi.hoisted(() => {
+  window.matchMedia = ((query: string) => ({
+    matches: false, media: query, onchange: null,
+    addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {},
+    dispatchEvent: () => false,
+  })) as unknown as typeof window.matchMedia
+})
 
 afterEach(() => vi.unstubAllGlobals())
 
@@ -37,7 +47,7 @@ async function mountPi() {
   const router = createAppRouter(createMemoryHistory())
   await router.push('/pi')
   await router.isReady()
-  const w = mount(PiView, { global: { plugins: [router] } })
+  const w = mount(PiView, { global: { plugins: [router, createPinia()] } })
   await flushPromises()
   return w
 }

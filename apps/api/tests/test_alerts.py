@@ -56,6 +56,7 @@ def test_forced_dispatcher_failure_creates_one_notification(sessions,tmp_path):
     cid=_card(sessions,tmp_path,"import sys;sys.exit(23)")
     d=Dispatcher(sessions,_settings(tmp_path),registry=_registry())
     asyncio.run(_drain(d))
+    now[0]=int(time.time())+2   # the monitor's clock must be past the run's real end time, whatever the second boundary
     m.tick(); m.tick()
     assert len(sent)==1 and 'Exit: 23' in sent[0][1]
 
