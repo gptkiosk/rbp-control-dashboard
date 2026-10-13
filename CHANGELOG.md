@@ -43,6 +43,13 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
   scans the released commits with gitleaks and refuses on a finding) and the standard footer with a
   modified marker, product and owner. See `docs/development/release-flow.md`.
 
+### Fixed
+- A chat message sent just after the service started could be failed with "service restarted" by the first
+  recovery pass. Recovery now fails only turns left by a previous process.
+- Combining accepted prerequisite work into a parallel story no longer needs git 2.45; it works on the
+  older git that Raspberry Pi OS and Ubuntu 24.04 ship, and a conflict returns the workspace to where it began.
+- An unreaped runner (a zombie) no longer makes every operator request "could not be verified" on Linux.
+
 ### Changed
 - The application updater API moved to `/api/app-updates`, so it no longer collides with the
   collector's `/api/updates`.
