@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import subprocess
 from functools import lru_cache
 from pathlib import Path
@@ -9,9 +10,18 @@ from pathlib import Path
 __version__ = "0.2.0"
 
 
+def _build_info(repo: Path) -> dict:
+    """The identity a release package records at build time (BUILD_INFO.json), for installs with no .git."""
+    try:
+        data = json.loads((repo / "BUILD_INFO.json").read_text())
+        return data if isinstance(data, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
 @lru_cache(maxsize=1)
 def git_sha() -> str:
-    """Short git SHA of the checkout, or "unknown" outside a git work tree."""
+    """Short git SHA of the checkout, or of the release package's source commit, or "unknown"."""
     repo = Path(__file__).resolve().parents[2]
     try:
         out = subprocess.run(
@@ -22,7 +32,8 @@ def git_sha() -> str:
             check=True,
         )
     except (OSError, subprocess.SubprocessError):
-        return "unknown"
+        commit = str(_build_info(repo).get("source_commit") or "")
+        return commit[:7] if commit else "unknown"
     return out.stdout.strip() or "unknown"
 
 
@@ -36,5 +47,5 @@ def git_dirty() -> bool:
             capture_output=True, text=True, timeout=10, check=True,
         )
     except (OSError, subprocess.SubprocessError):
-        return False
+        return bool(_build_info(repo).get("source_dirty"))
     return bool(out.stdout.strip())
