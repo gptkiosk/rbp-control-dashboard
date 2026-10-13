@@ -1,0 +1,158 @@
+# Tag builds create a draft release; a human must review and publish it.
+name: draft release (Linux arm64)
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rcd-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: build from clean committed source
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 45
+    outputs:
+      archive: ${{ steps.assets.outputs.archive }}
+      manifest: ${{ steps.assets.outputs.manifest }}
+    env:
+      TAG: ${{ github.ref_name }}
+    steps:
+      - name: Check out the pushed tag without credentials
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.ref }}
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Set up packaged Python
+        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38
+        with:
+          python-version: "3.11"
+      - name: Set up locked web build runtime
+        uses: actions/setup-node@1d0ff469b7ec7b3cb9d8673fde0c81c44821de2a
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - name: Check clean source and tag/version agreement
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(uname -s)" = Linux
+          test "$(uname -m)" = aarch64
+          test -z "$(git status --porcelain --untracked-files=all)"
+          version="$(python3 -I -c 'import ast; p="apps/api/version.py"; t=ast.parse(open(p).read()); print(next(ast.literal_eval(n.value) for n in t.body if isinstance(n, ast.Assign) and any(isinstance(x, ast.Name) and x.id == "__version__" for x in n.targets)))')"
+          test "${TAG}" = "v${version}"
+      - name: Build deterministic release
+        run: scripts/release/build-linux-arm64.sh --out dist-release --repro
+      - name: Verify and identify the package assets
+        id: assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          archives=(dist-release/rcd-*-linux-arm64.tar.gz)
+          manifests=(dist-release/rcd-*-linux-arm64.manifest.json)
+          test "${#archives[@]}" -eq 1
+          test "${#manifests[@]}" -eq 1
+          archive="${archives[0]}"; manifest="${manifests[0]}"
+          python3 -I scripts/release/release.py verify "$manifest" --artifact "$archive" --expect-version "${TAG#v}" --expect-product rcd --expect-platform linux-arm64
+          printf 'archive=%s\nmanifest=%s\n' "$archive" "$manifest" >> "$GITHUB_OUTPUT"
+      - name: Pass verified package to the signing job
+        uses: actions/upload-artifact@0b7f8abb1508181956e8e162db84b466c27e18ce
+        with:
+          name: unsigned-release-package
+          path: |
+            ${{ steps.assets.outputs.archive }}
+            ${{ steps.assets.outputs.manifest }}
+          if-no-files-found: error
+          retention-days: 1
+
+  sign-and-attest:
+    name: sign and attest verified package
+    needs: build
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      attestations: write
+      id-token: write
+    steps:
+      - name: Download the package from the build job
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16
+        with:
+          name: unsigned-release-package
+          path: dist-release
+      - name: Sign the detached manifest
+        shell: bash
+        env:
+          RELEASE_SSH_PRIVATE_KEY: ${{ secrets.RELEASE_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "${RELEASE_SSH_PRIVATE_KEY:-}" || { echo "RELEASE_SSH_PRIVATE_KEY is intentionally unset until the trust-root decision." >&2; exit 1; }
+          manifest="$(find dist-release -maxdepth 1 -name '*.manifest.json' -type f)"
+          test -n "$manifest"
+          key="$RUNNER_TEMP/release-signing-key"
+          umask 077
+          printf '%s\n' "$RELEASE_SSH_PRIVATE_KEY" > "$key"
+          trap 'rm -f "$key"' EXIT
+          ssh-keygen -y -f "$key" >/dev/null
+          ssh-keygen -Y sign -f "$key" -n dashboard-release "$manifest"
+          test -s "${manifest}.sig"
+      - name: Write checksums and attest allowlisted assets
+        id: sums
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="$(find dist-release -maxdepth 1 -name '*.tar.gz' -type f)"
+          manifest="$(find dist-release -maxdepth 1 -name '*.manifest.json' -type f)"
+          signature="${manifest}.sig"
+          test -f "$archive" && test -f "$manifest" && test -f "$signature"
+          sha256sum "$archive" "$manifest" "$signature" > dist-release/SHA256SUMS
+          test "$(wc -l < dist-release/SHA256SUMS | tr -d ' ')" = 3
+          test "$(find dist-release -maxdepth 1 -type f | wc -l | tr -d ' ')" = 4
+      - name: Attest the four allowlisted assets
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be
+        with:
+          subject-path: |
+            dist-release/*.tar.gz
+            dist-release/*.manifest.json
+            dist-release/*.manifest.json.sig
+            dist-release/SHA256SUMS
+      - name: Pass signed assets to the publish job
+        uses: actions/upload-artifact@0b7f8abb1508181956e8e162db84b466c27e18ce
+        with:
+          name: signed-release-assets
+          path: dist-release/*
+          if-no-files-found: error
+          retention-days: 1
+
+  publish-draft:
+    name: create draft release
+    needs: sign-and-attest
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Download signed release assets
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16
+        with:
+          name: signed-release-assets
+          path: dist-release
+      - name: Create draft release with only allowlisted assets
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          gh release view "$TAG" >/dev/null 2>&1 && { echo "refusing to alter an existing release for $TAG" >&2; exit 1; }
+          release_flags=(--draft --title "$TAG" --notes "")
+          [[ "$TAG" == *-* ]] && release_flags+=(--prerelease)
+          gh release create "$TAG" "${release_flags[@]}" dist-release/*
