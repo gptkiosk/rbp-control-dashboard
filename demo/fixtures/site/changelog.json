@@ -1,0 +1,5 @@
+[
+  {"version": "0.3.0", "date": "2026-09-20", "changes": ["Add `--by-date` grouping", "Faster scan of large folders"]},
+  {"version": "0.2.1", "date": "2026-08-30", "changes": ["Fix crash on unreadable files"]},
+  {"version": "0.2.0", "date": "2026-08-12", "changes": ["Add `--dry-run`", "Print a summary when finished"]}
+]

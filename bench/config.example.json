@@ -1,0 +1,17 @@
+{
+  "_comment": "Copy to bench/config.json. 'factory' is a conformance Driver factory (module:function) returning an object with adapter/configure/receipts/close, see tests/adapter_conformance/README.md. Project policy: FREE models only ($0 paid spend), run with `--live --free-only`. Models must be exact ':free' OpenRouter routes that are zero-priced and fresh in the snapshot named by RCD_ZEROCLAW_FREE_MODELS (see integrations/zeroclaw/free-models.example.json). ZeroClaw also needs OPENROUTER_API_KEY in the environment. The picoclaw factory module does not exist yet, so that runtime records 'unavailable' until a live driver is written.",
+  "runtimes": {
+    "zeroclaw": {
+      "factory": "integrations.zeroclaw.conformance:create_driver",
+      "agent": "zeroclaw",
+      "models": ["REPLACE-WITH-VERIFIED-FREE-MODEL:free"],
+      "fallback_model": "REPLACE-WITH-DIFFERENT-VERIFIED-FREE-MODEL:free"
+    },
+    "picoclaw": {
+      "factory": "integrations.picoclaw.conformance:create_driver",
+      "agent": "picoclaw",
+      "models": ["REPLACE-WITH-VERIFIED-FREE-MODEL:free"],
+      "fallback_model": "REPLACE-WITH-DIFFERENT-VERIFIED-FREE-MODEL:free"
+    }
+  }
+}

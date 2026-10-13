@@ -1,0 +1,5 @@
+{
+  "version": 2,
+  "agents": {"defaults": {"workspace": "/srv/rcd/workspace", "model": "rcd-assigned", "max_parallel_turns": 1}},
+  "model_list": [{"model_name": "rcd-assigned", "provider": "openrouter", "model": "operator-approved/model", "api_base": "https://openrouter.ai/api/v1"}]
+}
