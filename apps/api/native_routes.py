@@ -11,7 +11,7 @@ def read(settings):
     result = {a: {'models': [], 'targets': [], 'default': None} for a in ('hermes', 'openclaw')}
     for agent, suffix in (('hermes', '.hermes/config.yaml'), ('openclaw', '.openclaw/openclaw.json')):
         configured = getattr(settings, agent + '_config_path', None)
-        if settings.environment == 'test' and not configured: continue
+        if getattr(settings, 'environment', 'test') == 'test' and not configured: continue
         path = Path(configured) if configured else Path.home() / suffix
         try:
             if path.stat().st_size > 2_000_000: continue
@@ -51,4 +51,4 @@ def read(settings):
 
 def automatic_route(model):
     value = model.removeprefix('openrouter/')
-    return value.endswith(':free') or value == 'google/gemini-2.5-flash'
+    return model in {'openrouter/free', 'openrouter/openrouter/free'} or value.endswith(':free') or value == 'google/gemini-2.5-flash'

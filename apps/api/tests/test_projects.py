@@ -120,7 +120,7 @@ def test_full_planning_pipeline_requires_review_then_submits_once(app):
     p=new(app);c=app[0]
     assert c.post('/api/projects/1/plan',json={'revision':1}).status_code==422
     p=c.post('/api/projects/1/plan',json={'revision':1,'approve_coordination':True}).json()
-    cid=p['pipeline']['card_id'];finish(app,cid,json.dumps({'agent':'codex','model':projects.REGISTRY['codex'].default_model() or '', 'rationale':'Fit'}));advance(app)
+    cid=p['pipeline']['card_id'];finish(app,cid,json.dumps({**next(v for v in p['pipeline']['choices'] if v['agent']=='codex'),'rationale':'Fit'}));advance(app)
     p=c.get('/api/projects/1').json();assert p['pipeline']['step']=='plan'
     finish(app,p['pipeline']['card_id'],json.dumps({'nodes':[node('a'),node('b',depends_on=['a'])]}));advance(app)
     p=c.get('/api/projects/1').json();assert p['pipeline']['step']=='return'
@@ -139,7 +139,7 @@ def test_resume_saved_planner_proposal_fills_only_human_scope_and_refreshes_cata
     c,s,wd,settings=app
     p=new(app)
     p=c.post('/api/projects/1/plan',json={'revision':1,'approve_coordination':True}).json()
-    finish(app,p['pipeline']['card_id'],json.dumps({'agent':'codex','model':projects.REGISTRY['codex'].default_model() or ''}));advance(app)
+    finish(app,p['pipeline']['card_id'],json.dumps(next(v for v in p['pipeline']['choices'] if v['agent']=='codex')));advance(app)
     p=c.get('/api/projects/1').json();planner_card=p['pipeline']['card_id']
     human=dict(node('review'),assignee='human',scope='',model='')
     finish(app,planner_card,json.dumps({'nodes':[node('work'),human]}))
@@ -499,7 +499,7 @@ def test_bias_reaches_each_planning_stage_and_reviewed_edits_win(app,bias,phrase
     p=c.post('/api/projects/1/plan',json={'revision':1,'approve_coordination':True}).json()
     assert phrase in prompt(p['pipeline']['card_id'])
     assert {v['agent'] for v in p['pipeline']['choices']} <= {'codex','claude'}
-    finish(app,p['pipeline']['card_id'],json.dumps({'agent':'codex','model':projects.REGISTRY['codex'].default_model() or ''}));advance(app)
+    finish(app,p['pipeline']['card_id'],json.dumps(next(v for v in p['pipeline']['choices'] if v['agent']=='codex')));advance(app)
     p=c.get('/api/projects/1').json();text=prompt(p['pipeline']['card_id'])
     assert phrase in text and 'mm-developer' in text and 'must-not-propagate' not in text
     proposed=dict(node('a'),assignee='openclaw',model='openrouter/thinkingmachines/inkling:free',agent_target='mm-developer')
@@ -962,3 +962,104 @@ def test_prerequisite_integration_works_without_cherry_pick_empty_drop(app,monke
     # the same commit again is already present: it becomes empty and is dropped without an error
     included,head2=project_workspaces.prepare(wd,[{'commits':[commit]}],[])
     assert included==[commit] and head2==head
+
+@pytest.mark.parametrize('agent', ['claude','codex','grok','hermes','openclaw'])
+def test_delegator_pipeline_keeps_assigned_agent_and_model_during_role_change(app, monkeypatch, agent):
+    monkeypatch.setattr(projects.RoleStore, 'delegator', lambda self: agent)
+    p=new(app); client=app[0]
+    response=client.post('/api/projects/1/plan',json={'revision':1,'approve_coordination':True})
+    assert response.status_code == 200, response.text
+    p=response.json(); route=p['pipeline']['delegator']
+    with app[1]() as db:
+        assert db.get(Card,p['pipeline']['card_id']).agent == agent
+    selected=p['pipeline']['choices'][0]
+    finish(app,p['pipeline']['card_id'],json.dumps({**selected,'rationale':'test choice'}));advance(app)
+    p=client.get('/api/projects/1').json()
+    monkeypatch.setattr(projects.RoleStore, 'delegator', lambda self: 'codex' if agent != 'codex' else 'claude')
+    finish(app,p['pipeline']['card_id'],json.dumps({'nodes':[node('story')]}));advance(app)
+    p=client.get('/api/projects/1').json()
+    assert p['pipeline']['delegator'] == route
+    with app[1]() as db:
+        card=db.get(Card,p['pipeline']['card_id'])
+        assert card.agent == agent
+        assert (card.model or '') == route['model']
+
+def test_free_only_setup_can_plan_with_hermes_without_subscription_clis(app, monkeypatch, tmp_path):
+    monkeypatch.setattr(AgentSpec, 'available', lambda self, settings: self.id == 'hermes')
+    config=tmp_path/'free-hermes.yaml';config.write_text('model:\n  default: openrouter/free\n')
+    app[3].hermes_config_path=config
+    p=new(app);client=app[0]
+    response=client.post('/api/projects/1/plan',json={'revision':1,'approve_coordination':True})
+    assert response.status_code == 200, response.text
+    p=response.json()
+    assert p['pipeline']['choices'] == [{'agent':'hermes','model':'openrouter/free'}]
+    assert p['pipeline']['delegator'] == {'agent':'hermes','model':'openrouter/free'}
+    with app[1]() as db:
+        card=db.get(Card,p['pipeline']['card_id'])
+        assert card.agent == 'hermes' and card.model == 'openrouter/free'
+
+
+def test_assignment_change_requires_new_operator_coordination_review(app, monkeypatch):
+    store=projects.RoleStore(app[3]);store.folder.mkdir(parents=True)
+    store.state.write_text(json.dumps({'roles':{'codex':'delegator'},'workspace':'','targets':[]}))
+    p=new(app);client=app[0]
+    response=client.post('/api/projects/1/plan',json={'revision':1,'approve_coordination':True,'delegator_revision':'a'*64})
+    assert response.status_code == 409
+    assert 'assignment changed' in response.json()['detail']
+    response=client.post('/api/projects/1/plan',json={'revision':1,'approve_coordination':True,'delegator_revision':store.status()['revision']})
+    assert response.status_code == 200, response.text
+    assert response.json()['pipeline']['delegator']['agent'] == 'codex'
+
+def test_paused_project_can_retier_only_unstarted_subscription_stories(app):
+    claude = dict(node('claude-work'), assignee='claude', model='claude-opus-5-5')
+    human = dict(node('human-review'), assignee='human', model='')
+    p = active(app, [node('codex-work'), claude, human]); c, sessions, _, _ = app
+    assert c.post('/api/projects/1/retier', json={
+        'revision': 1, 'claude_model': 'claude-haiku-5-5', 'codex_model': 'gpt-6-luna', 'acknowledge': True,
+    }).status_code == 409
+    p = c.post('/api/projects/1/pause', json={'revision': 1}).json()
+    running = next(t for t in p['tasks'] if t['node_key'] == 'codex-work')
+    with sessions.begin() as db:
+        db.get(Card, running['card_id']).column = 'running'
+    response = c.post('/api/projects/1/retier', json={
+        'revision': 1, 'claude_model': 'claude-haiku-5-5', 'codex_model': 'gpt-6-luna', 'acknowledge': True,
+    })
+    assert response.status_code == 200, response.text
+    p = response.json(); tasks = {t['node_key']: t for t in p['tasks'] if t['role'] == 'story'}
+    assert tasks['codex-work']['model'] == 'gpt-6.1-sol'
+    assert tasks['claude-work']['model'] == 'claude-haiku-5-5'
+    assert tasks['human-review']['model'] is None
+    assert p['state'] == 'paused' and p['document']['planning_bias'] == 50
+    with sessions() as db:
+        manifest = json.loads(db.get(Project, 1).approved_manifest)
+        assert manifest['fallback_models'] == {'claude': 'claude-haiku-5-5', 'codex': 'gpt-6-luna'}
+        assert manifest['route_amendments'][-1]['cards'][0]['card_id'] == tasks['claude-work']['card_id']
+
+def test_retier_requires_operator_acknowledgement(app):
+    p = active(app, [node('work')]); c = app[0]
+    c.post('/api/projects/1/pause', json={'revision': p['revision']})
+    response = c.post('/api/projects/1/retier', json={
+        'revision': p['revision'], 'claude_model': 'claude-haiku-5-5', 'codex_model': 'gpt-6-luna',
+    })
+    assert response.status_code == 422
+
+def test_incomplete_read_story_can_be_repaired_as_execution_only_while_paused(app):
+    p = active(app, [dict(node('matrix'), mode='read')]); c, sessions, _, _ = app
+    c.post('/api/projects/1/pause', json={'revision': 1})
+    c.post('/api/projects/1/retier', json={
+        'revision': 1, 'claude_model': 'claude-haiku-5-5', 'codex_model': 'gpt-6-luna', 'acknowledge': True,
+    })
+    with sessions.begin() as db: db.get(Project, 1).state = 'active'
+    card_id = next(t['card_id'] for t in c.get('/api/projects/1').json()['tasks'] if t['role'] == 'story')
+    finish(app, card_id, 'Task is not complete. Tests were NOT EXECUTED and nothing was implemented.')
+    c.post('/api/projects/1/pause', json={'revision': 1})
+    response = c.post(f'/api/projects/1/stories/{card_id}/repair-execution', json={'revision': 1, 'acknowledge': True})
+    assert response.status_code == 200, response.text
+    task = next(t for t in response.json()['tasks'] if t['card_id'] == card_id)
+    assert (task['column'], task['agent'], task['model'], task['mode']) == ('queued', 'codex', 'gpt-6-luna', 'edit')
+    assert response.json()['state'] == 'paused'
+    with sessions() as db:
+        manifest = json.loads(db.get(Project, 1).approved_manifest)
+        node_data = next(n for n in manifest['document']['nodes'] if n['key'] == 'matrix')
+        assert node_data['mode'] == 'edit'
+        assert manifest['route_amendments'][-1]['kind'] == 'repair_incomplete_execution'

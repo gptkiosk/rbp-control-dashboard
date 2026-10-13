@@ -47,3 +47,23 @@ The update panel UI is identical in both apps. Whether the backend update helper
 - Web and API test suites were **not run** in this revision because the sandbox denied the test commands. Expected results are unconfirmed until an approved run.
 - No preview or screenshot was captured. Visual parity is unverified. Any UI claim needs an isolated preview on a free loopback port with synthetic data.
 - Snapshots were not updated.
+
+
+## Version 0.3.0 capability alignment
+
+The shared feature level includes five agent types (Claude Code, Codex CLI, Grok Build, Hermes and OpenClaw), managed installers for all five, operator-reviewed update/remove/rollback, release updates with verification and recovery, assignable Delegator roles and generic role guidance, and free-only planning without a required membership CLI.
+
+| Capability | MCD | RCD |
+|---|---|---|
+| Managed agent tools and version pins | Apple Silicon installers | Linux arm64 installers |
+| Installer privilege restriction | macOS Seatbelt | Linux no_new_privs |
+| Release updater and recovery | launchd service | systemd service |
+| Roles, marked guidance, preview/rollback/recovery | Same controls | Same controls |
+| Reviewed Hermes free-router planning | Supported | Supported |
+| Cost-aware planning tiers, paused retiering, incomplete-story repair | Supported | Supported |
+| Version header and standard release footer | Same fields | Same fields |
+| Membership/API/BYOK setup guidance | Same billing distinctions | Same billing distinctions |
+| Worker recommendation | OpenClaw | ZeroClaw/PicoClaw experimental integrations |
+| Host health | Mac metrics | Pi metrics |
+
+ZeroClaw/PicoClaw are not yet supported selectable dashboard workers. Their current integration/conformance limits are documented, rather than counted as completed 0.3.0 features. Pi hardware, account sign-ins and real model quality need separate evidence. Matching capability does not mean identical host-specific code or default spending policy.

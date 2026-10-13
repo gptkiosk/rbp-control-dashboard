@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import RecommendedAgentMix from '@/components/RecommendedAgentMix.vue'
+import MembershipPrerequisites from './MembershipPrerequisites.vue'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { ApiError, getJson, postJson } from '@/lib/api'
 
@@ -145,7 +147,9 @@ onBeforeUnmount(() => { if (timer) clearTimeout(timer) })
 <template>
   <section id="agent-tools" class="card agent-tools" aria-labelledby="agent-tools-title">
     <h2 id="agent-tools-title">Agent tools</h2>
-    <p class="muted">Install Claude Code, Codex CLI, OpenClaw and Hermes on this host, for this user only. Every version is pinned and hash-checked in this release. Nothing needs sudo, nothing is installed without your confirmation, and nothing here signs in to a tool or touches a key.</p>
+    <p class="muted">Install Claude Code, Codex CLI, Grok Build, OpenClaw and Hermes on this host, for this user only. Every version is pinned and hash-checked in this release. Nothing needs sudo, nothing is installed without your confirmation, and nothing here signs in to a tool or touches a key.</p>
+    <RecommendedAgentMix platform="pi" />
+    <MembershipPrerequisites />
     <p v-if="error" class="notice-warn" role="alert">{{ error }}</p>
     <p v-if="notice" role="status">{{ notice }}</p>
     <template v-if="status">

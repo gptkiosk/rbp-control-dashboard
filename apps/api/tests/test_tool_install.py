@@ -92,8 +92,11 @@ class FakeOps:
         if url.endswith("install.sh"):
             dest.write_bytes(b"#!/bin/bash\n# fake hermes installer\n")
             return
-        comp = next(c for c in self.catalog.raw["runtimes"].values() if c["archive"]["linux-arm64"]["url"] == url)
-        a = comp["archive"]["linux-arm64"]
+        binary = next((c for c in self.catalog.raw["tools"].values() if any(a["url"] == url for a in c.get("binary", {}).values())), None)
+        if binary:
+            dest.write_bytes(script(f'echo "grok {binary["version"]}"'))
+            return
+        comp, a = next((c, a) for c in self.catalog.raw["runtimes"].values() for a in c["archive"].values() if a["url"] == url)
         v = comp["version"]
         files = {"bin/node": (script(f'echo "v{v}"'), 0o755),
                  "bin/npm": (script("exit 0"), 0o755), "lib/README": (b"x", 0o644)}
@@ -101,10 +104,7 @@ class FakeOps:
 
     def fetch_text(self, url):
         self.shasums.append(url)
-        comp = next(c for c in self.catalog.raw["runtimes"].values()
-                    if c["archive"]["linux-arm64"].get("shasums_url") == url)
-        a = comp["archive"]["linux-arm64"]
-        return f"{a['sha256']}  {a['url'].rsplit('/', 1)[1]}\n"
+        return "".join(f"{a['sha256']}  {a['url'].rsplit('/', 1)[1]}\n" for c in self.catalog.raw["runtimes"].values() for a in c["archive"].values() if a.get("shasums_url") == url)
 
     def run(self, argv, cwd, env, timeout, log, label):
         self.ran.append((label, list(argv)))
@@ -176,7 +176,7 @@ def tree(path: Path) -> set:
 
 def test_the_shipped_catalog_is_valid_and_every_source_is_pinned():
     catalog = ti.load_catalog(API)
-    assert catalog.tool_ids() == ["claude-code", "codex", "openclaw", "hermes"] and list(catalog.raw["runtimes"]) == ["node"]
+    assert catalog.tool_ids() == ["claude-code", "codex", "openclaw", "hermes", "grok"] and list(catalog.raw["runtimes"]) == ["node"]
     raw = catalog.raw
     for cid in ("claude-code", "codex", "openclaw"):
         folder = API / raw["tools"][cid]["lock_dir"]
@@ -248,7 +248,7 @@ def test_duplicate_json_keys_are_refused(cfg):
     (dict(disk_free_mb=2047), "at least 2048 MB is needed"),
     (dict(euid=0), "root"),
     (dict(machine="x86_64"), "linux-x64"),
-    (dict(system="Darwin", machine="arm64"), "darwin-arm64"),
+    (dict(system="Windows", machine="arm64"), "windows-arm64"),
     (dict(can_restrict_privileges=False), "no-sudo rule"),
 ])
 def test_host_refusals_block_every_tool_and_action(cfg, catalog, over, text):
@@ -426,11 +426,12 @@ def test_install_writes_only_inside_the_tools_root_and_the_named_hermes_folder(c
     for tool in ("claude-code", "codex", "openclaw", "hermes"):
         run(cfg, catalog, tool, "install")
     created = tree(tmp_path) - before
-    outside = [p for p in created if not p.startswith("tools-root") and not p.startswith("home/.hermes")]
+    outside = [p for p in created if not p.startswith("tools-root") ]
     assert outside == [], outside
     inside = {p for p in created if p.startswith("home/")}
-    assert {p for p in inside if p.count("/") <= 2} == {"home/.hermes", "home/.hermes/config.yaml", "home/.hermes/installs"}
-    assert len([p for p in inside if p.count("/") == 3]) == 1     # the one dependency-state folder Hermes made
+    assert not inside
+    assert not cfg.native_hermes_home.exists()
+    assert len(list((cfg.hermes_home / "installs").iterdir())) == 1
     for name in ("claude", "codex", "openclaw", "hermes"):
         assert (cfg.bin / name).is_file()
 
@@ -682,7 +683,7 @@ def test_remove_is_allowed_even_on_a_full_disk(cfg, catalog):
 
 def test_inspect_lists_each_tool_with_what_its_buttons_would_do(cfg, catalog):
     view = ti.inspect(cfg, catalog, facts())
-    assert [t["id"] for t in view["tools"]] == ["claude-code", "codex", "openclaw", "hermes"]
+    assert [t["id"] for t in view["tools"]] == ["claude-code", "codex", "openclaw", "hermes", "grok"]
     codex = view["tools"][1]
     assert codex["installed"] is False and codex["actions"]["install"] == [] and codex["actions"]["remove"] is None
     assert codex["actions"]["update"] is None and codex["actions"]["rollback"] is None
@@ -832,21 +833,89 @@ def test_shasums_must_list_the_pinned_hash(cfg, catalog):
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="no_new_privs is Linux only")
-def test_the_helper_process_cannot_gain_privileges_even_with_passwordless_sudo():
+def test_privilege_restriction_is_inherited_by_children():
     code = ("import sys, subprocess; sys.path.insert(0, %r); import tool_install as ti; "
             "assert ti.harden_process(); "
             "print(open('/proc/self/status').read().split('NoNewPrivs:')[1].split()[0]); "
-            "r = subprocess.run(['sudo', '-n', 'true'], capture_output=True); print(r.returncode)" % str(API))
+            "subprocess.run([sys.executable, '-I', '-c', "
+            "\"print(open('/proc/self/status').read().split('NoNewPrivs:')[1].split()[0])\"], check=True)" % str(API))
     out = subprocess.run([sys.executable, "-I", "-c", code], capture_output=True, text=True)
-    lines = out.stdout.split()
-    assert lines[0] == "1", out.stderr
-    if shutil.which("sudo"):
-        assert lines[1] != "0"  # sudo (setuid) refuses under no_new_privs; skipped silently where sudo is absent
+    assert out.returncode == 0, out.stderr
+    assert out.stdout.split() == ["1", "1"]
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="Seatbelt is macOS only")
+def test_mac_installer_confines_writes_and_refuses_native_credentials(cfg, tmp_path):
+    cfg.root.mkdir()
+    cfg.hermes_home.mkdir(parents=True)
+    secret = cfg.home / "native-account"
+    secret.write_text("synthetic-secret")
+    cfg.native_hermes_home.mkdir(parents=True)
+    (cfg.native_hermes_home / "auth.json").write_text("synthetic-auth")
+    outside = tmp_path / "outside"
+    code = r"""
+import sys, pathlib, subprocess
+sys.path.insert(0, sys.argv[1])
+import tool_install as ti
+cfg = ti.ToolsConfig(root=pathlib.Path(sys.argv[2]), catalog_dir=pathlib.Path(sys.argv[3]), platform_key='darwin-arm64', home=pathlib.Path(sys.argv[4]))
+assert ti.harden_process(cfg)
+(cfg.root / 'allowed').write_text('ok')
+for target, action in [(pathlib.Path(sys.argv[5]), 'read'), (pathlib.Path(sys.argv[6]), 'write'), (cfg.native_hermes_home / 'auth.json', 'read')]:
+    try:
+        target.read_text() if action == 'read' else target.write_text('bad')
+    except PermissionError:
+        pass
+    else:
+        raise AssertionError(action + ' escaped confinement')
+# A synthetic executable tests the denied name without ever invoking real sudo.
+fake = cfg.root / 'sudo'
+fake.write_text('#!/bin/sh\nexit 0\n')
+fake.chmod(0o700)
+try:
+    subprocess.run([str(fake)], check=True)
+except PermissionError:
+    pass
+else:
+    raise AssertionError('privileged command name allowed')
+"""
+    out = subprocess.run([sys.executable, "-I", "-c", code, str(API), str(cfg.root), str(cfg.catalog_dir), str(cfg.home), str(secret), str(outside)], capture_output=True, text=True)
+    assert out.returncode == 0, out.stderr
+    assert (cfg.root / "allowed").read_text() == "ok"
+    assert not outside.exists()
 
 
 def test_the_engine_never_names_sudo_or_apt_as_something_it_runs():
     source = (API / "tool_install.py").read_text()
     runs = [line for line in source.splitlines() if "ops.run(" in line or "subprocess." in line]
-    assert not [l for l in runs if "sudo" in l or "apt" in l]
+    assert not [l for l in runs if __import__("re").search(r"\b(?:sudo|apt)\b", l)]
     catalog = json.loads((API / "tool_catalog.json").read_text())
     assert "sudo" not in json.dumps(catalog["tools"])
+
+
+def test_managed_hermes_shell_launcher_uses_owned_dependency_interpreter_for_shim(cfg, catalog):
+    from hermes_runtime import command, SHIM
+    run(cfg, catalog, 'hermes', 'install')
+    view=ti.installed_view(cfg,'hermes');receipt=ti.read_receipt(cfg,'hermes',view['current']['vid'])
+    dependency=Path(receipt['external'][0])
+    venv=dependency/'environments/test/venv';(venv/'bin').mkdir(parents=True)
+    python=venv/'bin/python';python.write_text('synthetic interpreter');python.chmod(0o700)
+    (dependency/'facts.json').write_text(json.dumps({'packages':{'venv':{'environment':str(venv)}}}))
+    argv=command([str(cfg.bin/'hermes'),'chat','-m','openrouter/free'],cfg.root)
+    assert argv[0] == str(python)
+    assert str(SHIM) in argv
+    assert argv[-3:] == ['chat','-m','openrouter/free']
+    (dependency/'facts.json').write_text(json.dumps({'packages':{'venv':{'environment':'/outside/native'}}}))
+    with pytest.raises(FileNotFoundError,match='enforce assigned models'):
+        command([str(cfg.bin/'hermes'),'chat','-m','openrouter/free'],cfg.root)
+
+
+def test_hermes_installer_home_and_runtime_account_home_are_separate(cfg,catalog):
+    assert cfg.hermes_home.is_relative_to(cfg.root)
+    assert cfg.native_hermes_home == cfg.home/'.hermes'
+    cfg.native_hermes_home.mkdir()
+    secret=cfg.native_hermes_home/'config.yaml';secret.write_text('synthetic native account')
+    run(cfg,catalog,'hermes','install')
+    assert secret.read_text() == 'synthetic native account'
+    wrapper=(cfg.bin/'hermes').read_text()
+    assert 'HERMES_HOME="${HERMES_HOME:-$HOME/.hermes}"' in wrapper
+    assert str(cfg.hermes_home/'tools') in wrapper

@@ -539,7 +539,7 @@ class LegacyAgentAdapter:
                 try:
                     if agent == 'hermes':
                         from hermes_runtime import command
-                        argv = command(argv)
+                        argv = command(argv, getattr(self.settings, "agent_tools_path", None))
                     for path in vars(files).values():
                         path.unlink(missing_ok=True)
                     env = self.env()

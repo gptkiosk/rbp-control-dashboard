@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import RolesPanel from '@/components/RolesPanel.vue'
 import ReportStoragePanel from '@/components/ReportStoragePanel.vue'
 import GithubSettingsPanel from '@/components/GithubSettingsPanel.vue'
 import UpdatePanel from '@/components/UpdatePanel.vue'
@@ -73,6 +74,7 @@ async function importPreferences(event: Event) { await action(async () => {
     <ReportStoragePanel />
     <UpdatePanel />
     <AgentToolsPanel />
+    <RolesPanel />
     <GithubSettingsPanel id="github-settings" />
     <div v-if="profile && preferences" class="profile-grid">
       <form class="card preferences" @submit.prevent="save">

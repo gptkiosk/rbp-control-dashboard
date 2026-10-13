@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import RecommendedAgentMix from '@/components/RecommendedAgentMix.vue'
+import MembershipPrerequisites from '@/components/MembershipPrerequisites.vue'
 import ReportStoragePanel from '@/components/ReportStoragePanel.vue'
 import GithubSettingsPanel from '@/components/GithubSettingsPanel.vue'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
@@ -11,8 +13,8 @@ import { useAuthStore } from '@/stores/auth'
 import { useHelpStore } from '@/stores/help'
 import { navItems } from '@/router/routes'
 import { directoryName, directoryDetail } from '@/lib/selectLabels'
-import { anyInstalled, NATIVE_AGENTS, SUBSCRIPTION_CLIS } from '@/lib/agentMix'
-const steps = ['Your Raspberry Pi', 'Google sign-in', 'Hermes & OpenClaw', 'OpenRouter', 'Subscriptions', 'GitHub (optional)', 'Find your way']
+import { anyInstalled, NATIVE_AGENTS } from '@/lib/agentMix'
+const steps = ['Your Raspberry Pi', 'Google sign-in', 'Coordinator & workers', 'OpenRouter', 'Memberships (optional)', 'GitHub (optional)', 'Find your way']
 const auth = useAuthStore(), help = useHelpStore(), route = useRoute(), router = useRouter()
 const profile = ref<Profile | null>(null), agents = ref<AgentsPayload | null>(null), workdirs = ref<Workdir[]>([])
 const progress = ref<SetupProgress>({ step: 0, status: 'new', confirmed: [] })
@@ -30,7 +32,7 @@ const readiness = computed(() => [
   { label: 'Google sign-in', ok: googleReady.value, detail: 'Configure host OAuth and sign in with an allowed Google account.' },
   { label: 'Hermes and OpenClaw', ok: anyInstalled(available, NATIVE_AGENTS) && confirmed('native_routes'), detail: 'Install the ones you use and confirm their provider and model configuration. Either one is enough.' },
   { label: 'OpenRouter spending key', ok: hasKey.value, detail: 'Save a profile key if you want actual key spending in RCD.' },
-  { label: 'Subscription agents', ok: anyInstalled(available, SUBSCRIPTION_CLIS) && confirmed('subscriptions'), detail: 'Install the CLIs you use (Claude Code, Codex, Grok Build) and confirm subscription sign-in on the Pi, or route them through OpenRouter. Any one is enough.' },
+  { label: 'Optional memberships', ok: confirmed('subscriptions'), detail: 'Review membership access for CLIs you choose. A free-only setup can continue without a paid membership.' },
   { label: 'Help and navigation', ok: confirmed('tour'), detail: 'Review the menu and try Help chat.' },
 ])
 async function action(fn: () => Promise<void>) {
@@ -118,6 +120,7 @@ onBeforeUnmount(() => { key.value = '' })
         <div class="step-heading"><p class="eyebrow">STEP {{ progress.step+1 }} OF {{ steps.length }}</p><h2 ref="heading" tabindex="-1">{{ steps[progress.step] }}</h2><progress :value="progress.step+1" :max="steps.length" aria-label="Setup walkthrough progress" /></div>
         <p v-if="notice" class="setup-notice" role="status">{{ notice }}</p>
         <p v-if="checksError" class="notice-warn" role="status">{{ checksError }}</p>
+        <RecommendedAgentMix platform="pi" />
         <template v-if="progress.step === 0">
           <p>RCD runs locally on a Raspberry Pi. You can use its browser interface from another computer or your phone; the agents and their sign-ins belong on the Pi hosting RCD.</p>
           <ol class="instructions"><li>Use Raspberry Pi OS (64-bit) on a Raspberry Pi 4 or newer. Install the system packages with <code>sudo apt install git python3 python3-venv nodejs npm</code>; RCD needs Python 3.12 or newer and a Node/npm version compatible with your agents. Follow each agent’s current installation requirements.</li><li>From your local RCD checkout, create the Python environment in <code>apps/api</code> with <code>python3 -m venv .venv</code>, install the requirements in it, and build the web interface in <code>apps/web</code> with <code>npm ci &amp;&amp; npm run build</code>. Start the API from <code>apps/api</code> with <code>.venv/bin/python serve.py</code>. To keep it running across reboots, run <code>scripts/install-systemd-user.sh</code> to install it as a systemd user service, and run <code>sudo loginctl enable-linger "$USER"</code> once so it starts at boot.</li><li>Keep installation settings in the private <code>~/.rcd-control/.env</code>. Configure allowed workspace roots and agent executable paths there, then restart RCD when no jobs are running.</li></ol>
@@ -139,7 +142,7 @@ onBeforeUnmount(() => { key.value = '' })
         <template v-else-if="progress.step === 2">
           <p>Hermes coordinates project planning and handoffs. OpenClaw handles assigned tasks through its configured agents and gateway.</p>
           <div class="agent-checks"><article v-for="id in ['hermes','openclaw']" :key="id"><h3>{{ id === 'hermes' ? 'Hermes' : 'OpenClaw' }}</h3><p class="setup-state" :class="{ ready: available(id) }">{{ available(id) === true ? 'Executable detected' : available(id) === false ? 'Executable not found at the configured path' : 'Not checked' }}</p><a :href="id === 'hermes' ? 'https://hermes-agent.nousresearch.com/docs/getting-started/installation' : 'https://docs.openclaw.ai/getting-started'" target="_blank" rel="noopener noreferrer">Official installation guide ↗</a></article></div>
-          <ol class="instructions"><li>Install both agents on the Pi. Use <code>hermes setup</code> for Hermes, and OpenClaw’s onboarding to configure its gateway and agents.</li><li>Set their executable paths in RCD’s private host configuration if the default paths do not match. Refresh checks after installation or a service restart.</li><li>Choose OpenRouter free-first routes in the native agents. If you use Google BYOK fallback, configure its shared spending cap and review it before dispatching work. Free models can have capacity limits; BYOK can be billable.</li><li>Confirm that RCD’s assigned agent and model are honored for each task. Review the requested and reported model in the task’s run details.</li></ol>
+          <ol class="instructions"><li>Install Hermes as coordinator on the Pi. Use a reviewed worker route; lightweight claw integrations remain experimental. Use <code>hermes setup</code> for Hermes, and OpenClaw’s onboarding to configure its gateway and agents.</li><li>Set their executable paths in RCD’s private host configuration if the default paths do not match. Refresh checks after installation or a service restart.</li><li>Choose OpenRouter free-first routes in the native agents. If you use Google BYOK fallback, configure its shared spending cap and review it before dispatching work. Free models can have capacity limits; BYOK can be billable.</li><li>Confirm that RCD’s assigned agent and model are honored for each task. Review the requested and reported model in the task’s run details.</li></ol>
           <label class="check"><input type="checkbox" :checked="confirmed('native_routes')" :disabled="busy" @change="confirm('native_routes',$event)" />I have reviewed the native agent routing, provider credentials and fallback spending cap.</label>
           <RouterLink to="/agents" class="btn">Inspect agents</RouterLink><RouterLink to="/profile#discord-profile" class="btn">Optional: pair Hermes on Discord</RouterLink><RouterLink to="/help?topic=hermes-access" class="btn">Hermes access how-to</RouterLink>
           <p class="small muted">Executable detection does not verify provider login or gateway health. This wizard starts no agents and changes no routes or permissions.</p>
@@ -153,10 +156,11 @@ onBeforeUnmount(() => { key.value = '' })
           <p>Saving a profile key does not configure agent inference, choose paid models or change the existing fallback cap. Claude and Codex keep their subscription routes.</p><RouterLink to="/profile#credentials-profile" class="btn">Manage private credentials</RouterLink>
         </template>
         <template v-else-if="progress.step === 4">
-          <p>For subscription work, sign into ChatGPT/Codex and Claude on the Pi with accounts whose plans include the coding features you want to use. Alternatively, Codex and Claude models can be reached through OpenRouter, which needs no subscription sign-in; set that up in the previous step.</p>
+          <p>Paid memberships are optional for the free-only baseline. For membership-priced coding, use a supported native CLI and sign into its eligible paid account. Using OpenRouter or an API key for OpenAI/Anthropic models is separate usage billing and does not use your membership allowance.</p>
           <div class="agent-checks"><article><h3>ChatGPT / Codex</h3><p class="setup-state" :class="{ ready: available('codex') }">{{ available('codex') === true ? 'Codex executable detected' : available('codex') === false ? 'Codex executable not detected' : 'Not checked' }}</p><p>Install the Codex CLI used by RCD (there is no desktop app on Raspberry Pi OS). In the CLI run <code>codex login</code>, choose ChatGPT subscription sign-in, then check <code>codex login status</code>.</p><a href="https://learn.chatgpt.com/docs/auth" target="_blank" rel="noopener noreferrer">Official subscription sign-in guide ↗</a></article><article><h3>Claude / Claude Code</h3><p class="setup-state" :class="{ ready: available('claude') }">{{ available('claude') === true ? 'Claude Code executable detected' : available('claude') === false ? 'Claude Code executable not detected' : 'Not checked' }}</p><p>Install the Claude Code CLI. Run <code>claude</code> and sign into an eligible Claude subscription rather than API billing.</p><a href="https://code.claude.com/docs/en/setup" target="_blank" rel="noopener noreferrer">Official installation and account guide ↗</a></article><article><h3>Grok Build</h3><p class="setup-state" :class="{ ready: available('grok') }">{{ available('grok') === true ? 'Grok Build executable detected' : available('grok') === false ? 'Grok Build executable not detected' : 'Not checked' }}</p><p>Optional. Install the Grok CLI (it runs on 64-bit Raspberry Pi OS) and sign in with <code>grok login --device-code</code> to a SuperGrok plan. Grok sends the task and the files it reads to xAI, so use it only on work you are willing to share; RCD runs it with telemetry and trace upload off and inside a filesystem sandbox, and only on a subscription route.</p><a href="https://x.ai/cli" target="_blank" rel="noopener noreferrer">Official Grok Build ↗</a></article></div>
+          <MembershipPrerequisites />
           <p>The CLIs and their host sign-ins are what RCD executes; a sign-in on another device does not establish CLI readiness. Subscription limits still apply. Review per-story models and approved fallback routes before submitting a project.</p>
-          <label class="check"><input type="checkbox" :checked="confirmed('subscriptions')" :disabled="busy" @change="confirm('subscriptions',$event)" />I have confirmed the host CLIs I use have subscription sign-in and reviewed their usage limits.</label>
+          <label class="check"><input type="checkbox" :checked="confirmed('subscriptions')" :disabled="busy" @change="confirm('subscriptions',$event)" />I reviewed the optional membership path. For agents I use, I confirmed native sign-in and limits; otherwise I will use reviewed free routes.</label>
           <RouterLink to="/help?topic=project-models" class="btn">Model and quota how-to</RouterLink>
           <p class="small muted">This is your confirmation, not an automated entitlement check. RCD does not collect subscription tokens. A paid API route needs separate approval.</p>
         </template>

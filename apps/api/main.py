@@ -18,7 +18,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.exception_handlers import request_validation_exception_handler
 from urllib.parse import urlencode
 from auth import AuthService, PUBLIC
-from routes import authentication, operations, projects as project_routes
+from routes import authentication, operations, projects as project_routes, roles
 from github_read import GithubReader
 from github_config import GithubConfigStore
 from github_actions import GithubActionGuard
@@ -207,6 +207,7 @@ def create_app() -> FastAPI:
     app.include_router(release.router)
     app.include_router(updates.router)
     app.include_router(tool_installs.router)
+    app.include_router(roles.router)
     app.include_router(metrics.router)
     app.include_router(services.router)
     app.include_router(system.router)

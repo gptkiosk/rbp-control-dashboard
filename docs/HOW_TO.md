@@ -17,7 +17,7 @@ A six-step wizard for local installation, Google access, agents, provider keys, 
 3. Configure Google OAuth privately on the host and sign in with an allowed account. The wizard explains callbacks, test users and the local importer; it does not collect OAuth client secrets.
 4. Install Hermes and OpenClaw using their official guides. Check executable detection and independently confirm native provider/model routing and fallback spending caps. The wizard does not launch agents or grant permissions.
 5. Save your OpenRouter key in encrypted, write-only profile storage. Check key with OpenRouter reads actual key spending; inference credentials still need native agent configuration.
-6. Install and sign into Codex and Claude Code using eligible subscriptions on the Pi, or route them through OpenRouter. Desktop app login alone does not establish CLI readiness. Confirm the host sign-in yourself; RCD does not collect tokens or verify entitlement.
+6. Install and sign into Codex and Claude Code using eligible subscriptions on the Pi, For included membership usage, use native subscription sign-in; API/OpenRouter billing is separate. Desktop app login alone does not establish CLI readiness. Confirm the host sign-in yourself; RCD does not collect tokens or verify entitlement.
 7. Try header Help chat and browse the main menu. Finish walkthrough saves your reviewed progress; pending items stay listed. Reopen and refresh checks after changes.
 
 Setup progress belongs to your profile. Finishing the walkthrough does not complete project tasks, install software, change model routes, authorize paid usage or enable remote access.

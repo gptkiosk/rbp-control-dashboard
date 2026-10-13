@@ -3,7 +3,8 @@
   "checked": "2026-10-13",
   "requirements": {
     "platforms": [
-      "linux-arm64"
+      "linux-arm64",
+      "darwin-arm64"
     ],
     "min_free_disk_mb": 2048,
     "disk_headroom_mb": 512,
@@ -50,7 +51,7 @@
       "installer": "archive",
       "version": "24.21.0",
       "size_mb": 230,
-      "note": "Shared by the npm tools and Hermes. OpenClaw needs Node 24.16 or newer, which Raspberry Pi OS does not ship.",
+      "note": "Shared pinned Node.js runtime for npm tools on Linux arm64 and Apple Silicon Macs.",
       "archive": {
         "linux-arm64": {
           "url": "https://nodejs.org/dist/v24.21.0/node-v24.21.0-linux-arm64.tar.xz",
@@ -58,6 +59,14 @@
           "size": 30843004,
           "format": "tar.xz",
           "root": "node-v24.21.0-linux-arm64",
+          "shasums_url": "https://nodejs.org/dist/v24.21.0/SHASUMS256.txt"
+        },
+        "darwin-arm64": {
+          "url": "https://nodejs.org/dist/v24.21.0/node-v24.21.0-darwin-arm64.tar.gz",
+          "sha256": "bed7eea5325e1108f32ce5228ddd6a5f0f08a499ee42aa7442aea583702f6057",
+          "size": 52909993,
+          "format": "tar.gz",
+          "root": "node-v24.21.0-darwin-arm64",
           "shasums_url": "https://nodejs.org/dist/v24.21.0/SHASUMS256.txt"
         }
       },
@@ -109,7 +118,7 @@
       },
       "login": {
         "command": "claude auth login",
-        "note": "Opens a sign-in link to paste into a browser on another device. Use a subscription or an Anthropic API key held in your own account."
+        "note": "Membership billing needs Claude Pro ($20/month US when billed monthly), Max, or an eligible organizational seat. Sign into that Claude account on this host; an Anthropic API key or Console billing is separate usage billing and may override membership authentication."
       },
       "system_packages": {
         "required": [],
@@ -151,7 +160,7 @@
       },
       "login": {
         "command": "codex login --device-auth",
-        "note": "Shows a code to enter in a browser on another device. A ChatGPT sign-in or an OpenAI API key held in your own account."
+        "note": "For this dashboard\u2019s Codex CLI subscription route, use an eligible ChatGPT plan such as Plus ($20/month US), Pro, or an eligible organizational seat and choose ChatGPT sign-in. API-key authentication is billed separately. Free/Go desktop access does not establish CLI entitlement."
       },
       "system_packages": {
         "required": [],
@@ -205,7 +214,7 @@
       "name": "Hermes",
       "installer": "pinned-script",
       "version": "0.21.7",
-      "note": "Hermes's own installer downloads and checks its toolchain (uv, Python, Node, ripgrep, ffmpeg) against the sha256 values in pm/lock.json of the pinned commit, into the Hermes data folder. System packages are optional.",
+      "note": "Hermes's pinned installer downloads and verifies its toolchain against pm/lock.json into an isolated managed installation home. Native account configuration and keys are not read. System packages are optional.",
       "repository": "https://github.com/NousResearch/hermes-agent.git",
       "tag": "v0.21.7",
       "commit": "71d34bad1045610252eda02ee79549436896e784",
@@ -264,6 +273,53 @@
       },
       "peak_ram_mb": 1700,
       "system_packages_note": "Hermes downloads its own ripgrep and ffmpeg, so these only matter if you also want them for other work."
+    },
+    "grok": {
+      "name": "Grok Build",
+      "installer": "binary",
+      "version": "1.0.52",
+      "binary": {
+        "linux-arm64": {
+          "url": "https://x.ai/cli/grok-1.0.52-linux-aarch64",
+          "sha256": "fc32410b6883c15a39b9f33ec04a6bfb7d070b383e5dbad7efbc48c787e5050d",
+          "size": 160670952
+        },
+        "darwin-arm64": {
+          "url": "https://x.ai/cli/grok-1.0.52-macos-aarch64",
+          "sha256": "c2caa9895dd763297a75e8fb6077e175d9c5304c53903e52cff8891a1384bbb9",
+          "size": 172237072
+        }
+      },
+      "requires": [],
+      "bins": [
+        {
+          "name": "grok",
+          "argv": [
+            "grok"
+          ],
+          "env_unset": [
+            "XAI_API_KEY"
+          ]
+        }
+      ],
+      "size_mb": 180,
+      "peak_ram_mb": 300,
+      "check": {
+        "argv": [
+          "grok",
+          "--version"
+        ],
+        "expect": "1.0.52"
+      },
+      "login": {
+        "command": "grok login --device-code",
+        "note": "Sign in with an eligible paid Grok Build membership. SuperGrok / X Premium Plus are documented eligible plans; check current X Subscription CLI entitlement and prices with xAI. API keys are separately billed and Grok API dispatch is refused here."
+      },
+      "system_packages": {
+        "required": [],
+        "recommended": []
+      },
+      "note": "Official native binary, version and SHA-256 pinned by this dashboard. No vendor installer or auto-update runs. Sign-in and billing remain separate operator steps."
     }
   }
 }

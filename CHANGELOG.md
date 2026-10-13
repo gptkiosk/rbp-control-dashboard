@@ -13,8 +13,20 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 ## [0.3.0] - 2026-10-13
 
 ### Added
+- Matching lower-cost planning tiers, operator-reviewed paused-project retiering and repair of explicitly
+  incomplete read-only story assignments, preserving scope and execution gates.
+- Header version and commit tags remain visible on small screens; release footer information matches
+  across products with product/owner, environment, API/web commits and modified status.
+- Operator-confirmed managed installers for Claude Code, Codex CLI, Grok Build, Hermes and OpenClaw,
+  with pinned downloads, update/remove/rollback, clean install environments and platform privilege restrictions.
+- Agent roles with one assignable Delegator, generic starter guidance, managed instruction-block previews,
+  private backups, rollback and interrupted-assignment recovery. In-progress pipelines keep their approved
+  Delegator and model; a changed assignment requires new coordination review.
+- OpenRouter/Hermes free-first setup guidance, platform worker choices and native membership prerequisites.
+  Free-only planning can use a reviewed free Delegator route without a subscription CLI. Membership access,
+  provider API charges and Google credit eligibility are explained separately.
 - Grok Build is a supported agent, next to Claude Code, Codex, Hermes and OpenClaw: tasks, chat, project story
-  agent and approved fallback, on a SuperGrok subscription only (the CLI has no dollar cap, so an API route is
+  agent and approved fallback, on an eligible Grok membership only (the CLI has no dollar cap, so an API route is
   refused). It has a native Linux arm64 build, verified in Lima; Raspberry Pi hardware remains untested. Runs are confined: telemetry and
   trace upload off, a filesystem sandbox, git push and merge denied. xAI prices are in the price catalog and
   the price checker reads docs.x.ai. See `docs/configuration/grok.md`. Not run against a signed-in account.

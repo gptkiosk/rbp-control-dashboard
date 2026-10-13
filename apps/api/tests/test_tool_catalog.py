@@ -56,6 +56,7 @@ def current_answers() -> dict:
         f"https://api.github.com/repos/NousResearch/hermes-agent/commits/{h['tag']}": {"sha": h["commit"]},
         f"https://raw.githubusercontent.com/NousResearch/hermes-agent/{h['commit']}/scripts/install.sh": script,
     }
+    answers["https://x.ai/cli/stable"] = raw["tools"]["grok"]["version"].encode()
     for cid, comp in raw["tools"].items():
         if comp["installer"] == "npm-lock":
             answers[f"https://registry.npmjs.org/{comp['package'].replace('/', '%2F')}/latest"] = {"version": comp["version"]}
@@ -79,10 +80,11 @@ def test_every_pinned_hash_in_the_catalog_has_the_right_shape():
     hashes = []
     for comp in raw["tools"].values():
         hashes += list(comp.get("lock", {}).values()) + [comp.get("script", {}).get("sha256")]
+        hashes += [a["sha256"] for a in comp.get("binary", {}).values()]
     for comp in raw["runtimes"].values():
         hashes += [a["sha256"] for a in comp["archive"].values()]
     hashes = [h for h in hashes if h]
-    assert len(hashes) == 3 * 2 + 1 + 1 and all(re.fullmatch(r"[0-9a-f]{64}", h) for h in hashes)
+    assert len(hashes) == 3 * 2 + 1 + 2 + 2 and all(re.fullmatch(r"[0-9a-f]{64}", h) for h in hashes)
 
 
 # --- the checker -------------------------------------------------------------------------------------------------
@@ -91,7 +93,7 @@ def test_every_pinned_hash_in_the_catalog_has_the_right_shape():
 def test_the_checker_reports_nothing_to_do_when_every_pin_is_current(repo, tmp_path, capsys):
     code = check.main([], src=saved(tmp_path, current_answers()))
     out = capsys.readouterr().out
-    assert code == 0 and out.count("current") == 5 and "newer release" not in out
+    assert code == 0 and out.count("current") == 6 and "newer release" not in out
 
 
 def test_the_checker_proposes_bumps_without_changing_anything(repo, tmp_path, capsys):
@@ -155,6 +157,7 @@ def test_applying_a_node_bump_takes_the_hash_from_the_publishers_shasums(repo, t
     sha = "c" * 64
     answers["https://nodejs.org/dist/v24.30.0/SHASUMS256.txt"] = f"{'d' * 64}  node-v24.30.0-darwin-arm64.tar.gz\n{sha}  node-v24.30.0-linux-arm64.tar.xz\n".encode()
     answers["https://nodejs.org/dist/v24.30.0/node-v24.30.0-linux-arm64.tar.xz.size"] = b"31000000\n"
+    answers["https://nodejs.org/dist/v24.30.0/node-v24.30.0-darwin-arm64.tar.gz.size"] = b"53000000\n"
     assert check.main(["--apply", "node"], src=saved(tmp_path, answers)) == 0
     a = json.loads((repo / "tool_catalog.json").read_text())["runtimes"]["node"]["archive"]["linux-arm64"]
     assert a["sha256"] == sha and a["size"] == 31000000 and a["root"] == "node-v24.30.0-linux-arm64"

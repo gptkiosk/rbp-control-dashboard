@@ -75,7 +75,7 @@ def test_catalog_is_complete_and_consistent():
         for change in e.get("changes", []):
             assert change["from"] > e["verified"], model  # a dated change is in the future of the check
     for model, e in CATALOG["free_models"].items():
-        assert model.endswith(":free") and e["input"] == 0 and e["output"] == 0
+        assert (model.endswith(":free") or model == "openrouter/free") and e["input"] == 0 and e["output"] == 0
     # what each platform is configured to use here is priced
     for needed in ("gpt-6.1-sol", "gpt-6-astra", "gpt-6-sol", "gpt-6-luna", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna",
                    "gpt-5.5", "claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5", "gemini-2.5-flash",

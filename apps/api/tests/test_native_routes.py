@@ -40,3 +40,11 @@ def test_hermes_shim_disables_only_pinned_fallbacks_and_reports_final_model(monk
 def test_unsupported_hermes_launcher_fails_before_start(tmp_path):
     launcher=tmp_path/'hermes';launcher.write_text('#!/bin/sh\nexit 0\n')
     with pytest.raises(FileNotFoundError,match='enforce assigned models'):hermes_runtime.command([str(launcher),'chat','-m','assigned'])
+
+@pytest.mark.parametrize('model', ['openrouter/free', 'openrouter/openrouter/free'])
+def test_explicit_free_router_is_automatic(model):
+    assert native_routes.automatic_route(model)
+
+@pytest.mark.parametrize('model', ['openrouter/auto', 'openrouter/free-paid', 'anthropic/claude'])
+def test_arbitrary_router_is_not_a_free_route(model):
+    assert not native_routes.automatic_route(model)

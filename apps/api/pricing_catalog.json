@@ -725,6 +725,16 @@
       "input": 0,
       "output": 0,
       "verified": "2026-10-13"
+    },
+    "openrouter/free": {
+      "platform": "OpenRouter",
+      "agents": [
+        "hermes",
+        "openclaw"
+      ],
+      "input": 0,
+      "output": 0,
+      "verified": "2026-10-13"
     }
   }
 }

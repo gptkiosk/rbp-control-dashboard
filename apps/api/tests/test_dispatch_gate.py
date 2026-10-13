@@ -159,8 +159,8 @@ def test_api_account_without_exact_route_stays_unknown(sessions, tmp_path, agent
         assert _reviewed_route_class(db, cfg, row(agent), 'assigned') is None
 
 
-def test_approved_project_openclaw_free_route_is_reviewed(sessions, tmp_path):
-    model = 'openrouter/thinkingmachines/inkling:free'
+@pytest.mark.parametrize('model', ['openrouter/thinkingmachines/inkling:free', 'openrouter/free', 'openrouter/openrouter/free'])
+def test_approved_project_openclaw_free_route_is_reviewed(sessions, tmp_path, model):
     with sessions.begin() as db:
         card = Card(agent='openclaw', agent_target='mm-main', model=model,
                     title='bounded story', body='bounded story', mode='read',
@@ -244,3 +244,9 @@ def test_malformed_policy_denied(tmp_path, checkpoint):
 def test_extreme_budget_denied(tmp_path):
     with pytest.raises(DispatchDenied, match='BUDGET_EXCEEDED'):
         admit(settings(tmp_path, 'claude', 'free'), row('claude', 10**400), ['runner', '--model', 'assigned'])
+
+def test_configured_google_byok_is_not_classified_free(sessions, tmp_path):
+    config=tmp_path/'hermes-paid.yaml';config.write_text('model:\n  default: google/gemini-2.5-flash\n')
+    cfg=settings(tmp_path,'hermes',dispatch_free_only=True,hermes_config_path=config,environment='test')
+    with sessions() as db:
+        assert _reviewed_route_class(db,cfg,row('hermes'),'google/gemini-2.5-flash') is None

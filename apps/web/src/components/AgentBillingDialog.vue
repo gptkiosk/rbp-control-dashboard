@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import MembershipPrerequisites from '@/components/MembershipPrerequisites.vue'
 import AppSelect from '@/components/AppSelect.vue'
 import { computed, onMounted, ref, watch } from 'vue'
 import ModalShell from '@/components/ModalShell.vue'
@@ -70,6 +71,7 @@ async function save() {
     <form class="billing-form" @submit.prevent="save">
       <header>
         <h2 id="billing-title" class="section-title">Billing & API rates</h2>
+        <MembershipPrerequisites />
         <button class="btn" type="button" aria-label="Close billing settings" @click="emit('close')">
           ×
         </button>

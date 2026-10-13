@@ -81,14 +81,14 @@ PLATFORM_KEY = re.compile(r"^[a-z]+-[a-z0-9_]+$")
 SYSTEM_PACKAGE = re.compile(r"^[a-z0-9][a-z0-9.+-]{0,40}$")
 ALLOWED_HOSTS = frozenset({
     "nodejs.org", "github.com", "objects.githubusercontent.com", "release-assets.githubusercontent.com",
-    "github-releases.githubusercontent.com", "raw.githubusercontent.com",
+    "github-releases.githubusercontent.com", "raw.githubusercontent.com", "x.ai", "storage.googleapis.com",
 })
-INSTALLERS = ("archive", "npm-lock", "pinned-script")
+INSTALLERS = ("archive", "npm-lock", "pinned-script", "binary")
 CATALOG_KEYS = {"schema", "checked", "requirements", "system_packages", "runtimes", "tools"}
 REQUIREMENT_KEYS = {"platforms", "min_free_disk_mb", "disk_headroom_mb", "warn_ram_mb", "warn_available_ram_mb"}
 COMPONENT_KEYS = {"name", "installer", "version", "size_mb", "note", "archive", "bins", "check", "package",
                   "lock_dir", "lock", "allow_scripts", "requires", "login", "system_packages", "repository", "tag",
-                  "commit", "script", "script_args", "peak_ram_mb", "external_state", "system_packages_note"}
+                  "commit", "script", "script_args", "binary", "peak_ram_mb", "external_state", "system_packages_note"}
 MAX_CATALOG_BYTES = 256 * 1024
 MAX_STATE_BYTES = 256 * 1024
 MAX_RECEIPT_BYTES = 64 * 1024
@@ -153,6 +153,11 @@ class ToolsConfig:
 
     @property
     def hermes_home(self) -> Path:
+        # Vendor installer state is separate from native account/configuration data.
+        return self.root / "hermes-install-home"
+
+    @property
+    def native_hermes_home(self) -> Path:
         return self.home / ".hermes"
 
     def comp_dir(self, cid: str) -> Path:
@@ -425,6 +430,17 @@ def catalog_problems(raw: object, catalog_dir: Path | None = None) -> list[str]:
                              f"{where}: package.json must depend on exactly {comp.get('package')}@{comp.get('version')}")
                     except (OSError, ValueError):
                         pass
+            elif installer == "binary":
+                entries = comp.get("binary")
+                need(isinstance(entries, dict) and set(entries) == set(platforms), f"{where}: binary must cover declared platforms")
+                for plat, entry in (entries.items() if isinstance(entries, dict) else []):
+                    ok = (isinstance(entry, dict) and set(entry) == {"url", "sha256", "size"}
+                          and SHA256.fullmatch(str(entry.get("sha256")))
+                          and type(entry.get("size")) is int and 0 < entry["size"] < 512 * 1024 ** 2)
+                    need(ok, f"{where}: bad binary entry for {plat}")
+                    if isinstance(entry, dict):
+                        need(url_problem(entry.get("url")) is None, f"{where}: binary URL refused")
+                need(len(bins) == 1 and bins[0].get("argv") == [bins[0].get("name")], f"{where}: binary needs one direct command")
             elif installer == "pinned-script":
                 need(isinstance(comp.get("repository"), str) and comp["repository"].startswith("https://github.com/"),
                      f"{where}: repository must be a GitHub https URL")
@@ -443,6 +459,8 @@ def catalog_problems(raw: object, catalog_dir: Path | None = None) -> list[str]:
                      and "--commit" in args and "{commit}" in args, f"{where}: script_args must pass --commit {{commit}}")
                 if isinstance(args, list):
                     need(all(re.fullmatch(r"[A-Za-z0-9_{}./=:-]+", a) for a in args), f"{where}: script_args has odd characters")
+            if installer != "binary":
+                need("binary" not in comp, f"{where}: has binary-only keys")
             if installer != "pinned-script":
                 need(not ({"repository", "commit", "script", "script_args", "tag"} & set(comp)), f"{where}: has Hermes-only keys")
             if installer != "npm-lock":
@@ -523,6 +541,8 @@ PROBED_COMMANDS = ("gcc", "g++", "make", "curl", "git", "rg", "ffmpeg", "bash", 
 
 
 def _os_release() -> tuple[str, str]:
+    if sys.platform == "darwin":
+        return "macOS", "darwin"
     try:
         text = Path("/etc/os-release").read_text(errors="replace")
     except OSError:
@@ -537,6 +557,12 @@ def _os_release() -> tuple[str, str]:
 
 
 def _meminfo() -> tuple[int | None, int | None]:
+    if sys.platform == "darwin":
+        try:
+            result = subprocess.run(["/usr/sbin/sysctl", "-n", "hw.memsize"], capture_output=True, text=True, timeout=5, check=True)
+            return int(result.stdout.strip()) // (1024 * 1024), None
+        except (OSError, ValueError, subprocess.SubprocessError):
+            return None, None
     try:
         values = {}
         for line in Path("/proc/meminfo").read_text().splitlines():
@@ -572,7 +598,7 @@ def detect_host(root: Path, tool_commands: tuple[str, ...] = ()) -> HostFacts:
     return HostFacts(system=uname.sysname, machine=uname.machine, pointer_bits=struct.calcsize("P") * 8, os_name=name,
                      os_family=family, euid=os.geteuid(), mem_total_mb=total, mem_available_mb=available,
                      disk_free_mb=(st.f_bavail * st.f_frsize) // (1024 * 1024), commands=commands, elsewhere=elsewhere,
-                     can_restrict_privileges=sys.platform.startswith("linux"))
+                     can_restrict_privileges=sys.platform.startswith("linux") or sys.platform == "darwin")
 
 
 def host_refusals(catalog: Catalog, facts: HostFacts, platform_key: str) -> list[str]:
@@ -766,6 +792,8 @@ def _apt_command(missing: list[str], facts: HostFacts) -> str | None:
         return None
     if facts.os_family == "debian":
         return "sudo apt install -y " + " ".join(sorted(missing))
+    if facts.os_family == "darwin":
+        return "Install manually on macOS (Xcode Command Line Tools for build-essential; Homebrew for other tools): " + ", ".join(sorted(missing))
     return "Install with your package manager: " + " ".join(sorted(missing))
 
 
@@ -792,6 +820,8 @@ def _step_text(step: dict) -> str:
         return f"unpack it into {step['dest']}"
     if op == "make_dir":
         return f"create {step['dest']}"
+    if op == "install_binary":
+        return f"install the verified binary as {step['dest']}/{step['bin']}"
     if op == "copy_lock":
         return f"copy the committed package.json and package-lock.json ({step['lock_dir']}) into {step['dest']}"
     if op in ("run", "check"):
@@ -836,6 +866,11 @@ def _component_install_steps(cfg: ToolsConfig, catalog: Catalog, cid: str, actio
             steps.append({"op": "run", "c": cid, "kind": "script-step", "cwd": str(vdir),
                           "timeout": RUN_TIMEOUTS["script-step"],
                           "argv": [str(node_bin / "node"), f"node_modules/{script['package']}/{script['script']}"]})
+    elif installer == "binary":
+        entry = comp["binary"][plat]
+        name = entry["url"].rsplit("/", 1)[1]
+        steps.append({"op": "download", "c": cid, "name": name, **entry})
+        steps.append({"op": "install_binary", "c": cid, "name": name, "bin": comp["bins"][0]["name"], "dest": str(vdir)})
     else:  # pinned-script
         script = comp["script"]
         steps.append({"op": "make_dir", "c": cid, "dest": str(vdir)})
@@ -1143,9 +1178,13 @@ def extract_archive(archive: Path, fmt: str, root: str, dest: Path) -> None:
 # --- running commands --------------------------------------------------------------------
 
 
-def harden_process() -> bool:
+def harden_process(cfg: ToolsConfig | None = None) -> bool:
     """Set no_new_privs on this process and everything it starts: setuid programs and sudo cannot raise
     privileges any more, even for a user with passwordless sudo. Irreversible for the process."""
+    if sys.platform == "darwin":
+        if cfg is None:
+            return False
+        return harden_macos(cfg)
     if not sys.platform.startswith("linux"):
         return False
     try:
@@ -1159,6 +1198,46 @@ def harden_process() -> bool:
         return False
 
 
+def macos_profile(cfg: ToolsConfig) -> str:
+    """Installer-only Seatbelt profile: write in managed state, no privilege/GUI brokers.
+    It is inherited by all descendants; command wrappers used later by the operator are outside it.
+    """
+    quote = lambda p: json.dumps(str(Path(p).resolve()))
+    readable = ["/System", "/usr", "/bin", "/sbin", "/Library", "/opt", "/private/etc", "/private/var/db", "/dev", cfg.root, cfg.hermes_home / 'tools', cfg.hermes_home / 'cache', cfg.hermes_home / 'installs', cfg.hermes_home / 'skills', cfg.catalog_dir]
+    reads = " ".join(f"(subpath {quote(p)})" for p in readable)
+    writes = " ".join(f"(subpath {quote(p)})" for p in (cfg.root, cfg.hermes_home))
+    return f'''(version 1)
+(allow default)
+(deny file-write*)
+(allow file-write* {writes} (literal "/dev/null") (literal "/dev/stdout") (literal "/dev/stderr"))
+(deny file-write-setugid)
+(deny process-exec (regex #".*/(sudo|su|osascript|authopen|launchctl|open|brew|port|xcode-select|softwareupdate)$"))
+(deny mach-lookup (global-name "com.apple.authd") (global-name "com.apple.coreservices.launchservicesd") (global-name "com.apple.lsd") (global-name "com.apple.coreservices.uiagent") (global-name "com.apple.SecurityServer"))
+(deny authorization-right-obtain)
+(deny system-privilege)
+(deny file-read-data (subpath {quote(cfg.home)}))
+(allow file-read* {reads})
+(allow file-read-data {reads})
+(deny file-read-data (literal {quote(cfg.native_hermes_home / ".env")}) (literal {quote(cfg.native_hermes_home / "config.yaml")}))
+'''
+
+
+def harden_macos(cfg: ToolsConfig) -> bool:
+    try:
+        import ctypes
+        library = ctypes.CDLL("/usr/lib/libsandbox.dylib")
+        error = ctypes.c_void_p()
+        library.sandbox_init.argtypes = [ctypes.c_char_p, ctypes.c_uint64, ctypes.POINTER(ctypes.c_void_p)]
+        library.sandbox_init.restype = ctypes.c_int
+        result = library.sandbox_init(macos_profile(cfg).encode(), 0, ctypes.byref(error))
+        if error.value:
+            library.sandbox_free_error.argtypes = [ctypes.c_void_p]
+            library.sandbox_free_error(error)
+        return result == 0
+    except (OSError, AttributeError):
+        return False
+
+
 PASS_THROUGH_ENV = ("HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "http_proxy", "https_proxy", "no_proxy",
                     "SSL_CERT_FILE", "SSL_CERT_DIR", "LANG")
 
@@ -1166,7 +1245,7 @@ PASS_THROUGH_ENV = ("HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "http_proxy", "http
 def child_env(cfg: ToolsConfig, home: Path, *, hermes: bool = False, node: bool = True) -> dict:
     """What an installer or a tool check is allowed to see: nothing from the service, no keys, no tokens."""
     path = [*([str(cfg.comp_dir("node") / "current" / "bin")] if node else []), *SYSTEM_PATH[:4]]
-    env = {"PATH": os.pathsep.join(path), "HOME": str(home), "LC_ALL": "C.UTF-8", "TMPDIR": str(cfg.tmp),
+    env = {"PATH": os.pathsep.join(path), "HOME": str(home), "LC_ALL": "C" if sys.platform == "darwin" else "C.UTF-8", "TMPDIR": str(cfg.tmp),
            "npm_config_cache": str(cfg.cache / "npm"), "npm_config_registry": "https://registry.npmjs.org/",
            "npm_config_update_notifier": "false", "npm_config_audit": "false", "npm_config_fund": "false",
            "UV_CACHE_DIR": str(cfg.cache / "uv"), "UV_NO_CONFIG": "1", "GIT_TERMINAL_PROMPT": "0",
@@ -1259,6 +1338,11 @@ def render_wrapper(cfg: ToolsConfig, catalog: Catalog, cid: str, bin_entry: dict
         lines.append(f'PATH="{node}:$PATH"; export PATH')
     for var in bin_entry.get("env_unset", []):
         lines.append(f"unset {var}")
+    if cid == "hermes":
+        # Installer checks explicitly supply their isolated HERMES_HOME. Normal
+        # operator sessions retain the native account home, including custom profiles.
+        lines.append('HERMES_HOME="${HERMES_HOME:-$HOME/.hermes}"; export HERMES_HOME')
+        lines.append(f'HERMES_RUNTIME_DIR="{cfg.hermes_home / "tools"}"; export HERMES_RUNTIME_DIR')
     argv = " ".join(f'"{base / a}"' for a in bin_entry["argv"])
     lines.append(f'exec {argv} "$@"')
     return "\n".join(lines) + "\n"
@@ -1461,6 +1545,15 @@ class Executor:
         os.mkdir(dest, 0o700)
         self.vdirs_created.append((step["c"], dest))
 
+    def do_install_binary(self, step, on_phase):
+        on_phase("installing the verified native binary")
+        dest = Path(step["dest"])
+        os.makedirs(dest, mode=0o700)
+        self.vdirs_created.append((step["c"], dest))
+        source = self.downloads[f"{step['c']}:{step['name']}"]
+        shutil.copyfile(source, dest / step["bin"])
+        os.chmod(dest / step["bin"], 0o700)
+
     def do_copy_lock(self, step, on_phase):
         on_phase("copying the pinned package lock")
         dest = Path(step["dest"])
@@ -1484,6 +1577,15 @@ class Executor:
         comp = self.catalog.component(cid)
         env = child_env(self.cfg, home, hermes=(cid == "hermes"), node="node" in comp["requires"])
         before = self.external_names(comp)
+        if sys.platform == "darwin" and step["kind"] == "script":
+            # BSD mktemp -d without a template ignores TMPDIR. Keep the pinned installer
+            # intact and provide a private compatibility wrapper within managed state.
+            helpers = self.work / "helper-bin"
+            helpers.mkdir(mode=0o700, exist_ok=True)
+            wrapper = helpers / "mktemp"
+            wrapper.write_text('#!/bin/sh\nif [ "$#" -eq 1 ] && [ "$1" = "-d" ]; then\n  exec /usr/bin/mktemp -d "$TMPDIR/hermes-bootstrap.XXXXXXXX"\nfi\nexec /usr/bin/mktemp "$@"\n')
+            wrapper.chmod(0o700)
+            env["PATH"] = str(helpers) + os.pathsep + env["PATH"]
         code, tail = self.ops.run(argv, vdir, env, step["timeout"], self.log, step["kind"])
         self.record_external(cid, comp, before)
         if code != 0:

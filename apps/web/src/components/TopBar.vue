@@ -106,7 +106,8 @@ const emit = defineEmits<{ toggleMenu: [] }>()
   .topbar { gap: var(--gap-sm); }
   .help-trigger { padding: 0; min-width: var(--touch-target); }
   .help-trigger span { display: none; }
-  .topbar .topbar-health { display: none; }
+  .topbar { height: auto; min-height: var(--topbar-height); flex-wrap: wrap; padding-block: var(--gap-sm); }
+  .topbar .topbar-health { display: flex; order: 10; flex-basis: 100%; justify-content: flex-end; border: 0; padding: 0; background: transparent; }
 }
 
 @media (max-width: 767.98px) {

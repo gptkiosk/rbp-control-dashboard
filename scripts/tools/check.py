@@ -100,6 +100,8 @@ def newest(src: Source, catalog: dict) -> dict:
     for cid, comp in catalog["tools"].items():
         if comp["installer"] == "npm-lock":
             found[cid] = {"version": latest_npm(src, comp["package"])}
+        elif comp["installer"] == "binary":
+            found[cid] = {"version": src.text("https://x.ai/cli/stable").decode().strip()}
         else:
             found[cid] = latest_hermes(src)
     found["node"] = latest_node(src, catalog["runtimes"]["node"]["version"])
@@ -176,17 +178,27 @@ def apply_bump(catalog: dict, cid: str, found: dict, src: Source, runner=subproc
         comp.update(version=found["version"], tag=found["tag"], commit=found["commit"])
         comp["script"] = {"url": base, "sha256": found["sha256"], "size": found["size"]}
         comp["check"]["expect"] = found["version"]
+    elif cid == "grok":
+        v = found["version"]
+        if not ti.VERSION.fullmatch(v):
+            raise SystemExit("bad Grok version from publisher")
+        for platform, suffix in (("linux-arm64", "linux-aarch64"), ("darwin-arm64", "macos-aarch64")):
+            url = f"https://x.ai/cli/grok-{v}-{suffix}"
+            comp["binary"][platform] = {"url": url, **src_pin(src, url)}
+        comp["version"] = v
+        comp["check"]["expect"] = v
     elif cid == "node":
         v = found["version"]
-        name = f"node-v{v}-linux-arm64.tar.xz"
         sums = src.text(f"https://nodejs.org/dist/v{v}/SHASUMS256.txt").decode()
-        line = next((ln for ln in sums.splitlines() if ln.endswith("  " + name)), None)
-        if line is None:
-            raise SystemExit(f"nodejs.org SHASUMS256.txt for v{v} does not list {name}")
-        a = comp["archive"]["linux-arm64"]
-        a.update(url=f"https://nodejs.org/dist/v{v}/{name}", sha256=line.split()[0], root=f"node-v{v}-linux-arm64",
-                 shasums_url=f"https://nodejs.org/dist/v{v}/SHASUMS256.txt")
-        a["size"] = int(src_size(src, a["url"]))
+        for platform, archive in comp["archive"].items():
+            suffix, extension = ("darwin-arm64", "tar.gz") if platform == "darwin-arm64" else ("linux-arm64", "tar.xz")
+            name = f"node-v{v}-{suffix}.{extension}"
+            line = next((ln for ln in sums.splitlines() if ln.endswith("  " + name)), None)
+            if line is None:
+                raise SystemExit(f"nodejs.org SHASUMS256.txt for v{v} does not list {name}")
+            archive.update(url=f"https://nodejs.org/dist/v{v}/{name}", sha256=line.split()[0], root=f"node-v{v}-{suffix}",
+                           shasums_url=f"https://nodejs.org/dist/v{v}/SHASUMS256.txt")
+            archive["size"] = int(src_size(src, archive["url"]))
         comp["version"] = v
         comp["check"]["expect"] = f"v{v}"
     rehash(catalog)
@@ -195,6 +207,20 @@ def apply_bump(catalog: dict, cid: str, found: dict, src: Source, runner=subproc
     if bad:
         raise SystemExit("the catalog does not validate after the bump:\n  " + "\n  ".join(bad))
     return f"{cid}: {old} -> {comp['version']}"
+
+
+def src_pin(src: Source, url: str) -> dict:
+    """Hash the official binary before adopting it; never run the downloaded program."""
+    if isinstance(src, SavedSource):
+        return json.loads(src.text(url + ".pin"))
+    digest, size = hashlib.sha256(), 0
+    with urllib.request.urlopen(url, timeout=60) as response:
+        while chunk := response.read(1 << 20):
+            size += len(chunk)
+            if size > 512 * 1024 ** 2:
+                raise SystemExit("binary exceeds download limit")
+            digest.update(chunk)
+    return {"sha256": digest.hexdigest(), "size": size}
 
 
 def src_size(src: Source, url: str) -> int:

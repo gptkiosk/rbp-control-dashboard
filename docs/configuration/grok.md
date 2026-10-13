@@ -5,18 +5,18 @@ Code or Codex: as a task or chat agent, as a project story agent, and as an appr
 
 ## Set it up
 
-1. Install the CLI on the host: `curl -fsSL https://x.ai/cli/install.sh | bash` puts `grok` in `~/.grok/bin`
-   (Linux on 64-bit ARM, which includes a Raspberry Pi 4 or 5 running 64-bit Raspberry Pi OS, and x86-64; macOS too). The installer does not
-   verify a checksum; if that matters, pin the version and compare the binary's SHA-256 yourself.
+1. Open Settings → Agent tools and install Grok Build. The managed installer pins the vendor's
+   binary version, size and SHA-256 for Apple Silicon and Linux arm64 and shows a confirmation plan.
+   The vendor's manual installer is available separately at https://docs.x.ai/build/overview.
 2. Sign in on the host: `grok login`, or `grok login --device-code` on a machine without a browser. RCD never
    sees the sign-in. `XAI_API_KEY` is an alternative, but see Billing below.
 3. Agents, then Billing & rates: set Grok Build to **Subscription** and save. Until then RCD refuses to start
-   it. Setting the path is only needed when `grok` is not found on `PATH` or in `~/.grok/bin`: `MAC_CONTROL_GROK_PATH`.
+   it. Setting the path is only needed when `grok` is not in `~/.grok/bin`: `MAC_CONTROL_GROK_PATH`.
 
 ## Billing: subscription only
 
 The Grok CLI has no dollar cap, so RCD cannot bound an API-billed run and refuses it
-(`BUDGET_UNENFORCED`). A SuperGrok subscription is a flat fee, so RCD classifies a Grok route as a
+(`BUDGET_UNENFORCED`). An eligible Grok membership (documented by xAI as SuperGrok or X Premium Plus) has subscription limits, so RCD classifies a Grok route as a
 subscription route once you save that account. Saving it is also your acceptance of the data notice below.
 
 Prices come from the price catalog (`grok-4.7`, `grok-4.6`, `grok-4.5`, `grok-build-0.1`, from

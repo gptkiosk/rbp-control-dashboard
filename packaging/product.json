@@ -8,7 +8,9 @@
       "arch": "arm64",
       "python_version": "3.11",
       "python_abi": "cp311",
-      "pip_platforms": ["manylinux_2_36_aarch64"],
+      "pip_platforms": [
+        "manylinux_2_36_aarch64"
+      ],
       "uv_python_platform": "aarch64-manylinux_2_36"
     }
   },
@@ -46,7 +48,8 @@
     "ops/alerts.example.toml",
     "ops/systemd/*.service",
     "ops/systemd/*.template",
-    "ops/systemd/*.timer"
+    "ops/systemd/*.timer",
+    "packs/roles/delegator/*"
   ],
   "excluded_components": [
     "apps/mcp: separate agent tool server with its own venv; not packaged in v1",

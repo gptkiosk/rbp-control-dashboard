@@ -40,7 +40,7 @@ class Document(Strict):
     brief: str = Field(min_length=1, max_length=20000)
     constraints: str = Field(default='', max_length=10000)
     working_dir: str = Field(min_length=1, max_length=500)
-    planner_agent: Literal['auto', 'claude', 'codex', 'hermes'] = 'auto'
+    planner_agent: Literal['auto', 'claude', 'codex', 'grok', 'hermes', 'openclaw'] = 'auto'
     planner_model: str = Field(default='', max_length=120)
     planning_bias: int = Field(default=DEFAULT_PLANNING_BIAS, ge=0, le=100, strict=True)
     dispatch_mode: Literal['sequential','parallel'] = 'sequential'
@@ -53,6 +53,7 @@ class Save(Strict):
 class Action(Strict):
     revision: int = Field(ge=1)
     approve_coordination: bool = False
+    delegator_revision: str | None = Field(default=None, pattern=r'^[a-f0-9]{64}$')
     approve_api_planning: bool = False
     approve_api_work: bool = False
 
@@ -85,3 +86,13 @@ class HandoffPolicy(Strict):
     manifest_hash: str = Field(pattern=r'^[a-f0-9]{64}$')
     mode: Literal['manual', 'batch', 'automatic']
     approve: bool = False
+
+class Retier(Strict):
+    revision: int = Field(ge=1)
+    claude_model: Literal['claude-haiku-5-5', 'claude-sonnet-5-5'] = 'claude-haiku-5-5'
+    codex_model: Literal['gpt-6-luna', 'gpt-5.6-terra'] = 'gpt-6-luna'
+    acknowledge: bool = False
+
+class RepairExecution(Strict):
+    revision: int = Field(ge=1)
+    acknowledge: bool = False

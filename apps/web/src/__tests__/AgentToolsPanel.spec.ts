@@ -7,14 +7,14 @@ import { calls, stubFetch } from './helpers'
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); vi.useRealTimers() })
 
 const LOGIN = {
-  'claude-code': 'claude auth login', codex: 'codex login --device-auth', openclaw: 'openclaw onboard', hermes: 'hermes model',
+  'claude-code': 'claude auth login', codex: 'codex login --device-auth', openclaw: 'openclaw onboard', hermes: 'hermes model', grok: 'grok login --device-code',
 }
 const tool = (id: string, name: string, over: Record<string, unknown> = {}) => ({
   id, name, pinned_version: '1.0.0', installed: false, installed_version: null, previous_version: null, installed_at: null,
   size_mb: 400, commands: [id], requires: ['node'], login: { command: LOGIN[id as keyof typeof LOGIN], note: `Sign in to ${name}.` }, path: null,
   actions: { install: [], update: null, remove: null, rollback: null }, ...over,
 })
-const status = (over: Record<string, unknown> = {}, tools = [tool('claude-code', 'Claude Code'), tool('codex', 'Codex CLI'), tool('openclaw', 'OpenClaw'), tool('hermes', 'Hermes')]) => ({
+const status = (over: Record<string, unknown> = {}, tools = [tool('claude-code', 'Claude Code'), tool('codex', 'Codex CLI'), tool('openclaw', 'OpenClaw'), tool('hermes', 'Hermes'), tool('grok', 'Grok Build')]) => ({
   product: 'rcd', platform: 'linux-arm64', root: '/home/pi/.local/share/rcd-agent-tools', tools, runtimes: [],
   host: { os: 'Raspberry Pi OS', machine: 'aarch64', bits: 64, disk_free_mb: 20480, mem_total_mb: 3880, mem_available_mb: 3000 },
   system_packages: { apt_command: null, missing_required: [], missing_recommended: [], details: {}, note: '' },
@@ -34,11 +34,11 @@ const stubs = { global: { stubs: { RouterLink: { template: '<a><slot /></a>' } }
 const button = (w: ReturnType<typeof mount>, text: string) => w.findAll('button').find(b => b.text() === text)!
 const tick = async (ms = 0) => { await vi.advanceTimersByTimeAsync(ms); await nextTick() }
 
-it('lists the four tools with Install buttons that show the pinned version, and starts nothing on its own', async () => {
+it('lists the five tools with Install buttons that show the pinned version, and starts nothing on its own', async () => {
   const f = stubFetch(url => url === '/api/agent-installs' ? { body: status() } : undefined)
   const w = mount(AgentToolsPanel, stubs); await flushPromises()
-  expect(w.findAll('[data-tool]').map(e => e.attributes('data-tool'))).toEqual(['claude-code', 'codex', 'openclaw', 'hermes'])
-  expect(w.findAll('button').map(b => b.text())).toEqual(['Install 1.0.0', 'Install 1.0.0', 'Install 1.0.0', 'Install 1.0.0'])
+  expect(w.findAll('[data-tool]').map(e => e.attributes('data-tool'))).toEqual(['claude-code', 'codex', 'openclaw', 'hermes', 'grok'])
+  expect(w.findAll('button').map(b => b.text())).toEqual(['Install 1.0.0', 'Install 1.0.0', 'Install 1.0.0', 'Install 1.0.0', 'Install 1.0.0'])
   expect(w.get('[data-test="host"]').text()).toContain('3.8 GB memory')
   expect(w.get('[data-test="host"]').text()).toContain('20.0 GB free disk')
   expect(f.mock.calls.map(([url, init]) => `${init?.method ?? 'GET'} ${url}`)).toEqual(['GET /api/agent-installs'])
@@ -81,7 +81,7 @@ it('runs only the plan that was shown, after the checkbox, and reports the outco
       if (phase === 1) return { body: status() }
       if (phase === 2) return { body: status({ tx: { id: 't', tool: 'codex', action: 'install', phase: 'installing the pinned npm packages' }, running: true }) }
       return { body: status({ last: { tx: 't', tool: 'codex', action: 'install', outcome: 'done', detail: 'Installed Codex CLI 0.162.1.' } }, [
-        tool('claude-code', 'Claude Code'), tool('codex', 'Codex CLI', { installed: true, installed_version: '0.162.1', path: '/x/bin/codex', actions: { install: null, update: null, remove: [], rollback: null } }), tool('openclaw', 'OpenClaw'), tool('hermes', 'Hermes')]) }
+        tool('claude-code', 'Claude Code'), tool('codex', 'Codex CLI', { installed: true, installed_version: '0.162.1', path: '/x/bin/codex', actions: { install: null, update: null, remove: [], rollback: null } }), tool('openclaw', 'OpenClaw'), tool('hermes', 'Hermes'), tool('grok', 'Grok Build')]) }
     }
     return undefined
   })
@@ -107,7 +107,7 @@ it('runs only the plan that was shown, after the checkbox, and reports the outco
 
 it('turns every button off, with the reasons, when the host is refused', async () => {
   const reason = 'This is a 32-bit operating system (machine armv7l, 32-bit userland). These tools need 64-bit Raspberry Pi OS (aarch64).'
-  const refused = ['claude-code', 'codex', 'openclaw', 'hermes'].map(id => tool(id, id, { actions: { install: [reason, 'Only 1500 MB of disk is free where the tools are installed; at least 2048 MB is needed.'], update: null, remove: null, rollback: null } }))
+  const refused = ['claude-code', 'codex', 'openclaw', 'hermes', 'grok'].map(id => tool(id, id, { actions: { install: [reason, 'Only 1500 MB of disk is free where the tools are installed; at least 2048 MB is needed.'], update: null, remove: null, rollback: null } }))
   stubFetch(url => url === '/api/agent-installs' ? { body: status({}, refused) } : undefined)
   const w = mount(AgentToolsPanel, stubs); await flushPromises()
   expect(w.findAll('button').every(b => b.attributes('disabled') !== undefined)).toBe(true)
