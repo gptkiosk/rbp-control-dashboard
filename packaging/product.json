@@ -23,6 +23,7 @@
     "apps/api/.env.example",
     "apps/api/requirements.in",
     "apps/api/requirements.runtime.in",
+    "apps/api/pricing_catalog.json",
     "apps/api/routes/*.py",
     "apps/api/platform/*.py",
     "apps/api/adapter_schemas/*.json",

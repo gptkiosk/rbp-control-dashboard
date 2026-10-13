@@ -731,6 +731,12 @@ class SystemdUserService(ServiceControl):
         self._call("stop")
 
     def start(self) -> None:
+        # A release that crash-looped leaves the unit failed with its start-rate limit used up, and the
+        # rollback's own start would then be refused ("repeated too quickly"). Clear the counter first.
+        try:
+            self._call("reset-failed")
+        except UpdateError:
+            pass
         self._call("start")
 
 

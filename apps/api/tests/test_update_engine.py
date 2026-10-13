@@ -687,3 +687,28 @@ def test_update_api_is_operator_only_and_refuses_dev_installs(make_client):
         assert client.post("/api/app-updates/apply", json={"version_id": "x", "force": True}).status_code == 422
         agent = True
         assert client.get("/api/app-updates").status_code == 403
+
+
+def test_systemd_start_clears_a_used_up_restart_limit_first(monkeypatch):
+    """After a bad release crash-looped, systemd refuses further starts of the unit until reset-failed.
+    The rollback must clear that before it starts the previous version."""
+    calls = []
+
+    def fake_run(argv, timeout, env=None, what=""):
+        calls.append(argv[-2:])
+
+    monkeypatch.setattr(ue, "_run", fake_run)
+    service = ue.SystemdUserService("rcd-api.service")
+    service.systemctl = "/usr/bin/systemctl"
+    service.start()
+    assert calls == [["reset-failed", "rcd-api.service"], ["start", "rcd-api.service"]]
+
+    def failing_reset(argv, timeout, env=None, what=""):
+        if "reset-failed" in argv:
+            raise ue.UpdateError("unit not failed")
+        calls.append(argv[-2:])
+
+    calls.clear()
+    monkeypatch.setattr(ue, "_run", failing_reset)
+    service.start()   # a unit that was not failed has nothing to reset, and must still start
+    assert calls == [["start", "rcd-api.service"]]
