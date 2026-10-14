@@ -10,6 +10,9 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+### Fixed
+- The MCP page no longer shows a red "list failed (exit 127)" for an agent whose command is not on this host. It shows a quiet "Not available on this host" note. A command that runs and fails is still reported as a failure.
+
 ## [0.3.1] - 2026-10-14
 
 ### Added

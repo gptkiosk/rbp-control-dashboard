@@ -69,6 +69,21 @@ async function mountMcp(s: ReturnType<typeof server>) {
 }
 
 describe('MCP view', () => {
+  it('shows an agent that is not on this host as a quiet note, not an alert', async () => {
+    const s = server()
+    s.on((u) => (u.startsWith('/api/mcp/servers')
+      ? { body: { agents: [{ agent: 'codex', servers: [], error: null, installed: false, checked_at: 1_000 }] } }
+      : undefined))
+    const { w } = await mountMcp(s)
+    const section = w.get('section.card[data-agent="codex"]')
+    expect(section.find('[role="alert"]').exists()).toBe(false)
+    expect(section.find('[data-testid="agent-error"]').exists()).toBe(false)
+    expect(section.get('[data-testid="agent-not-installed"]').text()).toBe('Not available on this host')
+    expect(section.text()).toContain('Codex is not installed here')
+    expect(section.text()).not.toContain('No MCP servers configured')
+    w.unmount()
+  })
+
   it('renders one section per agent with the standing rule and the right status chips', async () => {
     const { w, f } = await mountMcp(server())
     expect(w.get('[data-testid="mcp-note"]').text()).toBe(
