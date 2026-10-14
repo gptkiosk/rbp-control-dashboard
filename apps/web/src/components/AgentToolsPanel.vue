@@ -19,7 +19,7 @@ interface Status {
   runtimes: { id: string; name: string; pinned_version: string; installed_version: string | null }[]
   host: { os: string; machine: string; bits: number; disk_free_mb: number; mem_total_mb: number | null; mem_available_mb: number | null }
   system_packages: { apt_command: string | null; missing_required: string[]; missing_recommended: string[]; details: Record<string, string>; note: string }
-  tx: { id: string; tool: string; action: string; phase: string } | null
+  tx: { id: string; tool: string; action: Action; phase: string } | null
   last: { tx: string | null; tool: string | null; action: string | null; outcome: string; detail: string } | null
   running: boolean; log: string[]; notes: Record<string, string | null>; catalog_checked: string
 }
@@ -41,6 +41,8 @@ const confirmed = ref(false), busy = ref(false), copied = ref('')
 const error = ref(''), notice = ref('')
 const watching = ref<{ tool: string; action: Action; beforeTx: string | null; sawTx: boolean; polls: number } | null>(null)
 let timer: ReturnType<typeof setTimeout> | undefined
+let disposed = false, authRefused = false
+const updatedAt = ref('')
 
 const working = computed(() => !!status.value?.tx || !!status.value?.running || !!watching.value)
 const hostLine = computed(() => {
@@ -84,10 +86,12 @@ function refusal(e: unknown, fallback: string) {
 async function read(): Promise<boolean> {
   try {
     status.value = await getJson<Status>('/api/agent-installs')
-    error.value = ''
+    error.value = ''; authRefused = false
+    updatedAt.value = new Date().toLocaleTimeString()
     return true
   } catch (e) {
-    error.value = refusal(e, 'Agent tools could not be read right now.')
+    authRefused = e instanceof ApiError && (e.status === 401 || e.status === 403)
+    error.value = refusal(e, 'Agent tools could not be read right now.') + (authRefused ? '' : ' Retrying automatically; the displayed status may be out of date.')
     return false
   }
 }
@@ -109,25 +113,36 @@ async function submit() {
     watching.value = { tool: p.tool, action: p.action, beforeTx: status.value?.last?.tx ?? null, sawTx: false, polls: 0 }
     plan.value = null; confirmed.value = false
     notice.value = `${VERB[p.action]} of ${p.name} started on the host. Progress is shown below.`
-    timer = setTimeout(poll, POLL_MS)
+    schedule(POLL_MS)
   } catch (e) {
     await read()
     error.value = refusal(e, 'The helper could not be started.')
   } finally { busy.value = false }
 }
 
+function schedule(delay: number) {
+  if (timer) clearTimeout(timer)
+  if (!disposed && !authRefused) timer = setTimeout(poll, delay)
+}
 async function poll() {
-  const w = watching.value
-  if (!w) return
+  if (disposed) return
   const ok = await read()
-  if (!ok) return stop(error.value)
+  if (disposed) return
+  if (!ok) { schedule(POLL_MS); return }
   const s = status.value!
-  if (s.tx || s.running) w.sawTx = true
-  if (!s.tx && !s.running && (w.sawTx || (s.last?.tx ?? null) !== w.beforeTx)) return finish()
-  w.polls++
-  if (!s.tx && !s.running && !w.sawTx && w.polls >= NOT_STARTED_POLLS) return stop('The install helper has not started. Nothing was changed as far as the status shows. See the helper log on the host.')
-  if (w.polls >= MAX_POLLS) return stop('Still waiting after about 50 minutes. Check the helper log on the host; nothing more is started from here.')
-  timer = setTimeout(poll, POLL_MS)
+  // Resume observing helpers that were started before mounting or in another tab.
+  if (!watching.value && s.tx) watching.value = { tool: s.tx.tool, action: s.tx.action, beforeTx: s.last?.tx ?? null, sawTx: true, polls: 0 }
+  const w = watching.value
+  if (w) {
+    if (s.tx || s.running) w.sawTx = true
+    if (!s.tx && !s.running && (w.sawTx || (s.last?.tx ?? null) !== w.beforeTx)) finish()
+    else {
+      w.polls++
+      if (!s.tx && !s.running && !w.sawTx && w.polls >= NOT_STARTED_POLLS) stop('The install helper has not started. Nothing was changed as far as the status shows. See the helper log on the host.')
+      else if (w.polls >= MAX_POLLS) stop('Still waiting after about 50 minutes. Check the helper log on the host; nothing more is started from here.')
+    }
+  }
+  schedule(working.value ? POLL_MS : 15000)
 }
 function finish() {
   const last = status.value?.last
@@ -142,8 +157,8 @@ async function copy(text: string, label: string) {
   try { await navigator.clipboard.writeText(text); copied.value = label } catch { copied.value = '' ; notice.value = 'Copying is not available here. Select the command and copy it by hand.' }
 }
 
-onMounted(read)
-onBeforeUnmount(() => { if (timer) clearTimeout(timer) })
+onMounted(poll)
+onBeforeUnmount(() => { disposed = true; if (timer) clearTimeout(timer) })
 </script>
 <template>
   <section id="agent-tools" class="card agent-tools" aria-labelledby="agent-tools-title">
@@ -156,7 +171,8 @@ onBeforeUnmount(() => { if (timer) clearTimeout(timer) })
     <template v-if="status">
       <p class="muted small" data-test="host">{{ hostLine }} · installs under {{ status.root }}</p>
       <p v-if="working" class="status" role="status" data-test="progress">{{ progress }}</p>
-      <details v-if="working && status.log.length" open>
+      <p v-if="updatedAt" class="muted small" role="status">Last checked {{ updatedAt }} · {{ working ? 'refreshing every 3 seconds' : 'refreshing every 15 seconds' }}</p>
+      <details v-if="status.log.length" :open="working">
         <summary>Helper log (last {{ status.log.length }} lines)</summary>
         <pre class="log">{{ status.log.join('\n') }}</pre>
       </details>

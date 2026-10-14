@@ -185,3 +185,28 @@ it('recognizes native installs and offers only a reviewed upgrade, leaving Grok 
  expect(w.findAll('button').some(b=>b.text()==='Remove')).toBe(false)
  w.unmount()
 })
+
+it('resumes an existing helper, updates its log, retries a failed read and retains the final log', async () => {
+  vi.useFakeTimers()
+  let reads = 0
+  const f = stubFetch(url => {
+    if (url !== '/api/agent-installs') return undefined
+    reads++
+    if (reads === 2) return { status: 503, body: { detail: 'Temporary connection failure' } }
+    if (reads < 4) return { body: status({tx:{id:'existing',tool:'hermes',action:'install',phase:'installing'},running:true,log:[reads === 1 ? 'Starting Hermes' : 'Installing dependencies']}) }
+    return {body:status({log:['Hermes installation complete'],last:{tx:'existing',tool:'hermes',action:'install',outcome:'done',detail:'Installed Hermes.'}})}
+  })
+  const w = mount(AgentToolsPanel, stubs); await tick()
+  expect(w.get('.log').text()).toContain('Starting Hermes')
+  await tick(3000)
+  expect(w.text()).toContain('Retrying automatically')
+  await tick(3000)
+  expect(w.get('.log').text()).toContain('Installing dependencies')
+  await tick(3000)
+  expect(w.text()).toContain('Installed Hermes.')
+  expect(w.get('.log').text()).toContain('Hermes installation complete')
+  expect(w.find('[data-test="progress"]').exists()).toBe(false)
+  expect(calls(f, 'POST', '/api/agent-installs/run')).toHaveLength(0)
+  w.unmount()
+  const stopped = reads; await tick(15000); expect(reads).toBe(stopped)
+})
