@@ -9,7 +9,7 @@ import pytest
 
 pytestmark = pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux platform collector")
 
-from platform.linux import LinuxPlatform
+from rcd_platform.linux import LinuxPlatform
 
 
 async def _run(*argv: str, timeout: float = 30.0) -> tuple[int, str]:

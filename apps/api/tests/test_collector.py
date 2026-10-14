@@ -5,7 +5,7 @@ import asyncio
 from sqlalchemy import text
 
 from collector import Collector
-from platform.macos import MacOSPlatform
+from rcd_platform.macos import MacOSPlatform
 from tests.test_facts import SOFTWAREUPDATE, TAILSCALE
 from tests.test_sampling import VM_STAT
 
@@ -64,3 +64,12 @@ def test_tailscale_failure_is_reported_not_raised(sessions):
     c = _collector(sessions, {})
     asyncio.run(c.refresh_tailscale())
     assert "error" in c.tailscale
+
+
+def test_host_platform_package_does_not_shadow_cached_stdlib_platform():
+    import platform as stdlib_platform
+    import importlib
+    import rcd_platform
+    assert hasattr(stdlib_platform, 'python_implementation')
+    assert hasattr(rcd_platform, 'current_platform')
+    assert importlib.import_module('platform') is stdlib_platform

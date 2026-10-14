@@ -30,7 +30,7 @@
     "apps/api/tool_locks/*/package.json",
     "apps/api/tool_locks/*/package-lock.json",
     "apps/api/routes/*.py",
-    "apps/api/platform/*.py",
+    "apps/api/rcd_platform/*.py",
     "apps/api/adapter_schemas/*.json",
     "apps/api/migrations/env.py",
     "apps/api/migrations/script.py.mako",

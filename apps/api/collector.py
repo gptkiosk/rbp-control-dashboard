@@ -21,7 +21,7 @@ import facts
 import rollups
 import subagents
 from models import METRIC_FIELDS, MetricSample, ServiceSnapshot
-from platform import Platform, current_platform
+from rcd_platform import Platform, current_platform
 
 logger = logging.getLogger("mac_control.collector")
 
