@@ -10,6 +10,11 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.3.6] - 2026-10-15
+
+### Added
+- Opt-in sharing of the OpenRouter key saved in Profile with Hermes and OpenClaw, so it is not typed into each agent. Off by default, one operator per installation, saved key wins over the agent's own. The key is supplied only in the environment of Hermes and OpenClaw runs, scrubbed from anything they print, and never given to Claude Code, Codex or Grok. Paid models still follow the dispatch policy. Turning it off or removing the key stops it at once. See `docs/configuration/saved-openrouter-key.md`.
+
 ## [0.3.5] - 2026-10-14
 
 ### Fixed
@@ -132,7 +137,8 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 - Claude Code stories may use web search and fetch without any shell, credential or publish permission.
 
 [0.3.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.0
-[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.3.5...HEAD
+[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.3.6...HEAD
+[0.3.6]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.6
 [0.3.5]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.5
 [0.3.4]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.4
 [0.3.3]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.3

@@ -75,8 +75,20 @@ class Collector:
         self.agent_binaries: dict[str, str] = {}
         from usage import UsageScanner
         self.usage_scanner = UsageScanner(self.sessions)
-        from openrouter_costs import OpenRouterCosts
-        self.openrouter_costs = OpenRouterCosts()
+        from openrouter_costs import OpenRouterCosts, configured_keys
+
+        def _resolve_keys(home):
+            # An operator who shared their saved OpenRouter key with Hermes and OpenClaw: that key is what they run with.
+            saved = None
+            try:
+                from profiles import saved_openrouter_key
+                from settings import get_settings
+                with self.sessions() as db:
+                    saved = saved_openrouter_key(db, get_settings())
+            except Exception:  # noqa: BLE001 - the meter must never depend on this
+                saved = None
+            return configured_keys(home, saved)
+        self.openrouter_costs = OpenRouterCosts(resolve=_resolve_keys)
         self.platform = platform or current_platform(
             macmon_path=macmon_path, disk_path=disk_path, run=run, clock=clock
         )

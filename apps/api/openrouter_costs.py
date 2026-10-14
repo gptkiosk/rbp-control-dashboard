@@ -34,7 +34,7 @@ def env_file(path):
     return dotenv_values(path, interpolate=False) if path.is_file() else {}
 
 
-def configured_keys(home):
+def configured_keys(home, saved=None):
     """Default provider keys only. An explicit MCD override can match injected credentials."""
     home = Path(home)
     overrides = env_file(home / ".mac-control/.env")
@@ -58,6 +58,8 @@ def configured_keys(home):
                     key = None
         # Accept only a literal credential; unresolved refs never become Authorization headers.
         keys[agent] = key.strip() if isinstance(key, str) and key.strip().startswith("sk-or-") else None
+        if isinstance(saved, str) and saved.startswith("sk-or-"):
+            keys[agent] = saved   # the operator chose to share the saved key: it is what these agents run with
     return keys
 
 

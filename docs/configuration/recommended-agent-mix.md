@@ -1,6 +1,6 @@
 # Recommended agent mix
 
-Start with an [OpenRouter account](https://openrouter.ai/) and Hermes as coordinator. Run `hermes setup` personally and configure `openrouter/free` or a reviewed zero-priced model. Keep paid fallback disabled for free-only work. The dashboard spending key is separate from the credentials used by a native agent.
+Start with an [OpenRouter account](https://openrouter.ai/) and Hermes as coordinator. Run `hermes setup` personally and configure `openrouter/free` or a reviewed zero-priced model. Keep paid fallback disabled for free-only work. The dashboard spending key is separate from the credentials used by a native agent, unless you [share it with Hermes and OpenClaw](saved-openrouter-key.md) in Profile.
 
 For Mac workers use OpenClaw. For Raspberry Pi, ZeroClaw or PicoClaw are the intended lightweight choices, but their dashboard integration remains experimental and is not yet a selectable supported worker route. Use the integration guides for current limits; an installed binary alone does not establish dispatch readiness.
 

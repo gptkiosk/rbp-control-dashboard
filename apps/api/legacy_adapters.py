@@ -30,6 +30,7 @@ from sqlalchemy import select
 from adapter_contract import (AdapterError, LEGACY_STAGE, SCHEMA_VERSION, digest,
                               error, run_key, spec_digest)
 from models import Card, Run
+from profiles import SAVED_KEY_AGENTS, saved_openrouter_key
 from operator_boundary import runner_env
 from settings import tool_search_dirs
 from db import durable_sessions
@@ -165,6 +166,16 @@ def claimed_spec(row, card, prompt, budget, session_id=None, message_id=None):
                             max_cost_usd=budget),
                 session=dict(mode="resume", session_id=session_id) if session_id else dict(mode="new"),
                 output=dict(format="handoff_text"))
+
+
+SECRET_KEY = re.compile(r"sk-or-[A-Za-z0-9_\-]{12,}")
+
+
+def scrub(text: str, key: str | None = None) -> str:
+    """Remove OpenRouter keys from anything an agent printed before it is stored or shown."""
+    if key:
+        text = text.replace(key, "[redacted OpenRouter key]")
+    return SECRET_KEY.sub("[redacted OpenRouter key]", text)
 
 
 class LegacyAgentAdapter:
@@ -500,9 +511,11 @@ class LegacyAgentAdapter:
         stage, exit_code, error = "failed", None, None
         quota_reported = False
         mode = "w" if attach else "a"  # a reattached run rebuilds its readable logs
+        supplied_key: str | None = None  # the saved OpenRouter key this run was given, if any: scrubbed from everything it prints
 
         with open(log_path, mode, encoding="utf-8") as log, open(raw_path, mode, encoding="utf-8") as raw:
             def write(text: str) -> None:
+                text = scrub(text, supplied_key)
                 stamp = time.strftime("%H:%M:%S")
                 for part in (text.splitlines() or [""]):
                     log.write(f"{stamp}  {part}\n")
@@ -511,7 +524,7 @@ class LegacyAgentAdapter:
 
             def feed(line: str, is_stderr: bool) -> None:
                 nonlocal quota_reported
-                line = line.rstrip("\n")
+                line = scrub(line.rstrip("\n"), supplied_key)
                 raw.write(("! " if is_stderr else "") + line + "\n")
                 if is_stderr:
                     parser.feed_stderr(line)
@@ -547,6 +560,12 @@ class LegacyAgentAdapter:
                     with self.sessions() as db:
                         row = db.get(Run, run_id)
                         env["RCD_IDEMPOTENCY_KEY"] = row.idempotency_key or run_key(run_id)
+                        if agent in SAVED_KEY_AGENTS:
+                            supplied_key = saved_openrouter_key(db, self.settings)
+                    if supplied_key:
+                        # The only operator credential an agent ever receives, and only after the operator opted in.
+                        env["OPENROUTER_API_KEY"] = supplied_key
+                        write("The saved OpenRouter key was supplied to this run (its value is never logged).")
                     env["RCD_RUN_ID"] = str(run_id)
                     with open(files.stdout, "ab") as out, open(files.stderr, "ab") as err:
                         proc = await asyncio.create_subprocess_exec(

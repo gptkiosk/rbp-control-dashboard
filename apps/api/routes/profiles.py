@@ -53,6 +53,9 @@ def save(body:profiles.Preferences,request:Request,s:Session=Depends(get_session
     if body.dashboard_origin and body.dashboard_origin not in get_settings().auth_origins: raise HTTPException(422,'Choose one of this installation’s configured sign-in origins.')
     row=profiles.get(s,identity)
     old=profiles.prefs(s,identity)
+    if body.use_saved_openrouter_key and not old.use_saved_openrouter_key:
+        if not profiles.credential(s,identity,'openrouter',get_settings()): raise HTTPException(422,'Save your OpenRouter key first.')
+        if any(o!=identity for o in profiles.saved_key_owners(s)): raise HTTPException(409,'Another operator already shares a saved OpenRouter key with the agents. Turn that off first.')
     if old.discord_channel_id!=body.discord_channel_id: row.discord_user_id=None;row.pair_hash=None;row.pair_expires=None
     row.preferences=body.model_dump_json();s.commit();return profiles.payload(s,identity)
 
@@ -65,6 +68,9 @@ def secret(provider:str,body:SecretIn,request:Request,s:Session=Depends(get_sess
 def remove(provider:str,request:Request,s:Session=Depends(get_session)):
     identity=profiles.owner(request);row=s.get(profiles.UserCredential,(identity,provider))
     if row:s.delete(row)
+    if provider=='openrouter':   # no key, no sharing: the switch goes off with it
+        pref=profiles.prefs(s,identity)
+        if pref.use_saved_openrouter_key: pref.use_saved_openrouter_key=False;profiles.get(s,identity).preferences=pref.model_dump_json()
     s.commit();return profiles.payload(s,identity)
 
 @router.post('/discord/pair')
