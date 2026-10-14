@@ -50,7 +50,10 @@ const canChange = computed(() => managed.value && !busy.value && !inProgress.val
 const previous = computed(() => find(install.value?.previous))
 const canRollback = computed(() => canChange.value && !!previous.value?.complete)
 const others = computed(() => (install.value?.versions ?? []).filter(v => v.id !== install.value?.current))
-const installable = computed(() => others.value.filter(v => !unavailable(v)))
+const currentVersion = computed(() => find(install.value?.current)?.version ?? null)
+// Only a newer package is an update. An older staged one is kept for rollback and is never offered as an install.
+const installable = computed(() => others.value.filter(v => !unavailable(v) && isNewer(v.version, currentVersion.value)))
+const older = computed(() => others.value.filter(v => !unavailable(v) && !isNewer(v.version, currentVersion.value)))
 const notOffered = computed(() => others.value.filter(v => unavailable(v)))
 const summary = computed(() => {
   const s = status.value
@@ -82,6 +85,17 @@ function label(id: string | null | undefined) { return find(id)?.version ?? id ?
 function when(seconds: number | null | undefined) { return seconds ? new Date(seconds * 1000).toLocaleString() : 'an unknown time' }
 function stagedVersion(version: string) { return install.value?.versions.find(v => v.version === version && v.complete) ?? null }
 // Only complete, stable or prerelease application packages from this repository are offered. Anything else says why and gets no button.
+function parts(version: string | null): [number, number, number, boolean] | null {
+  const m = /^(\d+)\.(\d+)(?:\.(\d+))?(-.+)?$/.exec(version ?? '')
+  return m ? [Number(m[1]), Number(m[2]), Number(m[3] ?? 0), !!m[4]] : null
+}
+function isNewer(candidate: string | null, installed: string | null): boolean {
+  const a = parts(candidate), b = parts(installed)
+  if (!a) return false // an unreadable version is never offered
+  if (!b) return true
+  for (let i = 0; i < 3; i++) if (a[i] !== b[i]) return (a[i] as number) > (b[i] as number)
+  return b[3] && !a[3] // same number: the release is newer than its own prerelease
+}
 function unavailable(v: Version): string {
   if (!v.complete || !v.version) return 'It is only partly staged, so it cannot be installed.'
   if (v.channel === 'dev') return 'A development build. It is never offered as an update.'
@@ -346,7 +360,14 @@ onBeforeUnmount(() => { alive = false; if (timer) clearTimeout(timer) })
             <button class="btn primary" :disabled="!canChange" @click="ask('install', v)">Install {{ v.version }}</button>
           </li>
         </ul>
-        <p v-else class="muted">No staged update is waiting on this host. Check for updates to download and verify one.</p>
+        <p v-else class="muted">No staged update is waiting on this host. Check for updates to look for a newer release.</p>
+        <details v-if="older.length" class="older">
+          <summary>Older versions kept on this host ({{ older.length }})</summary>
+          <ul class="updates">
+            <li v-for="v in older" :key="v.id">{{ v.version }} · {{ v.channel }} · staged {{ when(v.staged_at) }}</li>
+          </ul>
+          <p class="muted small">These are not offered as installs. Use Rollback to return to the previous version.</p>
+        </details>
         <ul v-if="notOffered.length" class="updates" aria-label="Staged but not offered">
           <li v-for="v in notOffered" :key="v.id">{{ v.version ?? v.id }}: {{ unavailable(v) }}</li>
         </ul>
@@ -384,6 +405,8 @@ onBeforeUnmount(() => { alive = false; if (timer) clearTimeout(timer) })
 .update-panel { margin: var(--gap-lg) 0; display: grid; gap: var(--gap); }
 .lead { max-width: 72ch; line-height: var(--line-height); margin: 0; }
 .trust { max-width: 72ch; line-height: var(--line-height); }
+.older summary { cursor: pointer; padding: var(--gap-xs) 0; }
+.update-panel > .btn { justify-self: start; }
 h2, h3, h4 { margin: 0; }
 .status { font-weight: 600; margin: 0; }
 .small { font-size: var(--font-size-xs); margin: 0; }

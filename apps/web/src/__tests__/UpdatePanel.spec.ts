@@ -288,3 +288,18 @@ it('with a pinned digest the old two-step flow is unchanged and says how to swit
   expect(w.text()).not.toContain('verified by their signature')
   w.unmount()
 })
+
+it('never offers an older staged version as an install: it is listed under older versions and only the rollback button reverses', async () => {
+  stubFetch(url => url === '/api/app-updates'
+    ? { body: managed({}, { current: 'v3', previous: 'v1', versions: [version('v1'), version('v2', { version: '1.1' }), version('v3', { version: '1.2' }), version('v4', { version: '1.3' })] }) }
+    : undefined)
+  const w = mount(UpdatePanel); await flushPromises()
+  expect(button(w, 'Install 1.3')).toBeDefined()                                  // newer: offered
+  expect(button(w, 'Install 1.0')).toBeUndefined()                                // older: not offered
+  expect(button(w, 'Install 1.1')).toBeUndefined()
+  expect(w.get('details.older summary').text()).toContain('Older versions kept on this host (2)')
+  expect(w.get('details.older').text()).toContain('Use Rollback')
+  expect(button(w, 'Roll back to 1.0')).toBeDefined()
+  expect(w.text()).toContain('1 staged update is ready')
+  w.unmount()
+})
