@@ -96,3 +96,10 @@ class Retier(Strict):
 class RepairExecution(Strict):
     revision: int = Field(ge=1)
     acknowledge: bool = False
+
+
+class GoFree(Strict):
+    revision: int = Field(ge=1)
+    run_id: int = Field(ge=1)
+    model: str = Field(min_length=1, max_length=120)
+    agent_target: str = Field(min_length=1, max_length=80)

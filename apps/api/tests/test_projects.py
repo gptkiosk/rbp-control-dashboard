@@ -1063,3 +1063,67 @@ def test_incomplete_read_story_can_be_repaired_as_execution_only_while_paused(ap
         node_data = next(n for n in manifest['document']['nodes'] if n['key'] == 'matrix')
         assert node_data['mode'] == 'edit'
         assert manifest['route_amendments'][-1]['kind'] == 'repair_incomplete_execution'
+
+def free_config(settings):
+    settings.openclaw_config_path.write_text(json.dumps({'agents':{'defaults':{'models':{
+        'openrouter/example/code:free':{},'openrouter/google/gemini-2.5-flash':{},'other/free:free':{}}},
+        'list':[{'id':'mm-developer'}]}}))
+    return {'agent':'openclaw','model':'openrouter/example/code:free','agent_target':'mm-developer'}
+
+def test_go_free_approves_only_same_story_and_pins_free_model(app):
+    p=active(app,[node('a'),node('b',depends_on=['a'])]);c,s,wd,settings=app
+    cid=next(t['card_id'] for t in p['tasks'] if t['node_key']=='a')
+    rid=finish(app,cid,'Unverified edits remain.',stage='failed',error="You've hit your session limit")
+    route=free_config(settings)
+    before=c.get(f'/api/cards/{cid}').json()
+    detail=c.get('/api/projects/1').json()
+    assert next(t for t in detail['tasks'] if t['card_id']==cid)['free_retry_routes']==[route]
+    with s() as db: original=json.loads(db.get(Project,1).approved_manifest)
+    data={'revision':1,'run_id':rid,'model':route['model'],'agent_target':route['agent_target']}
+    url=f'/api/projects/1/stories/{cid}/go-free'
+    r=c.post(url,json=data);assert r.status_code==200,r.text
+    after=c.get(f'/api/cards/{cid}').json()
+    assert (after['agent'],after['model'],after['agent_target'],after['column'])==('openclaw',route['model'],'mm-developer','queued')
+    for key in ('body','working_dir','mode','acceptance','approved_at'): assert before[key]==after[key]
+    assert len(r.json()['tasks'])==len(detail['tasks'])
+    assert next(t for t in r.json()['tasks'] if t['node_key']=='b')['blocked_by']==[cid]
+    with s() as db:
+        m=json.loads(db.get(Project,1).approved_manifest)
+        assert m['hash']==original['hash'] and m['document']==original['document']
+        assert m['free_retries']['a']['source_run_id']==rid
+    assert c.post(url,json=data).status_code==409  # double click cannot create a duplicate
+    claimed=Dispatcher(s,settings)._claim(2)
+    assert len(claimed)==1 and claimed[0][0]['id']==cid
+    argv=claimed[0][0]['argv'];assert argv[argv.index('--model')+1]==route['model']
+    assert 'MCD GO FREE' in argv[argv.index('-m')+1]
+    finish(app,cid,stage='failed',error='429 rate limit')
+    assert c.get(f'/api/cards/{cid}').json()['column']=='failed'  # never silently escalates
+    assert Dispatcher(s,settings)._claim(2)==[]
+    assert 'Unverified edits remain.' in c.get('/api/projects/1/context').text
+
+@pytest.mark.parametrize('change,code', [('paid',422),('stale_run',409),('stale_revision',409),('paused',409),('removed_target',422),('uninstalled',422),('ordinary_failure',409)])
+def test_go_free_rejects_unapproved_or_stale_requests(app,monkeypatch,change,code):
+    p=active(app,[node('a')]);c,s,wd,settings=app
+    cid=next(t['card_id'] for t in p['tasks'] if t['role']=='story')
+    rid=finish(app,cid,stage='failed',error='test failed' if change=='ordinary_failure' else 'usage limit reached')
+    route=free_config(settings)
+    data={'revision':1,'run_id':rid,'model':route['model'],'agent_target':route['agent_target']}
+    if change=='paid': data['model']='openrouter/google/gemini-2.5-flash'
+    if change=='stale_run': data['run_id']=999
+    if change=='stale_revision': data['revision']=2
+    if change=='paused': c.post('/api/projects/1/pause',json={'revision':1})
+    if change=='removed_target': settings.openclaw_config_path.write_text('{}')
+    if change=='uninstalled': monkeypatch.setattr(AgentSpec,'available',lambda self,settings:False)
+    r=c.post(f'/api/projects/1/stories/{cid}/go-free',json=data);assert r.status_code==code,r.text
+    after=c.get(f'/api/cards/{cid}').json();assert after['agent']=='codex' and after['column']=='failed'
+
+def test_go_free_revalidates_native_configuration_before_claim(app):
+    p=active(app,[node('a')]);c,s,wd,settings=app
+    cid=next(t['card_id'] for t in p['tasks'] if t['role']=='story')
+    rid=finish(app,cid,stage='failed',error='usage limit reached');route=free_config(settings)
+    r=c.post(f'/api/projects/1/stories/{cid}/go-free',json={'revision':1,'run_id':rid,'model':route['model'],'agent_target':route['agent_target']})
+    assert r.status_code==200,r.text
+    settings.openclaw_config_path.write_text('{}')
+    assert Dispatcher(s,settings)._claim(2)==[]
+    assert c.get(f'/api/cards/{cid}').json()['column']=='failed'
+    assert 'no longer configured' in c.get('/api/projects/1').json()['error']

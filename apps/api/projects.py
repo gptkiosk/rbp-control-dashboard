@@ -257,6 +257,8 @@ def approved_story_routes(p, link):
     node = next((n for n in manifest['document']['nodes'] if n['key'] == link.node_key), None)
     if not node: return []
     choices = node['routes'] + [{'agent':a, 'model':manifest['fallback_models'][a]} for a in node['fallbacks']]
+    free = manifest.get('free_retries',{}).get(link.node_key)
+    if free: choices += [free['route']]
     return [dict(agent=a, model=m) for a,m in dict.fromkeys((r['agent'],r['model']) for r in choices)]
 
 def prerequisite_reason(s, card_id):
@@ -322,8 +324,23 @@ def predecessors(manifest, story):
     visit(story)
     return result
 
+def subscription_limit(card, run):
+    return bool(card and card.assignee_type=='agent' and card.column=='failed' and run and
+        run.stage=='failed' and run.agent in {'claude','codex'} and
+        re.search(r'session limit|usage limit|rate.?limit|quota|too many requests|limit reached|429',
+                  (run.error or '')+'\n'+(run.result_text or ''), re.I))
+
+def free_retry_routes(settings):
+    # Only OpenClaw's explicit per-run model override disables native fallbacks.
+    # Hermes currently inherits its configured provider fallback chain.
+    if not REGISTRY['openclaw'].available(settings): return []
+    native=native_routes.read(settings)['openclaw']
+    models=[m for m in native['models'] if m.startswith('openrouter/') and m.endswith(':free')]
+    return [{'agent':'openclaw','model':m,'agent_target':t['id']} for t in native['targets'] for m in models]
+
 def detail(s, p):
     bindings = []
+    free_routes=free_retry_routes(get_settings()) if p.state=='active' else []
     dependency_cache={'reasons':{},'dependencies':{}}
     for link in s.scalars(select(ProjectTask).where(ProjectTask.project_id==p.id).order_by(ProjectTask.card_id)):
         c = s.get(Card, link.card_id)
@@ -334,6 +351,7 @@ def detail(s, p):
             'mode':c.mode if c else None, 'incomplete_reason':project_outputs.incomplete_error(r) if r else None,
             'revision':link.revision, 'column':c.column if c else 'missing', 'title':c.title if c else '',
             'run_id':r.id if r else None, 'run_stage':r.stage if r else None,
+            'free_retry_routes':free_routes if link.role=='story' and subscription_limit(c,r) else [],
             'blocked_by':[b['card_id'] for b in blocks if b['card_id'] is not None],
             'blocked_reasons':blocks,
             'retry_routes':[r for r in approved_story_routes(p,link) if (r['agent'],r['model']) != (c.agent,c.model or '')]
@@ -828,6 +846,11 @@ def claim_context(s,card,run_id=None):
         card.column='failed';p.error=f'Story #{card.id} route {card.agent}/{card.model or "default"} is not in its approved plan. No model was dispatched; choose an approved route.'
         memory(s,p,'incident',p.error,'mcd',card.id);return None
     if dependency_blocks(s,card.id): return None
+    free=m.get('free_retries',{}).get(link.node_key)
+    is_free=bool(free and {'agent':card.agent,'model':card.model}==free['route'])
+    if is_free and (card.agent_target!=free['agent_target'] or
+        {'agent':card.agent,'model':card.model,'agent_target':card.agent_target} not in free_retry_routes(get_settings())):
+        card.column='failed';p.error='The Go Free route is no longer configured. No model was dispatched; review the free model and OpenClaw target.';return None
     ws=m.get('workspaces',{}).get(link.node_key)
     expected=ws['branch'] if ws else m['branch']
     if approval.current_branch(Path(card.working_dir))!=expected:
@@ -853,6 +876,8 @@ def claim_context(s,card,run_id=None):
     card.project_origin={'project_id':p.id,'revision':m['revision'],'manifest_hash':m['hash'],
         'story_key':link.node_key,'card_id':card.id}
     prompt=context(s,p,payload=payload)+'\n\nYOUR STORY (do this now)\n'+card.body
+    if is_free:
+        prompt+='\n\nMCD GO FREE: The operator overrides this story’s original assignment for this retry: '+json.dumps(free['route'])+' target '+card.agent_target+'. Stay on the explicitly pinned OpenRouter :free model. No paid model, Google BYOK, delegation or native model switching is authorized. If unavailable, stop and report the blocker. Review partial work first; scope and acceptance are unchanged.'
     grant=m.get('output_continuations',{}).get(link.node_key)
     card.output_only=bool(grant and grant['state']=='queued')
     if card.output_only:
@@ -958,10 +983,13 @@ def on_finish(s,card,run,stage):
             memory(s,p,'proposal',(run.result_text or 'Agent returned no handoff text.'),run.agent,card.id,run.id)
         else:
             text = (run.error or '') + '\n' + (run.result_text or '')
-            quota = stage == 'failed' and not (grant and grant.get('run_id')==run.id) and bool(re.search(r'usage limit|session limit|rate.?limit|quota|too many requests|limit reached|429', text, re.I))
+            free=m.get('free_retries',{}).get(link.node_key)
+            free_run=bool(free and free['route']=={'agent':run.agent,'model':run.model_requested})
+            quota = stage == 'failed' and not free_run and not (grant and grant.get('run_id')==run.id) and bool(re.search(r'usage limit|session limit|rate.?limit|quota|too many requests|limit reached|429', text, re.I))
             if quota:
                 attempted={(r.agent,r.model_requested or '') for r in s.scalars(select(Run).where(Run.card_id==card.id))}
                 choices=approved_story_routes(p,link)
+                if free: choices=[r for r in choices if r!=free['route']]
                 alternative=next((r for r in choices if (r['agent'],r['model']) not in attempted),None)
                 memory(s,p,'checkpoint',f'Quota stopped {run.agent}, task #{card.id}, run #{run.id}. Partial work is unverified. Read the current workspace diff and prior run evidence before continuing the SAME story; do not redo completed work.\n'+text,run.agent,card.id,run.id)
                 if alternative:
