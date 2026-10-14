@@ -2,7 +2,7 @@
 
 ## Public repository now
 
-MIT license, documentation, issue/PR templates, security reporting, community participation guidance and a wiki are published. Application source is held locally, as the operator requested, until fixes and explicit sign-off. Documentation-only CI checks links; it is not application validation.
+MIT license, documentation, issue/PR templates, security reporting, community participation guidance and a wiki are published. The operator authorized public source pushes and release publication once feature-ready. The 0.3.0 source candidate is available on the baseline/resume branches; signed packages require operator release-signing setup. Documentation-only CI checks links; it is not application validation.
 
 ## Required before a code release
 

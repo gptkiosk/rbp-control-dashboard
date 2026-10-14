@@ -140,6 +140,10 @@ jobs:
     permissions:
       contents: write
     steps:
+      - name: Check out the release notes source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
       - name: Download signed release assets
         uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16
         with:
@@ -153,6 +157,13 @@ jobs:
         run: |
           set -euo pipefail
           gh release view "$TAG" >/dev/null 2>&1 && { echo "refusing to alter an existing release for $TAG" >&2; exit 1; }
-          release_flags=(--draft --title "$TAG" --notes "")
+          python3 -I scripts/release/changelog.py notes "${TAG#v}" --repo "$GITHUB_REPOSITORY" > release-notes.md
+          manifest="$(find dist-release -maxdepth 1 -name '*.manifest.json' -type f)"
+          digest="$(sha256sum "$manifest" | cut -d' ' -f1)"
+          {
+            cat release-notes.md
+            printf '\n---\n\nManifest SHA-256 (paste into Settings, Updates):\n\n`%s`\n' "$digest"
+          } > release-body.md
+          release_flags=(--draft --title "$TAG" --notes-file release-body.md)
           [[ "$TAG" == *-* ]] && release_flags+=(--prerelease)
           gh release create "$TAG" "${release_flags[@]}" dist-release/*
