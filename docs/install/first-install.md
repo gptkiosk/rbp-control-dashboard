@@ -1,6 +1,6 @@
 # First install
 
-For complete clean-OS instructions, use [the 0.3.0 Mac/Pi guide](clean-os-0.3.0.md). Public source candidates are available; signed release publication and physical Pi acceptance remain pending. The source-build path works before a release tag exists.
+For complete clean-OS instructions, use [the 0.3.0 Mac/Pi guide](clean-os-0.3.1.md). Public source candidates are available; signed release publication and physical Pi acceptance remain pending. The source-build path works before a release tag exists.
 
 ## Helper files
 
