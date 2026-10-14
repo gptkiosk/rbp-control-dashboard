@@ -585,7 +585,7 @@ def detect_host(root: Path, tool_commands: tuple[str, ...] = ()) -> HostFacts:
         commands[cmd] = next((os.path.join(d, cmd) for d in SYSTEM_PATH
                               if os.path.isfile(os.path.join(d, cmd)) and os.access(os.path.join(d, cmd), os.X_OK)), None)
     managed_bin = os.path.realpath(root / "bin")
-    search = [*os.environ.get("PATH", "").split(os.pathsep), str(Path.home() / ".local" / "bin"), *SYSTEM_PATH]
+    search = [*os.environ.get("PATH", "").split(os.pathsep), str(Path.home() / ".local" / "bin"), str(Path.home() / ".grok" / "bin"), "/opt/homebrew/bin", *SYSTEM_PATH]
     elsewhere = {}
     for cmd in tool_commands:
         for d in search:
@@ -887,6 +887,39 @@ def _component_install_steps(cfg: ToolsConfig, catalog: Catalog, cid: str, actio
     return steps
 
 
+_NATIVE_VERSIONS = {}
+
+def version_key(value):
+    match = re.fullmatch(r'v?(\d+)\.(\d+)\.(\d+)(?:[-+].*)?', value or '')
+    return (*map(int, match.groups()), 0 if "-" in value.split("+")[0] else 1) if match else None
+
+def native_install(cfg, catalog, facts, cid):
+    if cid not in catalog.tool_ids(): return None
+    name = catalog.component(cid)['bins'][0]['name']
+    path = facts.elsewhere.get(name)
+    if not path: return None
+    try:
+        binary = Path(path)
+        if binary.resolve().is_relative_to(cfg.root.resolve()): return None
+        stat = binary.stat()
+        key = (str(binary), stat.st_mtime_ns, stat.st_ctime_ns, stat.st_size)
+        cached = _NATIVE_VERSIONS.get(key)
+        if cached and time.monotonic() - cached[0] < 60:
+            version = cached[1]
+        else:
+            # Version-only invocation: never pass provider secrets or start an agent session.
+            env = {'HOME': str(cfg.home), 'PATH': os.environ.get('PATH', '') + os.pathsep + '/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin',
+                   'LANG': 'C.UTF-8'}
+            result = subprocess.run([str(binary), '--version'], stdin=subprocess.DEVNULL,
+                                    capture_output=True, text=True, timeout=5, env=env)
+            match = re.search(r'(?<![\w.])v?(\d+\.\d+\.\d+(?:[-+][A-Za-z0-9.-]+)?)', result.stdout[:4096]) if result.returncode == 0 else None
+            version = match.group(1) if match else None
+            _NATIVE_VERSIONS[key] = (time.monotonic(), version)
+        return {'path': str(binary), 'version': version}
+    except (OSError, subprocess.SubprocessError, UnicodeError):
+        return {'path': str(path), 'version': None}
+
+
 def build_plan(cfg: ToolsConfig, catalog: Catalog, facts: HostFacts, cid: str, action: str) -> dict:
     """The exact operation, as the confirmation dialog shows it and the helper will run it.
 
@@ -906,7 +939,8 @@ def build_plan(cfg: ToolsConfig, catalog: Catalog, facts: HostFacts, cid: str, a
     steps: list[dict] = []
     runtimes: list[dict] = []
     removals: list[str] = []
-    frm = mine["current"]["version"] if mine["current"] else None
+    native = native_install(cfg, catalog, facts, cid) if not mine["installed"] else None
+    frm = mine["current"]["version"] if mine["current"] else native["version"] if native else None
     to = comp["version"]
     req = catalog.requirements
     required_mb = 0
@@ -916,10 +950,17 @@ def build_plan(cfg: ToolsConfig, catalog: Catalog, facts: HostFacts, cid: str, a
         refusals.append("An install, update or removal is already in progress or was interrupted. Wait for it, then retry.")
 
     if action in ("install", "update"):
-        if action == "install" and mine["installed"]:
+        if action == "install" and (mine["installed"] or native):
             refusals.append(f"{comp['name']} {frm} is already installed. Use Update when a newer pinned version exists.")
-        if action == "update" and not mine["installed"]:
+        if action == "update" and not mine["installed"] and not native:
             refusals.append(f"{comp['name']} is not installed. Use Install.")
+        if action == "update" and native:
+            old, new = version_key(frm), version_key(to)
+            if old is None or new is None:
+                refusals.append("The native version could not be verified; check it manually before upgrading.")
+            elif old >= new:
+                refusals.append("The native installation is already at or newer than the latest verified version.")
+            warnings.append("This upgrade installs a verified managed copy for dashboard use. The native installation and its account configuration are kept; removing the managed copy restores native discovery.")
         if action == "update" and mine["installed"] and mine["current"]["fingerprint"] == catalog.fingerprint(cid, plat):
             refusals.append(f"{comp['name']} {frm} is already the pinned version.")
         if plat not in req["platforms"]:
@@ -1775,23 +1816,26 @@ def inspect(cfg: ToolsConfig, catalog: Catalog, facts: HostFacts | None = None) 
     for cid in catalog.tool_ids():
         comp, view = catalog.component(cid), installed[cid]
         current = view["current"]
+        native = native_install(cfg, catalog, facts, cid) if not current else None
+        present = bool(current or native)
+        native_older = bool(native and version_key(native["version"]) and version_key(comp["version"]) and version_key(native["version"]) < version_key(comp["version"]))
         pinned_fp = catalog.fingerprint(cid, cfg.platform_key)
         if not current:
-            default = "install"
+            default = "update" if native_older else None if native else "install"
         elif current["fingerprint"] != pinned_fp:
             default = "update"
         else:
             default = None
-        offered = {"install": not view["installed"], "update": default == "update",
+        offered = {"install": not present, "update": default == "update",
                    "remove": bool(view["installed"] or view["versions"]), "rollback": bool(view["previous"])}
         actions = {a: (build_plan(cfg, catalog, facts, cid, a)["refusals"] if offered[a] else None) for a in ACTIONS}
-        tools.append({"id": cid, "name": comp["name"], "pinned_version": comp["version"], "installed": view["installed"],
-                      "installed_version": current["version"] if current else None,
+        tools.append({"id": cid, "name": comp["name"], "pinned_version": comp["version"], "installed": present, "installation_source": "managed" if current else "native" if native else None,
+                      "installed_version": current["version"] if current else native["version"] if native else None,
                       "previous_version": view["previous"]["version"] if view["previous"] else None,
                       "installed_at": current["installed_at"] if current else None,
                       "size_mb": comp["size_mb"], "login": comp["login"], "requires": comp["requires"],
                       "commands": [b["name"] for b in comp["bins"]], "actions": actions,
-                      "path": str(cfg.bin / comp["bins"][0]["name"]) if view["installed"] else None})
+                      "path": str(cfg.bin / comp["bins"][0]["name"]) if view["installed"] else native["path"] if native else None})
     all_pkgs = sorted({p for cid in catalog.tool_ids() for k in ("required", "recommended")
                        for p in catalog.component(cid)["system_packages"][k]})
     return {"product": cfg.product, "platform": cfg.platform_key, "root": str(cfg.root), "tools": tools,

@@ -133,22 +133,22 @@ def test_applying_an_npm_bump_regenerates_the_lock_and_rehashes_the_catalog(repo
     assert raw["tools"]["codex"]["version"] == "0.163.0" and raw["tools"]["codex"]["check"]["expect"] == "0.163.0"
     assert json.loads((repo / "tool_locks/codex/package.json").read_text())["dependencies"] == {"@openai/codex": "0.163.0"}
     assert ti.catalog_problems(raw, repo) == []                         # the new pin validates, hashes included
-    assert raw["tools"]["claude-code"]["version"] == "2.1.296"          # nothing else moved
+    assert raw["tools"]["claude-code"]["version"] == "2.1.299"          # nothing else moved
 
 
 def test_applying_a_hermes_bump_pins_the_new_commit_and_installer_hash(repo, tmp_path):
     answers = current_answers()
     new = "a" * 40
     script = b"#!/bin/bash\n# the new installer\n"
-    answers["https://api.github.com/repos/NousResearch/hermes-agent/releases/latest"] = {"tag_name": "v0.22.0"}
-    answers["https://api.github.com/repos/NousResearch/hermes-agent/commits/v0.22.0"] = {"sha": new}
+    answers["https://api.github.com/repos/NousResearch/hermes-agent/releases/latest"] = {"tag_name": "v0.22.1"}
+    answers["https://api.github.com/repos/NousResearch/hermes-agent/commits/v0.22.1"] = {"sha": new}
     answers[f"https://raw.githubusercontent.com/NousResearch/hermes-agent/{new}/scripts/install.sh"] = script
     assert check.main(["--apply", "hermes"], src=saved(tmp_path, answers)) == 0
     h = json.loads((repo / "tool_catalog.json").read_text())["tools"]["hermes"]
-    assert (h["version"], h["tag"], h["commit"]) == ("0.22.0", "v0.22.0", new)
+    assert (h["version"], h["tag"], h["commit"]) == ("0.22.1", "v0.22.1", new)
     assert h["script"] == {"url": f"https://raw.githubusercontent.com/NousResearch/hermes-agent/{new}/scripts/install.sh",
                            "sha256": hashlib.sha256(script).hexdigest(), "size": len(script)}
-    assert h["check"]["expect"] == "0.22.0"
+    assert h["check"]["expect"] == "0.22.1"
 
 
 def test_applying_a_node_bump_takes_the_hash_from_the_publishers_shasums(repo, tmp_path):

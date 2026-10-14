@@ -24,3 +24,9 @@ Changed plan digests are refused. Interrupted operations recover on the next hel
 On 2026-10-13 all five tools installed, passed --version and were removed in an isolated Mac test home. All five also passed those checks on Ubuntu 24.04 arm64 in Lima with 4 GiB RAM. This is not Raspberry Pi hardware evidence. Synthetic tests exercise update, rollback, recovery and refusal paths. Vendor-version upgrades, account logins, gateways and model dispatch were not exercised. See [recommended setup](../configuration/recommended-agent-mix.md).
 
 The dashboard resolves the managed Hermes interpreter from its owner-checked dependency receipt and launches the model-policy shim directly. It does not execute arbitrary shell launchers to discover an interpreter. The real installed shim passed chat --help with a pinned free route on a synthetic account home; no model request was sent.
+
+## Existing native installations
+
+Agent tools detects commands already installed outside the dashboard and reads their version with a bounded version-only check. Native installs show their current version and an **Upgrade** button when older than the latest hash-verified catalog release. Equal or newer versions are kept; an unreadable version is shown as unavailable instead of being called missing or silently downgraded.
+
+Confirming a native upgrade stages a managed copy for dashboard use; it preserves the original program and account configuration. The confirmation names both versions and this behavior. Removing that managed copy restores native discovery. Rollback/removal controls only apply to dashboard-managed receipts. The catalog's checked date identifies when vendor releases were verified; installation never fetches an unverified floating latest version.

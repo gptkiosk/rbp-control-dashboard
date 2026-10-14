@@ -10,7 +10,7 @@ const POLL_MS = 3000, NOT_STARTED_POLLS = 10, MAX_POLLS = 1000 // about 50 minut
 
 interface Tool {
   id: string; name: string; pinned_version: string; installed: boolean; installed_version: string | null
-  previous_version: string | null; installed_at: number | null; size_mb: number; commands: string[]; requires: string[]
+  installation_source?: 'native' | 'managed' | null; previous_version: string | null; installed_at: number | null; size_mb: number; commands: string[]; requires: string[]
   login: { command: string; note: string }; path: string | null
   actions: Record<Action, string[] | null> // null: not offered now; []: allowed; otherwise the reasons it is refused
 }
@@ -35,7 +35,7 @@ interface Plan {
   refusals: string[]; warnings: string[]
 }
 
-const VERB: Record<Action, string> = { install: 'Install', update: 'Update', remove: 'Remove', rollback: 'Roll back' }
+const VERB: Record<Action, string> = { install: 'Install', update: 'Upgrade', remove: 'Remove', rollback: 'Roll back' }
 const status = ref<Status | null>(null), plan = ref<Plan | null>(null)
 const confirmed = ref(false), busy = ref(false), copied = ref('')
 const error = ref(''), notice = ref('')
@@ -57,9 +57,10 @@ const confirmTitle = computed(() => plan.value ? `${VERB[plan.value.action]} ${p
 const canAct = (t: Tool, a: Action) => !busy.value && !working.value && t.actions[a] !== null && t.actions[a] !== undefined
 const offered = (t: Tool) => ACTIONS.filter(a => t.actions[a] !== null && t.actions[a] !== undefined)
 const reasons = (t: Tool) => ACTIONS.flatMap(a => (t.actions[a] ?? []).map(r => ({ a, r }))).filter((x, i, all) => all.findIndex(y => y.r === x.r) === i)
-const stateText = (t: Tool) => !t.installed ? `Not installed. Pinned: ${t.pinned_version}.`
-  : t.installed_version === t.pinned_version ? `Installed ${t.installed_version}${t.previous_version ? `; previous ${t.previous_version} kept for roll back` : ''}.`
-  : `Installed ${t.installed_version}; pinned version is ${t.pinned_version}.`
+const stateText = (t: Tool) => !t.installed ? `Not installed. Latest verified: ${t.pinned_version}.`
+  : !t.installed_version ? `Installed${t.installation_source === 'native' ? ' outside the dashboard' : ''}; version unavailable. Latest verified: ${t.pinned_version}.`
+  : `Installed ${t.installed_version}${t.installation_source === 'native' ? ' (native)' : ''}. ${t.installed_version === t.pinned_version ? 'Up to date.' : `Latest verified: ${t.pinned_version}.`}${t.previous_version ? ` Previous ${t.previous_version} kept for roll back.` : ''}`
+
 function nameOf(id: string) { return status.value?.tools.find(t => t.id === id)?.name ?? id }
 function when(seconds: number | null | undefined) { return seconds ? new Date(seconds * 1000).toLocaleString() : 'an unknown time' }
 function mb(n: number | null | undefined) { return n == null ? 'not reported' : n >= 1024 ? `${(n / 1024).toFixed(1)} GB` : `${n} MB` }

@@ -136,8 +136,8 @@ it('offers Update, Roll back and Remove for an installed tool and names the vers
     actions: { install: null, update: [], remove: [], rollback: [] } })
   stubFetch(url => url === '/api/agent-installs' ? { body: status({}, [installed]) } : undefined)
   const w = mount(AgentToolsPanel, stubs); await flushPromises()
-  expect(w.findAll('button').map(b => b.text()).filter(t => !t.startsWith('Copy'))).toEqual(['Update 0.162.1', 'Roll back to 0.161.0', 'Remove'])
-  expect(w.get('[data-test="state"]').text()).toContain('Installed 0.162.0; pinned version is 0.162.1.')
+  expect(w.findAll('button').map(b => b.text()).filter(t => !t.startsWith('Copy'))).toEqual(['Upgrade 0.162.1', 'Roll back to 0.161.0', 'Remove'])
+  expect(w.get('[data-test="state"]').text()).toContain('Installed 0.162.0. Latest verified: 0.162.1.')
   w.unmount()
 })
 
@@ -172,4 +172,16 @@ it('shows a plan that changed since it was confirmed as a refusal and starts not
   expect(w.text()).toContain('The plan changed since you confirmed it.')
   expect(w.find('[data-test="progress"]').exists()).toBe(false)
   w.unmount()
+})
+
+
+it('recognizes native installs and offers only a reviewed upgrade, leaving Grok installable', async () => {
+ const native=tool('codex','Codex CLI',{installed:true,installation_source:'native',installed_version:'0.162.0',pinned_version:'0.162.1',path:'/native/codex',actions:{install:null,update:[],remove:null,rollback:null}})
+ stubFetch(url=>url==='/api/agent-installs'?{body:status({},[native,tool('grok','Grok Build')])}:undefined)
+ const w=mount(AgentToolsPanel,stubs);await flushPromises()
+ expect(w.text()).toContain('Installed 0.162.0 (native). Latest verified: 0.162.1.')
+ expect(button(w,'Upgrade 0.162.1').exists()).toBe(true)
+ expect(button(w,'Install 1.0.0').exists()).toBe(true)
+ expect(w.findAll('button').some(b=>b.text()==='Remove')).toBe(false)
+ w.unmount()
 })

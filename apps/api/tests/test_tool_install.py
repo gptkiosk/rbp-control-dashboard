@@ -413,7 +413,7 @@ def test_hermes_installs_by_pinned_commit_with_the_installers_own_flags(cfg, cat
     assert install_dir.startswith(str(cfg.comp_dir("hermes") / "versions")) and install_dir.endswith("/hermes-agent")
     assert ops.fetched[-1] == comp["script"]["url"] and comp["commit"] in comp["script"]["url"]
     assert subprocess.run([str(cfg.bin / "hermes"), "--version"], capture_output=True, text=True).stdout.strip() \
-        == "Hermes Agent v0.21.7 (2026.9.24)"
+        == f"Hermes Agent v{comp['version']} (2026.9.24)"
     # Hermes needs no Node or uv from us: it checks and installs its own toolchain from its pinned commit.
     assert catalog.raw["tools"]["hermes"]["requires"] == [] and not ti.installed_view(cfg, "node")["installed"]
     assert str(cfg.comp_dir("node")) not in ops.envs[0]["PATH"]
@@ -919,3 +919,40 @@ def test_hermes_installer_home_and_runtime_account_home_are_separate(cfg,catalog
     wrapper=(cfg.bin/'hermes').read_text()
     assert 'HERMES_HOME="${HERMES_HOME:-$HOME/.hermes}"' in wrapper
     assert str(cfg.hermes_home/'tools') in wrapper
+
+
+@pytest.mark.parametrize('version,upgrade', [('0.100.0',True),('0.162.1-alpha.1',True),('0.162.1',False),('0.999.0',False)])
+def test_native_install_shows_version_and_only_upgrades_older_tools(cfg,catalog,tmp_path,version,upgrade):
+    native=tmp_path/'native-codex'
+    native.write_text('#!/bin/sh\nprintf "codex-cli '+version+'\\n"\n')
+    native.chmod(0o700)
+    host=facts(elsewhere={'codex':str(native)})
+    row=next(t for t in ti.inspect(cfg,catalog,host)['tools'] if t['id']=='codex')
+    assert row['installed'] and row['installation_source']=='native' and row['installed_version']==version
+    assert row['path']==str(native) and row['actions']['install'] is None
+    assert (row['actions']['update']==[]) is upgrade
+    assert row['actions']['remove'] is None and row['actions']['rollback'] is None
+    p=plan(cfg,catalog,'codex','update',host)
+    assert p['from']==version and bool(p['refusals']) is not upgrade
+    assert 'managed copy' in ' '.join(p['warnings'])
+    assert native.read_text().startswith('#!/bin/sh') and not cfg.root.exists()
+
+
+def test_native_upgrade_uses_managed_receipts_and_leaves_original_intact(cfg,catalog,tmp_path):
+    native=tmp_path/'native-codex';native.write_text('#!/bin/sh\necho "codex-cli 0.100.0"\n');native.chmod(0o700)
+    host=facts(elsewhere={'codex':str(native)})
+    before=native.read_bytes()
+    run(cfg,catalog,'codex','update',host=host)
+    row=next(t for t in ti.inspect(cfg,catalog,host)['tools'] if t['id']=='codex')
+    assert row['installation_source']=='managed' and row['installed_version']=='0.162.1'
+    run(cfg,catalog,'codex','remove',host=host)
+    row=next(t for t in ti.inspect(cfg,catalog,host)['tools'] if t['id']=='codex')
+    assert row['installation_source']=='native' and row['installed_version']=='0.100.0'
+    assert native.read_bytes()==before
+
+
+def test_native_unknown_version_is_present_but_never_silently_downgraded(cfg,catalog,tmp_path):
+    native=tmp_path/'native-codex';native.write_text('#!/bin/sh\necho "version unavailable"\n');native.chmod(0o700)
+    row=next(t for t in ti.inspect(cfg,catalog,facts(elsewhere={'codex':str(native)}))['tools'] if t['id']=='codex')
+    assert row['installed'] and row['installed_version'] is None
+    assert row['actions']['update'] is None and row['actions']['install'] is None

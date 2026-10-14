@@ -108,8 +108,8 @@ def test_status_lists_the_five_tools_with_login_commands_and_no_secrets(api):
 
 def test_plan_shows_versions_commands_disk_memory_and_what_stays_unchanged(api):
     plan = api.post("/api/agent-installs/plan", json={"tool": "hermes", "action": "install"}).json()
-    assert (plan["from"], plan["to"], plan["tool"], plan["action"]) == (None, "0.21.7", "hermes", "install")
-    assert any("--commit 71d34bad1045610252eda02ee79549436896e784" in c for c in plan["commands"])
+    assert (plan["from"], plan["to"], plan["tool"], plan["action"]) == (None, "0.22.0", "hermes", "install")
+    assert any("--commit e06df9c2eae6901f4c88f464e0ae6e753c0428b8" in c for c in plan["commands"])
     assert plan["disk"]["free_mb"] == 20 * 1024 and plan["memory"]["total_mb"] == 3880
     assert plan["login"]["command"] == "hermes model"
     assert any("Dispatch" in u for u in plan["unchanged"]) and plan["refusals"] == []

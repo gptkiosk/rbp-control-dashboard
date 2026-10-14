@@ -12,6 +12,8 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [0.3.0] - 2026-10-13
 
+- Agent tools recognizes existing native installs, shows current versions and offers verified upgrades. Claude Code pin updated to2.1.299 and Hermes to0.22.0.
+
 - Project Model lock stops failed tasks without automatic retries or equivalent-model failover; default behavior retains reviewed alternatives. Clean Mac/Pi OS install instructions are included.
 
 ### Added
