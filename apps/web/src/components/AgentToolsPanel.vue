@@ -147,7 +147,7 @@ onBeforeUnmount(() => { if (timer) clearTimeout(timer) })
 </script>
 <template>
   <section id="agent-tools" class="card agent-tools" aria-labelledby="agent-tools-title">
-    <h2 id="agent-tools-title">Agent tools</h2>
+    <h2 id="agent-tools-title">Agent tools</h2><p>Following the setup wizard? Install the runtimes you selected here, then use the displayed native setup or sign-in commands on this host. Installation and account configuration are separate steps.</p><div class="actions"><RouterLink to="/setup?step=2" class="btn">Return to coordinator setup</RouterLink><RouterLink to="/setup?step=4" class="btn">Return to membership setup</RouterLink></div><p class="muted small">In the wizard, choose Refresh checks after installing. An installed executable does not by itself verify provider access or enable task dispatch.</p>
     <p class="muted">Install Claude Code, Codex CLI, Grok Build, OpenClaw and Hermes on this host, for this user only. Every version is pinned and hash-checked in this release. Nothing needs sudo, nothing is installed without your confirmation, and nothing here signs in to a tool or touches a key.</p>
     <RecommendedAgentMix platform="pi" />
     <MembershipPrerequisites />

@@ -30,3 +30,11 @@ The dashboard resolves the managed Hermes interpreter from its owner-checked dep
 Agent tools detects commands already installed outside the dashboard and reads their version with a bounded version-only check. Native installs show their current version and an **Upgrade** button when older than the latest hash-verified catalog release. Equal or newer versions are kept; an unreadable version is shown as unavailable instead of being called missing or silently downgraded.
 
 Confirming a native upgrade stages a managed copy for dashboard use; it preserves the original program and account configuration. The confirmation names both versions and this behavior. Removing that managed copy restores native discovery. Rollback/removal controls only apply to dashboard-managed receipts. The catalog's checked date identifies when vendor releases were verified; installation never fetches an unverified floating latest version.
+
+## From the setup wizard
+
+The Coordinator & workers step links directly to Settings → Agent tools. “Executable not found” is a detection result, not a request to configure an absent program. Install Hermes first, then add your chosen workers. In Agent tools choose Install, review its version, downloads, supporting runtime requirements and host resource checks, and confirm the exact plan. Existing native installations show their versions and offer Upgrade when applicable.
+
+When installation finishes, run the displayed setup/sign-in command in a terminal on the machine hosting the dashboard (an SSH session works when browsing remotely). Google dashboard sign-in grants access to the installer; each agent still needs its own provider configuration or eligible membership login. Installing a desktop application alone does not supply a worker CLI.
+
+Use Return to coordinator setup or Return to membership setup, then choose Refresh checks. The wizard keeps saved progress and reports executable detection separately from provider/account readiness. Review assigned models and spending rules before dispatching. You can reopen Agent tools later for upgrades and return to either setup step. Nothing installs merely by opening the wizard or following its links.

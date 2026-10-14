@@ -45,6 +45,10 @@ it('resumes steps in the profile without touching permissions, native agents or 
 it('reports missing executables without claiming their login or provider is verified',async()=>{
   const {w}=await setup(2)
   expect(w.text()).toContain('Executable detected');expect(w.text()).toContain('Executable not found')
+  expect(w.get('.setup-notice a[href="/profile#agent-tools"]').text()).toContain('Install or upgrade')
+  expect(w.text()).toContain('Install → configure → refresh')
+  expect(w.text()).toContain('Install runtime')
+  expect(w.text()).toContain('SSH session on the host')
   expect(w.text()).toContain('does not verify provider login or gateway health')
   expect(w.find('a[href="/profile#discord-profile"]').exists()).toBe(true)
   w.unmount()
@@ -80,5 +84,13 @@ it('offers first-run setup and persists Later without making setup inaccessible'
   expect(w.find('aside').exists()).toBe(false)
   const write=fetch.mock.calls.find(([url])=>url==='/api/profile/setup')!
   expect(JSON.parse(String(write[1]?.body)).status).toBe('deferred')
+  w.unmount()
+})
+
+it('connects optional membership setup to runtime installation without starting installers', async()=>{
+  const {w,fetch}=await setup(4)
+  expect(w.get('a[href="/profile#agent-tools"]').text()).toBe('Install or upgrade membership runtimes')
+  expect(w.text()).toContain('Google dashboard login does not install or sign in')
+  expect(fetch.mock.calls.some(([,init]) => (init?.method ?? 'GET') !== 'GET')).toBe(false)
   w.unmount()
 })
