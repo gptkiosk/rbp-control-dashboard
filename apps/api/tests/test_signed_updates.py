@@ -149,8 +149,19 @@ def test_the_release_key_is_packaged_and_the_package_content_scan_accepts_it():
     assert release.scan_contents(files, []) == []
 
 
-def test_the_service_unit_template_sets_the_update_root_so_the_panel_is_managed():
-    unit = (REPO / "ops" / "systemd" / "rcd-api.service.template").read_text()
-    assert "Environment=MAC_CONTROL_UPDATE_ROOT=__UPDATE_ROOT__" in unit
+def test_the_bootstrap_sets_the_update_root_in_the_api_unit_so_the_panel_is_managed():
+    """The shared template also serves source checkouts (install-systemd-user.sh), which have no update root,
+    so only the bootstrap adds the line, right after the data directory."""
     bootstrap = (REPO / "scripts" / "install" / "bootstrap-rcd.sh").read_text()
-    assert 's|__UPDATE_ROOT__|${ROOT}|g' in bootstrap          # the renderer fills it from the install root
+    assert '-e "/^Environment=MAC_CONTROL_DATA_DIR=/a Environment=MAC_CONTROL_UPDATE_ROOT=${ROOT}"' in bootstrap
+    assert "MAC_CONTROL_UPDATE_ROOT" not in (REPO / "ops" / "systemd" / "rcd-api.service.template").read_text()
+
+
+@pytest.mark.skipif(__import__("sys").platform == "darwin", reason="GNU sed is what the Pi runs; BSD sed spells append differently")
+def test_the_bootstrap_render_expression_adds_the_line_with_gnu_sed(tmp_path):
+    template = (REPO / "ops" / "systemd" / "rcd-api.service.template").read_text()
+    src = tmp_path / "unit"; src.write_text(template)
+    out = subprocess.run(["sed", "-e", "/^Environment=MAC_CONTROL_DATA_DIR=/a Environment=MAC_CONTROL_UPDATE_ROOT=/r/root", str(src)],
+                         capture_output=True, text=True, check=True).stdout
+    lines = out.splitlines()
+    assert lines[lines.index(next(l for l in lines if l.startswith("Environment=MAC_CONTROL_DATA_DIR=")) ) + 1] == "Environment=MAC_CONTROL_UPDATE_ROOT=/r/root"
