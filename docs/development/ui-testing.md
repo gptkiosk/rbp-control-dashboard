@@ -14,3 +14,16 @@ Check that the chosen port is unused. Never stop or reconfigure another service 
 Mac and Linux/Pi are separate targets. A temporary Linux ARM64 VM can verify Linux code and UI paths but cannot certify Raspberry Pi OS, GPIO, temperature/throttling or physical-Pi memory/performance. After app testing, explicit operator sign-off and public publication, preserve source/receipts outside the VM and retire temporary previews/VMs. An absent retired preview is normal; bring up a fresh environment only for further requested testing.
 
 The existing report-root settings are MAC_CONTROL_OPS_REPORTS_DIR and MAC_CONTROL_HERMES_REPORTS_DIR. Configure the preview to a synthetic report folder, rather than exposing production reports. A follow-up story adds a clearer install/UI configuration workflow and tests custom runtime-directory defaults for both apps.
+
+
+## 0.3.0 release fixture preview
+
+Start from the repository root with the API Python:
+
+```sh
+python3 scripts/preview-release-features.py --port PORT --data-dir /tmp/PRODUCT-resume/synthetic-release-preview
+```
+
+Use port 8813 for MCD and 8814 for RCD (replace PRODUCT with mcd or rcd). Check the port is free first. Open http://127.0.0.1:8813/profile#agent-roles or http://127.0.0.1:8814/profile#agent-tools. Stop the foreground process with Ctrl-C; for a background process record and terminate only its own PID.
+
+This preview serves the current built UI and synthetic accounts, tools, update notices and role assignments. Installer and role previews are read-only; every apply/install/update/rollback action is refused. No collectors, dispatchers, provider calls, native account reads, delivery or real service changes are enabled. Use a fresh build after source changes. Screenshots of these fixtures are evidence of controls and layout, not account or hardware readiness.

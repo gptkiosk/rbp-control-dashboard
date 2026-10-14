@@ -1,0 +1,325 @@
+{
+  "schema": "dashboard-tool-catalog/v1",
+  "checked": "2026-10-13",
+  "requirements": {
+    "platforms": [
+      "linux-arm64",
+      "darwin-arm64"
+    ],
+    "min_free_disk_mb": 2048,
+    "disk_headroom_mb": 512,
+    "warn_ram_mb": 3584,
+    "warn_available_ram_mb": 1024
+  },
+  "system_packages": {
+    "build-essential": {
+      "why": "compiles native add-ons when a dependency has no prebuilt version",
+      "commands": [
+        "gcc",
+        "g++",
+        "make"
+      ]
+    },
+    "curl": {
+      "why": "downloads",
+      "commands": [
+        "curl"
+      ]
+    },
+    "ffmpeg": {
+      "why": "audio and video tools",
+      "commands": [
+        "ffmpeg"
+      ]
+    },
+    "git": {
+      "why": "fetches the pinned Hermes commit",
+      "commands": [
+        "git"
+      ]
+    },
+    "ripgrep": {
+      "why": "fast code search used by the agents",
+      "commands": [
+        "rg"
+      ]
+    }
+  },
+  "runtimes": {
+    "node": {
+      "name": "Node.js",
+      "installer": "archive",
+      "version": "24.21.0",
+      "size_mb": 230,
+      "note": "Shared pinned Node.js runtime for npm tools on Linux arm64 and Apple Silicon Macs.",
+      "archive": {
+        "linux-arm64": {
+          "url": "https://nodejs.org/dist/v24.21.0/node-v24.21.0-linux-arm64.tar.xz",
+          "sha256": "6ad1325edbdb5649c379b75a237147a666c95d4f9ae8d340fef2d1575d289ad2",
+          "size": 30843004,
+          "format": "tar.xz",
+          "root": "node-v24.21.0-linux-arm64",
+          "shasums_url": "https://nodejs.org/dist/v24.21.0/SHASUMS256.txt"
+        },
+        "darwin-arm64": {
+          "url": "https://nodejs.org/dist/v24.21.0/node-v24.21.0-darwin-arm64.tar.gz",
+          "sha256": "bed7eea5325e1108f32ce5228ddd6a5f0f08a499ee42aa7442aea583702f6057",
+          "size": 52909993,
+          "format": "tar.gz",
+          "root": "node-v24.21.0-darwin-arm64",
+          "shasums_url": "https://nodejs.org/dist/v24.21.0/SHASUMS256.txt"
+        }
+      },
+      "bins": [],
+      "check": {
+        "argv": [
+          "bin/node",
+          "--version"
+        ],
+        "expect": "v24.21.0"
+      }
+    }
+  },
+  "tools": {
+    "claude-code": {
+      "name": "Claude Code",
+      "installer": "npm-lock",
+      "version": "2.1.299",
+      "package": "@anthropic-ai/claude-code",
+      "lock_dir": "tool_locks/claude-code",
+      "lock": {
+        "package_json_sha256": "720a1e569ea8af799a56fab2640d1aa315cea2559d1b56eb7a9f8fcfff33f62e",
+        "package_lock_sha256": "1e3b00f81581ded341dc78b651133f25c59584460b2bb4c86765d3f36f096657"
+      },
+      "allow_scripts": [
+        {
+          "package": "@anthropic-ai/claude-code",
+          "script": "install.cjs"
+        }
+      ],
+      "requires": [
+        "node"
+      ],
+      "bins": [
+        {
+          "name": "claude",
+          "argv": [
+            "node_modules/.bin/claude"
+          ]
+        }
+      ],
+      "size_mb": 490,
+      "check": {
+        "argv": [
+          "claude",
+          "--version"
+        ],
+        "expect": "2.1.299"
+      },
+      "login": {
+        "command": "claude auth login",
+        "note": "Membership billing needs Claude Pro ($20/month US when billed monthly), Max, or an eligible organizational seat. Sign into that Claude account on this host; an Anthropic API key or Console billing is separate usage billing and may override membership authentication."
+      },
+      "system_packages": {
+        "required": [],
+        "recommended": [
+          "ripgrep"
+        ]
+      },
+      "peak_ram_mb": 300
+    },
+    "codex": {
+      "name": "Codex CLI",
+      "installer": "npm-lock",
+      "version": "0.162.1",
+      "package": "@openai/codex",
+      "lock_dir": "tool_locks/codex",
+      "lock": {
+        "package_json_sha256": "d1785caa7558dbb39c2531c0e66e8761f3ab650abb16319255ff1f1701ea74eb",
+        "package_lock_sha256": "6721361c23f1adf90397b0fedd789d151698bde54218927f9218fc3a29bd1899"
+      },
+      "allow_scripts": [],
+      "requires": [
+        "node"
+      ],
+      "bins": [
+        {
+          "name": "codex",
+          "argv": [
+            "node_modules/.bin/codex"
+          ]
+        }
+      ],
+      "size_mb": 390,
+      "check": {
+        "argv": [
+          "codex",
+          "--version"
+        ],
+        "expect": "0.162.1"
+      },
+      "login": {
+        "command": "codex login --device-auth",
+        "note": "For this dashboard\u2019s Codex CLI subscription route, use an eligible ChatGPT plan such as Plus ($20/month US), Pro, or an eligible organizational seat and choose ChatGPT sign-in. API-key authentication is billed separately. Free/Go desktop access does not establish CLI entitlement."
+      },
+      "system_packages": {
+        "required": [],
+        "recommended": [
+          "ripgrep"
+        ]
+      },
+      "peak_ram_mb": 250
+    },
+    "openclaw": {
+      "name": "OpenClaw",
+      "installer": "npm-lock",
+      "version": "2026.10.3",
+      "package": "openclaw",
+      "lock_dir": "tool_locks/openclaw",
+      "lock": {
+        "package_json_sha256": "f651964ce0488383e96b87ba2c662fc68f045b18ed122130292d060c0523fe7a",
+        "package_lock_sha256": "00a45a58787eb5f94a710f92a99f61fcb926786b8cd1939942128ec0b2d870e7"
+      },
+      "allow_scripts": [],
+      "requires": [
+        "node"
+      ],
+      "bins": [
+        {
+          "name": "openclaw",
+          "argv": [
+            "node_modules/.bin/openclaw"
+          ]
+        }
+      ],
+      "size_mb": 620,
+      "check": {
+        "argv": [
+          "openclaw",
+          "--version"
+        ],
+        "expect": "2026.10.3"
+      },
+      "login": {
+        "command": "openclaw onboard",
+        "note": "Guided setup for the model sign-in, workspace and channels. This button installs the program only; no gateway service is installed or started."
+      },
+      "system_packages": {
+        "required": [],
+        "recommended": []
+      },
+      "peak_ram_mb": 450
+    },
+    "hermes": {
+      "name": "Hermes",
+      "installer": "pinned-script",
+      "version": "0.22.0",
+      "note": "Hermes's pinned installer downloads and verifies its toolchain against pm/lock.json into an isolated managed installation home. Native account configuration and keys are not read. System packages are optional.",
+      "repository": "https://github.com/NousResearch/hermes-agent.git",
+      "tag": "v0.22.0",
+      "commit": "e06df9c2eae6901f4c88f464e0ae6e753c0428b8",
+      "script": {
+        "url": "https://raw.githubusercontent.com/NousResearch/hermes-agent/e06df9c2eae6901f4c88f464e0ae6e753c0428b8/scripts/install.sh",
+        "sha256": "f4cdb0e20f1aca2c3871a76b962fd4db61510f549cf973759c753ac13349beb5",
+        "size": 56525
+      },
+      "script_args": [
+        "--non-interactive",
+        "--skip-setup",
+        "--skip-browser",
+        "--skip-computer-use",
+        "--commit",
+        "{commit}",
+        "--dir",
+        "{install_dir}",
+        "--hermes-home",
+        "{hermes_home}"
+      ],
+      "requires": [],
+      "bins": [
+        {
+          "name": "hermes",
+          "argv": [
+            "hermes-agent/.hermes/bin/hermes"
+          ]
+        }
+      ],
+      "size_mb": 2400,
+      "check": {
+        "argv": [
+          "hermes",
+          "--version"
+        ],
+        "expect": "0.22.0"
+      },
+      "login": {
+        "command": "hermes model",
+        "note": "Chooses the model provider and signs in. Keys are kept by Hermes in its own data folder, not by this dashboard."
+      },
+      "system_packages": {
+        "required": [
+          "git",
+          "curl"
+        ],
+        "recommended": [
+          "build-essential",
+          "ripgrep",
+          "ffmpeg"
+        ]
+      },
+      "external_state": {
+        "root": "hermes_home",
+        "subdir": "installs"
+      },
+      "peak_ram_mb": 1700,
+      "system_packages_note": "Hermes downloads its own ripgrep and ffmpeg, so these only matter if you also want them for other work."
+    },
+    "grok": {
+      "name": "Grok Build",
+      "installer": "binary",
+      "version": "1.0.52",
+      "binary": {
+        "linux-arm64": {
+          "url": "https://x.ai/cli/grok-1.0.52-linux-aarch64",
+          "sha256": "fc32410b6883c15a39b9f33ec04a6bfb7d070b383e5dbad7efbc48c787e5050d",
+          "size": 160670952
+        },
+        "darwin-arm64": {
+          "url": "https://x.ai/cli/grok-1.0.52-macos-aarch64",
+          "sha256": "c2caa9895dd763297a75e8fb6077e175d9c5304c53903e52cff8891a1384bbb9",
+          "size": 172237072
+        }
+      },
+      "requires": [],
+      "bins": [
+        {
+          "name": "grok",
+          "argv": [
+            "grok"
+          ],
+          "env_unset": [
+            "XAI_API_KEY"
+          ]
+        }
+      ],
+      "size_mb": 180,
+      "peak_ram_mb": 300,
+      "check": {
+        "argv": [
+          "grok",
+          "--version"
+        ],
+        "expect": "1.0.52"
+      },
+      "login": {
+        "command": "grok login --device-code",
+        "note": "Sign in with an eligible paid Grok Build membership. SuperGrok / X Premium Plus are documented eligible plans; check current X Subscription CLI entitlement and prices with xAI. API keys are separately billed and Grok API dispatch is refused here."
+      },
+      "system_packages": {
+        "required": [],
+        "recommended": []
+      },
+      "note": "Official native binary, version and SHA-256 pinned by this dashboard. No vendor installer or auto-update runs. Sign-in and billing remain separate operator steps."
+    }
+  }
+}

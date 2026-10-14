@@ -1,0 +1,7 @@
+{
+  "verified_at": 1760000000,
+  "source": "https://openrouter.ai/api/v1/models",
+  "models": {
+    "vendor/example-model:free": {"prompt": "0", "completion": "0", "request": "0", "image": "0"}
+  }
+}

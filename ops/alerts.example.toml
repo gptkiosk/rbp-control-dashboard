@@ -1,0 +1,20 @@
+# Copy to ~/.mac-control/alerts.toml. Replace every placeholder before enabling delivery.
+# No bot tokens belong here; Hermes reads its existing private configuration.
+enabled = "<TRUE_OR_FALSE>"
+delivery_enabled = "<TRUE_OR_FALSE>"
+destination = "<DISCORD_DESTINATION>"
+poll_seconds = "<SECONDS>"
+max_deliveries_per_tick = "<COUNT>"
+pending_max_age_seconds = "<SECONDS>"
+
+[runs]
+enabled = "<TRUE_OR_FALSE>"
+stages = ["<RUN_STAGE>"]
+
+[services]
+enabled = "<TRUE_OR_FALSE>"
+window_seconds = "<SECONDS>"
+excess_runs = "<COUNT>"
+calendar_allowance = "<COUNT>"
+sample_max_age_seconds = "<SECONDS>"
+recovery_samples = "<COUNT>"

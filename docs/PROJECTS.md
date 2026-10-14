@@ -1,0 +1,237 @@
+# Projects, model routes and shared memory
+
+Open **Projects** (`/projects`) or the Help topic `projects`. Creating or viewing a draft
+uses no model tokens. Live work starts only from a reviewed planning/submission action.
+
+## From brief to work
+
+1. Create a project, choose an allowlisted working directory, and write its goal,
+   constraints and exclusions. Set **Story assignment preference** from Economy / OpenClaw
+   first through Balanced to Capability / Claude & Codex first. The initial default is centered
+   at Balanced (50/100). Save changes as a new revision.
+2. **Plan with Hermes** reviews the coordinator request. Hermes chooses an approved
+   subscription candidate (Claude Opus or the configured Codex model), MCD invokes that
+   CLI, and Hermes reviews its returned JSON plan. Explicit Hermes API planning needs its
+   own approval. Planner output must satisfy the bounded node schema; malformed or
+   unapproved selections stop without implementing anything.
+3. Edit the returned visual map. Add phases and child stories, drag nodes, use Arrange or
+   Fit map, and choose each story's instructions, scope, definition of done, agent, model,
+   Read/Edit mode, OpenClaw target and prerequisites. Circular links are refused.
+4. Add ordered **Model route** alternatives where appropriate. They are part of the
+   reviewed revision, never generated dynamically from a failure. Choose execution mode.
+5. **Review & submit** freezes this revision, working branch, assignments and routes.
+   Hermes returns a dependency-respecting order. MCD creates those board stories once.
+   Board edits/dependency changes/deletion cannot bypass the project approval.
+6. **Stories & runs** links to actual task evidence. Successful runs stop in Review.
+   Verify the definition of done, edit the handoff summary and accept it. Human stories
+   need a verified operator summary. Dependencies wait for acceptance, rather than merely
+   successful process exit. Pause dispatch blocks new stories; current runs can finish.
+
+## Recovering a failed plan
+
+If a successful planner/reviewer result was rejected during validation, **Resume saved plan**
+revalidates that result without rerunning the subscription planner. It refreshes the native
+execution catalog before Hermes review. Human decision/review stories with an omitted scope
+receive a visible scope bounded to their own instructions and acceptance criteria. Agent
+stories still require explicit scope; errors name the affected story and missing fields.
+Invalid JSON, a failed run, or a changed revision cannot use this shortcut. The parser
+accepts no arbitrary trailing content; one redundant closing brace after a complete `nodes`
+object is tolerated, and the original run output remains available. **Retry planning**
+starts a new planning pipeline after its coordination review. Recovery never starts story
+execution or authorizes publication.
+
+## Story assignment preference
+
+The five-position slider is saved in the project document as `planning_bias` (0–100).
+Hermes coordination, the subscription planner and Hermes plan review all receive this
+preference. Economy recommends OpenClaw for well-bounded work and reserves subscriptions
+for complex, sensitive or integration stories. Capability recommends Claude/Codex for most
+implementation, with OpenClaw handling small supporting tasks. Balanced uses task complexity
+to split the work. Agents can explain exceptions in the assignment rationale; the slider
+is a soft preference, not a fixed allocation percentage or a cost/quality forecast.
+
+The preference applies to story agents, not the planner selection. OpenClaw's gateway is
+local, but its models run with cloud providers. Free-first routes may use the already
+configured capped Google BYOK fallback. Subscription fees stay fixed; choosing OpenClaw
+can conserve subscription quota, but does not inherently lower those fees. Existing API
+and execution review requirements still apply.
+
+After mapping, edit the slider under **Project brief & planner**, save, then request a new
+plan if you want revised recommendations. Moving it alone preserves all existing agent,
+model and dependency edits. New manual stories start with OpenClaw below the midpoint
+(using the configured developer target when available), otherwise Codex; their model stays
+at its configured default. Every story remains individually editable before submission.
+Approved projects keep their frozen assignments. Older documents default to 75 without
+rewriting their stored document or approved manifest.
+
+## Sequential and parallel work
+
+Sequential mode uses the reviewed project workspace and adds a serial handoff link even
+between otherwise independent stories. Parallel mode requires a clean Git repository root
+and committed source. It freezes HEAD and creates a local `codex/mcd-…` branch/worktree for
+each agent story under the existing workspace allowlist. Independent stories can occupy the
+configured dispatcher slots (two by default); dependencies still wait for accepted results.
+
+At acceptance, MCD can create a local snapshot of **explicitly selected reviewed files**.
+The dialog shows tracked diffs; inspect new files in the workspace before selecting them.
+Every changed file must be selected, or committed/reverted outside MCD, so a handoff leaves
+its workspace clean. This avoids requiring Codex to write Git metadata through its sandbox.
+Nothing automatically pushes, publishes or merges the source branch.
+
+Before a dependent story starts, MCD applies its accepted prerequisite commits to that
+story's worktree. Conflicts abort the cherry-pick sequence and fail that story visibly.
+Resolve the workspace, use **Review integration** to confirm the resolved prerequisite files, then retry explicitly. A confirmed integration remains Failed until its own story run and handoff review complete. Consolidated accepted histories supersede their ancestor artifacts, avoiding replay of the original conflict. No conflict resolution is guessed.
+Use a final integration/review story with all implementation stories as prerequisites;
+review its branch before choosing how to integrate it into the source repository. Worktrees
+are retained for inspection/rollback; there is no automatic destructive cleanup.
+
+Claude/Codex work in their assigned directory using their existing CLI modes. Hermes uses
+`--in`; its mode is advisory. OpenClaw's gateway retains its configured agent home, receives
+an explicit project execution path, and gets a stable separate session per project card.
+Runs on the same named OpenClaw target are serialized. Its tool access and Read/Edit remain
+advisory; a project workspace is coordination isolation, not a new OS security boundary.
+
+## Shared project memory
+
+Each run receives the approved goal, constraints, story ownership, its full current story,
+accepted artifact branch/HEAD references and recent accepted handoffs/decisions/checkpoints.
+Context is captured with the run's task/revision. Results are proposals until accepted;
+a quota checkpoint explicitly labels partial work unverified. The same story and workspace
+continue after a reviewed model handoff. An append-only ledger records who accepted what.
+
+The prompt includes up to 20 recent records (each bounded) within 180 KiB. The full ledger
+and run evidence remain available in Projects/task links; large histories are not silently
+represented as the entire memory. Decisions can be appended without rewriting the approved
+scope. Export context supports native sessions outside MCD. This does not merge private
+Claude/Codex/OpenClaw/Hermes histories or automatically ingest arbitrary native sessions.
+Agent tokens cannot approve plans, submit projects or accept handoffs; existing Hermes MCP
+Read/Draft access is unchanged. Model output remains data and cannot supply commands,
+permissions, branch changes or additional dispatch routes.
+
+## Model switching and quota behavior
+
+Primary models are editable per story. Suggestions include Claude Opus/Sonnet/Haiku 5.5,
+GPT-6.1 Sol and GPT-5.6 Terra (`gpt-5.6-terra`, verified in this Mac's Codex catalog).
+Account/CLI availability can differ. Claude and Codex use their existing subscription
+logins (verified locally as Claude Pro/claude.ai and Codex ChatGPT). Project Claude subscription runs do not apply an API-dollar budget to their API-equivalent usage; API-billed runs keep the CLI budget. Billing configuration still controls API-equivalent cost and subscription savings.
+
+After a failed run explicitly reports a usage/quota/rate limit, MCD captures a checkpoint
+and tries the next approved agent/model pair once for that story. A stopped planner can
+try another approved subscription candidate. Other errors, timeouts, cancellation and
+malformed plan output require explicit review/retry. No unapproved paid model is invented.
+Automatic alternate Hermes/OpenClaw routes are restricted to free model IDs (`:free`) or capped Google Gemini 2.5 Flash, with API/BYOK usage acknowledgment at submission. Explicit model assignments disable inherited primary-model fallback for that run; MCD controls approved handoffs. A blank model follows the native agent default and its configured fallback policy.
+
+This is reactive failover: MCD cannot predict every provider's remaining subscription quota,
+and switching models in the same subscription can share an exhausted quota. The current
+iteration does not claim global quota preflight or guarantee free-model uptime.
+
+For a failed story, **Stories & runs** offers **Retry same story** and explicit
+**Retry with** choices from that story's already-approved routes. A route change preserves
+the card, scope, definition of done, dependencies and workspace, and records an operator
+decision in shared memory. The API rejects unapproved routes, stale revisions, duplicate
+retries, retired OpenClaw targets and newly unapproved API billing. A timeout never selects
+one of these routes automatically. A successful retry still waits for handoff review.
+
+## Native configuration and assigned models
+
+MCD reads the current native Hermes model/fallback fields and OpenClaw agent names,
+targets and models when planning. Only these safe fields enter the catalog; credentials
+never do. Model overrides are passed to each CLI. OpenClaw's explicit override disables
+its inherited fallback chain. The MCD-owned Hermes compatibility shim disables the inherited
+chain only inside an explicitly assigned run, and reports the final primary model/provider.
+Unassigned coordinator runs keep the native free-first and capped Google BYOK policy.
+The shim leaves native configuration untouched and fails before inference if its supported
+runtime APIs are unavailable. MCD rejects a reported model mismatch and keeps its usage
+evidence for review. Codex does not report its actual model; its requested model remains
+visible without claiming independent verification.
+
+Before submission MCD refuses retired OpenClaw targets. Story context prohibits native
+re-delegation that could bypass reviewed assignments; Hermes/OpenClaw still use their
+native tool permissions (Read/Edit remains advisory). Edit routing in native settings and
+review each proposed model/target in MCD before execution.
+
+Hermes and OpenClaw use the same existing OpenRouter key. Its verified limit is **$20,
+monthly reset, BYOK included**. Agents shows current key-wide limit/reset/inclusion rather
+than inferring the cap from an alert. It covers any caller of that same key and recorded
+OpenRouter/BYOK usage. It is not a Google invoice cap, and does not cover direct Google
+calls or another key. At exhaustion requests can stop, including free routes on that key;
+no alternate uncapped key is used automatically. Model calls were not made during setup.
+
+Private rollback inputs and the cap receipt are under
+`~/.mac-control/backups/project-routing-20261010T062707Z/` (directory 700/files 600).
+Restoring routing does not restore OpenRouter budget settings; the receipt records their
+previous/current values. No credentials are stored in this repository.
+
+Sources: [OpenRouter key limits including BYOK](https://openrouter.ai/docs/api/api-reference/api-keys/update-keys),
+[BYOK routing](https://openrouter.ai/docs/guides/overview/auth/byok),
+[OpenClaw model parameters](https://docs.openclaw.ai/gateway/config-agents/models),
+[Codex models](https://learn.chatgpt.com/docs/models),
+[Claude CLI budget/auth flags](https://code.claude.com/docs/en/cli-reference),
+[Hermes fallback providers](https://github.com/NousResearch/hermes-agent/blob/main/website/docs/user-guide/features/fallback-providers.md).
+Installed CLI source/help and read-only account metadata were checked in addition to these docs.
+
+## Implementation and verification
+
+Migration 0010 adds versioned project documents, immutable task bindings and memory records.
+Dispatcher claims remain transactional; overlapping project directories cannot run together.
+A live restarted process never blindly restarts an interrupted model run. No external sends,
+model credentials or additional MCP permissions are introduced by the Projects API.
+
+Tests use temporary databases, real temporary Git repositories and fake model results:
+planner/return/dispatch validation, revision conflicts, duplicate dispatch, dependencies,
+operator acceptance, pause/resume, finite quota handoffs (including stderr-only failures),
+workspace separation, accepted prerequisite integration, conflicts and reviewed snapshots.
+Browser verification uses an isolated loopback preview with dispatch/collection disabled;
+the example map is not a submitted live project.
+
+Verification: API 237 tests, web 155 tests and MCP 13 tests; production type-check/build pass. Frozen project dependencies are enforced even through curated agent draft tools, and managed workspace symlinks cannot escape the approved root. No real planning/model turn was invoked during verification.
+
+New profiles start at Balanced (50/100); legacy maps lacking the field retain their earlier 75 default for compatibility. See [Profiles and Discord](PROFILES_AND_DISCORD.md) for remote project intake, diagram requests, progress/delivery status and private settings.
+
+## Read-only stories that need a Markdown artifact
+
+Claude Read mode uses its CLI plan mode. If a story returns an unfinished plan because
+writing is blocked, MCD marks the run **Awaiting output approval**, rather than treating
+that plan as a completed handoff. In **Projects → Stories & runs**, select **Approve output
+& continue**. The dialog shows the previous result, the current agent/model, and the exact
+private output location. Acknowledge that scope and select **Approve & continue**.
+
+The continuation uses the same story, working directory, definition of done and dependency
+links. Claude resumes its prior session when available, with Read/Glob/Grep only; no shell,
+file-write, delegation or MCP tools are exposed. It returns strict Markdown/handoff JSON,
+and MCD saves one file under its configured data directory's `project-outputs/` folder.
+No repository edits, native ExitPlanMode approval or increased agent write access are needed.
+Existing output files are not overwritten; symlinks and out-of-folder filenames are refused.
+Malformed output stops for explicit retry. Subscription billing and approved model routes
+remain in effect; this action never authorizes new API billing.
+
+After completion, **Review handoff** displays the proposed document. Read it and acknowledge
+its definition-of-done review before **Accept handoff**. MCD verifies the document hash;
+changed or missing output cannot be accepted. Accepted output references join shared project
+context. Dependent stories remain blocked until acceptance. Output approval alone never
+marks the story Done. This is for read-only Markdown deliverables, not a general edit approval.
+
+### Approving directly from Tasks
+
+Ready project decisions appear in **Needs approval** once their prerequisites finish. This is a board display only; it does not mark a human story complete or change dependencies.
+
+Open a task to inspect its definition of done and latest result, then use its blue action button on the row or details:
+
+- **Approve run** grants the displayed execution approval.
+- **Approve & continue** resumes an unfinished read-only story with its existing scoped Markdown output authorization.
+- **Approve handoff** accepts the latest displayed successful result with the current proposed document hash, in one click. Ready dependent stories may then start. Missing results, a newer run or unsafe/missing output stop approval. Workspace files must still be reviewed and selected in Projects; this shortcut never snapshots changes automatically.
+- **Record decision** opens a form on Tasks for the actual operator choices or sign-off. Write the required decision before **Approve decision**. No human decision is inferred.
+
+The full artifact review remains available under Projects → Stories & runs. Failed and dependency-blocked stories do not offer these approval shortcuts.
+
+## Closing a project without finishing it
+
+**Close project…** (Projects, in the project heading) ends a project that will not be finished, for example
+one replaced by a newer plan. It needs a reason, which is kept in the project ledger with the rest of the
+history. The project becomes **Closed**, never Complete: Complete is for projects whose stories finished.
+
+- No new story starts, and a story that is running must be cancelled first.
+- The failed tasks of a Closed or Complete project can then be removed from the board, with a confirmation.
+  The ledger keeps their handoff and incident entries; only their run history on the board is deleted.
+- A failed task that another task already carries (an unneeded duplicate) can be removed from any project.
+- Everything else on a project stays protected: only the Projects page changes a story.

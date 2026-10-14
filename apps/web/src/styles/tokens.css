@@ -1,0 +1,243 @@
+/*
+ * Design tokens. Every visual value (color, spacing, radius, type size,
+ * layout dimension, shadow, motion) lives here and nowhere else. Components
+ * reference these variables only. Retune this file to restyle the app.
+ */
+:root {
+  color-scheme: dark;
+
+  /* Surfaces */
+  --bg: #0e1116;
+  --panel: #161b22;
+  --panel-raised: #1c2330;
+  --panel-border: #263040;
+  --overlay: rgb(0 0 0 / 55%);
+
+  /* Chat glass (solid panel backgrounds remain the fallback) */
+  --glass-panel: rgb(22 27 34 / 78%);
+  --glass-bg: rgb(14 17 22 / 68%);
+  --glass-border: rgb(139 152 169 / 24%);
+  --glass-blur: 18px;
+  --chat-glow: radial-gradient(ellipse at top right, rgb(76 154 255 / 12%), transparent 60%), radial-gradient(ellipse at bottom left, rgb(57 197 207 / 8%), transparent 60%);
+  --shell-glow: radial-gradient(ellipse at top right, rgb(76 154 255 / 9%), transparent 65%);
+  --nav-glass: linear-gradient(155deg, rgb(20 37 61 / 96%), rgb(13 23 39 / 96%));
+  --card-glass: linear-gradient(145deg, rgb(23 45 75 / 80%), rgb(15 26 43 / 88%));
+  --surface-border: rgb(94 152 220 / 24%);
+  --surface-radius: 12px;
+  --surface-shadow: 0 4px 18px rgb(0 0 0 / 12%);
+  --nav-active: linear-gradient(100deg, rgb(76 154 255 / 22%), rgb(57 197 207 / 7%));
+  --nav-indicator-width: 3px;
+  --nav-letter-spacing: 0.08em;
+
+  --agent-glass: linear-gradient(145deg, rgb(26 58 97 / 60%), rgb(16 28 47 / 78%));
+  --agent-glass-selected: linear-gradient(145deg, rgb(35 84 143 / 65%), rgb(16 34 61 / 82%));
+  --agent-activity-width: 44rem;
+  --select-bg: linear-gradient(145deg, rgb(28 55 91 / 65%), rgb(15 28 46 / 88%));
+  --select-hover: linear-gradient(145deg, rgb(35 70 117 / 72%), rgb(18 36 61 / 90%));
+  --select-menu-bg: rgb(17 31 51 / 96%);
+  --select-border: rgb(94 152 220 / 38%);
+  --select-height: 2.75rem;
+  --select-toggle-width: 2.5rem;
+  --select-menu-min-width: 12rem;
+  --select-menu-max-height: 20rem;
+  --select-menu-edge: 8px;
+  --dialog-glass: linear-gradient(145deg, rgb(31 58 96 / 88%), rgb(14 25 42 / 94%));
+  --dialog-action: linear-gradient(115deg, var(--accent), var(--brand-to));
+  --dialog-radius: 16px;
+  --dialog-control-height: 3.75rem;
+  --dialog-icon-size: 2.75rem;
+  --login-width: 30rem;
+  --help-chat-width: 30rem;
+  --help-chat-height: 42rem;
+  --help-catalog-width: 19rem;
+  --help-catalog-height: 70dvh;
+  --help-phone-catalog-height: 15rem;
+  --z-select: 120;
+  --eyebrow-spacing: 0.12em;
+
+  /* Project maps and shared planning */
+  --planning-slider-track: 0.4rem;
+  --planning-slider-thumb: 1.4rem;
+  --planning-slider-hit-height: 2.75rem;
+  --project-content-width: 1600px;
+  --project-library-width: 15rem;
+  --project-library-small: 12rem;
+  --project-editor-width: 21rem;
+  --project-map-height: 68dvh;
+  --project-map-min-height: 28rem;
+  --project-editor-height: 80dvh;
+  --project-node-width: 250px;
+  --project-node-height: 112px;
+  --project-grid-size: 24px;
+  --project-empty-top: 4rem;
+  --project-review-height: 22rem;
+  --project-phone-library-height: 12rem;
+  --project-phone-map-height: 55dvh;
+
+  /* Text */
+  --text: #e6edf3;
+  --text-muted: #8b98a9;
+  --text-on-accent: #07101c;
+
+  /* Brand + status */
+  --accent: #4c9aff;
+  /* Brand mark (MCD): gradient tile and its white pulse. */
+  --brand-from: #4c9aff;
+  --brand-to: #39c5cf;
+  --brand-ink: #ffffff;
+  --brand-size: 1.6rem;
+  --accent-soft: rgb(76 154 255 / 16%);
+  --ok: #3fb950;
+  --warn: #d29922;
+  --danger: #f85149;
+  --ok-soft: rgb(63 185 80 / 16%);
+  --warn-soft: rgb(210 153 34 / 16%);
+  --danger-soft: rgb(248 81 73 / 16%);
+  --focus-ring: #79b8ff;
+
+  /* Chart series (colour-blind friendly on dark surfaces) */
+  --series-1: #4c9aff;
+  --series-2: #f0883e;
+  --series-3: #56d364;
+  --series-4: #d2a8ff;
+  --series-5: #ff7b9c;
+  --series-6: #39c5cf;
+  /* Tinted fills for tag pills and status pills (same hues as the series, low alpha) */
+  --series-1-soft: rgb(76 154 255 / 16%);
+  --series-2-soft: rgb(240 136 62 / 16%);
+  --series-3-soft: rgb(86 211 100 / 16%);
+  --series-4-soft: rgb(210 168 255 / 16%);
+  --series-5-soft: rgb(255 123 156 / 16%);
+  --series-6-soft: rgb(57 197 207 / 16%);
+
+  /* Spacing */
+  --gap-xs: 0.25rem;
+  --gap-sm: 0.5rem;
+  --gap: 1rem;
+  --gap-lg: 1.5rem;
+  --gap-xl: 2rem;
+
+  /* Radii */
+  --radius-sm: 4px;
+  --radius: 8px;
+  --radius-pill: 999px;
+
+  /* Typography */
+  --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --font-size-xs: 0.75rem;
+  --font-size-sm: 0.8125rem;
+  --font-size: 0.9375rem;
+  --font-size-lg: 1.125rem;
+  --font-size-xl: 1.5rem;
+  --font-size-2xl: 1.75rem;
+  --font-weight: 400;
+  --font-weight-strong: 600;
+  --line-height: 1.5;
+
+  /* Layout */
+  --sidebar-width: 220px;
+  --topbar-height: 52px;
+  --content-max-width: 1200px;
+  --dot-size: 0.5rem;
+  --focus-ring-width: 2px;
+  --focus-ring-offset: 2px;
+  --tile-min-width: 12rem;
+  --card-min-width: 22rem;
+  --chart-height: 220px;
+  --severity-bar-width: 4px;
+  --meter-height: 4px;
+  --table-min-width: 52rem;
+  --service-col-min-width: 15rem;
+  --column-width: 17rem;
+  /* Task list: one grid shared by the header row and every task row (Name, Assignee, Model, Due, Estimate, Priority, Depends on, Last run) */
+  --task-grid: minmax(17rem, 1fr) 9rem 9.5rem 7.5rem 6.5rem 7.5rem 8rem 8rem;
+  --task-list-min-width: 82rem;
+  --row-min-height: 2.5rem;
+  --menu-min-width: 13rem;
+  --menu-max-width: 20rem;
+  --menu-max-height: 18rem;
+  --badge-min-width: 1.25rem;
+  --drawer-width: 46rem;
+  --dialog-width: 38rem;
+  --log-height: 18rem;
+  --touch-target: 2.75rem;
+  --textarea-min-height: 7rem;
+  --drag-opacity: 0.45;
+  --disabled-opacity: 0.5;
+  --chat-list-width: 20rem;
+  --chat-height: calc(100dvh - var(--topbar-height) - 9rem);
+  --chat-min-height: 26rem;
+  --bubble-max-width: 44rem;
+  --chat-log-height: 9rem;
+  --composer-max-height: 12rem;
+  --output-max-height: 14rem;
+  --busy-dot-size: 0.6rem;
+  --pulse-duration: 1.4s;
+
+  /* Icons */
+  --icon-size-sm: 14px;
+  --icon-size-md: 16px;
+  --icon-size-lg: 20px;
+  --icon-gap: 0.4rem;
+
+  /* Elevation + motion */
+  --shadow: 0 8px 24px rgb(0 0 0 / 45%);
+  --transition: 150ms ease;
+  --z-sidebar: 30;
+  --z-overlay: 20;
+  --z-modal: 40;
+}
+
+/* Same blue glass identity, with readable ink and softer surfaces in daylight. */
+:root[data-theme='light'] {
+  color-scheme: light;
+  --bg: #eef4fb;
+  --panel: #f8fbff;
+  --panel-raised: #e8eff9;
+  --panel-border: #c9d6e8;
+  --overlay: rgb(14 30 50 / 35%);
+  --glass-panel: rgb(248 251 255 / 90%);
+  --glass-bg: rgb(255 255 255 / 84%);
+  --glass-border: rgb(45 83 126 / 20%);
+  --chat-glow: radial-gradient(ellipse at top right, rgb(76 154 255 / 13%), transparent 60%), radial-gradient(ellipse at bottom left, rgb(57 197 207 / 9%), transparent 60%);
+  --shell-glow: radial-gradient(ellipse at top right, rgb(76 154 255 / 10%), transparent 65%);
+  --nav-glass: linear-gradient(155deg, rgb(249 252 255 / 97%), rgb(228 240 254 / 97%));
+  --card-glass: linear-gradient(145deg, rgb(255 255 255 / 90%), rgb(230 241 255 / 85%));
+  --surface-border: rgb(45 104 173 / 24%);
+  --surface-shadow: 0 4px 18px rgb(29 59 94 / 8%);
+  --nav-active: linear-gradient(100deg, rgb(23 93 186 / 14%), rgb(16 121 133 / 7%));
+  --agent-glass: linear-gradient(145deg, rgb(247 251 255 / 92%), rgb(222 238 255 / 87%));
+  --agent-glass-selected: linear-gradient(145deg, rgb(230 241 255 / 96%), rgb(211 232 255 / 92%));
+  --select-bg: linear-gradient(145deg, rgb(255 255 255 / 91%), rgb(231 242 255 / 93%));
+  --select-hover: linear-gradient(145deg, rgb(237 247 255 / 97%), rgb(214 234 255 / 96%));
+  --select-menu-bg: rgb(247 251 255 / 98%);
+  --select-border: rgb(45 104 173 / 35%);
+  --dialog-glass: linear-gradient(145deg, rgb(249 252 255 / 96%), rgb(233 242 252 / 97%));
+  --text: #142a43;
+  --text-muted: #53677d;
+  --text-on-accent: #ffffff;
+  --accent: #175dba;
+  --brand-to: #086b78;
+  --accent-soft: rgb(23 93 186 / 11%);
+  --ok: #18743b;
+  --warn: #8a5a06;
+  --danger: #b52d37;
+  --ok-soft: rgb(24 116 59 / 11%);
+  --warn-soft: rgb(138 90 6 / 11%);
+  --danger-soft: rgb(181 45 55 / 11%);
+  --focus-ring: #175dba;
+  --series-1: #175dba;
+  --series-2: #a44914;
+  --series-3: #18743b;
+  --series-4: #7540af;
+  --series-5: #b02d63;
+  --series-6: #08747e;
+  --series-1-soft: rgb(23 93 186 / 11%);
+  --series-2-soft: rgb(164 73 20 / 11%);
+  --series-3-soft: rgb(24 116 59 / 11%);
+  --series-4-soft: rgb(117 64 175 / 11%);
+  --series-5-soft: rgb(176 45 99 / 11%);
+  --series-6-soft: rgb(8 116 126 / 11%);
+  --shadow: 0 8px 28px rgb(29 59 94 / 20%);
+}

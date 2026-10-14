@@ -1,0 +1,284 @@
+@import 'tailwindcss';
+@import './tokens.css';
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: var(--font-size);
+  font-weight: var(--font-weight);
+  line-height: var(--line-height);
+  overflow-x: hidden;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+/* Shared page + card + table styles (token-driven). */
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-lg);
+}
+
+.page-title {
+  margin: 0;
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-strong);
+}
+
+.section-title {
+  margin: 0;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-strong);
+}
+
+.muted {
+  color: var(--text-muted);
+}
+
+/* A heading, label or inline run that starts with an AppIcon. */
+.has-icon {
+  display: flex;
+  align-items: center;
+  gap: var(--icon-gap);
+  min-width: 0;
+}
+
+.has-icon-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--icon-gap);
+}
+
+.small {
+  font-size: var(--font-size-sm);
+}
+
+.card {
+  background: var(--panel);
+  background-image: var(--card-glass);
+  border: 1px solid var(--surface-border);
+  border-radius: var(--surface-radius);
+  box-shadow: var(--surface-shadow);
+  padding: var(--gap);
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+  min-width: 0;
+}
+
+.card > p,
+.card > h2,
+.card > ul {
+  margin: 0;
+}
+
+.table-scroll {
+  overflow-x: auto;
+  max-width: 100%;
+  border: 1px solid var(--surface-border);
+  border-radius: var(--surface-radius);
+  background: var(--card-glass);
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-sm);
+}
+
+.data-table th,
+.data-table td {
+  padding: var(--gap-sm) var(--gap);
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid var(--panel-border);
+}
+
+.data-table th {
+  color: var(--text-muted);
+  font-weight: var(--font-weight-strong);
+  white-space: nowrap;
+}
+
+.data-table thead { background: var(--accent-soft); }
+.data-table tbody tr:hover { background: var(--accent-soft); }
+
+.data-table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.link-inline {
+  color: var(--accent);
+}
+
+.link-inline:hover {
+  text-decoration: underline;
+}
+
+/* Shared controls: buttons, form fields, notices, screen-reader text. */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--icon-gap);
+  min-height: var(--touch-target);
+  padding: 0 var(--gap);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius);
+  background: var(--panel-raised);
+  color: var(--text);
+  font: inherit;
+  font-weight: var(--font-weight-strong);
+  cursor: pointer;
+  transition: border-color var(--transition), background var(--transition);
+}
+
+.btn:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+.btn:disabled {
+  opacity: var(--disabled-opacity);
+  cursor: not-allowed;
+}
+
+.btn.primary {
+  background: var(--dialog-action);
+  border-color: var(--accent);
+  color: var(--text-on-accent);
+}
+
+.btn.danger {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-xs);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.field > label,
+.field > legend {
+  padding: 0;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-strong);
+  color: var(--text-muted);
+}
+
+.input {
+  width: 100%;
+  min-width: 0;
+  min-height: var(--touch-target);
+  padding: var(--gap-xs) var(--gap-sm);
+  border: 1px solid var(--select-border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+}
+
+.skip-link {
+  position: fixed;
+  top: var(--gap-sm);
+  left: var(--gap-sm);
+  z-index: var(--z-select);
+  padding: var(--gap-sm) var(--gap);
+  background: var(--panel-raised);
+  color: var(--text);
+  border-radius: var(--radius);
+  transform: translateY(calc(-100% - var(--gap)));
+}
+.skip-link:focus { transform: translateY(0); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .card, .table-scroll { background: var(--panel); }
+}
+
+textarea.input {
+  min-height: var(--textarea-min-height);
+  resize: vertical;
+}
+
+.input:disabled {
+  opacity: var(--disabled-opacity);
+}
+
+.hint {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+}
+
+.warning-text {
+  margin: 0;
+  padding: var(--gap-sm);
+  border-radius: var(--radius);
+  background: var(--warn-soft);
+  color: var(--warn);
+  font-size: var(--font-size-sm);
+}
+
+.error-text {
+  margin: 0;
+  color: var(--danger);
+  overflow-wrap: anywhere;
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.radios {
+  display: flex;
+  gap: var(--gap-lg);
+}
+
+.radio {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--gap-sm);
+  min-height: var(--touch-target);
+  color: var(--text);
+  font-size: var(--font-size);
+  font-weight: var(--font-weight);
+}
+
+/* Shared status for read-only panels retaining their last successful result. */
+.notice-warn { padding: var(--gap); border: 1px solid var(--surface-border); border-left: 3px solid var(--warn); border-radius: var(--radius-sm); background: var(--accent-soft); overflow-wrap: anywhere; }

@@ -1,7 +1,117 @@
-# Change history
+# Changelog
 
-## Documentation and community staging — 2026-10-12
+All notable changes to Raspberry Pi Control Dashboard (RCD) are listed here, newest first. The format
+follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow
+[Semantic Versioning](https://semver.org/). RCD and the Mac Control Dashboard (MCD) share
+major.minor, so a feature level means the same in both. Release notes on GitHub are generated from
+the section of the version being released, and a release cannot be built without one.
+
+Internal operator notes, private hostnames and personal identifiers are omitted by policy.
+
+## [Unreleased]
+
+## [0.3.1] - 2026-10-14
+
+### Added
+- First production release with signed installer manifests and a committed public verification key for both products.
+- Project consultant conversation in a glass panel below the project brief controls. Refine goals, phases, stories, scope, definitions of done and dependencies, then review an editable brief before submitting it to Hermes coordination. Existing planning and execution approvals remain required.
+- Profile AI defaults start new consultant chats, agent chats, task forms and project planning with Hermes and OpenRouter free. Installed membership CLI/model routes are configurable, with settings links and help guidance. Existing conversations and approved routes retain their choices.
+
+### Fixed
+- OAuth setup uses installation-specific paths and explicit host origins; shared client JSON no longer imports unrelated callbacks. Generic examples and private-address disclosure keep personal endpoints out of standard setup.
+- Wizard links missing agents to runtime installers and explains install, native configuration and readiness refresh. Saved OpenRouter keys no longer trigger another entry form; spending checks remain available.
+- Installer helper status resumes after navigation, retries temporary failures, updates every three seconds while active, and shows its log below the matching runtime's buttons. Completed logs remain available.
+- Raspberry Pi wizard prerequisites match the packaged Python 3.11 runtime.
+
+
+## [0.3.0] - 2026-10-13
+
+- Fixed Python 3.11 project-planning syntax that blocked Pi package installation. RCD CI and package syntax validation now use the pinned Python runtime.
+
+- Agent tools recognizes existing native installs, shows current versions and offers verified upgrades. Claude Code pin updated to2.1.299 and Hermes to0.22.0.
+
+- Project Model lock stops failed tasks without automatic retries or equivalent-model failover; default behavior retains reviewed alternatives. Clean Mac/Pi OS install instructions are included.
+
+### Added
+- Matching lower-cost planning tiers, operator-reviewed paused-project retiering and repair of explicitly
+  incomplete read-only story assignments, preserving scope and execution gates.
+- Header version and commit tags remain visible on small screens; release footer information matches
+  across products with product/owner, environment, API/web commits and modified status.
+- Operator-confirmed managed installers for Claude Code, Codex CLI, Grok Build, Hermes and OpenClaw,
+  with pinned downloads, update/remove/rollback, clean install environments and platform privilege restrictions.
+- Agent roles with one assignable Delegator, generic starter guidance, managed instruction-block previews,
+  private backups, rollback and interrupted-assignment recovery. In-progress pipelines keep their approved
+  Delegator and model; a changed assignment requires new coordination review.
+- OpenRouter/Hermes free-first setup guidance, platform worker choices and native membership prerequisites.
+  Free-only planning can use a reviewed free Delegator route without a subscription CLI. Membership access,
+  provider API charges and Google credit eligibility are explained separately.
+- Grok Build is a supported agent, next to Claude Code, Codex, Hermes and OpenClaw: tasks, chat, project story
+  agent and approved fallback, on an eligible Grok membership only (the CLI has no dollar cap, so an API route is
+  refused). It has a native Linux arm64 build, verified in Lima; Raspberry Pi hardware remains untested. Runs are confined: telemetry and
+  trace upload off, a filesystem sandbox, git push and merge denied. xAI prices are in the price catalog and
+  the price checker reads docs.x.ai. See `docs/configuration/grok.md`. Not run against a signed-in account.
+- Operator-only Agent tools panel for pinned per-user installation, update, removal and rollback of Claude Code, Codex CLI, OpenClaw and Hermes on Linux arm64. Confirmation shows sources, commands, disk and memory. System packages remain manual and sign-in is never automated. Install/remove and version checks were exercised in an Ubuntu arm64 Lima VM; Raspberry Pi hardware, Mac installers and Grok installation remain unverified or pending. See `docs/install/agent-tools.md`.
+
+### Changed
+- RCD works with any mix of agents installed. Setup readiness needs any one subscription CLI and any one of
+  Hermes or OpenClaw instead of all of them, a new project story starts on an agent that is installed, and the
+  story agent picker marks agents that are not installed. A test runs every one of the 32 combinations.
+
+## [0.2.0] - 2026-10-13
+
+RCD reaches the 0.2 feature level it shares with MCD. These were built and tested against the MCD
+code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
+
+### Added
+- Branch-scoped agent git access: an operator can grant one approved project's stories permission to
+  commit and push to one named branch of an allowlisted repository, through operator-owned hooks and a
+  credential helper outside every repository. Without a grant agents still cannot commit or push.
+- Subscription limits: when Claude Code or Codex stops on a usage limit RCD shows one calm notice with
+  the time it lifts, moves stories that meet the limit to an approved alternate of the same grade, and
+  offers one button to send waiting stories across until the limit lifts. Hermes can report the status
+  in Discord, and change the routing when the operator enabled it in Profile.
+- Shared project context is smaller and cheaper without losing anything: long handoffs become digests
+  that point to a complete ledger file, the stable part of the prompt comes first so a provider's prompt
+  cache can reuse it, and the story's own text comes last. The size of each prompt is recorded.
+- Failure mining: Hermes can answer "what has been failing and why?" in Discord from failed runs
+  classified by cause, with counts by agent, model and project, repeated errors and the cards still
+  Failed. Read only, redacted and bounded, behind its own switch in Profile.
+- Close project: ends a project that will not be finished, with a reason kept in its ledger. It shows as
+  Closed, never Complete, and its failed tasks can be removed from the board.
+- Failed project cards that another card already carries, and duplicates, can be deleted.
+- The GitHub settings pick repositories from a checklist loaded from the account and report which
+  repository failed and why.
+- Tasks list has a Model column with a condensed model name.
+- Price catalog (`apps/api/pricing_catalog.json`) with the published prices of the recent models of each
+  platform, and `scripts/pricing/check.py` to compare it with the providers' pages, find models used
+  without a price and add them. Models ending in `:free` cost 0. A model used without a recorded price is
+  named next to the unpriced count; runs that used no model are not usage records.
+- Release flow: release notes generated from this changelog, `scripts/release/publish-release.sh` (which
+  scans the released commits with gitleaks and refuses on a finding) and the standard footer with a
+  modified marker, product and owner. See `docs/development/release-flow.md`.
+
+### Fixed
+- A chat message sent just after the service started could be failed with "service restarted" by the first
+  recovery pass. Recovery now fails only turns left by a previous process.
+- Combining accepted prerequisite work into a parallel story no longer needs git 2.45; it works on the
+  older git that Raspberry Pi OS and Ubuntu 24.04 ship, and a conflict returns the workspace to where it began.
+- An unreaped runner (a zombie) no longer makes every operator request "could not be verified" on Linux.
+
+### Changed
+- The application updater API moved to `/api/app-updates`, so it no longer collides with the
+  collector's `/api/updates`.
+- Claude Code stories may use web search and fetch without any shell, credential or publish permission.
+
+[0.3.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.0
+[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.3.1...HEAD
+[0.2.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.2.0
+
+## Before versioned releases
+
+### Documentation and community staging — 2026-10-12
 
 - Published MIT license with preserved MCD attribution, operator/developer docs and public collaboration configuration.
 - Application source deliberately held for fixes, verification and explicit operator sign-off.
 - Recorded Linux ARM64 UI preview as temporary test evidence, without claiming Pi hardware or live-provider certification.
+
+[0.3.1]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.1

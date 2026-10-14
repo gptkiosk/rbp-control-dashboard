@@ -1,19 +1,44 @@
-# Private installation and generated files
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.ruff_cache/
+
+# Node
+node_modules/
+apps/web/dist/
+**/dist/
+*.tsbuildinfo
+
+# Release build output (scripts/release/release.py)
+/dist-release/
+
+# Local runtime and secrets (runtime data lives outside the repo, never in it)
 .env
 .env.*
 !.env.example
-**/.venv/
-**/node_modules/
-**/dist/
-**/__pycache__/
-.pytest_cache/
-*.pyc
+.envrc
+.direnv/
 *.db
+*.db-*
 *.sqlite*
-*.key
-*.pem
+vault.key
 *.token
-client_secret*.json
+client_secret_*.json
+google-oauth-client*.json
 credentials*.json
+token*.json
+*.pem
+*.key
+*.p12
+*.pfx
+
+# OS and editors
+.DS_Store
+Thumbs.db
+*.swp
+
+# Local operator context
 /.hermes.md
 /demo/out/

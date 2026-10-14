@@ -1,0 +1,45 @@
+title = "mac-control secret scanning policy"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "generic-api-key"
+
+# These values are deliberately synthetic fixtures.  Keeping the exceptions narrow lets
+# gitleaks continue to report any other credential-shaped value in the test files.
+[[rules.allowlists]]
+description = "Synthetic GitHub-token strings used to verify MCP output redaction."
+condition = "AND"
+paths = [
+  '''apps/api/tests/test_mcp\.py''',
+]
+regexes = [
+  '''ghp_(?:secretsecret1234|abc|SUPERSECRETVALUE123456)''',
+]
+
+[[rules.allowlists]]
+description = "Synthetic credentials used only to reject invalid import fixtures."
+condition = "AND"
+regexTarget = "match"
+paths = [
+  '''apps/api/tests/test_auth_import\.py''',
+]
+regexes = [
+  '''client_secret.{0,40}"private"''',
+]
+
+[[rules.allowlists]]
+description = "Nonfunctional OpenRouter fixture used to verify setup key clearing."
+condition = "AND"
+paths = ['''apps/web/src/__tests__/SetupView\.spec\.ts$''']
+regexes = ['''sk-or-test-private1234''']
+
+[[rules]]
+id = "discord-client-id"
+
+[[rules.allowlists]]
+description = "Synthetic Discord identifiers used by isolated profile and alert tests."
+condition = "AND"
+paths = ['''apps/api/tests/test_(?:profiles|alerts)\.py$''', '''apps/web/src/__tests__/(?:ProfileView|AlertStatus)\.spec\.ts$''']
+regexes = ['''(?:123456789012345678|456789012345678901)''']

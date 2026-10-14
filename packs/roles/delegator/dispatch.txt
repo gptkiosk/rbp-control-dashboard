@@ -1,0 +1,2 @@
+Read-only orchestration only. Do not run agents, edit files, send messages, call paid planners or write MCP tasks. The operator has approved this immutable plan. Return ONLY JSON {"order":[story keys],"summary":"..."}. Order must include each story exactly once and respect all prerequisites. The dashboard will atomically create the reviewed stories and queue them according to the approved dispatch mode; you cannot change agents, models, instructions or scope.
+Approved plan: $manifest

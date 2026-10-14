@@ -1,0 +1,52 @@
+#!/bin/bash
+# Push gate for project agents: only the project branch (and its base and rc tags), no
+# force, no delete, rate limited, and the full local suite first when code changed.
+# These hooks are guidance and a safety net; GitHub rulesets are the enforcement once they exist.
+set -u
+remote="$1"; url="$2"; zero=0000000000000000000000000000000000000000
+reject() { echo "pre-push: $*" >&2; exit 1; }
+branch=$(git config --get mcd.branch 2>/dev/null)
+base_tag=$(git config --get mcd.baseTag 2>/dev/null)
+allow_rc=$(git config --type=bool --get mcd.allowRcTags 2>/dev/null)
+re_remote=$(git config --get mcd.remoteRegex 2>/dev/null)
+[ -n "$re_remote" ] || re_remote='^https://github\.com/gptkiosk/(mac-control-dashboard|rbp-control-dashboard)(\.git)?$'
+[ -n "$branch" ] || reject "this clone has no mcd.branch, so pushing is not granted."
+printf '%s' "$url" | grep -Eq "$re_remote" || reject "remote '$remote' is not one of the granted repositories."
+
+changed_code=0
+while read -r lref lsha rref rsha; do
+  [ -n "${lref:-}" ] || continue
+  [ "$lsha" != "$zero" ] || reject "deleting remote refs is not allowed."
+  case "$rref" in
+    "refs/heads/$branch") ;;
+    refs/tags/v*-rc.*) [ "$allow_rc" = "true" ] || reject "release-candidate tags are not granted in this clone." ;;
+    *) if [ -n "$base_tag" ] && [ "$rref" = "refs/tags/$base_tag" ]; then :; else
+         reject "only refs/heads/$branch may be pushed (asked for $rref)."; fi ;;
+  esac
+  case "$rref" in refs/heads/*)
+    if [ "$rsha" != "$zero" ]; then
+      git merge-base --is-ancestor "$rsha" "$lsha" 2>/dev/null || reject "non-fast-forward push (force) is not allowed."
+      range="$rsha..$lsha"
+    else
+      range="origin/main..$lsha"
+    fi
+    git diff --name-only "$range" 2>/dev/null | grep -Evq '\.(md|txt)$|^docs/|^LICENSE|^CHANGELOG|^\.github/ISSUE_TEMPLATE' && changed_code=1
+  esac
+done
+
+# Rate limit: batch commits, push when a test needs CI.
+state="${MCD_AGENT_GIT_STATE:-$HOME/.rcd-control/agent-git/state}"; mkdir -p "$state"
+log="$state/$(basename "$(git rev-parse --show-toplevel)").pushlog"
+max=$(git config --int --get mcd.maxPushesPerHour 2>/dev/null || echo 6)
+now=$(date +%s); recent=0
+[ -f "$log" ] && recent=$(awk -v n="$now" 'n-$1<3600{c++} END{print c+0}' "$log")
+[ "$recent" -lt "$max" ] || reject "$recent pushes in the last hour (limit $max). Batch your commits and push when a test needs CI."
+
+# Full local suite when code changed, so GitHub CI is never the first place a failure shows up.
+cmd=$(git config --get mcd.prePushCmd 2>/dev/null)
+if [ "$changed_code" = 1 ] && [ -n "$cmd" ]; then
+  (cd "$(git rev-parse --show-toplevel)" && env -u GIT_DIR -u GIT_INDEX_FILE -u GIT_WORK_TREE sh -c "$cmd") \
+    || reject "the local test command failed ($cmd). Fix it before pushing."
+fi
+echo "$now" >> "$log"
+exit 0

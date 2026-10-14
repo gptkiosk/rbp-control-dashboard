@@ -1,0 +1,9 @@
+{
+  "name": "rcd-tool-claude-code",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Pinned install of @anthropic-ai/claude-code for the dashboard's Agent tools panel. Bumped only by scripts/tools/check.py.",
+  "dependencies": {
+    "@anthropic-ai/claude-code": "2.1.299"
+  }
+}

@@ -1,0 +1,4 @@
+Read-only plan review. No files, paid delegation, external sends or MCP writes. Review this planner proposal for clear scope, measurable definitions of done, dependencies and suitable agents. Use ONLY currently configured targets in Execution candidates; replace retired targets with a suitable current one and explain why in rationale. Honor the operator assignment_policy; preserve well-matched models and choices and explain any necessary exception. All human stories also require explicit decision/review scope. Return ONLY JSON {"nodes":[...]} using the exact node schema $schema
+Execution candidates: $catalog
+Project: $project
+Proposed plan: $proposal

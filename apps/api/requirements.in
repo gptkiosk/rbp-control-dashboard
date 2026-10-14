@@ -1,0 +1,29 @@
+# mac-control API: top-level dependencies.
+#
+# Version floors here are the source of truth.
+# requirements.lock.txt is a `pip freeze` of the last known-good install on this
+# Mac, used to rebuild the venv exactly (scripts/bootstrap.sh).
+
+# Web framework
+fastapi>=0.136.3
+uvicorn[standard]>=0.49.0
+
+# Settings
+pydantic-settings>=2.14.1
+
+# Google ID-token signature validation
+PyJWT[crypto]==2.15.0
+cryptography>=46.0
+Pillow>=12.0
+PyYAML>=6.0
+
+# Storage (SQLite ORM and migration tool)
+sqlalchemy>=2.0.51
+alembic>=1.14
+
+# Mac metrics (CPU, disk, network, processes); macmon covers power and temperature
+psutil>=7.0
+
+# Tests
+pytest>=8.3
+httpx>=0.28

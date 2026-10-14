@@ -1,0 +1,11 @@
+# Update supervisor: finishes or undoes an interrupted managed update (packaging/README.md,
+# "Managed updates"). Template: replace __UPDATE_ROOT__ and __PYTHON_PATH__ by hand and copy to
+# ~/.config/systemd/user/. With no interrupted update it only reads the journal and exits.
+[Unit]
+Description=RCD update recovery
+
+[Service]
+Type=oneshot
+WorkingDirectory=__UPDATE_ROOT__/helper
+Environment=PATH=/usr/bin:/bin:/usr/sbin:/sbin
+ExecStart=__PYTHON_PATH__ -I __UPDATE_ROOT__/helper/update_helper.py recover

@@ -1,0 +1,60 @@
+{
+  "product": "rcd",
+  "product_name": "Raspberry Pi Control Dashboard",
+  "repository": "gptkiosk/rbp-control-dashboard",
+  "platforms": {
+    "linux-arm64": {
+      "os": "linux",
+      "arch": "arm64",
+      "python_version": "3.11",
+      "python_abi": "cp311",
+      "pip_platforms": [
+        "manylinux_2_36_aarch64"
+      ],
+      "uv_python_platform": "aarch64-manylinux_2_36"
+    }
+  },
+  "include": [
+    "LICENSE",
+    "THIRD_PARTY_NOTICES.md",
+    "README.md",
+    "CHANGELOG.md",
+    "SECURITY.md",
+    "apps/api/*.py",
+    "apps/api/alembic.ini",
+    "apps/api/.env.example",
+    "apps/api/requirements.in",
+    "apps/api/requirements.runtime.in",
+    "apps/api/pricing_catalog.json",
+    "apps/api/tool_catalog.json",
+    "apps/api/tool_locks/*/package.json",
+    "apps/api/tool_locks/*/package-lock.json",
+    "apps/api/routes/*.py",
+    "apps/api/rcd_platform/*.py",
+    "apps/api/adapter_schemas/*.json",
+    "apps/api/migrations/env.py",
+    "apps/api/migrations/script.py.mako",
+    "apps/api/migrations/versions/*.py",
+    "integrations/hermes/mcd-run.py",
+    "integrations/hermes/mcd-projects/*.py",
+    "integrations/hermes/mcd-projects/*.yaml",
+    "integrations/picoclaw/*.py",
+    "integrations/picoclaw/README.md",
+    "integrations/picoclaw/*.example.json",
+    "integrations/zeroclaw/*.py",
+    "integrations/zeroclaw/*.sh",
+    "integrations/zeroclaw/README.md",
+    "integrations/zeroclaw/*.example.json",
+    "ops/alerts.example.toml",
+    "ops/systemd/*.service",
+    "ops/systemd/*.template",
+    "ops/systemd/*.timer",
+    "packs/roles/delegator/*"
+  ],
+  "excluded_components": [
+    "apps/mcp: separate agent tool server with its own venv; not packaged in v1",
+    "apps/web/src and node_modules: only the built UI (apps/web/dist) is shipped",
+    "ops/launchd: macOS-only; the Linux units in ops/systemd ship so scripts/install/bootstrap-rcd.sh can render them",
+    "bench, demo, tests, docs, scripts and development tooling"
+  ]
+}
