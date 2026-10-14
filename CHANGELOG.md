@@ -13,6 +13,7 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 ## [0.3.1] - 2026-10-14
 
 ### Added
+- First production release with signed installer manifests and a committed public verification key for both products.
 - Project consultant conversation in a glass panel below the project brief controls. Refine goals, phases, stories, scope, definitions of done and dependencies, then review an editable brief before submitting it to Hermes coordination. Existing planning and execution approvals remain required.
 - Profile AI defaults start new consultant chats, agent chats, task forms and project planning with Hermes and OpenRouter free. Installed membership CLI/model routes are configurable, with settings links and help guidance. Existing conversations and approved routes retain their choices.
 

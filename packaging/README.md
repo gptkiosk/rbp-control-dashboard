@@ -280,3 +280,5 @@ rm -rf ~/.local/share/rcd-control
 
 Troubleshooting: `journalctl --user -u rcd-api -n 50`; `python3.11 -I <root>/helper/update_helper.py
 --config <root>/helper/helper.json status` shows the update state.
+
+Production 0.3.1 verification key and signing procedure: [release signatures](release-signing.md).

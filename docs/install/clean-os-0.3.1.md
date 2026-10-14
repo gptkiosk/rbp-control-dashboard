@@ -2,7 +2,7 @@
 
 MCD targets Apple Silicon MacBook Pro and Mac mini (M1 or newer), macOS 14 or later. RCD targets Raspberry Pi 4, including the **4 GB model**, with Raspberry Pi OS **64-bit** (`uname -m` must report `aarch64`). Physical Pi acceptance is still pending; the arm64 installer receipts so far came from Lima. Use your own login account, not root.
 
-The current 0.3.1 source is public on `codex/mcd-resume-20261013` and `codex/rcd-resume-20261013`. Signed downloadable releases are pending operator signing setup. The source-build path below works without a published tag; it builds a local candidate from the code you cloned. Record `git rev-parse HEAD` with your test results. When v0.3.1 is published, use its tagged source and release manifest digest instead.
+Version 0.3.1 is the first production release for both products. Use the `v0.3.1` release and tagged source from each public repository. Verify the release manifest/signature using [the release signing guide](../../packaging/release-signing.md). The source-build path below also supports a local build from tagged source; it builds a local candidate from the code you cloned. Record `git rev-parse HEAD` with your test results. For published assets, use the release manifest digest from a trusted release channel.
 
 ## 1. Prepare the computer
 
@@ -73,7 +73,7 @@ For later source builds, add the Node and uv PATH entries to your shell startup 
 ```sh
 mkdir -p "$HOME/dashboard-install"
 cd "$HOME/dashboard-install"
-git clone --branch codex/mcd-resume-20261013 https://github.com/gptkiosk/mac-control-dashboard.git mcd
+git clone --branch v0.3.1 https://github.com/gptkiosk/mac-control-dashboard.git mcd
 cd mcd
 git rev-parse HEAD
 /opt/homebrew/bin/python3.12 -I scripts/release/release.py build --platform darwin-arm64 --out "$HOME/dashboard-install/mcd-package"
@@ -84,7 +84,7 @@ git rev-parse HEAD
 ```sh
 mkdir -p "$HOME/dashboard-install"
 cd "$HOME/dashboard-install"
-git clone --branch codex/rcd-resume-20261013 https://github.com/gptkiosk/rbp-control-dashboard.git rcd
+git clone --branch v0.3.1 https://github.com/gptkiosk/rbp-control-dashboard.git rcd
 cd rcd
 git rev-parse HEAD
 "$rcd_python" -I scripts/release/release.py build --platform linux-arm64 --out "$HOME/dashboard-install/rcd-package"
@@ -120,7 +120,7 @@ bash scripts/install/bootstrap-rcd.sh --archive "$rcd_package/rcd-0.3.1-linux-ar
 
 Review the plan, then run the same command without `--dry-run`. The user services are `rcd-api.service` and `rcd-update-recover.timer`; runtime data stays outside the release root. The release pins Python3.11 even if the OS default Python is newer.
 
-Once a signed public v0.3.1 release exists, use tagged source and `--version 0.3.1 --manifest-sha256 DIGEST_FROM_TRUSTED_RELEASE_NOTES` instead of local archive/manifest options. Read the product's `packaging/README.md` for trust and rollback details; the bootstrap currently checks pinned digest integrity and does not automatically authenticate an SSH signature.
+For the signed public v0.3.1 release, use tagged source and `--version 0.3.1 --manifest-sha256 DIGEST_FROM_TRUSTED_RELEASE_NOTES` instead of local archive/manifest options. Read the product's `packaging/README.md` for trust and rollback details; the bootstrap currently checks pinned digest integrity and does not automatically authenticate an SSH signature.
 
 ## 4. Verify and open it
 

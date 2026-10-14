@@ -16,4 +16,4 @@ The built-in help chat reads local how-to guides without model calls. Project co
 
 Use your own Google OAuth client, host origins and approved accounts. No personal Tailscale endpoint, provider key or maintainer account is bundled. The consultant does not request secrets. Agent execution and model-policy checks remain on the host. Read mode has the existing runtime-specific enforcement limits shown in Chat; review the selected agent's capabilities. Keep confidential material out of prompts sent to providers you have not approved.
 
-The earlier installer, OAuth setup, saved-key, wizard navigation and inline refreshing helper-log fixes are included in 0.3.1. Existing live installations need the new build; source publication is not installation or signed release publication.
+The earlier installer, OAuth setup, saved-key, wizard navigation and inline refreshing helper-log fixes are included in 0.3.1. Existing live installations need the new build; verify the signed installer release before updating an installation.
