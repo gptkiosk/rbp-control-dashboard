@@ -396,7 +396,7 @@ h2, h3, h4 { margin: 0; }
 .facts dd { margin: 0; overflow-wrap: anywhere; }
 .mono { font-family: var(--font-mono, ui-monospace, monospace); font-size: var(--font-size-xs); }
 .notes { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 16rem; overflow: auto; margin: 0; width: 100%; box-sizing: border-box; padding: var(--gap-sm); border: 1px solid var(--surface-border); border-radius: var(--radius); }
-.preflight { margin: 0; padding-left: var(--gap); }
+.preflight { margin: 0; padding-left: 1.5rem; list-style: disc; line-height: var(--line-height); display: grid; gap: var(--gap-xs); }
 .check { display: flex; align-items: flex-start; gap: var(--gap-sm); }
 .check input { flex: none; margin-top: var(--gap-xs); accent-color: var(--accent); }
 </style>
