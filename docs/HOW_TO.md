@@ -72,9 +72,10 @@ Tasks needing human interaction, decisions or required answers stay manual, incl
 Set the primary model per story and review an ordered list of alternate routes.
 
 1. Select a story and choose its agent and model. Claude and Codex use their existing subscription logins. Suggestions are editable; availability depends on the installed CLI and account.
-2. Add Model route entries in the order you want. Alternate subscription models or reviewed free/API routes are tried once per story after an explicit reported quota or rate limit, using the same workspace and a checkpoint. Other errors require an explicit retry.
-3. Use Review & submit to inspect every route. Hermes/OpenClaw API routes require a separate acknowledgment. Automatic alternate API routes are limited to Inkling free, Gemma free and Google Gemini 2.5 Flash.
-4. Open Agents to inspect actual key-wide spending and the current monthly limit. The shared key has a $20 monthly cap including recorded BYOK usage. Google calls outside that key and differences in upstream invoicing are outside the cap.
+2. In Stories & runs, enable Model lock to stop failed tasks without automatic retries or equivalent-model switching. Default off retains approved alternatives; manual retry remains explicit.
+3. Add Model route entries in the order you want. Alternate subscription models or reviewed free/API routes are tried once per story after an explicit reported quota or rate limit, using the same workspace and a checkpoint. Other errors require an explicit retry.
+4. Use Review & submit to inspect every route. Hermes/OpenClaw API routes require a separate acknowledgment. Automatic alternate API routes are limited to Inkling free, Gemma free and Google Gemini 2.5 Flash.
+5. Open Agents to inspect actual key-wide spending and the current monthly limit. The shared key has a $20 monthly cap including recorded BYOK usage. Google calls outside that key and differences in upstream invoicing are outside the cap.
 
 Quota handoff is reactive; RCD cannot predict all subscription windows or guarantee free-model availability. A model switch within one subscription may share the same exhausted quota. No unapproved paid model is selected automatically.
 

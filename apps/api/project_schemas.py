@@ -1,6 +1,6 @@
 """Bounded model-output contract. Plans are data, never commands or authorization."""
 from typing import Literal
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, field_validator
 
 class Strict(BaseModel):
     model_config = ConfigDict(extra='forbid', allow_inf_nan=False)
@@ -103,3 +103,8 @@ class GoFree(Strict):
     run_id: int = Field(ge=1)
     model: str = Field(min_length=1, max_length=120)
     agent_target: str = Field(min_length=1, max_length=80)
+
+
+class ModelLock(Strict):
+    revision: int = Field(ge=1)
+    enabled: StrictBool

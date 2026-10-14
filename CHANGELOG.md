@@ -12,6 +12,8 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [0.3.0] - 2026-10-13
 
+- Project Model lock stops failed tasks without automatic retries or equivalent-model failover; default behavior retains reviewed alternatives. Clean Mac/Pi OS install instructions are included.
+
 ### Added
 - Matching lower-cost planning tiers, operator-reviewed paused-project retiering and repair of explicitly
   incomplete read-only story assignments, preserving scope and execution gates.

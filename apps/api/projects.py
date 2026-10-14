@@ -250,6 +250,24 @@ def memory(s, p, kind, text, actor, card_id=None, run_id=None):
         card_id=card_id, run_id=run_id, created_at=now()))
     p.updated_at = now()
 
+def model_locked(p):
+    return bool(p.approved_manifest and json.loads(p.approved_manifest).get('model_lock', False))
+
+def card_model_locked(s, card):
+    link = binding(s, card.id)
+    return bool(link and model_locked(get(s, link.project_id)))
+
+def set_model_lock(s, p, data, actor):
+    check_revision(p, data.revision)
+    if p.state not in {'active', 'paused'} or not p.approved_manifest:
+        fail('Model lock requires a submitted active or paused project.')
+    manifest = json.loads(p.approved_manifest)
+    manifest['model_lock'] = data.enabled
+    p.approved_manifest = json.dumps(manifest)
+    memory(s, p, 'decision', 'Operator '+('enabled' if data.enabled else 'disabled')+
+           ' project model lock. '+('Failed tasks stop on their assigned model; automatic retries and equivalent-model switching are disabled.'
+           if data.enabled else 'Approved equivalent-model switching and automatic retries are enabled.'), actor)
+
 def approved_story_routes(p, link):
     if link.role != 'story' or not p.approved_manifest: return []
     manifest = json.loads(p.approved_manifest)
@@ -363,7 +381,7 @@ def detail(s, p):
     return {'id':p.id, 'document':document(p), 'revision':p.revision, 'state':p.state, 'can_resume_plan':recoverable(s,p),
         'approved_revision':json.loads(p.approved_manifest)['revision'] if p.approved_manifest else None,
         'pipeline':json.loads(p.pipeline) if p.pipeline else None, 'error':p.error,
-        'handoff_approval':handoff_approval(s,p),
+        'handoff_approval':handoff_approval(s,p), 'model_lock':model_locked(p),
         'workspaces':json.loads(p.approved_manifest).get('workspaces',{}) if p.approved_manifest else {},
         'artifacts':json.loads(p.approved_manifest).get('artifacts',{}) if p.approved_manifest else {},
         'created_by':p.created_by, 'created_at':p.created_at, 'updated_at':p.updated_at,
@@ -990,7 +1008,7 @@ def on_finish(s,card,run,stage):
                 attempted={(r.agent,r.model_requested or '') for r in s.scalars(select(Run).where(Run.card_id==card.id))}
                 choices=approved_story_routes(p,link)
                 if free: choices=[r for r in choices if r!=free['route']]
-                alternative=next((r for r in choices if (r['agent'],r['model']) not in attempted),None)
+                alternative=None if model_locked(p) else next((r for r in choices if (r['agent'],r['model']) not in attempted),None)
                 memory(s,p,'checkpoint',f'Quota stopped {run.agent}, task #{card.id}, run #{run.id}. Partial work is unverified. Read the current workspace diff and prior run evidence before continuing the SAME story; do not redo completed work.\n'+text,run.agent,card.id,run.id)
                 if alternative:
                     card.agent=alternative['agent']; card.model=alternative['model'] or None

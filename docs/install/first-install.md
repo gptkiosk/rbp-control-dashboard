@@ -1,7 +1,6 @@
 # First install
 
-**Status: helper copy list fixed in source; not run on a Pi or the ARM64 guest.** Do not treat this installer as
-verified until the install has a receipt from a clean Raspberry Pi OS or `pi4-test` run.
+For complete clean-OS instructions, use [the 0.3.0 Mac/Pi guide](clean-os-0.3.0.md). Public source candidates are available; signed release publication and physical Pi acceptance remain pending. The source-build path works before a release tag exists.
 
 ## Helper files
 
@@ -44,7 +43,7 @@ git clone --branch vX.Y.Z https://github.com/gptkiosk/rbp-control-dashboard.git 
 cd rcd-install
 ```
 
-There is no public release yet, so this step cannot succeed today.
+The v0.3.0 tag is not yet published. Until it exists, use the public candidate branch and local source-build path in the clean-OS guide.
 
 ## Choose a source
 

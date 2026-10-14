@@ -21,3 +21,7 @@ The local prototype reuses the FastAPI/Vue workflow engine and adds a Linux plat
 ## Public interaction
 
 [Issues](https://github.com/gptkiosk/rbp-control-dashboard/issues/new/choose), [pull requests](https://github.com/gptkiosk/rbp-control-dashboard/pulls), [Discussions](https://github.com/gptkiosk/rbp-control-dashboard/discussions) and the [wiki](https://github.com/gptkiosk/rbp-control-dashboard/wiki) are available for community interaction. Documentation contributions and release-readiness questions are welcome now; code contributions become possible when application sources are published. Do not post credentials or private security details.
+
+## Install
+
+Follow [clean Mac and Raspberry Pi installation](docs/install/clean-os-0.3.0.md).

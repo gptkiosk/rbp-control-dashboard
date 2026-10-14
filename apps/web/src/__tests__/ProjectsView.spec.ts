@@ -11,12 +11,13 @@ async function setup(state='draft', tasks: import('@/lib/projects').ProjectTask[
  const phase=newNode('phase',0);phase.title='Architecture'
  const story=newNode('story',1,phase.key);story.title='Bounded implementation';story.model='gpt-6.1-sol';story.routes=[{agent:'claude',model:'claude-sonnet-5-5'}]
  const doc={...emptyProject('/tmp/project'),title:'Reviewed project',brief:'An approved goal',nodes:unarranged ? [phase,story].map(n=>({...n,x:0,y:0})) : arrange([phase,story])}
- let p={id:1,document:doc,revision:1,state,can_resume_plan:state==='planning_failed',approved_revision:null,pipeline:null,error:null,updated_at:1,handoff_approval:{mode:'manual' as 'manual'|'automatic',manifest_hash:'b'.repeat(64),eligible:[{card_id:5,title:'Routine document',column:'review'}],excluded:[{card_id:6,title:'Repository publication',reason:'Publication requires individual review'}]},tasks,memory:[],workspaces:{},artifacts:{}}
+ let p={model_lock:false,id:1,document:doc,revision:1,state,can_resume_plan:state==='planning_failed',approved_revision:null,pipeline:null,error:null,updated_at:1,handoff_approval:{mode:'manual' as 'manual'|'automatic',manifest_hash:'b'.repeat(64),eligible:[{card_id:5,title:'Routine document',column:'review'}],excluded:[{card_id:6,title:'Repository publication',reason:'Publication requires individual review'}]},tasks,memory:[],workspaces:{},artifacts:{}}
  const f=stubFetch((url,init) => {
   if(url==='/api/roles') return {body:{delegator:'hermes',revision:'a'.repeat(64)}}
   if(url==='/api/projects' && init?.method==='POST') { p={...p,document:JSON.parse(String(init.body))}; return {status:201,body:p} }
   if(url==='/api/projects') return {body:{projects:[{id:1,title:doc.title,state,revision:1,updated_at:1}]}}
   if(url==='/api/projects/1' && init?.method==='PATCH') { const body=JSON.parse(String(init.body)); p={...p,document:body.document,revision:2}; return {body:p} }
+  if(url==='/api/projects/1/model-lock') { const body=JSON.parse(String(init?.body));p={...p,model_lock:body.enabled};return {body:p} }
   if(url==='/api/projects/1/handoff-policy') { const body=JSON.parse(String(init?.body));p={...p,handoff_approval:{...p.handoff_approval,mode:body.mode==='automatic'?'automatic':'manual'}};return {body:p} }
   if(url==='/api/projects/1/close') { p={...p,state:'closed'};return {body:p} }
   if(url==='/api/projects/1/retier') { p={...p,document:{...p.document,planning_bias:50},tasks:p.tasks.map(t=>({...t,model:t.agent==='claude'?'claude-haiku-5-5':t.agent==='codex'?'gpt-6-luna':t.model}))};return {body:p} }
@@ -300,4 +301,17 @@ it('keeps the economy worker default free of a subscription-only model',()=>{
  expect(economy.assignee).toBe('openclaw');expect(economy.model).toBe('')
  const balanced=newNode('story',0,null,50)
  expect(balanced.assignee).toBe('codex');expect(balanced.model).toBe('gpt-6-luna')
+})
+
+it('locks models at project level and restores approved failover when unlocked',async()=>{
+ const {w,f}=await setup('active',[],null,'/projects?project=1&view=work')
+ const toggle=w.findAll('input[type="checkbox"]').find(i=>i.element.parentElement?.textContent?.includes('Model lock'))!
+ expect(toggle.exists()).toBe(true)
+ await toggle.setValue(true);await flushPromises()
+ expect(w.text()).toContain('Failures stop on the assigned model')
+ const request=f.mock.calls.find(([url])=>url==='/api/projects/1/model-lock')!
+ expect(JSON.parse(String(request[1]?.body))).toEqual({revision:1,enabled:true})
+ await toggle.setValue(false);await flushPromises()
+ expect(w.text()).toContain('Approved equivalent models can take over')
+ w.unmount()
 })

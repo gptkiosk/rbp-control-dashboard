@@ -14,6 +14,7 @@ export interface Memory { id: number; kind: string; text: string; actor: string;
 export interface Project {
   id: number; document: ProjectDocument; revision: number; state: string; approved_revision: number | null
   handoff_approval?: { mode: 'manual' | 'automatic'; manifest_hash: string | null; eligible: {card_id:number;title:string;column:string}[]; excluded: {card_id:number;title:string;reason:string}[] }
+  model_lock?: boolean
   can_resume_plan?: boolean
   pipeline: { step: string; card_id: number; delegator?: {agent:string;model:string} } | null; error: string | null; updated_at: number
   deliveries?: { kind: string; revision: number; status: string; error: string | null; message_id: string | null }[]

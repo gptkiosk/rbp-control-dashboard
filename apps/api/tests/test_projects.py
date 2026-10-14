@@ -1127,3 +1127,66 @@ def test_go_free_revalidates_native_configuration_before_claim(app):
     assert Dispatcher(s,settings)._claim(2)==[]
     assert c.get(f'/api/cards/{cid}').json()['column']=='failed'
     assert 'no longer configured' in c.get('/api/projects/1').json()['error']
+
+
+def test_project_model_lock_stops_quota_handoff_and_can_be_disabled(app):
+    p=active(app,[node('a',routes=[{'agent':'claude','model':'claude-sonnet-5-5'}]),node('b',depends_on=['a'])])
+    c,s,wd,settings=app
+    assert p['model_lock'] is False
+    endpoint=f"/api/projects/{p['id']}/model-lock"
+    assert c.post(endpoint,json={'revision':2,'enabled':True}).status_code==409
+    assert c.post(endpoint,json={'revision':1,'enabled':'true'}).status_code==422
+    locked=c.post(endpoint,json={'revision':1,'enabled':True})
+    assert locked.status_code==200 and locked.json()['model_lock'] is True
+    cid=next(t['card_id'] for t in p['tasks'] if t['node_key']=='a')
+    d=Dispatcher(s,settings);assert len(d._claim(2))==1
+    finish(app,cid,'Partial work',stage='failed',error='usage limit reached')
+    card=c.get(f'/api/cards/{cid}').json()
+    assert (card['agent'],card['model'],card['column'])==('codex','gpt-6.1-sol','failed')
+    assert d._claim(2)==[]
+    assert 'enabled project model lock' in c.get('/api/projects/1/context').text
+    assert c.post(endpoint,json={'revision':1,'enabled':False}).json()['model_lock'] is False
+    assert c.post(f'/api/projects/1/stories/{cid}/retry',json={'revision':1}).status_code==200
+    assert len(d._claim(2))==1
+    finish(app,cid,stage='failed',error='usage limit reached')
+    card=c.get(f'/api/cards/{cid}').json()
+    assert card['agent']=='claude' and card['column']=='queued'
+
+
+def test_project_model_lock_disables_transport_retry_and_preclaim_rerouting(app):
+    import time
+    from models import ProviderLimit
+    from agents import RunMeta
+    p=active(app,[node('a',routes=[{'agent':'claude','model':'claude-sonnet-5-5'}])])
+    c,s,wd,settings=app;cid=next(t['card_id'] for t in p['tasks'] if t['role']=='story')
+    assert c.post('/api/projects/1/model-lock',json={'revision':1,'enabled':True}).status_code==200
+    with s.begin() as db:
+        db.add(ProviderLimit(provider='codex',detected_at=int(time.time()),last_seen_at=int(time.time()),lift_at=int(time.time())+3600,rerouting=True,handoffs=0,rerouted=0))
+        db.get(Card,cid).max_attempts=3
+    d=Dispatcher(s,settings);assert len(d._claim(1))==1
+    with s() as db:
+        card=db.get(Card,cid);run=db.scalar(select(Run).where(Run.card_id==cid))
+        assert card.agent=='codex' and run.agent=='codex'
+        rid=run.id
+    d._finish(rid,cid,'failed',1,'HTTP 503 service unavailable',RunMeta(),.1)
+    with s() as db:
+        card=db.get(Card,cid)
+        assert card.column=='failed' and card.retry_after is None and card.agent=='codex'
+        assert db.scalar(select(ProviderLimit)).rerouted==0
+
+
+def test_model_lock_requires_submitted_project(app):
+    p=new(app)
+    assert app[0].post(f"/api/projects/{p['id']}/model-lock",json={'revision':1,'enabled':True}).status_code==409
+
+
+def test_model_lock_stops_interruption_requeue(app):
+    import time
+    p=active(app,[node('a')]);c,s,wd,settings=app
+    cid=next(t['card_id'] for t in p['tasks'] if t['role']=='story')
+    c.post('/api/projects/1/model-lock',json={'revision':1,'enabled':True})
+    d=Dispatcher(s,settings);assert len(d._claim(1))==1
+    with s.begin() as db:
+        run=db.scalar(select(Run).where(Run.card_id==cid));run.stage='interrupted'
+        d._requeue_or_fail(db,run,int(time.time()))
+        assert db.get(Card,cid).column=='failed'

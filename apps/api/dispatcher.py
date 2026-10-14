@@ -197,6 +197,9 @@ class Dispatcher:
         link = projects.binding(s, card.id)
         project = s.get(Project, link.project_id) if link and link.role == "story" else None
         card.updated_at = now
+        if requeue and projects.card_model_locked(s, card):
+            requeue = False
+            s.add(RunEvent(run_id=run.id, ts=now, kind="note", text="not requeued: project model lock requires explicit retry"))
         cp = json.loads(run.checkpoint or "{}")
         if requeue and (cp.get("decisions") or cp.get("pending_decision")):
             # A fresh attempt would repeat work the human decision already covered, or run
@@ -286,7 +289,7 @@ class Dispatcher:
                 # While a subscription limit lasts and the operator chose to reroute, a story that
                 # has not started goes straight to an approved alternate route of the same grade.
                 rerouted_from = None
-                if link and link.role == 'story' and card.agent in provider_limits.PROVIDERS and not getattr(card, 'output_only', False):
+                if link and link.role == 'story' and card.agent in provider_limits.PROVIDERS and not getattr(card, 'output_only', False) and not projects.card_model_locked(s, card):
                     limit_row = provider_limits.rerouting_row(s, card.agent, now)
                     if limit_row:
                         alt = provider_limits.alternate(projects.approved_story_routes(projects.get(s, link.project_id), link),
@@ -666,7 +669,7 @@ class Dispatcher:
             if card and card.column == "running":
                 if stage != "succeeded":
                     self._quarantine(s, run, stage, error, now)
-                retrying = self._retryable(stage, error) and run.attempt < card.max_attempts
+                retrying = self._retryable(stage, error) and run.attempt < card.max_attempts and not projects.card_model_locked(s, card)
                 if retrying:
                     # Bounded exponential backoff; preserve the execution key so the attempt
                     # lineage and provider receipt deduplication remain durable.

@@ -69,3 +69,7 @@ This passes agent-reported completion into shared memory, not independent artifa
 - [Agents](agents.md): model usage, subagents and billing coverage.
 - [Chat](chat.md): separate direct conversations.
 - [Settings](../configuration/settings.md) and [environment configuration](../configuration/environment.md).
+
+## Model lock
+
+In a submitted active or paused project, open **Stories & runs** and enable **Model lock**. Failed tasks stay on their assigned model and stop for review instead of automatically retrying or switching to an approved equivalent. The default is off, retaining the project's reviewed quota alternatives and transport retry policy. The toggle is revision-checked, persists on the approved project snapshot and records the operator decision in shared memory. It applies to subsequent failure/retry decisions; it does not cancel a running task or undo a previous model change. Explicit manual retry or reviewed reassignment remains available.
