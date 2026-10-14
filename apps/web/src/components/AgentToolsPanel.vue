@@ -44,6 +44,10 @@ let timer: ReturnType<typeof setTimeout> | undefined
 let disposed = false, authRefused = false
 const updatedAt = ref('')
 
+const progressTool = computed(() => status.value?.tx?.tool ?? watching.value?.tool ?? null)
+const logTool = computed(() => status.value?.tx?.tool ?? status.value?.last?.tool ?? null)
+// Do not label a previous helper's log as output of a newly submitted install.
+const showToolLog = (id: string) => logTool.value === id && (!watching.value || watching.value.sawTx || (status.value?.last?.tx ?? null) !== watching.value.beforeTx)
 const working = computed(() => !!status.value?.tx || !!status.value?.running || !!watching.value)
 const hostLine = computed(() => {
   const h = status.value?.host
@@ -170,12 +174,7 @@ onBeforeUnmount(() => { disposed = true; if (timer) clearTimeout(timer) })
     <p v-if="notice" role="status">{{ notice }}</p>
     <template v-if="status">
       <p class="muted small" data-test="host">{{ hostLine }} · installs under {{ status.root }}</p>
-      <p v-if="working" class="status" role="status" data-test="progress">{{ progress }}</p>
       <p v-if="updatedAt" class="muted small" role="status">Last checked {{ updatedAt }} · {{ working ? 'refreshing every 3 seconds' : 'refreshing every 15 seconds' }}</p>
-      <details v-if="status.log.length" :open="working">
-        <summary>Helper log (last {{ status.log.length }} lines)</summary>
-        <pre class="log">{{ status.log.join('\n') }}</pre>
-      </details>
 
       <ul class="tools">
         <li v-for="t in status.tools" :key="t.id" class="tool" :data-tool="t.id">
@@ -188,6 +187,13 @@ onBeforeUnmount(() => { disposed = true; if (timer) clearTimeout(timer) })
           <div class="actions">
             <button v-for="a in offered(t)" :key="a" class="btn" :class="{ primary: a === 'install' || a === 'update' }" :disabled="!canAct(t, a) || (t.actions[a] ?? []).length > 0" :data-action="a"
               @click="ask(t, a)">{{ VERB[a] }}{{ a === 'install' || a === 'update' ? ` ${t.pinned_version}` : a === 'rollback' && t.previous_version ? ` to ${t.previous_version}` : '' }}</button>
+          </div>
+          <div v-if="progressTool === t.id || (status.log.length && showToolLog(t.id))" class="install-output" :data-output="t.id">
+            <p v-if="working && progressTool === t.id" class="status" role="status" data-test="progress">{{ progress }}</p>
+            <details v-if="status.log.length && showToolLog(t.id)" :open="working && progressTool === t.id">
+              <summary>{{ t.name }} helper log (last {{ status.log.length }} lines)</summary>
+              <pre class="log">{{ status.log.join('\n') }}</pre>
+            </details>
           </div>
           <ul v-if="reasons(t).length" class="why" aria-label="Why a button is off"><li v-for="x in reasons(t)" :key="x.r" class="muted small">{{ VERB[x.a] }}: {{ x.r }}</li></ul>
           <div v-if="t.installed" class="login" :data-login="t.id">
