@@ -170,7 +170,7 @@ jobs:
           digest="$(sha256sum "$manifest" | cut -d' ' -f1)"
           {
             cat release-notes.md
-            printf '\n---\n\nManifest SHA-256 (paste into Settings, Updates):\n\n`%s`\n' "$digest"
+            printf '\n---\n\nManifest SHA-256 (needed only on a host that pins a digest; a host that trusts the release signature verifies it by itself):\n\n`%s`\n' "$digest"
           } > release-body.md
           release_flags=(--draft --title "$TAG" --notes-file release-body.md)
           [[ "$TAG" == *-* ]] && release_flags+=(--prerelease)

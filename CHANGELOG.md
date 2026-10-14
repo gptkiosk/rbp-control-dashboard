@@ -10,6 +10,13 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.3.5] - 2026-10-14
+
+### Fixed
+- The one-confirmation update no longer stops half way when the page is reloaded or left. Staging builds the runtime on the host, which takes minutes on a Raspberry Pi; the panel now keeps the update you confirmed for this tab (30 minutes, that version only), shows the host's staging phase, and carries on to the install when you return. The server still drain-checks before anything is stopped.
+- A staging run that fails on the host is reported at once with its reason, instead of the panel waiting ten minutes.
+- The release notes footer no longer tells you to paste a digest on a host that verifies the release signature.
+
 ## [0.3.4] - 2026-10-14
 
 ### Fixed
@@ -125,7 +132,8 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 - Claude Code stories may use web search and fetch without any shell, credential or publish permission.
 
 [0.3.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.0
-[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.3.4...HEAD
+[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.3.5...HEAD
+[0.3.5]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.5
 [0.3.4]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.4
 [0.3.3]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.3
 [0.3.2]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.2
