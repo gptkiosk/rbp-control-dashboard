@@ -13,6 +13,7 @@ Type=simple
 WorkingDirectory=__WORKING_DIRECTORY__
 Environment=PYTHONUNBUFFERED=1
 Environment=MAC_CONTROL_DATA_DIR=__DATA_DIR__
+Environment=MAC_CONTROL_UPDATE_ROOT=__UPDATE_ROOT__
 ExecStart=__PYTHON_PATH__ __SERVE_SCRIPT__
 Restart=on-failure
 RestartSec=__RESTART_SEC__

@@ -147,3 +147,10 @@ def test_the_release_key_is_packaged_and_the_package_content_scan_accepts_it():
             if path.is_file():
                 files[str(path.relative_to(REPO))] = path.read_bytes()
     assert release.scan_contents(files, []) == []
+
+
+def test_the_service_unit_template_sets_the_update_root_so_the_panel_is_managed():
+    unit = (REPO / "ops" / "systemd" / "rcd-api.service.template").read_text()
+    assert "Environment=MAC_CONTROL_UPDATE_ROOT=__UPDATE_ROOT__" in unit
+    bootstrap = (REPO / "scripts" / "install" / "bootstrap-rcd.sh").read_text()
+    assert 's|__UPDATE_ROOT__|${ROOT}|g' in bootstrap          # the renderer fills it from the install root

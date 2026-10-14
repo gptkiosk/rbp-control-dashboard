@@ -10,6 +10,11 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.3.3] - 2026-10-14
+
+### Fixed
+- The Updates panel works on a host installed with the bootstrap. The service unit it wrote never set `MAC_CONTROL_UPDATE_ROOT`, so the panel said "no update root is configured" and offered only manual steps. The unit now sets it. A host installed earlier adds a one-line systemd drop-in once; the steps are in `docs/install/updates-rollback-recovery.md`.
+
 ## [0.3.2] - 2026-10-14
 
 ### Added
@@ -115,7 +120,8 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 - Claude Code stories may use web search and fetch without any shell, credential or publish permission.
 
 [0.3.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.0
-[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.3.2...HEAD
+[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.3.3...HEAD
+[0.3.3]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.3
 [0.3.2]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.2
 [0.2.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.2.0
 
