@@ -113,7 +113,7 @@ jobs:
           manifest="$(find dist-release -maxdepth 1 -name '*.manifest.json' -type f)"
           signature="${manifest}.sig"
           test -f "$archive" && test -f "$manifest" && test -f "$signature"
-          sha256sum "$archive" "$manifest" "$signature" > dist-release/SHA256SUMS
+          (cd dist-release && sha256sum "$(basename "$archive")" "$(basename "$manifest")" "$(basename "$signature")" > SHA256SUMS)
           test "$(wc -l < dist-release/SHA256SUMS | tr -d ' ')" = 3
           test "$(find dist-release -maxdepth 1 -type f | wc -l | tr -d ' ')" = 4
       - name: Attest the four allowlisted assets
