@@ -25,7 +25,7 @@ describe('how-to answers and deep links', () => {
   it('covers every feature with resolvable local links and complete steps', () => {
     const router = createAppRouter(createMemoryHistory())
     expect(new Set(helpGuides.map(g => g.id)).size).toBe(helpGuides.length)
-    expect(helpGuides.length).toBe(33)
+    expect(helpGuides.length).toBe(34)
     expect(findGuides('Approve all project handoffs')[0]?.id).toBe('project-approvals')
     for (const guide of helpGuides) {
       expect(guide.steps.length).toBeGreaterThanOrEqual(3)
@@ -79,7 +79,7 @@ describe('guides and form links', () => {
     const wrapper = mount(HelpView, { global: { plugins: [createPinia(), router] } })
     expect(wrapper.get('.guide-reading').text()).toContain('Configure subscriptions')
     await wrapper.get('input').setValue('OpenRouter')
-    expect(wrapper.findAll('.topic').length).toBe(3)
+    expect(wrapper.findAll('.topic').length).toBe(4)
     wrapper.unmount()
   })
   it('opens a linked form once and consumes its action without submitting anything', async () => {

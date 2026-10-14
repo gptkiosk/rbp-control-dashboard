@@ -252,6 +252,14 @@ export const helpGuides: HelpGuide[] = [
     note: 'Rules are configured in the Pi’s private alerts.toml. RCD does not automatically retry uncertain sends, restart services or send task prompts/logs. It uses the channel authorized by the operator.',
   },
   {
+    id: 'project-consultant', title: 'Refine a project with the consultant', area: 'Projects',
+    summary: 'Discuss your idea, review a brief, then ask Hermes to coordinate it.',
+    keywords: ['consultant','ai defaults','free','openrouter','membership','plan'],
+    steps: ['Open Projects and choose Refine with project consultant below Create project brief.', 'Choose an allowed workspace, enter a project name and goal, and start the conversation.', 'New AI conversations use Hermes with openrouter/free unless you changed Profile → AI defaults. Install and configure the selected native agent first.', 'Ask questions and request a complete brief with goal, phases, stories, scope, definitions of done and dependencies.', 'Choose Review brief & submit to Hermes. Edit the brief, confirm the working directory and approve Delegator coordination. Hermes must be the assigned Delegator.', 'Review the returned project map before separately approving story execution.'],
+    links: [{label:'Configure AI defaults',to:'/profile#ai-settings'},{label:'Open Projects',to:'/projects'}],
+    note: 'Free routes can throttle or fail. Profile → AI defaults also supplies new chat, task and planning forms; existing work keeps its routes. Native membership accounts and API billing are separate. The built-in help chat uses local guides and makes no model calls.',
+  },
+  {
     id: 'sign-in', title: 'Sign in and resolve a login problem', area: 'Access',
     summary: 'Use an allowed Google account; RCD requests identity access only.',
     keywords: ['login', 'log in', 'sign in', 'signin', 'google', 'account', 'org_internal', '403', 'access blocked', 'callback'],

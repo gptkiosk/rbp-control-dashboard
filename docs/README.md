@@ -16,3 +16,5 @@ The public RCD repository currently contains documentation, license and communit
 The [MCD docs](https://github.com/gptkiosk/mac-control-dashboard/tree/main/docs) explain the shared Mac reference workflows. Mac LaunchAgents, Mac health probes and subscription apps are not Raspberry Pi deployment instructions. RCD's wiki indexes these versioned pages; repository docs are authoritative.
 
 - [Clean Mac and Raspberry Pi OS0.3.0 installation](install/clean-os-0.3.0.md)
+
+- [Project consultant and AI defaults (0.3.1)](project-consultant.md)

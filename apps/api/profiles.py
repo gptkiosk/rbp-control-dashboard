@@ -32,6 +32,8 @@ class GithubPreferences(BaseModel):
 class Preferences(BaseModel):
     model_config = ConfigDict(extra='forbid', hide_input_in_errors=True)
     theme: Literal['system','light','dark'] = 'system'
+    ai_agent: Literal['hermes','openclaw','claude','codex','grok'] = 'hermes'
+    ai_model: str = Field(default='openrouter/free', min_length=1, max_length=200, pattern=r'^[^\s\x00-\x1f]+$')
     planning_bias: int = Field(default=50,ge=0,le=100,strict=True)
     working_dir: str = Field(default='',max_length=500)
     dashboard_origin: str = Field(default='',max_length=300)

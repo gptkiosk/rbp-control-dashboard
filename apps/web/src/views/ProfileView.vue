@@ -18,7 +18,7 @@ const error = ref(''), notice = ref(''), busy = ref(false), pairing = ref('')
 const secrets = ref<Record<string,string>>({ openrouter: '', discord: '' })
 const spending = ref<Record<string, number | string | boolean | null> | null>(null)
 const theme = useThemeStore()
-function apply(p: Profile) { profile.value = p; preferences.value = structuredClone(p.preferences) }
+function apply(p: Profile) { profile.value = p; preferences.value = {ai_agent:'hermes',ai_model:'openrouter/free',...structuredClone(p.preferences)} }
 async function action(fn: () => Promise<void>) {
   if (busy.value) return
   busy.value = true; error.value = ''; notice.value = ''
@@ -81,7 +81,7 @@ async function importPreferences(event: Event) { await action(async () => {
         <h2>Preferences</h2><p class="muted owner">{{ profile.owner }}</p>
         <label>Appearance<AppSelect v-model="preferences.theme" aria-label="Profile appearance"><option value="system">Follow device</option><option value="light">Light</option><option value="dark">Dark</option></AppSelect></label>
         <label>Default working directory<AppSelect v-model="preferences.working_dir" aria-label="Default working directory"><option value="">Use first allowed workspace</option><option v-for="w in workdirs" :key="w.path" :value="w.path" :data-description="directoryDetail(w.path,w.branch)">{{ directoryName(w.path) }}</option></AppSelect></label>
-        <PlanningBiasSlider v-model="preferences.planning_bias" />
+        <section id="ai-settings"><h3>AI defaults</h3><p>New consultant chats, agent chats, task forms and project planning start with Hermes on OpenRouter’s free router. Change these defaults to use your installed membership CLI or a reviewed API model. Existing conversations and approved projects keep their selected routes.</p><label>Default AI agent<AppSelect v-model="preferences.ai_agent" aria-label="Default AI agent"><option value="hermes">Hermes · OpenRouter</option><option value="openclaw">OpenClaw · OpenRouter</option><option value="claude">Claude Code · native membership</option><option value="codex">Codex · native membership</option><option value="grok">Grok Build · native membership</option></AppSelect></label><label>Default AI model<input v-model="preferences.ai_model" class="input" maxlength="200" required placeholder="openrouter/free" /></label><p class="muted">Choose a model supported by the selected CLI. Memberships require native sign-in; OpenRouter/API keys do not use membership allowances. Free routes can throttle or fail; this preference never authorizes paid fallback. Model-policy checks and existing approvals still apply.</p><RouterLink to="/help?topic=project-consultant">AI defaults and consultant help</RouterLink></section><PlanningBiasSlider v-model="preferences.planning_bias" />
         <div class="actions"><button class="btn primary" :disabled="busy">Save preferences</button><button type="button" class="btn" @click="exportPreferences">Export preferences</button><label class="btn import">Import preferences<input type="file" accept="application/json" @change="importPreferences" /></label></div>
         <p class="muted small">Exports contain settings only. Credentials, encryption keys, Discord pairing and setup confirmations are excluded. Workspace paths and the dashboard address must match the destination installation.</p>
       </form>

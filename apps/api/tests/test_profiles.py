@@ -166,3 +166,16 @@ def test_native_identity_cannot_be_forged_by_arguments_or_environment(monkeypatc
     assert json.loads(mod.handle({'action':'list'}))=={'ok':True}
     assert calls[0]['discord_user_id']==USER
     assert 'unavailable' in mod.handle({'action':'list','discord_user_id':'456789012345678901'}) and len(calls)==1
+
+
+def test_ai_defaults_free_first_and_explicit_membership_settings(secured):
+    signed(secured)
+    preferences = secured.get('/api/profile').json()['preferences']
+    assert preferences['ai_agent'] == 'hermes'
+    assert preferences['ai_model'] == 'openrouter/free'
+    preferences.update(ai_agent='codex', ai_model='gpt-6-luna')
+    result = secured.put('/api/profile', json=preferences)
+    assert result.status_code == 200
+    assert result.json()['preferences']['ai_model'] == 'gpt-6-luna'
+    preferences.update(ai_agent='unrecognized')
+    assert secured.put('/api/profile', json=preferences).status_code == 422

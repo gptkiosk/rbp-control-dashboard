@@ -3,6 +3,7 @@ export interface SetupProgress {
   confirmed: ('host' | 'native_routes' | 'subscriptions' | 'tour')[]
 }
 export interface Preferences {
+  ai_agent?: 'hermes' | 'openclaw' | 'claude' | 'codex' | 'grok'; ai_model?: string
   theme: 'system' | 'light' | 'dark'; planning_bias: number; working_dir: string
   dashboard_origin: string; discord_channel_id: string; notify_plans: boolean; allow_discord_planning: boolean; allow_discord_control: boolean; allow_discord_diagnostics: boolean
   setup?: SetupProgress

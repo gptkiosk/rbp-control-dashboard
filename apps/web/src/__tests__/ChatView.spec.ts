@@ -371,9 +371,10 @@ describe('New chat dialog', () => {
     await flushPromises()
     let post = calls(f, 'POST', '/api/chat/threads')[0]!
     expect(headerOf(post[1], 'X-Mac-Control')).toBe('1')
-    expect(JSON.parse(String(post[1]?.body))).toEqual({ agent: 'claude', working_dir: '/ws/feature', mode: 'read' })
+    expect(JSON.parse(String(post[1]?.body))).toEqual({ agent: 'hermes', model:'openrouter/free', working_dir: '/ws/feature', mode: 'read' })
     expect(w.emitted('created')).toHaveLength(1)
 
+    await w.get('#nchat-agent-native').setValue('claude')
     await w.get('#nchat-title').setValue(' My chat ')
     await w.get('#nchat-model').setValue('claude-sonnet-5-5')
     await w.get('input[value="edit"]').setValue(true)

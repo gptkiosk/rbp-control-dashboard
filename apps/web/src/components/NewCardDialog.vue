@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import type { Profile } from '@/lib/profile'
+import { nextTick } from 'vue'
 import AppSelect from '@/components/AppSelect.vue'
 import { directoryName, directoryDetail } from '@/lib/selectLabels'
 import { computed, onMounted, ref, watch } from 'vue'
@@ -79,7 +81,10 @@ onMounted(async () => {
     ])
     agents.value = a.agents
     workdirs.value = w.workdirs
-    agentId.value = a.agents.find((x) => x.available)?.id ?? ''
+    const defaults = await getJson<Profile>('/api/profile').catch(() => null)
+    agentId.value = defaults?.preferences.ai_agent || 'hermes'
+    await nextTick()
+    model.value = defaults?.preferences.ai_model || 'openrouter/free'
     workingDir.value = w.workdirs[0]?.path ?? ''
   } catch (e) {
     loadError.value = e instanceof Error ? e.message : String(e)
@@ -95,8 +100,8 @@ onMounted(async () => {
 
 async function submit(): Promise<void> {
   submitError.value = null
-  if (assignee.value === 'agent' && !agentId.value) {
-    submitError.value = 'Choose an agent.'
+  if (assignee.value === 'agent' && (!agentId.value || !agent.value?.available)) {
+    submitError.value = 'Choose an installed agent; install your configured default or change AI defaults.'
     return
   }
   const minutes = Number(timeoutMin.value)
@@ -161,6 +166,7 @@ async function submit(): Promise<void> {
         <button type="button" class="btn" aria-label="Close" @click="emit('close')">×</button>
       </header>
 
+      <p class="muted small">New AI work uses your profile defaults (OpenRouter free by default). <RouterLink to="/profile#ai-settings">Configure AI defaults</RouterLink>. Membership CLI sign-in and model approvals still apply. <RouterLink to="/help?topic=project-consultant">Model settings help</RouterLink></p>
       <p v-if="loading" class="muted" role="status">Loading agents…</p>
       <p v-if="loadError" class="error-text" role="alert">
         Could not load agents or working directories: {{ loadError }}
@@ -280,7 +286,7 @@ async function submit(): Promise<void> {
         <button
           type="submit"
           class="btn primary"
-          :disabled="submitting || (assignee === 'agent' && (loading || !agentId))"
+          :disabled="submitting || (assignee === 'agent' && (loading || !agentId || !agent?.available))"
         >
           {{ submitting ? 'Creating…' : 'Create task' }}
         </button>

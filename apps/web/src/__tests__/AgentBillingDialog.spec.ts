@@ -89,6 +89,7 @@ it('uses configured OpenClaw names and submits the selected ID', async () => {
   })
   const w = mount(NewChatDialog)
   await flushPromises()
+  await w.get('#nchat-agent-native').setValue('openclaw')
   expect(w.get('select#nchat-target-native').text()).toContain('Developer · mm-dev')
   await w.get('#nchat-target-native').setValue('mm-dev')
   expect(w.text()).toContain('Configured model: minimax')

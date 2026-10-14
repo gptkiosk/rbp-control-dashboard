@@ -52,6 +52,7 @@ async function open(extra?: Parameters<typeof stubFetch>[0]) {
 describe('NewCardDialog', () => {
   it('shows the Budget field only for Claude, and the OpenClaw id only for OpenClaw', async () => {
     const { w } = await open()
+    await w.get('#nc-agent-native').setValue('claude')
     expect(w.find('#nc-budget').exists()).toBe(true)
     expect((w.get('#nc-budget').element as HTMLInputElement).value).toBe('1.00')
     await w.get('#nc-agent-native').setValue('codex')
@@ -86,6 +87,7 @@ describe('NewCardDialog', () => {
 
   it('explains advisory Read/Edit for agents that do not enforce it', async () => {
     const { w } = await open()
+    await w.get('#nc-agent-native').setValue('claude')
     expect(w.find('[data-testid="advisory-note"]').exists()).toBe(false)
     await w.get('#nc-agent-native').setValue('hermes')
     expect(w.get('[data-testid="advisory-note"]').text()).toContain('Management agent policy.')
@@ -98,6 +100,7 @@ describe('NewCardDialog', () => {
         ? { status: 201, body: card({ id: 11, column: 'backlog' }) }
         : undefined,
     )
+    await w.get('#nc-agent-native').setValue('claude')
     await w.get('#nc-title').setValue('  Write tests ')
     await w.get('#nc-body').setValue('Please')
     await w.get('#nc-timeout').setValue('10')

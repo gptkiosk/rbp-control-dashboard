@@ -9,7 +9,7 @@ import { usePolledJson } from '@/composables/usePolledJson'
 import { deleteJson, postJson, type ChatMessage, type ChatThreadDetail } from '@/lib/api'
 import { agentLabel, isManagerAgent } from '@/lib/cards'
 
-const props = defineProps<{ threadId: number }>()
+const props = defineProps<{ threadId: number; embedded?: boolean }>()
 const emit = defineEmits<{ back: []; deleted: [id: number]; changed: [] }>()
 
 /** Poll quickly while the agent is working or a message awaits a decision, slowly otherwise. */
@@ -189,7 +189,7 @@ async function remove(): Promise<void> {
     </p>
     <p v-else-if="!loaded" class="muted pad" role="status">Loading…</p>
 
-    <template v-if="data">
+    <template v-if="data"><p v-if="!embedded" class="muted small pad">New AI chats default to OpenRouter free. <RouterLink to="/profile#ai-settings">Configure AI defaults</RouterLink> · <RouterLink to="/help?topic=project-consultant">Model settings help</RouterLink>. This conversation keeps its selected route.</p>
       <header class="head">
         <button type="button" class="btn back" @click="emit('back')">
           <AppIcon name="back" />

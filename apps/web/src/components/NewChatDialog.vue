@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import type { Profile } from '@/lib/profile'
+import { nextTick } from 'vue'
 import AppSelect from '@/components/AppSelect.vue'
 import AppIcon from '@/components/AppIcon.vue'
 import { directoryName, directoryDetail } from '@/lib/selectLabels'
@@ -63,7 +65,10 @@ onMounted(async () => {
     ])
     agents.value = a.agents
     workdirs.value = w.workdirs
-    agentId.value = a.agents.find((x) => x.available)?.id ?? ''
+    const defaults = await getJson<Profile>('/api/profile').catch(() => null)
+    agentId.value = defaults?.preferences.ai_agent || 'hermes'
+    await nextTick()
+    model.value = defaults?.preferences.ai_model || 'openrouter/free'
     workingDir.value = w.workdirs[0]?.path ?? ''
   } catch (e) {
     loadError.value = e instanceof Error ? e.message : String(e)
@@ -74,8 +79,8 @@ onMounted(async () => {
 
 async function submit(): Promise<void> {
   submitError.value = null
-  if (!agentId.value) {
-    submitError.value = 'Choose an agent.'
+  if (!agentId.value || !agent.value?.available) {
+    submitError.value = 'Choose an installed agent; install your configured default or change AI defaults.'
     return
   }
   const payload: NewChatInput = { agent: agentId.value, working_dir: workingDir.value, mode: mode.value }
@@ -109,6 +114,7 @@ async function submit(): Promise<void> {
         <button type="button" class="btn close" aria-label="Close" @click="emit('close')"><AppIcon name="close" /></button>
       </header>
 
+      <p class="muted small">New AI work uses your profile defaults (OpenRouter free by default). <RouterLink to="/profile#ai-settings">Configure AI defaults</RouterLink>. Membership CLI sign-in and model approvals still apply. <RouterLink to="/help?topic=project-consultant">Model settings help</RouterLink></p>
       <p v-if="loading" class="muted" role="status">Loading agents…</p>
       <p v-if="loadError" class="error-text" role="alert">
         Could not load agents or working directories: {{ loadError }}
@@ -181,7 +187,7 @@ async function submit(): Promise<void> {
 
       <footer class="actions">
         <button type="button" class="btn" @click="emit('close')">Cancel</button>
-        <button type="submit" class="btn primary" :disabled="submitting || loading || !agentId">
+        <button type="submit" class="btn primary" :disabled="submitting || loading || !agentId || !agent?.available">
           {{ submitting ? 'Creating…' : 'Start chat' }}
           <AppIcon name="chevron-right" />
         </button>

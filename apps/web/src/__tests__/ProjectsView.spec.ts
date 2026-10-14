@@ -2,6 +2,7 @@ import { afterEach, expect, it } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { createMemoryHistory } from 'vue-router'
 import { createAppRouter } from '@/router'
+import ProjectConsultant from '@/components/ProjectConsultant.vue'
 import ProjectsView from '@/views/ProjectsView.vue'
 import { emptyProject, newNode, arrange } from '@/lib/projects'
 import { stubFetch } from './helpers'
@@ -313,5 +314,17 @@ it('locks models at project level and restores approved failover when unlocked',
  expect(JSON.parse(String(request[1]?.body))).toEqual({revision:1,enabled:true})
  await toggle.setValue(false);await flushPromises()
  expect(w.text()).toContain('Approved equivalent models can take over')
+ w.unmount()
+})
+
+it('opens the consultant proposal as an editable brief without starting project planning',async()=>{
+ const {w,f}=await setup('draft',[],null,'/projects')
+ w.getComponent(ProjectConsultant).vm.$emit('review',{title:'Consulted goal',brief:'Goal, phases, scope, definitions of done and dependencies',working_dir:'/tmp/project'})
+ await flushPromises()
+ const {DOMWrapper}=await import('@vue/test-utils');const dialog=new DOMWrapper(document.querySelector('[role=dialog]')!)
+ expect((dialog.get('input[data-autofocus]').element as HTMLInputElement).value).toBe('Consulted goal')
+ expect((dialog.get('textarea').element as HTMLTextAreaElement).value).toContain('definitions of done')
+ expect(dialog.findAll('button').find(b=>b.text()==='Submit to Hermes')!.attributes('disabled')).toBeDefined()
+ expect(f.mock.calls.filter(([,init])=>(init?.method??'GET')!=='GET')).toHaveLength(0)
  w.unmount()
 })
