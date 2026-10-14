@@ -377,6 +377,32 @@ def channel_for(version: str, source: dict) -> str:
     return "prerelease" if "-" in version else "stable"
 
 
+def validate_python_sources(sources: dict[str, Path], python_version: str) -> None:
+    """Compile with the actual target runtime; older feature_version flags do not reject all PEP701 syntax."""
+    interpreter = sys.executable if sys.version_info[:2] == tuple(map(int, python_version.split('.'))) else shutil.which('python' + python_version)
+    if not interpreter:
+        die(f"Python {python_version} is required on the build host to validate package syntax; install that runtime and put it on PATH.")
+    payload = {name: path.read_bytes().hex() for name, path in sources.items() if name.endswith('.py')}
+    code = """
+import json, sys
+expected, = sys.argv[1:]
+if f'{sys.version_info.major}.{sys.version_info.minor}' != expected:
+    sys.exit('Syntax-check interpreter does not match Python ' + expected)
+errors = []
+for name, data in json.load(sys.stdin).items():
+    try:
+        compile(bytes.fromhex(data), name, 'exec')
+    except SyntaxError as exc:
+        errors.append(f'{name}:{exc.lineno}: {exc.msg}')
+if errors:
+    sys.exit('\\n'.join(errors))
+"""
+    result = subprocess.run([interpreter, '-I', '-c', code, python_version], input=json.dumps(payload),
+                            capture_output=True, text=True, timeout=60)
+    if result.returncode:
+        die(f"Package Python {python_version} syntax validation failed:\n{result.stderr.strip()}")
+
+
 def build_once(args: argparse.Namespace, out_dir: Path) -> dict:
     product = load_product()
     key, platform = select_platform(product, args.platform)
@@ -400,6 +426,7 @@ def build_once(args: argparse.Namespace, out_dir: Path) -> dict:
     lock = lock_path(key)
     packages = parse_lock(lock)
     sources = collect_sources(product["include"])
+    validate_python_sources(sources, platform["python_version"])
     sde, sde_from = resolve_source_date_epoch(args.source_date_epoch, source, sources)
     source_records = file_records({rel: (p.read_bytes(), file_mode(rel, p)) for rel, p in sources.items()})
 

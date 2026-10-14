@@ -126,7 +126,8 @@ class BootstrapRefusals(unittest.TestCase):
 
     def test_tampered_archive_is_refused(self) -> None:
         pkg = Package(self.dir)
-        pkg.archive.write_bytes(pkg.archive.read_bytes()[:-1] + b"\x00")
+        data = pkg.archive.read_bytes()
+        pkg.archive.write_bytes(data[:-1] + bytes([data[-1] ^ 1]))
         self.assert_refused(pkg.run(), "archive")
 
     def test_partial_download_is_refused(self) -> None:

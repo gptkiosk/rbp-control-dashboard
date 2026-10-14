@@ -17,9 +17,11 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: '3.11'
+      - run: python -m compileall -q apps/api integrations scripts
       - run: python -m pip install -r apps/api/requirements.lock.txt
       - run: python -m pytest apps/api/tests -q
+      - run: python -m pytest scripts/install/test_bootstrap_rcd.py -q
   web:
     runs-on: ubuntu-latest
     steps:
