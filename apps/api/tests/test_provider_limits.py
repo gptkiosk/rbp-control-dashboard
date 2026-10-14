@@ -109,7 +109,10 @@ def test_observe_records_one_event_per_provider_and_extends_the_lift_time(app):
         assert len(pl.active(d, NOW + 60)) == 1 and pl.active(d, NOW + 60)[0].lift_at == at(2026, 10, 12, 17)
 
 
-def test_events_are_per_provider_and_end_by_themselves(app):
+def test_events_are_per_provider_and_end_by_themselves(app, monkeypatch):
+    # These fixture clock values are Pacific; the host (including CI) may be UTC.
+    parse_reset = pl.parse_reset
+    monkeypatch.setattr(pl, "parse_reset", lambda text, now: parse_reset(text, now, LA))
     s = db(app)
     with s.begin() as d:
         pl.observe(d, run_row("claude", error="session limit · resets 4pm (America/Los_Angeles)"), NOW)
