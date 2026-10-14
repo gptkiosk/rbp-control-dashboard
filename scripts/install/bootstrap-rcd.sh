@@ -35,6 +35,10 @@
 set -euo pipefail
 
 REPO_SLUG="gptkiosk/rbp-control-dashboard"
+# Fingerprint of the public key that signs releases (also in packaging/allowed_signers and the release
+# guide). The first install is anchored by the digest you pass; once it is in place, a package that ships
+# this key lets later updates be verified by signature, so the updater needs no pasted digest.
+RELEASE_KEY_FINGERPRINT="SHA256:CV1+p0B/fa4k3eDVXkZSoph1/Mkrth9v0jBg6Z9WOW8"
 PLATFORM="linux-arm64"
 PORT=8800
 SERVICE_UNIT="rcd-api.service"
@@ -235,7 +239,7 @@ fi
 if [ "$DRY_RUN" = 1 ]; then
   echo "dry run: nothing was changed. A real run would:"
   echo "  - stage ${VID} under ${ROOT}/versions and point ${ROOT}/current at it (Python ${PY})"
-  echo "  - write ${ROOT}/helper/helper.json (trust: pinned-digest) and the update helper"
+  echo "  - write ${ROOT}/helper/helper.json and the update helper (trust: release signature when the package ships the release key ${RELEASE_KEY_FINGERPRINT}, otherwise a pinned digest)"
   echo "  - install ${UNIT_DIR}/${SERVICE_UNIT} and rcd-update-recover.timer, then start them"
   echo "  - check http://127.0.0.1:${PORT}/healthz"
   exit 0
@@ -287,6 +291,14 @@ printf '%s' "$STAGED" | grep -q '"ok": true' || { echo "$STAGED" >&2; die "stagi
 
 "${HELPER[@]}" activate-initial "$VID" >/dev/null \
   || die "activate-initial failed; $ROOT/current was not created"
+
+# Later updates: trust the release signature instead of a pasted digest, when this package ships the key
+# and it is the one named above. Failure here is not fatal: the install stays on the pinned-digest mode.
+if "${HELPER[@]}" enable-signed-updates --fingerprint "$RELEASE_KEY_FINGERPRINT" >/dev/null 2>&1; then
+  echo "updates will be verified by the release signature (key ${RELEASE_KEY_FINGERPRINT})"
+else
+  echo "note: this package does not ship the release key, so later updates need the manifest digest pasted in the updater" >&2
+fi
 
 # Units come from the activated version, so they match the code they start.
 render_unit() { # TEMPLATE DEST PYTHON WORKDIR

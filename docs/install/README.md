@@ -28,8 +28,9 @@ commands has been run on a Raspberry Pi or on a Raspberry Pi OS image.**
   No signing key is configured, and the trust-root decision is still open. The bootstrap checks integrity only.
 - **The Settings updater is off after a bootstrap install.** The unit does not set `MAC_CONTROL_UPDATE_ROOT`, so the
   updater shows manual steps. See [Updates, rollback and recovery](updates-rollback-recovery.md#settings-updater).
-- **The Settings one-button fetch needs the digest typed in.** The panel sends the `manifest_sha256` you copy from the
-  release page, and the request is refused without a well-formed one. Like the rest of the updater, this is untested.
+- **The Settings one-button fetch needs the digest typed in unless the host trusts the release signature.** A bootstrap from
+  0.3.2 on switches to signature trust when the package ships the release key; older hosts switch with
+  `enable-signed-updates` (see [Updates, rollback and recovery](updates-rollback-recovery.md)).
 
 Each page marks what is confirmed by reading the source and what has been run. Until a verification receipt exists,
 treat every command here as unverified.

@@ -221,3 +221,70 @@ it('follows progress through a service restart and reports the health result', a
   expect(w.text()).not.toContain('Reconnecting')
   w.unmount()
 })
+
+const signed = (over: Record<string, unknown> = {}, install: Record<string, unknown> = {}) => managed({ trust: 'ssh-signature', ...over }, install)
+
+it('with release-signature trust there is no digest box: one confirmation downloads, verifies and installs, in that order', async () => {
+  let staged = false, applied = false
+  const f = stubFetch((url, init) => {
+    if (url === '/api/app-updates') {
+      const versions = [version('v1', { change: 'install' }), ...(staged ? [version('v2', { version: '1.1', repository: REPO })] : [])]
+      return { body: signed({}, { versions, ...(applied ? { current: 'v2', previous: 'v1', last: { tx: 't2', kind: 'apply', outcome: 'committed', detail: 'version 1.1 healthy', target: 'v2', from: 'v1', at: 1 } } : {}) }) }
+    }
+    if (url.startsWith('/api/app-updates/check')) return { body: { available: true, candidate: candidate(), installed: '1.0' } }
+    if (url === '/api/app-updates/fetch' && init?.method === 'POST') { staged = true; return { status: 202, body: { started: 'fetch', poll: '/api/app-updates' } } }
+    if (url === '/api/app-updates/apply' && init?.method === 'POST') { applied = true; return { status: 202, body: { started: 'apply', poll: '/api/app-updates' } } }
+    return undefined
+  })
+  const w = mount(UpdatePanel); await flushPromises()
+  expect(w.text()).toContain('verified by their signature')
+  await button(w, 'Check for updates').trigger('click'); await flushPromises()
+  expect(button(w, 'Download and verify 1.1')).toBeUndefined()
+  await button(w, 'Update to 1.1').trigger('click'); await flushPromises()
+  expect(w.find('input[maxlength="64"]').exists()).toBe(false)
+  const go = w.get('.confirm').findAll('button')[0]!
+  expect(go.attributes('disabled')).toBeDefined()
+  expect(calls(f, 'POST', '/api/app-updates/fetch')).toHaveLength(0)
+  await w.get('.confirm input[type="checkbox"]').setValue(true)
+  vi.useFakeTimers()
+  await w.get('.confirm').findAll('button')[0]!.trigger('click'); await tick(0)
+  const [, init] = calls(f, 'POST', '/api/app-updates/fetch')[0]!
+  expect(JSON.parse(init!.body as string)).toEqual({ version: '1.1', channel: 'stable', confirm: true })   // no digest is sent
+  await tick(2000)
+  const apply = calls(f, 'POST', '/api/app-updates/apply')
+  expect(apply).toHaveLength(1)
+  expect(JSON.parse(apply[0]![1]!.body as string)).toEqual({ version_id: 'v2' })
+  await tick(2000)
+  expect(w.text()).toContain('Now running 1.1')
+  w.unmount()
+})
+
+it('with release-signature trust, work in progress refuses the install, says so, and leaves the verified package staged', async () => {
+  vi.useFakeTimers()
+  let staged = false
+  const f = stubFetch((url, init) => {
+    if (url === '/api/app-updates') return { body: signed({}, { versions: [version('v1', { change: 'install' }), ...(staged ? [version('v2', { version: '1.1', repository: REPO })] : [])] }) }
+    if (url.startsWith('/api/app-updates/check')) return { body: { available: true, candidate: candidate(), installed: '1.0' } }
+    if (url === '/api/app-updates/fetch' && init?.method === 'POST') { staged = true; return { status: 202, body: { started: 'fetch' } } }
+    if (url === '/api/app-updates/apply' && init?.method === 'POST') return { status: 409, body: { detail: { message: 'Drain first. Nothing was stopped.', blockers: ['1 run(s) still running'] } } }
+    return undefined
+  })
+  const w = mount(UpdatePanel); await flushPromises()
+  await button(w, 'Check for updates').trigger('click'); await flushPromises()
+  await button(w, 'Update to 1.1').trigger('click'); await flushPromises()
+  await w.get('.confirm input[type="checkbox"]').setValue(true)
+  await w.get('.confirm').findAll('button')[0]!.trigger('click'); await tick(0); await tick(2000); await flushPromises()
+  expect(calls(f, 'POST', '/api/app-updates/apply')).toHaveLength(1)
+  expect(w.get('[role="alert"]').text()).toContain('Drain first')
+  expect(w.get('[role="alert"]').text()).toContain('still running')
+  expect(w.get('[role="alert"]').text()).toContain('stays staged')
+  w.unmount()
+})
+
+it('with a pinned digest the old two-step flow is unchanged and says how to switch to signature trust', async () => {
+  stubFetch(url => url === '/api/app-updates' ? { body: managed({ trust: 'pinned-digest' }) } : undefined)
+  const w = mount(UpdatePanel); await flushPromises()
+  expect(w.text()).toContain('enable-signed-updates')
+  expect(w.text()).not.toContain('verified by their signature')
+  w.unmount()
+})

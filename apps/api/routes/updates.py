@@ -64,6 +64,7 @@ def update_status(request: Request):
             "manual_instructions": ue.manual_instructions(kind, _product(cfg))}
     if cfg is None:
         return body
+    body["trust"] = cfg.trust["kind"]   # "ssh-signature": one confirmation verifies the release signature; "pinned-digest": the operator pastes a digest
     try:
         body["install"] = ue.status(cfg)
     except ue.UpdateError as exc:

@@ -84,7 +84,9 @@ The installer then:
 
 1. Checks the pinned digest, then the package (see [Verify a release by hand](verify-release.md)).
 2. Creates `~/.local/share/rcd-control` (override with `--root`) and `~/.rcd-control` (runtime data).
-3. Writes `<root>/helper/helper.json` with `"trust": {"kind": "pinned-digest"}` and the five helper files.
+3. Writes `<root>/helper/helper.json` with `"trust": {"kind": "pinned-digest"}` and the five helper files. After the first
+   version is active, if the package ships the release key and its fingerprint matches the one in the script, it switches
+   to `ssh-signature` trust so later updates need no pasted digest.
 4. Runs `update_helper.py stage`, which extracts the release into `<root>/versions/<version>-<sha256[:12]>/` and
    builds its `runtime/` virtualenv with hash-pinned wheels only.
 5. Runs `activate-initial`, which points `<root>/current` at that version.
