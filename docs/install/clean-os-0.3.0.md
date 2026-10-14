@@ -147,32 +147,3 @@ Free routes can be throttled or time out. Optionally add a native membership-bac
 In a submitted project, open **Stories & runs** and enable **Model lock** to stop failed tasks on their assigned model without automatic retries or equivalent-model switching. Defaultoff permits only the alternatives already approved in that project. Manual retry remains explicit.
 
 Record physical Pi hardware, OS, source commit, health/service status and installer/version checks with your acceptance results. Lima validation is not physical Pi certification. Never include provider keys, native credentials or runtime databases in public receipts.
-
-## Recover from the Python 3.11 f-string package error
-
-If a package built from `44f2aab608c2d1b13c184ad82b504db200dfe6b7` failed with `projects.py` / `f-string: unmatched '['`, update the source and build a fresh package. Do not retry the old archive or change the Pi to Python 3.12. The correction is in the public RCD candidate branch, and package builds now check source syntax with the pinned Python 3.11 runtime.
-
-Run on the Pi, from your original source checkout:
-
-```sh
-cd "$HOME/dashboard-install/rcd"
-git pull --ff-only origin codex/rcd-resume-20261013
-git rev-parse HEAD
-export PATH="$HOME/.local/bin:$HOME/rcd-prerequisites/node-v24.21.0-linux-arm64/bin:$PATH"
-rcd_python="$(uv python find 3.11)"
-rcd_package="$HOME/dashboard-install/rcd-package-py311-fixed"
-"$rcd_python" -I scripts/release/release.py build --platform linux-arm64 --out "$rcd_package"
-rcd_digest="$(sha256sum "$rcd_package/rcd-0.3.0-linux-arm64.manifest.json" | awk '{print $1}')"
-bash scripts/install/bootstrap-rcd.sh --archive "$rcd_package/rcd-0.3.0-linux-arm64.tar.gz" --manifest "$rcd_package/rcd-0.3.0-linux-arm64.manifest.json" --manifest-sha256 "$rcd_digest" --python "$rcd_python" --dry-run
-```
-
-The output directory above must be new; if it already contains a build, choose a different directory. Review the successful dry run, then run the last bootstrap command again without `--dry-run`. Recalculate the digest from the new manifest as shown; the old package digest is invalid for this build. A staging failure that reported nothing was switched did not create the running service. Do not delete your data folder to retry. If the installer reports an existing current release or service, inspect it before using the upgrade path instead.
-
-After successful installation:
-
-```sh
-systemctl --user status rcd-api.service --no-pager
-curl -fsS http://127.0.0.1:8800/healthz
-```
-
-Confirm version 0.3.0 and the new commit, then open the dashboard as described above.
