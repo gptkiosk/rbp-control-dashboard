@@ -4,7 +4,7 @@ import { nextTick } from 'vue'
 import UpdatePanel from '@/components/UpdatePanel.vue'
 import { stubFetch, calls, headerOf } from './helpers'
 
-afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); vi.useRealTimers() })
+afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); vi.useRealTimers(); sessionStorage.clear() })
 
 const REPO = 'gptkiosk/rbp-control-dashboard'
 const names: Record<string, string> = { v0: '0.9', v1: '1.0', v2: '1.1', v3: '1.2', v4: '1.3', v5: '1.4' }
@@ -301,5 +301,80 @@ it('never offers an older staged version as an install: it is listed under older
   expect(w.get('details.older').text()).toContain('Use Rollback')
   expect(button(w, 'Roll back to 1.0')).toBeDefined()
   expect(w.text()).toContain('1 staged update is ready')
+  w.unmount()
+})
+
+const intent = (over: Record<string, unknown> = {}) => sessionStorage.setItem('rcd-update-intent', JSON.stringify({ version: '1.1', channel: 'stable', at: Date.now(), ...over }))
+const withStaged = (extra: Record<string, unknown> = {}) => signed({}, { versions: [version('v1', { change: 'install' }), version('v2', { version: '1.1', repository: REPO })], ...extra })
+
+it('carries on with a confirmed update after a reload once the package is staged, without asking again', async () => {
+  vi.useFakeTimers()
+  intent()
+  const f = stubFetch((url, init) => {
+    if (url === '/api/app-updates') return { body: withStaged() }
+    if (url === '/api/app-updates/apply' && init?.method === 'POST') return { status: 202, body: { started: 'apply' } }
+    return undefined
+  })
+  const w = mount(UpdatePanel); await tick(0); await flushPromises(); await tick(2000)
+  expect(calls(f, 'POST', '/api/app-updates/fetch')).toHaveLength(0)           // already staged: no second download
+  const apply = calls(f, 'POST', '/api/app-updates/apply')
+  expect(apply).toHaveLength(1)
+  expect(JSON.parse(apply[0]![1]!.body as string)).toEqual({ version_id: 'v2' })
+  expect(sessionStorage.getItem('rcd-update-intent')).toBeNull()
+  w.unmount()
+})
+
+it('waits for staging that is still running on the host after a reload, then installs', async () => {
+  vi.useFakeTimers()
+  intent()
+  let done = false
+  const f = stubFetch((url, init) => {
+    if (url === '/api/app-updates') return { body: done ? withStaged() : signed({}, { tx: { id: 't', kind: 'stage', phase: 'staging', target: 'x' }, needs_recovery: true }) }
+    if (url === '/api/app-updates/apply' && init?.method === 'POST') return { status: 202, body: { started: 'apply' } }
+    return undefined
+  })
+  const w = mount(UpdatePanel); await tick(0); await flushPromises()
+  expect(w.text()).toContain('Staging the package')
+  expect(w.text()).toContain('reload this page and it will carry on')
+  expect(calls(f, 'POST', '/api/app-updates/apply')).toHaveLength(0)
+  done = true
+  await tick(2000); await tick(2000)
+  expect(calls(f, 'POST', '/api/app-updates/apply')).toHaveLength(1)
+  w.unmount()
+})
+
+it('ignores an old, finished, unrelated or unsigned intent and never installs on its own', async () => {
+  for (const [stored, body] of [
+    [{ at: Date.now() - 31 * 60 * 1000 }, withStaged()],                                  // older than 30 minutes
+    [{ version: '1.0' }, withStaged()],                                                  // already the running version
+    [{ version: '9.9' }, withStaged()],                                                  // nothing of that version staged or staging
+    [{}, managed({ trust: 'pinned-digest' }, { versions: [version('v1', { change: 'install' }), version('v2', { version: '1.1', repository: REPO })] })],
+  ] as const) {
+    sessionStorage.clear(); intent(stored)
+    const f = stubFetch(url => url === '/api/app-updates' ? { body } : undefined)
+    const w = mount(UpdatePanel); await flushPromises()
+    expect(calls(f, 'POST', '/api/app-updates/apply')).toHaveLength(0)
+    expect(calls(f, 'POST', '/api/app-updates/fetch')).toHaveLength(0)
+    w.unmount()
+  }
+})
+
+it('says why when staging fails on the host instead of waiting out the clock', async () => {
+  vi.useFakeTimers()
+  let failed = false
+  stubFetch((url, init) => {
+    if (url === '/api/app-updates') return { body: signed({}, { versions: [version('v1', { change: 'install' })], ...(failed ? { last: { tx: 'tf', kind: 'stage', outcome: 'failed', detail: 'staging failed: byte compilation failed', target: null, from: null, at: 1 } } : {}) }) }
+    if (url.startsWith('/api/app-updates/check')) return { body: { available: true, candidate: candidate(), installed: '1.0' } }
+    if (url === '/api/app-updates/fetch' && init?.method === 'POST') { failed = true; return { status: 202, body: { started: 'fetch' } } }
+    return undefined
+  })
+  const w = mount(UpdatePanel); await flushPromises()
+  await button(w, 'Check for updates').trigger('click'); await flushPromises()
+  await button(w, 'Update to 1.1').trigger('click'); await flushPromises()
+  await w.get('.confirm input[type="checkbox"]').setValue(true)
+  await w.get('.confirm').findAll('button')[0]!.trigger('click'); await tick(0)
+  await tick(2000); await flushPromises()
+  expect(w.get('[role="alert"]').text()).toContain('Staging reported: staging failed: byte compilation failed')
+  expect(sessionStorage.getItem('rcd-update-intent')).toBeNull()
   w.unmount()
 })

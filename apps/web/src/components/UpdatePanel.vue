@@ -159,25 +159,70 @@ function cancelUpdate() { updateAsk.value = false; updateConfirmed.value = false
 
 // One confirmation, three server-side steps that each keep their own checks: download and verify the signature against the
 // key pinned on this host, then apply (drain check, data snapshot, switch, health check, automatic rollback).
+// Staging builds the runtime on the host, which takes minutes on a Raspberry Pi, and a page reload or leaving the page would
+// otherwise lose the rest of the flow. The confirmed intent is kept for this tab (sessionStorage, 30 minutes, this version only)
+// and picked up again when the panel mounts. The server still drain-checks and refuses before anything is stopped.
+const INTENT_KEY = `${PRODUCT}-update-intent`, INTENT_MS = 30 * 60 * 1000
+interface Intent { version: string; channel: string; at: number }
+function saveIntent(version: string, ch: string) { try { sessionStorage.setItem(INTENT_KEY, JSON.stringify({ version, channel: ch, at: Date.now() })) } catch { /* private mode */ } }
+function clearIntent() { try { sessionStorage.removeItem(INTENT_KEY) } catch { /* private mode */ } }
+function loadIntent(): Intent | null {
+  try {
+    const raw = sessionStorage.getItem(INTENT_KEY)
+    const v = raw ? JSON.parse(raw) as Intent : null
+    if (v && typeof v.version === 'string' && typeof v.channel === 'string' && Date.now() - v.at < INTENT_MS) return v
+  } catch { /* unreadable: ignore */ }
+  clearIntent()
+  return null
+}
+
 async function updateNow() {
   const c = candidate.value
   if (!c || !signed.value || !updateConfirmed.value || busy.value || refused.value) return
-  busy.value = true; downloading.value = true; error.value = ''; notice.value = ''; cancelUpdate()
+  cancelUpdate()
+  saveIntent(c.version, channel.value)
+  await runUpdate(c.version, channel.value, true)
+}
+
+async function runUpdate(version: string, ch: string, needFetch: boolean) {
+  if (busy.value) return
+  busy.value = true; downloading.value = true; error.value = ''; notice.value = ''
   let staged = false
+  const beforeTx = install.value?.last?.tx ?? null
   try {
-    await postJson('/api/app-updates/fetch', { version: c.version, channel: channel.value, confirm: true })
-    const ready = await waitForStaged(c.version)
-    const v = stagedVersion(c.version)
-    if (!ready || !v) { error.value = 'Not staged yet. Nothing was installed. If the download is still running, check again shortly; otherwise check helper.log on the host.'; return }
+    if (needFetch) await postJson('/api/app-updates/fetch', { version, channel: ch, confirm: true })
+    const ready = await waitForStaged(version, beforeTx)
+    const v = stagedVersion(version)
+    if (!ready || !v) {
+      const last = install.value?.last
+      const failed = last && last.tx !== beforeTx && last.outcome !== 'staged' ? ` Staging reported: ${last.detail}` : ''
+      error.value = `Not staged yet. Nothing was installed.${failed || ' If the download is still running, check again shortly; otherwise check helper.log on the host.'}`
+      clearIntent()
+      return
+    }
     staged = true; downloading.value = false
     await postJson('/api/app-updates/apply', { version_id: v.id })
+    clearIntent()
     operation.value = { kind: 'install', target: v.id, beforeTx: install.value?.last?.tx ?? null, sawTx: false, polls: 0 }
-    notice.value = `Update to ${c.version} started on the host. Progress is shown below.`
+    notice.value = `Update to ${version} started on the host. Progress is shown below.`
     timer = setTimeout(poll, POLL_MS)
   } catch (e) {
+    clearIntent()
     await read()
     error.value = refusal(e, 'The update could not be completed.') + (staged ? ' The verified package stays staged; nothing was installed.' : '')
   } finally { downloading.value = false; busy.value = false }
+}
+
+// After a reload or a visit to another page: carry on with an update the operator confirmed in this tab.
+async function resumeUpdate() {
+  const intent = signed.value ? loadIntent() : null
+  if (!intent) return
+  const current = find(install.value?.current)?.version
+  if (current === intent.version || (current && !isNewer(intent.version, current))) { clearIntent(); return }
+  if (install.value?.tx || stagedVersion(intent.version)) {
+    notice.value = `Continuing your confirmed update to ${intent.version}.`
+    await runUpdate(intent.version, intent.channel, false)
+  } else clearIntent()
 }
 
 function askDownload() { downloadAsk.value = true; downloadConfirmed.value = false; error.value = ''; notice.value = '' }
@@ -191,7 +236,7 @@ async function download() {
   busy.value = true; downloading.value = true; error.value = ''; notice.value = ''; cancelDownload()
   try {
     await postJson('/api/app-updates/fetch', { version: c.version, channel: channel.value, confirm: true, manifest_sha256: pinnedManifestDigest.value.toLowerCase() })
-    const ready = await waitForStaged(c.version)
+    const ready = await waitForStaged(c.version, install.value?.last?.tx ?? null)
     if (ready) notice.value = `Verified and staged ${c.version}. It is not installed until you confirm the install below.`
     else error.value = 'Not staged yet. Nothing was installed. If the download is still running, check again shortly; otherwise check helper.log on the host.'
   } catch (e) {
@@ -201,12 +246,15 @@ async function download() {
 }
 
 // Bounded wait for the helper to stage the package. It only observes; the caller decides every action.
-async function waitForStaged(version: string): Promise<boolean> {
+async function waitForStaged(version: string, beforeTx: string | null = null): Promise<boolean> {
   for (let i = 0; i < DOWNLOAD_POLLS; i++) {
     await new Promise(resolve => setTimeout(resolve, POLL_MS))
     if (!alive) return false
     await read()
     if (stagedVersion(version)) return true
+    // The host finished a staging run that did not stage it: say so now instead of waiting out the clock.
+    const last = install.value?.last
+    if (!install.value?.tx && last && last.tx !== beforeTx && last.kind === 'stage' && last.outcome !== 'staged') return false
   }
   return false
 }
@@ -267,7 +315,7 @@ function stop(message: string) {
   error.value = message
 }
 
-onMounted(read)
+onMounted(async () => { await read(); await resumeUpdate() })
 onBeforeUnmount(() => { alive = false; if (timer) clearTimeout(timer) })
 </script>
 <template>
@@ -342,7 +390,7 @@ onBeforeUnmount(() => { alive = false; if (timer) clearTimeout(timer) })
           </div>
         </section>
 
-        <p v-if="downloading" class="status" role="status">{{ signed ? 'Downloading and verifying the signature. Nothing is installed until this finishes.' : 'Downloading and verifying. Nothing is installed yet.' }}</p>
+        <p v-if="downloading" class="status" role="status">{{ signed ? `Downloading, verifying the signature and preparing it on this host${install?.tx ? ` (${PHASES[install.tx.phase] ?? 'working'})` : ''}. Nothing is installed until this finishes. On a Raspberry Pi this can take several minutes: you can leave or reload this page and it will carry on with the update you confirmed.` : 'Downloading and verifying. Nothing is installed yet.' }}</p>
 
         <p>Installed <strong>{{ label(install?.current) }}</strong> · Previous: {{ install?.previous ? label(install.previous) : 'none kept' }}</p>
         <ul v-if="blockers.length" class="updates" aria-label="Work that must finish first">
