@@ -1,8 +1,8 @@
-# Install 0.3.0 on a clean Mac or Raspberry Pi
+# Install 0.3.1 on a clean Mac or Raspberry Pi
 
 MCD targets Apple Silicon MacBook Pro and Mac mini (M1 or newer), macOS 14 or later. RCD targets Raspberry Pi 4, including the **4 GB model**, with Raspberry Pi OS **64-bit** (`uname -m` must report `aarch64`). Physical Pi acceptance is still pending; the arm64 installer receipts so far came from Lima. Use your own login account, not root.
 
-The current 0.3.0 source is public on `codex/mcd-resume-20261013` and `codex/rcd-resume-20261013`. Signed downloadable releases are pending operator signing setup. The source-build path below works without a published tag; it builds a local candidate from the code you cloned. Record `git rev-parse HEAD` with your test results. When v0.3.0 is published, use its tagged source and release manifest digest instead.
+The current 0.3.1 source is public on `codex/mcd-resume-20261013` and `codex/rcd-resume-20261013`. Signed downloadable releases are pending operator signing setup. The source-build path below works without a published tag; it builds a local candidate from the code you cloned. Record `git rev-parse HEAD` with your test results. When v0.3.1 is published, use its tagged source and release manifest digest instead.
 
 ## 1. Prepare the computer
 
@@ -102,8 +102,8 @@ From the MCD source checkout:
 
 ```sh
 mcd_package="$HOME/dashboard-install/mcd-package"
-mcd_digest="$(shasum -a 256 "$mcd_package/mcd-0.3.0-darwin-arm64.manifest.json" | awk '{print $1}')"
-bash scripts/install/bootstrap-mcd.sh --archive "$mcd_package/mcd-0.3.0-darwin-arm64.tar.gz" --manifest "$mcd_package/mcd-0.3.0-darwin-arm64.manifest.json" --manifest-sha256 "$mcd_digest" --python /opt/homebrew/bin/python3.12 --dry-run
+mcd_digest="$(shasum -a 256 "$mcd_package/mcd-0.3.1-darwin-arm64.manifest.json" | awk '{print $1}')"
+bash scripts/install/bootstrap-mcd.sh --archive "$mcd_package/mcd-0.3.1-darwin-arm64.tar.gz" --manifest "$mcd_package/mcd-0.3.1-darwin-arm64.manifest.json" --manifest-sha256 "$mcd_digest" --python /opt/homebrew/bin/python3.12 --dry-run
 ```
 
 Review the plan, then run the same command without `--dry-run`. Default release root is `~/Library/Application Support/MacControlDashboard`; data is `~/.mac-control`; launchd label is `com.operator.mac-control`.
@@ -114,13 +114,13 @@ From the RCD source checkout, in the same shell that defined `rcd_python`:
 
 ```sh
 rcd_package="$HOME/dashboard-install/rcd-package"
-rcd_digest="$(sha256sum "$rcd_package/rcd-0.3.0-linux-arm64.manifest.json" | awk '{print $1}')"
-bash scripts/install/bootstrap-rcd.sh --archive "$rcd_package/rcd-0.3.0-linux-arm64.tar.gz" --manifest "$rcd_package/rcd-0.3.0-linux-arm64.manifest.json" --manifest-sha256 "$rcd_digest" --python "$rcd_python" --dry-run
+rcd_digest="$(sha256sum "$rcd_package/rcd-0.3.1-linux-arm64.manifest.json" | awk '{print $1}')"
+bash scripts/install/bootstrap-rcd.sh --archive "$rcd_package/rcd-0.3.1-linux-arm64.tar.gz" --manifest "$rcd_package/rcd-0.3.1-linux-arm64.manifest.json" --manifest-sha256 "$rcd_digest" --python "$rcd_python" --dry-run
 ```
 
 Review the plan, then run the same command without `--dry-run`. The user services are `rcd-api.service` and `rcd-update-recover.timer`; runtime data stays outside the release root. The release pins Python3.11 even if the OS default Python is newer.
 
-Once a signed public v0.3.0 release exists, use tagged source and `--version 0.3.0 --manifest-sha256 DIGEST_FROM_TRUSTED_RELEASE_NOTES` instead of local archive/manifest options. Read the product's `packaging/README.md` for trust and rollback details; the bootstrap currently checks pinned digest integrity and does not automatically authenticate an SSH signature.
+Once a signed public v0.3.1 release exists, use tagged source and `--version 0.3.1 --manifest-sha256 DIGEST_FROM_TRUSTED_RELEASE_NOTES` instead of local archive/manifest options. Read the product's `packaging/README.md` for trust and rollback details; the bootstrap currently checks pinned digest integrity and does not automatically authenticate an SSH signature.
 
 ## 4. Verify and open it
 
@@ -128,7 +128,7 @@ Once a signed public v0.3.0 release exists, use tagged source and `--version 0.3
 curl -fsS http://127.0.0.1:8800/healthz
 ```
 
-Verify version0.3.0, the expected source commit and built web status. Open `http://127.0.0.1:8800/` locally. For a headless Pi, keep the dashboard on loopback and tunnel from your Mac (`PI_USER` and `PI_HOST` are your actual login and host):
+Verify version0.3.1, the expected source commit and built web status. Open `http://127.0.0.1:8800/` locally. For a headless Pi, keep the dashboard on loopback and tunnel from your Mac (`PI_USER` and `PI_HOST` are your actual login and host):
 
 ```sh
 ssh -N -L 8814:127.0.0.1:8800 PI_USER@PI_HOST
