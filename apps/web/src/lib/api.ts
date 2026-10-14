@@ -561,6 +561,8 @@ export interface McpAgentServers {
   agent: AgentId
   servers: McpServer[]
   error: string | null
+  /** false when the agent's command is not on this host: shown as a quiet note, not an error. */
+  installed?: boolean
   checked_at: Num
 }
 

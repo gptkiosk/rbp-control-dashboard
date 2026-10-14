@@ -210,7 +210,8 @@ async function reject(c: McpChange): Promise<void> {
     >
       <header class="agent-head">
         <h2 :id="`mcp-${a.agent}`" class="section-title">{{ mcpAgentLabel(a.agent) }}</h2>
-        <span class="muted small">
+        <span v-if="a.installed === false" class="muted small" data-testid="agent-not-installed">Not available on this host</span>
+        <span v-else class="muted small">
           {{ a.servers.length }} {{ a.servers.length === 1 ? 'server' : 'servers' }}
           <template v-if="a.checked_at != null"> · checked {{ formatSince(a.checked_at, now) }}</template>
         </span>
@@ -218,7 +219,8 @@ async function reject(c: McpChange): Promise<void> {
 
       <p v-if="a.error" class="error-text" role="alert" data-testid="agent-error">{{ a.error }}</p>
 
-      <p v-if="a.servers.length === 0 && !a.error" class="muted small">No MCP servers configured.</p>
+      <p v-if="a.installed === false" class="muted small">{{ mcpAgentLabel(a.agent) }} is not installed here, so there are no servers to list.</p>
+      <p v-else-if="a.servers.length === 0 && !a.error" class="muted small">No MCP servers configured.</p>
       <div v-else-if="a.servers.length" class="table-scroll">
         <table class="data-table servers">
           <caption class="sr-only">MCP servers for {{ mcpAgentLabel(a.agent) }}</caption>

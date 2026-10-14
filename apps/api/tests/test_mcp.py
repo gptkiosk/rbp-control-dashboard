@@ -185,3 +185,36 @@ def test_cannot_remove_claude_ai_connector(make_client, monkeypatch):
     r = client.post("/api/mcp/changes", json={"agent": "claude", "action": "remove", "name": "claude.ai Google Drive"})
     assert r.status_code == 422
     routes_mcp._CACHE.pop("claude", None)
+
+
+def test_an_agent_whose_command_is_not_on_this_host_is_a_quiet_state_not_an_error(tmp_path, monkeypatch):
+    import asyncio
+    import routes.mcp as routes_mcp
+    from settings import get_settings
+    monkeypatch.setenv("MAC_CONTROL_CODEX_PATH", str(tmp_path / "no-such-codex"))
+    get_settings.cache_clear()
+    routes_mcp._CACHE.clear()
+    try:
+        listing = asyncio.run(routes_mcp.list_for("codex", refresh=True))
+    finally:
+        routes_mcp._CACHE.clear()
+        get_settings.cache_clear()
+    assert listing["installed"] is False and listing["error"] is None and listing["servers"] == []
+
+
+def test_a_command_that_runs_and_fails_is_still_reported_as_a_failure(tmp_path, monkeypatch):
+    import asyncio
+    import routes.mcp as routes_mcp
+    from settings import get_settings
+    script = tmp_path / "bad-codex"
+    script.write_text("#!/bin/sh\nexit 3\n")
+    script.chmod(0o755)
+    monkeypatch.setenv("MAC_CONTROL_CODEX_PATH", str(script))
+    get_settings.cache_clear()
+    routes_mcp._CACHE.clear()
+    try:
+        listing = asyncio.run(routes_mcp.list_for("codex", refresh=True))
+    finally:
+        routes_mcp._CACHE.clear()
+        get_settings.cache_clear()
+    assert listing["installed"] is True and listing["error"] == "list failed (exit 3)"
