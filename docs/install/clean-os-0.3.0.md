@@ -1,6 +1,6 @@
 # Install 0.3.0 on a clean Mac or Raspberry Pi
 
-MCD targets Apple Silicon MacBook Pro and Mac mini (M1 or newer), macOS 14 or later. RCD targets Raspberry Pi 4 with Raspberry Pi OS **64-bit** (`uname -m` must report `aarch64`). Physical Pi acceptance is still pending; the arm64 installer receipts so far came from Lima. Use your own login account, not root.
+MCD targets Apple Silicon MacBook Pro and Mac mini (M1 or newer), macOS 14 or later. RCD targets Raspberry Pi 4, including the **4 GB model**, with Raspberry Pi OS **64-bit** (`uname -m` must report `aarch64`). Physical Pi acceptance is still pending; the arm64 installer receipts so far came from Lima. Use your own login account, not root.
 
 The current 0.3.0 source is public on `codex/mcd-resume-20261013` and `codex/rcd-resume-20261013`. Signed downloadable releases are pending operator signing setup. The source-build path below works without a published tag; it builds a local candidate from the code you cloned. Record `git rev-parse HEAD` with your test results. When v0.3.0 is published, use its tagged source and release manifest digest instead.
 
