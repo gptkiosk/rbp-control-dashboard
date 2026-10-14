@@ -102,7 +102,7 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 - Claude Code stories may use web search and fetch without any shell, credential or publish permission.
 
 [0.3.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.0
-[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.3.1...HEAD
 [0.2.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.2.0
 
 ## Before versioned releases
@@ -112,3 +112,5 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 - Published MIT license with preserved MCD attribution, operator/developer docs and public collaboration configuration.
 - Application source deliberately held for fixes, verification and explicit operator sign-off.
 - Recorded Linux ARM64 UI preview as temporary test evidence, without claiming Pi hardware or live-provider certification.
+
+[0.3.1]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.1
