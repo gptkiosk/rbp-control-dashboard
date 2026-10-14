@@ -10,6 +10,11 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.3.4] - 2026-10-14
+
+### Fixed
+- The Updates panel no longer offers an older staged version as an install. Only a newer package is listed under Available; older ones are listed as kept for rollback, and the Rollback button is the way back. The Rollback button is no longer stretched across the panel.
+
 ## [0.3.3] - 2026-10-14
 
 ### Fixed
@@ -120,7 +125,8 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 - Claude Code stories may use web search and fetch without any shell, credential or publish permission.
 
 [0.3.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.0
-[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.3.3...HEAD
+[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.3.4...HEAD
+[0.3.4]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.4
 [0.3.3]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.3
 [0.3.2]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.2
 [0.2.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.2.0
