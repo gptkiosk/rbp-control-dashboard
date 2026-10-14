@@ -19,7 +19,7 @@ Delivery is distinct from planning: pending, sent, held, expired and uncertain r
 
 ## Private credentials and portability
 
-Profile credentials are write-only, encrypted with Fernet and separated by signed-in operator. API validation errors never echo submitted values. The private encryption key lives in `~/.mac-control/vault.key` with mode 600 inside a mode-700 directory; symlinks, shared permissions and invalid keys fail closed. Restore the **database and vault.key together** from a private backup. Losing the vault key requires re-entering credentials.
+Profile credentials are write-only, encrypted with Fernet and separated by signed-in operator. API validation errors never echo submitted values. The private encryption key lives in `~/.rcd-control/vault.key` with mode 600 inside a mode-700 directory; symlinks, shared permissions and invalid keys fail closed. Restore the **database and vault.key together** from a private backup. Losing the vault key requires re-entering credentials.
 
 - **OpenRouter profile key:** manually checks that key's actual API/BYOK spending. Saving it does not silently change the native agents' routing, shared $20/month cap or provider fallback approval.
 - **Discord profile token:** optional own bot for project notifications. Otherwise this installation's privately configured Hermes bot sends notifications. A broken stored token/vault never silently falls back to a different bot.
@@ -28,7 +28,7 @@ Profile credentials are write-only, encrypted with Fernet and separated by signe
 
 **Export preferences** includes settings only; credentials, pairing and encryption material are excluded. Import loads settings for review; Save validates workspace and origin against the new installation. Review paths/channel/address and pair again on a new installation. Appearance is shared through the profile when explicitly set; browser/device theme remains usable when profile access is unavailable.
 
-For a clean distribution, ship version-controlled source, dependencies and the native plugin, **never** `.env`, OAuth client JSON, runtime database/logs, vault.key, credential backups or agent-tokens. Host bootstrap configuration and allowed operator emails must be set explicitly. `scripts/configure-google-auth.py --allowed-email operator@example.com` imports configured HTTPS callback origins from the downloaded client JSON rather than hardcoding a tailnet hostname. Machine workspaces are allowlisted in private host configuration.
+For a clean distribution, ship version-controlled source, dependencies and the native plugin, **never** `.env`, OAuth client JSON, runtime database/logs, vault.key, credential backups or agent-tokens. Host bootstrap configuration and allowed operator emails must be set explicitly. `scripts/configure-google-auth.py --allowed-email operator@example.com` configures only explicitly selected host origins with `--origin`, rather than trusting every callback in a shared client JSON rather than hardcoding a tailnet hostname. Machine workspaces are allowlisted in private host configuration.
 
 ## Native Hermes integration
 

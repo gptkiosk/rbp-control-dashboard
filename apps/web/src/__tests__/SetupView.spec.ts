@@ -31,6 +31,11 @@ it('resumes steps in the profile without touching permissions, native agents or 
   await w.get('.wizard-footer .primary').trigger('click');await flushPromises()
   expect(w.get('h2').text()).toBe('Google sign-in')
   expect(w.text()).toContain('https://example.test:9443/auth/callback')
+  expect(w.text()).toContain('YOUR-MACHINE.YOUR-TAILNET.ts.net')
+  expect(w.text()).toContain('--origin http://127.0.0.1:5173')
+  expect(w.text()).toContain('--data-dir ~/.rcd-control')
+  const privateAddresses = w.findAll('details').find(d => d.text().includes('Private addresses configured'))!
+  expect(privateAddresses.attributes('open')).toBeUndefined()
   const write=fetch.mock.calls.find(([url])=>url==='/api/profile/setup')!
   expect(JSON.parse(String(write[1]?.body))).toEqual({step:1,status:'in_progress',confirmed:[]})
   expect(profile.preferences.planning_bias).toBe(81);expect(profile.preferences.allow_discord_planning).toBe(false)

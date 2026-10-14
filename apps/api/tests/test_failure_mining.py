@@ -28,11 +28,11 @@ def test_credentials_never_survive(secret):
 
 
 def test_addresses_hosts_emails_paths_and_ids_are_removed_and_text_is_bounded():
-    text = "ted@bamcio.com at /Users/masterblaster/Bamcio-Workspace via masters-mac-mini.tail8043b6.ts.net 100.80.1.2 192.168.1.9 user 215035619123456789"
+    text = "operator@example.com at /Users/exampleoperator/ExampleWorkspace via example-host.tailexample.ts.net 100.80.1.2 192.168.1.9 user 215035619123456789"
     out = fm.redact(text)
-    for gone in ("ted@bamcio.com", "masterblaster", "tail8043b6", "100.80.1.2", "192.168.1.9", "215035619123456789"):
+    for gone in ("operator@example.com", "exampleoperator", "tailexample", "100.80.1.2", "192.168.1.9", "215035619123456789"):
         assert gone not in out
-    assert "~/Bamcio-Workspace" in out and "[email]" in out and "[host]" in out and "[address]" in out and "[id]" in out
+    assert "~/ExampleWorkspace" in out and "[email]" in out and "[host]" in out and "[address]" in out and "[id]" in out
     assert len(fm.redact("x " * 2000, 100)) <= 100 and fm.redact(None) == ""
     assert fm.redact(fm.redact(text)) == fm.redact(text)
 

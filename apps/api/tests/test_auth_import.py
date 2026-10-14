@@ -19,7 +19,7 @@ def test_import_preserves_settings_and_privately_backs_up(tmp_path):
     data = tmp_path / "data"
     data.mkdir()
     (data / ".env").write_text("KEEP_ME='previous-secret'\nMAC_CONTROL_AUTH_ENABLED='false'\n")
-    assert module.configure(source, data, True, ["operator@example.com"]) == [module.LOCAL, "https://example-device.example.ts.net:9443"]
+    assert module.configure(source, data, True, ["operator@example.com"]) == [module.LOCAL]
     values = dotenv_values(data / ".env")
     assert values["KEEP_ME"] == "previous-secret"
     assert values["MAC_CONTROL_GOOGLE_CLIENT_SECRET"] == secret
@@ -46,3 +46,20 @@ def test_invalid_import_leaves_existing_configuration(tmp_path, kind):
     with pytest.raises(Exception):
         module.configure(source, data, True)
     assert env.read_text() == "KEEP_ME=unchanged\n"
+
+
+def test_explicit_host_origins_and_multiple_operators(tmp_path):
+    source = tmp_path / "client.json"
+    source.write_text(json.dumps({"web": {"client_id": "test.apps.googleusercontent.com", "client_secret": "synthetic",
+        "redirect_uris": [module.LOCAL + "/auth/callback", "https://other-install.example/auth/callback"]}}))
+    origins = ["http://127.0.0.1:5173", "https://my-install.example:9443"]
+    data = tmp_path / "data"
+    assert module.configure(source, data, True, ["first@example.com", "second@example.com"], origins) == [module.LOCAL, *origins]
+    values = dotenv_values(data / ".env")
+    assert json.loads(values["MAC_CONTROL_AUTH_ALLOWED_EMAILS"]) == ["first@example.com", "second@example.com"]
+    assert "other-install" not in values["MAC_CONTROL_AUTH_ORIGINS"]
+    before = (data / ".env").read_bytes()
+    for invalid in ["http://remote.example", "https://my-install.example/auth/callback", "https://user@my-install.example", "https://my-install.example:invalid"]:
+        with pytest.raises(ValueError):
+            module.configure(source, data, True, ["first@example.com"], [invalid])
+        assert (data / ".env").read_bytes() == before

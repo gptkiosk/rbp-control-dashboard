@@ -5,6 +5,7 @@ Run with apps/api/.venv/bin/python. Imports leave sign-in disabled unless
 --enable is supplied. Existing settings are preserved; backups stay private.
 """
 import argparse
+import ipaddress
 import json
 import os
 from pathlib import Path
@@ -29,7 +30,7 @@ def private_read(path):
         return source.read()
 
 
-def configure(source, data_dir, enable=False, allowed_emails=None):
+def configure(source, data_dir, enable=False, allowed_emails=None, configured_origins=None):
     document = json.loads(private_read(source))
     client = document.get("web", {})
     client_id, secret = client.get("client_id"), client.get("client_secret")
@@ -38,13 +39,26 @@ def configure(source, data_dir, enable=False, allowed_emails=None):
             or not isinstance(secret, str) or not secret.strip()
             or any(c in client_id + secret for c in "\r\n\x00")
             or not isinstance(redirects, list) or LOCAL + "/auth/callback" not in redirects):
-        raise ValueError("Expected a web client with the local MCD callback")
+        raise ValueError("Expected a web client with the local dashboard callback")
+    # A shared client JSON may contain callbacks for unrelated installations.
+    # Only addresses explicitly selected for this host become trusted origins.
     origins = [LOCAL]
-    for redirect in redirects:
-        u = urlsplit(redirect)
-        if u.scheme == 'https' and u.hostname and not u.username and not u.password and u.path == '/auth/callback' and not u.query and not u.fragment:
-            origin = f'{u.scheme}://{u.netloc}'
-            if origin not in origins: origins.append(origin)
+    for origin in configured_origins or []:
+        u = urlsplit(origin)
+        try:
+            local = u.hostname == "localhost" or ipaddress.ip_address(u.hostname or "").is_loopback
+        except ValueError:
+            local = False
+        if (not u.hostname or u.username or u.password or u.path or u.query or u.fragment
+                or origin != f"{u.scheme}://{u.netloc}" or u.scheme not in ("http", "https")
+                or (u.scheme == "http" and not local)):
+            raise ValueError("Use an HTTPS origin or HTTP loopback origin without a path")
+        try:
+            u.port
+        except ValueError:
+            raise ValueError("Invalid origin port") from None
+        if origin not in origins:
+            origins.append(origin)
     data_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
     if data_dir.is_symlink() or data_dir.stat().st_uid != os.getuid():
         raise ValueError("Invalid settings directory")
@@ -83,16 +97,18 @@ def configure(source, data_dir, enable=False, allowed_emails=None):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("source", type=Path)
-    parser.add_argument("--data-dir", type=Path, default=Path.home() / ".mac-control")
+    parser.add_argument("--data-dir", type=Path, default=Path.home() / ".rcd-control")
     parser.add_argument("--enable", action="store_true")
     parser.add_argument("--allowed-email", action="append", help="Allowed operator email; repeat for multiple accounts")
+    parser.add_argument("--origin", action="append", help="Additional origin for THIS installation; repeat for each address. Register its /auth/callback in Google first.")
     args = parser.parse_args()
     try:
-        origins = configure(args.source, args.data_dir, args.enable, args.allowed_email)
+        origins = configure(args.source, args.data_dir, args.enable, args.allowed_email, args.origin)
     except Exception:
         print("Import failed. Check the web-client JSON, local callback and file ownership; credentials were not displayed.")
         return 1
-    print(f"Credentials imported privately; sign-in {'enabled' if args.enable else 'disabled'}. Restart MCD to apply.")
+    print(f"Credentials imported privately; sign-in {'enabled' if args.enable else 'disabled'}. Restart RCD to apply.")
+    print("Only explicitly selected origins were configured; unrelated client callbacks were not imported.")
     print("Configured addresses: " + ", ".join(origins))
     return 0
 

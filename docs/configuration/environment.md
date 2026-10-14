@@ -1,6 +1,6 @@
 # Environment variables and settings (`MAC_CONTROL_*`, `.env`)
 
-Every configuration field loaded by `apps/api/settings.py` (Pydantic `BaseSettings`, prefix `MAC_CONTROL_`, env file `~/.mac-control/.env`) is listed below with its default, Python type, purpose, and whether it holds a secret. The `SecretStr` credential field is shown only as a placeholder; never commit `.env` or `~/.mac-control/.env`.
+Every configuration field loaded by `apps/api/settings.py` (Pydantic `BaseSettings`, prefix `MAC_CONTROL_`, env file `~/.rcd-control/.env`) is listed below with its default, Python type, purpose, and whether it holds a secret. The `SecretStr` credential field is shown only as a placeholder; never commit `.env` or `~/.rcd-control/.env`.
 
 ## Purpose
 
@@ -15,7 +15,7 @@ The profile UI is separate from the host environment table; it does not expose o
 
 ## Controls
 
-- `.env` edit: `~/.mac-control/.env` (mode 600)
+- `.env` edit: `~/.rcd-control/.env` (mode 600)
 - `scripts/configure-google-auth.py --enable` (writes auth keys to `.env`, preserves backups)
 - `scripts/install-launchagent.sh` (reloads the service; the application reads dotenv at startup)
 - In-app Settings manages profile preferences and credentials separately from these host fields.
@@ -30,7 +30,7 @@ The profile UI is separate from the host environment table; it does not expose o
 | `MAC_CONTROL_PORT` | `8800` | `int` | Main server port (1–65535). The current installer health check is fixed to loopback port 8800; a custom port needs separate verification. | No |
 | `MAC_CONTROL_DEV_PORT` | `5173` | `int` | Vite dev server port; allowed by the request guard during development. | No |
 | `MAC_CONTROL_LOG_LEVEL` | `info` | `str` | Logging level. Conventional values are `debug`, `info`, `warning`, `error`; the value is free-form and not validated by the code. | No |
-| `MAC_CONTROL_DATA_DIR` | `~/.mac-control` | `Path` | Runtime directory (database, run logs, alerts, vault). Keep private storage mode `700`; individual helpers enforce their own checks. | No |
+| `MAC_CONTROL_DATA_DIR` | `~/.rcd-control` | `Path` | Runtime directory (database, run logs, alerts, vault). Keep private storage mode `700`; individual helpers enforce their own checks. | No |
 | `MAC_CONTROL_ENVIRONMENT` | `local` | `str` | Installation environment; tests use `test`. | No |
 | `MAC_CONTROL_WEB_DIST` | `<REPOSITORY_ROOT>/apps/web/dist` | `Path` | Built frontend served by the API. | No |
 
@@ -62,7 +62,7 @@ The profile UI is separate from the host environment table; it does not expose o
 | `MAC_CONTROL_DEFAULT_TIMEOUT_S` | `1800` | `int` (`30`–`21600`) | Default execution timeout (30 min). | No |
 | `MAC_CONTROL_DEFAULT_BUDGET_USD` | `1.0` | `float` (`0.01`–`50.0`) | API-dollar budget used by the Claude adapter when applicable. Not a universal provider hard cap; subscription project runs omit this API-equivalent budget. | No |
 | `MAC_CONTROL_RUN_RETENTION_DAYS` | `90` | `int` (`≥1`) | Days to retain completed run records. | No |
-| `MAC_CONTROL_WORKDIR_ROOTS` | `(~/Projects, ~/.mac-control/workspaces)` | `tuple[Path, ...]` | Allowed working directories for agent runs (e.g. `~/Projects`, `~/.mac-control/workspaces`). A card’s working directory must be inside one of these. | No |
+| `MAC_CONTROL_WORKDIR_ROOTS` | `(~/Projects, ~/.rcd-control/workspaces)` | `tuple[Path, ...]` | Allowed working directories for agent runs (e.g. `~/Projects`, `~/.rcd-control/workspaces`). A card’s working directory must be inside one of these. | No |
 | `MAC_CONTROL_CLAUDE_PATH` | first `claude` found (see below) | `str` | Path to Claude CLI binary. Optional. | No |
 | `MAC_CONTROL_CODEX_PATH` | first `codex` found (see below) | `str` | Path to Codex CLI binary. Optional. | No |
 | `MAC_CONTROL_HERMES_PATH` | first `hermes` found (see below) | `str` | Path to Hermes CLI binary. Optional. | No |
@@ -88,14 +88,14 @@ Optional tools (`gh`, `macmon`, `tailscale` and the agent CLIs) are looked up in
 
 | Key | Default | Type | Purpose | Secret? |
 |---|---|---|---|---|
-| `MAC_CONTROL_ALERTS_CONFIG_PATH` | `None` (falls back to `~/.mac-control/alerts.toml`) | `Path \| None` | Path to `alerts.toml`. Overrides default. Must be a regular file (not symlink), owned by current user, mode 600 recommended. | No |
+| `MAC_CONTROL_ALERTS_CONFIG_PATH` | `None` (falls back to `~/.rcd-control/alerts.toml`) | `Path \| None` | Path to `alerts.toml`. Overrides default. Must be a regular file (not symlink), owned by current user, mode 600 recommended. | No |
 | `MAC_CONTROL_GH_PATH` | first `gh` found (see above) | `str` | Path to GitHub CLI (`gh`) for read-only repo reports. Optional. | No |
-| `MAC_CONTROL_OPS_REPORTS_DIR` | `~/.mac-control/reports` | `Path` | Local read-only reports directory. | No |
+| `MAC_CONTROL_OPS_REPORTS_DIR` | `~/.rcd-control/reports` | `Path` | Local read-only reports directory. | No |
 | `MAC_CONTROL_HERMES_REPORTS_DIR` | `None` | `Path \| None` | Optional Hermes reports directory for cross-install reports. | No |
 
 ### Provider-cost overrides and installer variables
 
-The OpenRouter cost reader separately reads these optional keys from the fixed private `~/.mac-control/.env` file. They are not fields of `Settings` or process-environment overrides. Leave them unset to use the respective agent's local provider configuration. Keep literal credentials private; unresolved secret references are not sent as keys.
+The OpenRouter cost reader separately reads these optional keys from the fixed private `~/.rcd-control/.env` file. They are not fields of `Settings` or process-environment overrides. Leave them unset to use the respective agent's local provider configuration. Keep literal credentials private; unresolved secret references are not sent as keys.
 
 | Key | Default | Type | Purpose | Secret? |
 |---|---|---|---|---|
@@ -108,11 +108,11 @@ These overrides select the accounting key; they do not change the agent's execut
 
 ### Loading and precedence
 
-The `Settings` class (`apps/api/settings.py`) gives explicit constructor values precedence over environment variables, which override the configured dotenv file, then defaults. `model_config` sets `env_prefix="MAC_CONTROL_"`, `env_file` pointing to the expanded home path `~/.mac-control/.env`, and `extra="ignore"`. `SecretStr` fields (`google_client_secret`) never display the value in errors (`hide_input_in_errors=True`).
+The `Settings` class (`apps/api/settings.py`) gives explicit constructor values precedence over environment variables, which override the configured dotenv file, then defaults. `model_config` sets `env_prefix="MAC_CONTROL_"`, `env_file` pointing to the expanded home path `~/.rcd-control/.env`, and `extra="ignore"`. `SecretStr` fields (`google_client_secret`) never display the value in errors (`hide_input_in_errors=True`).
 
 ## Secret placeholders
 
-Every secret value below is shown as a placeholder (`<VALUE>`, `<SECRET>`, `<CLIENT_ID>`). Actual values live only in `~/.mac-control/.env` (mode 600), `~/.mac-control/vault.key` (mode 600), `~/.mac-control/google-oauth-client.json` (mode 600), or private backups. Never include real credentials in source, prompts, screenshots, diagrams, or distribution packages.
+Every secret value below is shown as a placeholder (`<VALUE>`, `<SECRET>`, `<CLIENT_ID>`). Actual values live only in `~/.rcd-control/.env` (mode 600), `~/.rcd-control/vault.key` (mode 600), `~/.rcd-control/google-oauth-client.json` (mode 600), or private backups. Never include real credentials in source, prompts, screenshots, diagrams, or distribution packages.
 
 - `MAC_CONTROL_GOOGLE_CLIENT_ID`: `<CLIENT_ID>` (e.g. `...apps.googleusercontent.com`)
 - `MAC_CONTROL_GOOGLE_CLIENT_SECRET`: `<SECRET>`
@@ -122,7 +122,7 @@ Every secret value below is shown as a placeholder (`<VALUE>`, `<SECRET>`, `<CLI
 
 - **Bind failure (`MAC_CONTROL_HOST`)**: If `0.0.0.0` is set before auth is enforced, the server is exposed. Revert to `127.0.0.1`, restart LaunchAgent (`launchctl bootout/bootstrap`), verify with `curl -fsS --max-time 2 http://127.0.0.1:8800/healthz`.
 - **Auth validation error (`ValueError`)**: `MAC_CONTROL_AUTH_ENABLED=true` requires `google_client_id`, `google_client_secret`, `auth_allowed_emails`, and `auth_origins`. Check `.env` syntax (list values use JSON arrays, not Python tuples) and that origins contain only loopback HTTP or canonical HTTPS.
-- **Environment not picked up**: Environment variables override dotenv values. Restart the application after host setting changes. `MAC_CONTROL_DATA_DIR` changes runtime output paths but does not move the fixed default dotenv lookup from `~/.mac-control/.env`. Use an explicit settings `env_file` override in controlled test code when needed.
+- **Environment not picked up**: Environment variables override dotenv values. Restart the application after host setting changes. `MAC_CONTROL_DATA_DIR` changes runtime output paths but does not move the fixed default dotenv lookup from `~/.rcd-control/.env`. Use an explicit settings `env_file` override in controlled test code when needed.
 - **Directory permissions**: Keep private runtime storage owned by the operator and mode `700`. Credential helpers enforce their own file/directory checks; `Settings.validate_auth` validates auth configuration/origins, not general directory ownership.
 
 ## Related pages
