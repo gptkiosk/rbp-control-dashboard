@@ -32,3 +32,27 @@ it('saves the channel before requesting a one-time pairing code',async()=>{
   expect(w.text()).toContain('within 10 minutes');expect(w.text()).toContain('PRIVATECODE')
   expect(JSON.parse(String(writes[0]![1]?.body)).allow_discord_planning).toBe(false);w.unmount()
 })
+
+it('offers sharing the saved OpenRouter key only once a key is saved, saves just that switch, and says what it does',async()=>{
+  const {w,fetch}=await setup()
+  expect(w.find('[data-testid="share-key"]').exists()).toBe(false)                // no key saved: nothing to share
+  await w.get('[aria-label="openrouter credential"]').setValue('sk-or-test-key1234')
+  await w.findAll('button').find(b=>b.text()==='Save credential')!.trigger('click');await flushPromises()
+  const box=w.get('[data-testid="share-key"]')
+  expect((box.element as HTMLInputElement).checked).toBe(false)                   // off by default
+  expect(w.text()).toContain('Claude, Codex and Grok never receive it')
+  expect(w.text()).toContain('use a dedicated key with a credit limit')
+  await box.setValue(true);await flushPromises()
+  const put=fetch.mock.calls.filter(([u,i])=>u==='/api/profile'&&i?.method==='PUT').at(-1)!
+  expect(JSON.parse(String(put[1]!.body)).use_saved_openrouter_key).toBe(true)
+  expect(w.text()).toContain('now use your saved OpenRouter key')
+})
+
+it('never exports the sharing switch with portable preferences',async()=>{
+  const {w}=await setup()
+  const blobs:Blob[]=[]
+  vi.stubGlobal('URL',{...URL,createObjectURL:(b:Blob)=>{blobs.push(b);return 'blob:x'},revokeObjectURL:()=>{}})
+  await w.findAll('button').find(b=>b.text()==='Export preferences')!.trigger('click');await flushPromises()
+  expect(blobs.length).toBeGreaterThan(0)
+  expect(await blobs[0]!.text()).not.toContain('use_saved_openrouter_key')
+})

@@ -39,6 +39,7 @@ class Preferences(BaseModel):
     dashboard_origin: str = Field(default='',max_length=300)
     discord_channel_id: str = Field(default='',pattern=r'^([0-9]{16,22})?$')
     notify_plans: bool = True
+    use_saved_openrouter_key: bool = False   # opt in: Hermes and OpenClaw run with this installation's saved OpenRouter key
     allow_discord_planning: bool = False
     allow_discord_control: bool = False
     allow_discord_diagnostics: bool = False
@@ -104,6 +105,25 @@ def credential(s,identity,provider,settings):
     if not row: return None
     try: return cipher(settings).decrypt(row.ciphertext.encode()).decode()
     except (InvalidToken,UnicodeError): raise HTTPException(503,'Stored credential could not be decrypted.') from None
+
+SAVED_KEY_AGENTS = ('hermes','openclaw')
+
+def saved_key_owners(s):
+    """Operators who shared their saved OpenRouter key with the agents (at most one is allowed)."""
+    owners=[]
+    for row in s.scalars(select(UserProfile)):
+        try:
+            if Preferences.model_validate_json(row.preferences).use_saved_openrouter_key: owners.append(row.owner)
+        except ValueError: continue
+    return owners
+
+def saved_openrouter_key(s,settings):
+    """The key to supply to Hermes and OpenClaw runs, or None. Off unless one operator opted in AND still has a key saved.
+    Any failure to read it means no key is supplied: a run never fails, and never gets another credential, because of this."""
+    owners=saved_key_owners(s)
+    if len(owners)!=1: return None
+    try: return credential(s,owners[0],'openrouter',settings)
+    except HTTPException: return None
 
 def put_credential(s,identity,provider,value,settings):
     if provider not in PROVIDERS: raise HTTPException(404,'Unknown credential provider.')

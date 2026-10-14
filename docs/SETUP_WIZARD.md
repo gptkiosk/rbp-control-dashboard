@@ -7,7 +7,7 @@ The six steps cover:
 1. **Your Mac:** local macOS prerequisites, dependency/build commands and an allowed default workspace. The browser can be on another device; agents execute on the host Mac.
 2. **Google sign-in:** exact configured callback URLs, OAuth Web application setup, approved accounts and the private importer. OAuth secrets remain host configuration. The browser sign-in gate remains enforced.
 3. **Hermes & OpenClaw:** executable detection, official installation guides, native provider/model routing and fallback-cap confirmation. Detection does not verify gateway readiness or provider authentication.
-4. **OpenRouter:** encrypted write-only profile key entry and an explicit key-spending check. Native inference keys/routing remain separately configured; this key does not authorize paid model usage.
+4. **OpenRouter:** encrypted write-only profile key entry and an explicit key-spending check. Native inference keys/routing remain separately configured unless you opt in to [sharing this key with Hermes and OpenClaw](configuration/saved-openrouter-key.md); this key does not authorize paid model usage.
 5. **Subscriptions:** ChatGPT/Codex and Claude apps, the corresponding CLIs, host subscription login and usage-limit confirmation. MCD executes the CLIs; desktop sign-in alone is not a CLI entitlement check.
 6. **Find your way:** all menu destinations, header Help chat, how-tos and a checklist of detected settings and operator confirmations.
 

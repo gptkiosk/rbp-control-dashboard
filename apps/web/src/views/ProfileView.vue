@@ -50,9 +50,14 @@ async function pair() { await action(async () => {
 }) }
 async function refresh() { await action(async () => { const p = await getJson<Profile>('/api/profile'); profile.value = p; if(p.discord_linked) pairing.value = ''; notice.value = p.discord_linked ? 'Discord identity linked.' : 'Waiting for Hermes to link your code.' }) }
 async function unlink() { await action(async () => { profile.value = await postJson<Profile>('/api/profile/discord/unlink'); pairing.value = ''; notice.value = 'Discord access revoked.' }) }
+async function shareKey(on: boolean) { await action(async () => {
+  // Saves only this switch on top of what is already saved, so unsaved edits elsewhere on the page are not swept in.
+  apply(await putJson<Profile>('/api/profile', { ...profile.value!.preferences, use_saved_openrouter_key: on }))
+  notice.value = on ? 'Hermes and OpenClaw runs now use your saved OpenRouter key.' : 'Hermes and OpenClaw no longer receive your saved OpenRouter key.'
+}) }
 async function checkSpending() { await action(async () => { spending.value = (await postJson<{ spending: typeof spending.value }>('/api/profile/openrouter/check')).spending }) }
 function exportPreferences() {
-  const { setup: _setup, ...portable } = preferences.value!
+  const { setup: _setup, use_saved_openrouter_key: _share, ...portable } = preferences.value!
   const url = URL.createObjectURL(new Blob([JSON.stringify({ version: 1, preferences: portable },null,2)], { type: 'application/json' }))
   const a = document.createElement('a'); a.href = url; a.download = 'mcd-preferences.json'; a.click(); URL.revokeObjectURL(url)
 }
@@ -61,7 +66,7 @@ async function importPreferences(event: Event) { await action(async () => {
   if (file.size > 16000) throw new Error('Choose a small RCD preferences file.')
   const data = JSON.parse(await file.text())
   if (data.version !== 1 || !data.preferences || typeof data.preferences !== 'object' || Object.keys(data).some(k => !['version','preferences'].includes(k)) || Object.keys(data.preferences).some(k => !Object.keys(profile.value!.preferences).includes(k))) throw new Error('Invalid preferences file.')
-  preferences.value = { ...data.preferences, setup: profile.value!.preferences.setup }; notice.value = 'Preferences loaded for review. Save to apply; Discord will need pairing on a new installation.'
+  preferences.value = { ...data.preferences, setup: profile.value!.preferences.setup, use_saved_openrouter_key: profile.value!.preferences.use_saved_openrouter_key }; notice.value = 'Preferences loaded for review. Save to apply; Discord will need pairing on a new installation.'
 }) }
 </script>
 
@@ -103,8 +108,12 @@ async function importPreferences(event: Event) { await action(async () => {
           <p class="muted small">Write-only values are encrypted in your local profile. They stay out of browser storage, source code, exports and agent prompts.</p>
           <div v-for="provider in ['openrouter','discord']" :key="provider" class="credential">
             <label>{{ provider === 'openrouter' ? 'OpenRouter key' : 'Discord bot token (optional)' }}<input v-model="secrets[provider]" class="input" type="password" autocomplete="new-password" :aria-label="provider + ' credential'" placeholder="Enter a new credential" /></label>
-            <p class="muted small">{{ provider === 'openrouter' ? 'Read actual spending for this key. Existing agents keep their separately configured routing and spending caps.' : 'Use your own bot for project notifications, or leave empty to use this installation’s Hermes bot.' }}</p>
+            <p class="muted small">{{ provider === 'openrouter' ? 'Read actual spending for this key. Agents keep their own configured routing and caps unless you share this key with Hermes and OpenClaw below.' : 'Use your own bot for project notifications, or leave empty to use this installation’s Hermes bot.' }}</p>
             <div class="actions"><span v-if="profile.credentials.find(c => c.provider === provider)">Saved ····{{ profile.credentials.find(c => c.provider === provider)?.hint }}</span><button class="btn" :disabled="busy || !secrets[provider]" @click="saveKey(provider)">Save credential</button><button v-if="profile.credentials.find(c => c.provider === provider)" class="btn" :disabled="busy" @click="removeKey(provider)">Remove</button></div>
+          </div>
+          <div v-if="profile.credentials.some(c => c.provider === 'openrouter')" class="share">
+            <label class="check"><input type="checkbox" data-testid="share-key" :checked="!!profile.preferences.use_saved_openrouter_key" :disabled="busy" @change="shareKey(($event.target as HTMLInputElement).checked)" />Let Hermes and OpenClaw use this saved key</label>
+            <p class="muted small">Off by default. When on, Hermes and OpenClaw runs receive this key as OPENROUTER_API_KEY, even if they have their own, and it is removed from anything they print. Claude, Codex and Grok never receive it, and paid models still follow your dispatch policy. An agent can read its own environment, so use a dedicated key with a credit limit set at OpenRouter. Turning this off, or removing the key, stops it at once.</p>
           </div>
           <button v-if="profile.credentials.some(c => c.provider === 'openrouter')" class="btn" :disabled="busy" @click="checkSpending">Check key spending</button>
           <div v-if="spending" class="spending" role="status"><p>API usage this month: ${{ spending.month_usd ?? 'not reported' }}</p><p>BYOK usage this month: ${{ spending.byok_month_usd ?? 'not reported' }}</p><p>Key limit: ${{ spending.limit_usd ?? 'not set' }} · {{ spending.limit_reset ?? 'no reset' }}</p></div>
