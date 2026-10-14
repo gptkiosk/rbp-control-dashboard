@@ -304,7 +304,8 @@ fi
 render_unit() { # TEMPLATE DEST PYTHON WORKDIR
   sed -e "s|__UPDATE_ROOT__|${ROOT}|g" -e "s|__PYTHON_PATH__|$3|g" \
       -e "s|__WORKING_DIRECTORY__|$4|g" -e "s|__DATA_DIR__|${DATA}|g" \
-      -e "s|__SERVE_SCRIPT__|serve.py|g" -e "s|__RESTART_SEC__|10|g" "$1" > "$2.tmp"
+      -e "s|__SERVE_SCRIPT__|serve.py|g" -e "s|__RESTART_SEC__|10|g" \
+      -e "/^Environment=MAC_CONTROL_DATA_DIR=/a Environment=MAC_CONTROL_UPDATE_ROOT=${ROOT}" "$1" > "$2.tmp"
   if grep -q '__[A-Z_]*__' "$2.tmp"; then rm -f "$2.tmp"; die "unrendered placeholder in $1"; fi
   chmod 644 "$2.tmp"
   mv "$2.tmp" "$2"

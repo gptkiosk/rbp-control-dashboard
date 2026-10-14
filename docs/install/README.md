@@ -26,8 +26,8 @@ commands has been run on a Raspberry Pi or on a Raspberry Pi OS image.**
 - **No public GitHub release exists yet**, so there is nothing to download. Nothing has been uploaded or published.
 - **Authenticity is not available yet.** The bootstrap checks a manifest digest that you copy from the release page.
   No signing key is configured, and the trust-root decision is still open. The bootstrap checks integrity only.
-- **The Settings updater is off after a bootstrap install.** The unit does not set `MAC_CONTROL_UPDATE_ROOT`, so the
-  updater shows manual steps. See [Updates, rollback and recovery](updates-rollback-recovery.md#settings-updater).
+- **The Settings updater is off on a host installed before 0.3.3.** Those units do not set `MAC_CONTROL_UPDATE_ROOT`. Add it
+  once with a drop-in; see [Updates, rollback and recovery](updates-rollback-recovery.md#settings-updater).
 - **The Settings one-button fetch needs the digest typed in unless the host trusts the release signature.** A bootstrap from
   0.3.2 on switches to signature trust when the package ships the release key; older hosts switch with
   `enable-signed-updates` (see [Updates, rollback and recovery](updates-rollback-recovery.md)).

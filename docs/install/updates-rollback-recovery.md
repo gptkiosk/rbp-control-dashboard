@@ -29,13 +29,18 @@ helper and return `202`. Poll `GET /api/updates` for progress.
 
 **Known gaps on a bootstrap install:**
 
-- **The updater is off.** The API reads `MAC_CONTROL_UPDATE_ROOT`, and `rcd-api.service` does not set it. The card
-  then shows manual steps. To enable it, add this line to `~/.rcd-control/.env` and restart the service. This has not
-  been tested:
+- **Older installs have the updater off.** The API reads `MAC_CONTROL_UPDATE_ROOT`. The unit written by `bootstrap-rcd.sh`
+  from 0.3.3 on sets it. A unit written by an earlier bootstrap does not, so the card says "no update root is
+  configured" and shows manual steps. Updates never rewrite the unit, so set it once with a drop-in, then restart:
 
   ```sh
-  MAC_CONTROL_UPDATE_ROOT=/home/<user>/.local/share/rcd-control
+  mkdir -p ~/.config/systemd/user/rcd-api.service.d
+  printf '[Service]\nEnvironment=MAC_CONTROL_UPDATE_ROOT=%s\n' "$HOME/.local/share/rcd-control" \
+    > ~/.config/systemd/user/rcd-api.service.d/update-root.conf
+  systemctl --user daemon-reload && systemctl --user restart rcd-api.service
   ```
+
+  Use your `--root` if you chose another. To undo it, delete the drop-in file and reload.
 
 - **With a pinned digest the one-button fetch requires an independent digest.** The panel displays GitHub's API digest
   for reference, then requires the operator to enter the manifest SHA-256 copied independently from the release page.
