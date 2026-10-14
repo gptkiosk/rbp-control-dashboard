@@ -19,6 +19,7 @@ const auth = useAuthStore(), help = useHelpStore(), route = useRoute(), router =
 const profile = ref<Profile | null>(null), agents = ref<AgentsPayload | null>(null), workdirs = ref<Workdir[]>([])
 const progress = ref<SetupProgress>({ step: 0, status: 'new', confirmed: [] })
 const busy = ref(false), loading = ref(true), error = ref(''), notice = ref(''), checksError = ref('')
+const replacingKey = ref(false)
 const key = ref(''), workingDir = ref(''), spending = ref<Record<string, unknown> | null>(null)
 const heading = ref<HTMLElement | null>(null), finished = ref(false)
 const hasKey = computed(() => profile.value?.credentials.some(c => c.provider === 'openrouter') ?? false)
@@ -64,7 +65,7 @@ async function persist(state = progress.value) {
 }
 async function move(step: number) {
   await action(async () => {
-    key.value = ''
+    key.value = ''; replacingKey.value = false
     await persist({ ...progress.value, step, status: 'in_progress' }); finished.value = false
     await router.replace({ path: '/setup' })
     await nextTick(); heading.value?.focus()
@@ -89,6 +90,7 @@ async function saveKey() {
   await action(async () => {
     try {
       applyProfile(await putJson<Profile>('/api/profile/credentials/openrouter', { value: key.value }))
+      replacingKey.value = false
       spending.value = null; notice.value = 'Key saved privately. Native agent routes are unchanged.'
     } catch { throw new Error('Could not save the key. Check the value and private credential storage in Settings.') }
     finally { key.value = '' }
@@ -120,7 +122,7 @@ onBeforeUnmount(() => { key.value = '' })
         <div class="step-heading"><p class="eyebrow">STEP {{ progress.step+1 }} OF {{ steps.length }}</p><h2 ref="heading" tabindex="-1">{{ steps[progress.step] }}</h2><progress :value="progress.step+1" :max="steps.length" aria-label="Setup walkthrough progress" /></div>
         <p v-if="notice" class="setup-notice" role="status">{{ notice }}</p>
         <p v-if="checksError" class="notice-warn" role="status">{{ checksError }}</p>
-        <RecommendedAgentMix platform="pi" />
+        <RecommendedAgentMix v-if="progress.step === 0" platform="pi" />
         <template v-if="progress.step === 0">
           <p>RCD runs locally on a Raspberry Pi. You can use its browser interface from another computer or your phone; the agents and their sign-ins belong on the Pi hosting RCD.</p>
           <ol class="instructions"><li>Use Raspberry Pi OS (64-bit) on a Raspberry Pi 4 or newer. Install the system packages with <code>sudo apt install git python3 python3-venv nodejs npm</code>; RCD needs Python 3.12 or newer and a Node/npm version compatible with your agents. Follow each agent’s current installation requirements.</li><li>From your local RCD checkout, create the Python environment in <code>apps/api</code> with <code>python3 -m venv .venv</code>, install the requirements in it, and build the web interface in <code>apps/web</code> with <code>npm ci &amp;&amp; npm run build</code>. Start the API from <code>apps/api</code> with <code>.venv/bin/python serve.py</code>. To keep it running across reboots, run <code>scripts/install-systemd-user.sh</code> to install it as a systemd user service, and run <code>sudo loginctl enable-linger "$USER"</code> once so it starts at boot.</li><li>Keep installation settings in the private <code>~/.rcd-control/.env</code>. Configure allowed workspace roots and agent executable paths there, then restart RCD when no jobs are running.</li></ol>
@@ -150,10 +152,11 @@ onBeforeUnmount(() => { key.value = '' })
         <template v-else-if="progress.step === 3">
           <p>Save your OpenRouter key in your private profile to check actual key spending. Configure the inference key separately in Hermes and OpenClaw on the Pi.</p>
           <a href="https://openrouter.ai/settings/keys" target="_blank" rel="noopener noreferrer">Create or manage an OpenRouter key ↗</a>
-          <form class="key-form" @submit.prevent="saveKey"><label for="setup-openrouter">{{ hasKey ? 'Replace saved OpenRouter key' : 'OpenRouter key' }}</label><input id="setup-openrouter" v-model="key" class="input" type="password" autocomplete="new-password" maxlength="4000" placeholder="Enter your OpenRouter key" required /><div class="actions"><span v-if="hasKey" class="setup-state ready">Key saved privately</span><button class="btn primary" :disabled="busy || !key.trim()">Save private key</button><button v-if="hasKey" type="button" class="btn" :disabled="busy" @click="checkKey">Check key with OpenRouter</button></div></form>
+          <div v-if="hasKey" class="setup-notice" data-test="saved-openrouter"><p>OpenRouter key already saved for your profile. The wizard and Settings use the same saved key; you do not need to enter it again.</p><div class="actions"><button class="btn" :disabled="busy" @click="checkKey">Check key with OpenRouter</button><button v-if="!replacingKey" class="btn" :disabled="busy" @click="replacingKey = true">Replace saved key</button></div></div>
+          <form v-if="!hasKey || replacingKey" class="key-form" @submit.prevent="saveKey"><label for="setup-openrouter">{{ hasKey ? 'Replacement OpenRouter key' : 'OpenRouter key' }}</label><input id="setup-openrouter" v-model="key" class="input" type="password" autocomplete="new-password" maxlength="4000" placeholder="Enter your OpenRouter key" required /><div class="actions"><button class="btn primary" :disabled="busy || !key.trim()">{{ hasKey ? 'Save replacement key' : 'Save private key' }}</button><button v-if="hasKey" type="button" class="btn" :disabled="busy" @click="key = ''; replacingKey = false">Cancel replacement</button></div></form>
           <div v-if="spending" class="setup-notice" role="status"><p>API usage this month: {{ spending.month_usd == null ? 'not reported' : '$'+spending.month_usd }}</p><p>BYOK usage this month: {{ spending.byok_month_usd == null ? 'not reported' : '$'+spending.byok_month_usd }}</p></div>
           <p class="small muted">Saving sends the key only to this RCD installation’s encrypted, write-only storage. Checking contacts OpenRouter to read this key’s spending; it starts no model request. Key-wide totals can include other apps using the same key.</p>
-          <p>Saving a profile key does not configure agent inference, choose paid models or change the existing fallback cap. Claude and Codex keep their subscription routes.</p><RouterLink to="/profile#credentials-profile" class="btn">Manage private credentials</RouterLink>
+          <p>Hermes or OpenClaw may separately ask for an inference key during their native setup. That configures the agent itself; this saved dashboard key is for spending checks and is not copied into agents. Saving it does not choose paid models or change the existing fallback cap. Claude and Codex keep their subscription routes.</p><RouterLink to="/profile#credentials-profile" class="btn">Manage private credentials</RouterLink>
         </template>
         <template v-else-if="progress.step === 4">
           <div class="setup-notice"><p>Missing Codex, Claude Code or Grok Build? Install the CLI runtime in Agent tools first, then complete its native account sign-in on this host. A desktop app or Google dashboard login does not install or sign in the worker CLI.</p><RouterLink to="/profile#agent-tools" class="btn primary">Install or upgrade membership runtimes</RouterLink><p class="small muted">Return to this wizard’s Memberships step and choose Refresh checks after installation.</p></div><p>Paid memberships are optional for the free-only baseline. For membership-priced coding, use a supported native CLI and sign into its eligible paid account. Using OpenRouter or an API key for OpenAI/Anthropic models is separate usage billing and does not use your membership allowance.</p>

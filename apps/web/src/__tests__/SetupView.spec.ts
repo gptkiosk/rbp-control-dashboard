@@ -57,7 +57,13 @@ it('saves a key write-only and clears the input before leaving or recording prog
   const {w,fetch}=await setup(3);const secret='sk-or-test-private1234'
   await w.get('#setup-openrouter').setValue(secret)
   await w.get('.key-form').trigger('submit');await flushPromises()
+  expect(w.find('#setup-openrouter').exists()).toBe(false)
+  expect(w.get('[data-test="saved-openrouter"]').text()).toContain('do not need to enter it again')
+  expect(w.text()).toContain('may separately ask for an inference key')
+  await w.findAll('button').find(b => b.text() === 'Replace saved key')!.trigger('click')
   expect((w.get('#setup-openrouter').element as HTMLInputElement).value).toBe('')
+  await w.findAll('button').find(b => b.text() === 'Cancel replacement')!.trigger('click')
+  expect(w.find('#setup-openrouter').exists()).toBe(false)
   expect(w.text()).not.toContain(secret);expect(localStorage.length).toBe(0)
   expect(w.text()).toContain('Native agent routes are unchanged')
   await w.get('.wizard-footer .primary').trigger('click');await flushPromises()
