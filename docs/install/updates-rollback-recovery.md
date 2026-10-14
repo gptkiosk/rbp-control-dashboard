@@ -37,9 +37,31 @@ helper and return `202`. Poll `GET /api/updates` for progress.
   MAC_CONTROL_UPDATE_ROOT=/home/<user>/.local/share/rcd-control
   ```
 
-- **The one-button fetch requires an independent digest.** The panel displays GitHub's API digest for reference,
-  then requires the operator to enter the manifest SHA-256 copied independently from the release page. It sends
-  that value as `manifest_sha256`; missing or malformed pins are refused before download.
+- **With a pinned digest the one-button fetch requires an independent digest.** The panel displays GitHub's API digest
+  for reference, then requires the operator to enter the manifest SHA-256 copied independently from the release page.
+  It sends that value as `manifest_sha256`; missing or malformed pins are refused before download.
+- **With release-signature trust the update is one confirmation.** Check for updates, then **Update to X.Y.Z**: the
+  server downloads the release, verifies the manifest's SSH signature against the release key pinned in
+  `<root>/helper/allowed_signers`, stages it, and installs it with the same drain check, data snapshot, health check and
+  automatic rollback as the command line. No digest is typed. If work is running the install is refused and the verified
+  package stays staged until you install it.
+
+### Switch a host to release-signature trust
+
+A host installed by the current `bootstrap-rcd.sh` is switched automatically when the package ships the release key and
+it matches the fingerprint written in the script. For an existing host, run once on it, naming the key you checked in
+[the release signing guide](../../packaging/release-signing.md):
+
+```sh
+python3 -I <root>/helper/update_helper.py --config <root>/helper/helper.json \
+  enable-signed-updates --fingerprint SHA256:<fingerprint of the release key> --allowed-signers <path to allowed_signers>
+```
+
+Without `--allowed-signers` it reads `<root>/current/packaging/allowed_signers` (shipped from 0.3.2). The command refuses
+unless the file holds exactly one key for the `dashboard-release` signer, limited to that namespace, and that key's
+fingerprint is the one you named. It copies the file into the helper folder, where an update cannot replace it, and
+rewrites `helper.json`. It refuses while an update is in progress. To go back, set `"trust": {"kind": "pinned-digest"}` in
+`helper.json`. A rotated release key needs this command again with the new fingerprint.
 
 ## Upgrade with the command line
 

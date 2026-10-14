@@ -20,7 +20,7 @@ interface CheckResponse { available: boolean; candidate: Candidate | null; insta
 interface Version { id: string; complete: boolean; version: string | null; channel: string | null; change: string | null; repository: string | null; authenticity: string | null; staged_at: number | null }
 interface Last { tx: string | null; kind: string | null; outcome: string; detail: string; target: string | null; from: string | null; at: number }
 interface Install { current: string | null; previous: string | null; versions: Version[]; tx: { id: string; kind: string; phase: string; target: string } | null; last: Last | null; needs_recovery: boolean }
-interface UpdateStatus { kind: string; detail: string; configured: boolean; problems: string[]; manual_instructions: string[]; install?: Install; blockers?: string[] }
+interface UpdateStatus { kind: string; trust?: string; detail: string; configured: boolean; problems: string[]; manual_instructions: string[]; install?: Install; blockers?: string[] }
 interface Pending { kind: 'install' | 'rollback'; version: Version }
 interface Operation { kind: Pending['kind']; target: string; beforeTx: string | null; sawTx: boolean; polls: number }
 
@@ -34,12 +34,15 @@ const found = ref<CheckResponse | null>(null), checkedAt = ref<number | null>(nu
 const status = ref<UpdateStatus | null>(null)
 const pending = ref<Pending | null>(null), confirmed = ref(false)
 const downloadAsk = ref(false), downloadConfirmed = ref(false), downloading = ref(false)
+const updateAsk = ref(false), updateConfirmed = ref(false)
 const operation = ref<Operation | null>(null), reconnecting = ref(false), busy = ref(false)
 const error = ref(''), notice = ref('')
 let timer: ReturnType<typeof setTimeout> | undefined
 let alive = true
 
 const install = computed(() => status.value?.install)
+// With release-signature trust one confirmation downloads, verifies and installs. With a pinned digest the steps stay separate.
+const signed = computed(() => status.value?.trust === 'ssh-signature')
 const managed = computed(() => !!status.value && status.value.kind === 'release' && status.value.configured && !!install.value)
 const blockers = computed(() => status.value?.blockers ?? [])
 const inProgress = computed(() => !!install.value?.tx || !!install.value?.needs_recovery || !!operation.value || downloading.value)
@@ -124,7 +127,7 @@ async function read(): Promise<boolean> {
 // Read-only look at the public GitHub Releases API, sent only when the operator clicks. Nothing is downloaded or changed.
 async function check() {
   if (busy.value || !!operation.value) return
-  busy.value = true; error.value = ''; notice.value = ''; cancelDownload()
+  busy.value = true; error.value = ''; notice.value = ''; cancelDownload(); cancelUpdate()
   try {
     const body = await getJson<CheckResponse>(`/api/app-updates/check?channel=${encodeURIComponent(channel.value)}`)
     found.value = body
@@ -135,6 +138,32 @@ async function check() {
     found.value = null
     error.value = refusal(e, 'Could not check for updates.')
   } finally { busy.value = false }
+}
+
+function askUpdate() { updateAsk.value = true; updateConfirmed.value = false; error.value = ''; notice.value = '' }
+function cancelUpdate() { updateAsk.value = false; updateConfirmed.value = false }
+
+// One confirmation, three server-side steps that each keep their own checks: download and verify the signature against the
+// key pinned on this host, then apply (drain check, data snapshot, switch, health check, automatic rollback).
+async function updateNow() {
+  const c = candidate.value
+  if (!c || !signed.value || !updateConfirmed.value || busy.value || refused.value) return
+  busy.value = true; downloading.value = true; error.value = ''; notice.value = ''; cancelUpdate()
+  let staged = false
+  try {
+    await postJson('/api/app-updates/fetch', { version: c.version, channel: channel.value, confirm: true })
+    const ready = await waitForStaged(c.version)
+    const v = stagedVersion(c.version)
+    if (!ready || !v) { error.value = 'Not staged yet. Nothing was installed. If the download is still running, check again shortly; otherwise check helper.log on the host.'; return }
+    staged = true; downloading.value = false
+    await postJson('/api/app-updates/apply', { version_id: v.id })
+    operation.value = { kind: 'install', target: v.id, beforeTx: install.value?.last?.tx ?? null, sawTx: false, polls: 0 }
+    notice.value = `Update to ${c.version} started on the host. Progress is shown below.`
+    timer = setTimeout(poll, POLL_MS)
+  } catch (e) {
+    await read()
+    error.value = refusal(e, 'The update could not be completed.') + (staged ? ' The verified package stays staged; nothing was installed.' : '')
+  } finally { downloading.value = false; busy.value = false }
 }
 
 function askDownload() { downloadAsk.value = true; downloadConfirmed.value = false; error.value = ''; notice.value = '' }
@@ -229,8 +258,8 @@ onBeforeUnmount(() => { alive = false; if (timer) clearTimeout(timer) })
 </script>
 <template>
   <section id="updates" class="card update-panel" aria-labelledby="updates-title">
-    <h2 id="updates-title">Updates</h2>
-    <p class="muted">Updates are never automatic. Checking reads the public GitHub release list only: it downloads nothing and changes nothing. Downloading, installing and rolling back each need your confirmation.</p>
+    <h2 id="updates-title" class="section-title">Updates</h2>
+    <p class="muted lead">Updates are never automatic. Checking reads the public GitHub release list only: it downloads nothing and changes nothing. Downloading, installing and rolling back each need your confirmation.</p>
     <p v-if="error" class="notice-warn" role="alert">{{ error }}</p>
     <p v-if="notice" role="status">{{ notice }}</p>
     <p v-if="reconnecting" class="muted" role="status">Reconnecting to the service. It is restarting, so this can take a minute. Nothing is started again from here.</p>
@@ -243,6 +272,9 @@ onBeforeUnmount(() => { alive = false; if (timer) clearTimeout(timer) })
         <p v-for="problem in status.problems" :key="problem" class="muted small">{{ problem }}</p>
       </template>
       <template v-else>
+        <p class="muted small trust">{{ signed
+          ? 'Releases are verified by their signature against the release key pinned on this host. You do not paste a digest.'
+          : 'This host trusts a digest you paste from the release page. To verify releases by signature instead, run update_helper.py enable-signed-updates on the host (see the update guide).' }}</p>
         <div class="actions">
           <label>Channel<AppSelect v-model="channel" aria-label="Update channel"><option value="stable">Stable</option><option value="prerelease">Prerelease</option></AppSelect></label>
           <button class="btn" :disabled="busy || !!operation" @click="check">Check for updates</button>
@@ -264,8 +296,25 @@ onBeforeUnmount(() => { alive = false; if (timer) clearTimeout(timer) })
           <pre class="notes">{{ candidate.notes || 'This release has no notes.' }}</pre>
           <a v-if="releaseLink" :href="releaseLink" target="_blank" rel="noopener noreferrer">View this release on GitHub</a>
           <p v-if="refused" class="notice-warn" role="alert">{{ refused }}</p>
+          <button v-else-if="signed" class="btn primary" :disabled="!canChange" @click="askUpdate">Update to {{ candidate.version }}</button>
           <button v-else class="btn primary" :disabled="!canChange" @click="askDownload">Download and verify {{ candidate.version }}</button>
         </article>
+
+        <section v-if="updateAsk && candidate && signed" class="confirm" aria-labelledby="update-title">
+          <h3 id="update-title">Update to {{ candidate.version }}</h3>
+          <p>Downloads the release from {{ candidate.repository }}, verifies its signature against the release key pinned on this host, then installs it. The service restarts for a short time; a data snapshot is taken first, and if the new version does not pass its health check the previous one is put back automatically.</p>
+          <h4>What changed in {{ candidate.version }} (plain text)</h4>
+          <pre class="notes">{{ candidate.notes || 'This release has no notes.' }}</pre>
+          <ul class="preflight">
+            <li>Nothing may be running, queued, waiting for approval or dispatching: the server checks before it stops anything.</li>
+            <li>Running or waiting work: {{ blockers.length ? blockers.join('; ') : 'none found' }}.</li>
+          </ul>
+          <label class="check"><input v-model="updateConfirmed" type="checkbox" />I have read this and want to update to {{ candidate.version }}.</label>
+          <div class="actions">
+            <button class="btn primary" :disabled="!updateConfirmed || busy || !canChange" @click="updateNow">Update to {{ candidate.version }}</button>
+            <button class="btn" :disabled="busy" @click="cancelUpdate">Cancel</button>
+          </div>
+        </section>
 
         <section v-if="downloadAsk && candidate" class="confirm" aria-labelledby="download-title">
           <h3 id="download-title">Download and verify {{ candidate.version }}</h3>
@@ -279,7 +328,7 @@ onBeforeUnmount(() => { alive = false; if (timer) clearTimeout(timer) })
           </div>
         </section>
 
-        <p v-if="downloading" class="status" role="status">Downloading and verifying. Nothing is installed yet.</p>
+        <p v-if="downloading" class="status" role="status">{{ signed ? 'Downloading and verifying the signature. Nothing is installed until this finishes.' : 'Downloading and verifying. Nothing is installed yet.' }}</p>
 
         <p>Installed <strong>{{ label(install?.current) }}</strong> · Previous: {{ install?.previous ? label(install.previous) : 'none kept' }}</p>
         <ul v-if="blockers.length" class="updates" aria-label="Work that must finish first">
@@ -332,20 +381,22 @@ onBeforeUnmount(() => { alive = false; if (timer) clearTimeout(timer) })
   </section>
 </template>
 <style scoped>
-.update-panel { margin: var(--gap-lg) 0; display: grid; gap: var(--gap-sm); }
+.update-panel { margin: var(--gap-lg) 0; display: grid; gap: var(--gap); }
+.lead { max-width: 72ch; line-height: var(--line-height); margin: 0; }
+.trust { max-width: 72ch; line-height: var(--line-height); }
 h2, h3, h4 { margin: 0; }
 .status { font-weight: 600; margin: 0; }
 .small { font-size: var(--font-size-xs); margin: 0; }
 .actions { display: flex; gap: var(--gap); flex-wrap: wrap; align-items: center; }
 .actions label { display: flex; gap: var(--gap-sm); align-items: center; margin: 0; }
-.updates { display: grid; gap: var(--gap-sm); padding-left: var(--gap); }
+.updates { display: grid; gap: var(--gap-sm); padding-left: 1.5rem; line-height: var(--line-height); }
 .release, .confirm { display: grid; gap: var(--gap-sm); border: 1px solid var(--surface-border); border-radius: var(--radius); padding: var(--gap); justify-items: start; }
 .facts { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: var(--gap-xs) var(--gap); margin: 0; font-size: var(--font-size-sm); }
 .facts dt { color: var(--text-muted); }
 .facts dd { margin: 0; overflow-wrap: anywhere; }
 .mono { font-family: var(--font-mono, ui-monospace, monospace); font-size: var(--font-size-xs); }
 .notes { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 16rem; overflow: auto; margin: 0; width: 100%; box-sizing: border-box; padding: var(--gap-sm); border: 1px solid var(--surface-border); border-radius: var(--radius); }
-.preflight { margin: 0; padding-left: var(--gap); }
+.preflight { margin: 0; padding-left: 1.5rem; list-style: disc; line-height: var(--line-height); display: grid; gap: var(--gap-xs); }
 .check { display: flex; align-items: flex-start; gap: var(--gap-sm); }
 .check input { flex: none; margin-top: var(--gap-xs); accent-color: var(--accent); }
 </style>

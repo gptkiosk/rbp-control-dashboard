@@ -10,6 +10,15 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-10-14
+
+### Added
+- One-confirmation updates on a host that trusts the release signature: Check for updates, then **Update to X.Y.Z**. The release's SSH signature is verified against the release key pinned on the host, so no digest is typed; the install still drains work, takes a data snapshot, checks health and rolls back by itself. A host that still pins a digest keeps the two-step flow and the panel says how to switch.
+- `update_helper.py enable-signed-updates --fingerprint SHA256:...` switches an existing host to signature trust after you name the key. The release package now ships the public release key, and the bootstrap switches a new install automatically when the key matches the fingerprint in the script.
+
+### Changed
+- The Updates panel is easier to read: clearer spacing and headings, and the work that must finish first is shown before you confirm.
+
 ### Fixed
 - The MCP page no longer shows a red "list failed (exit 127)" for an agent whose command is not on this host. It shows a quiet "Not available on this host" note. A command that runs and fails is still reported as a failure.
 
@@ -106,7 +115,8 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 - Claude Code stories may use web search and fetch without any shell, credential or publish permission.
 
 [0.3.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.0
-[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.3.2...HEAD
+[0.3.2]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.2
 [0.2.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.2.0
 
 ## Before versioned releases

@@ -43,6 +43,7 @@ import shutil
 import sqlite3
 import stat
 import subprocess
+import tempfile
 import time
 import urllib.parse
 import urllib.request
@@ -835,6 +836,83 @@ def status(cfg: HelperConfig) -> dict:
     return {"current": _link_target(cfg, "current"), "previous": _link_target(cfg, "previous"),
             "versions": versions, "tx": state["tx"], "last": state["last"], "snapshots": snapshots(cfg),
             "needs_recovery": state["tx"] is not None}
+
+
+# --- trust ------------------------------------------------------------------------------
+
+SIGNER_NAMESPACE = "dashboard-release"
+KEY_TYPES = ("ssh-ed25519", "ecdsa-sha2-nistp256", "ecdsa-sha2-nistp384", "ecdsa-sha2-nistp521", "ssh-rsa")
+FINGERPRINT = re.compile(r"^SHA256:[A-Za-z0-9+/]{43}$")
+
+
+def signer_fingerprints(signers: bytes) -> list[str]:
+    """Fingerprints of the keys an allowed_signers file trusts, read with the system ssh-keygen.
+    Anything that is not one plain line for the release signer in the release namespace is refused."""
+    ssh_keygen = next((c for c in rv.SshSignature.CANDIDATES if os.path.isfile(c)), None)
+    if not ssh_keygen:
+        raise UpdateError("ssh-keygen is not available, so the release key cannot be checked")
+    lines = [line.strip() for line in signers.decode("utf-8", "replace").splitlines() if line.strip() and not line.lstrip().startswith("#")]
+    if not lines:
+        raise UpdateError("the allowed signers file has no key")
+    prints = []
+    for line in lines:
+        parts = line.split()
+        key_at = next((i for i, part in enumerate(parts) if part in KEY_TYPES), None)
+        if key_at is None or key_at + 1 >= len(parts) or key_at == 0:
+            raise UpdateError("the allowed signers file has a line that is not a signer and a public key")
+        principals, options = parts[0], " ".join(parts[1:key_at])
+        if not rv.SIGNER_IDENTITY.match(principals) or f'namespaces="{SIGNER_NAMESPACE}"' not in options:
+            raise UpdateError(f'every signer must be limited to namespaces="{SIGNER_NAMESPACE}"')
+        with tempfile.TemporaryDirectory(prefix="signer-key-") as tmp:
+            pub = Path(tmp) / "key.pub"
+            pub.write_text(f"{parts[key_at]} {parts[key_at + 1]}\n")
+            result = subprocess.run([ssh_keygen, "-l", "-f", str(pub)], capture_output=True, text=True, timeout=15,
+                                    env={"PATH": "/usr/bin:/bin", "LC_ALL": "C"})
+        found = re.search(r"\b(SHA256:[A-Za-z0-9+/]{43})\b", result.stdout)
+        if result.returncode or not found:
+            raise UpdateError("a public key in the allowed signers file could not be read")
+        prints.append(found.group(1))
+    return prints
+
+
+def _write_private(path: Path, data: bytes) -> None:
+    tmp = path.with_name(path.name + f".{os.getpid()}.tmp")
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o600)
+    with os.fdopen(fd, "wb") as handle:
+        handle.write(data)
+        handle.flush()
+        os.fsync(handle.fileno())
+    os.replace(tmp, path)
+
+
+def enable_signed_updates(config_path: Path, cfg: HelperConfig, source: Path, fingerprint: str) -> dict:
+    """Switch this host from a pasted digest to the release signature, as an explicit operator decision.
+
+    The operator names the key by its fingerprint (published beside each release); the key file is copied
+    into the helper folder, where no update can replace it, and helper.json is rewritten to use it.
+    Nothing is switched while an update is in progress."""
+    if not FINGERPRINT.match(fingerprint or ""):
+        raise UpdateError("pass the release key fingerprint as SHA256:<43 characters>")
+    prepare_layout(cfg)
+    try:
+        signers, _ = rv.read_regular(source, 64 * 1024, "allowed signers file")
+    except rv.VerificationError as exc:
+        raise UpdateError(exc.problems) from None
+    prints = signer_fingerprints(signers)
+    if prints != [fingerprint]:
+        raise UpdateError([f"the key in that file is {', '.join(prints)}, not {fingerprint}; nothing was changed"])
+    with invocation_lock(cfg):
+        _require_no_tx(load_state(cfg))
+        raw_bytes, _ = rv.read_regular(config_path, MAX_CONFIG_BYTES, "helper configuration")
+        raw = rv.strict_json(raw_bytes, "helper configuration")
+        target = Path(config_path).resolve().parent / "allowed_signers"
+        raw["trust"] = {"kind": "ssh-signature", "allowed_signers": str(target), "identity": "dashboard-release"}
+        problems = config_problems(raw)
+        if problems:
+            raise UpdateError(problems)
+        _write_private(target, signers)
+        _write_private(Path(config_path), (json.dumps(raw, indent=2, sort_keys=True) + "\n").encode())
+    return {"trust": "ssh-signature", "fingerprint": fingerprint, "allowed_signers": str(target)}
 
 
 # --- operations (helper only; each takes the invocation lock) ---------------------------

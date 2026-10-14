@@ -49,7 +49,8 @@
     "ops/systemd/*.service",
     "ops/systemd/*.template",
     "ops/systemd/*.timer",
-    "packs/roles/delegator/*"
+    "packs/roles/delegator/*",
+    "packaging/allowed_signers"
   ],
   "excluded_components": [
     "apps/mcp: separate agent tool server with its own venv; not packaged in v1",
