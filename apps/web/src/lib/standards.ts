@@ -3,6 +3,9 @@ export interface StandardsArea { area: string; risk: 'low' | 'medium' | 'high'; 
 export interface StandardsCheck { touches: string; run: string }
 export interface Standards {
   state: 'ok' | 'missing' | 'unreadable' | 'no_workdir'
+  source?: 'repository' | 'starter' | 'none'
+  starter_from?: 'shipped' | 'your copy'
+  repo_state?: 'ok' | 'missing' | 'unreadable' | 'no_workdir'
   path: string
   property: string | null
   sha256: string | null

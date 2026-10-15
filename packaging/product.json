@@ -50,6 +50,7 @@
     "ops/systemd/*.template",
     "ops/systemd/*.timer",
     "packs/roles/delegator/*",
+    "packs/standards/*",
     "packaging/allowed_signers"
   ],
   "excluded_components": [

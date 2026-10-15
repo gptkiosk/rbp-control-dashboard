@@ -518,7 +518,7 @@ def proposal(doc, nodes, settings):
 
 def _planner_prompt(p,catalog=None):
     return role_prompt('plan', schema=json.dumps(Node.model_json_schema()), catalog=json.dumps(catalog or []), project=_brief(p, True),
-        standards=standards.prompt_section(standards.inspect(document(p)['working_dir'])))
+        standards=standards.prompt_section(standards.resolve(document(p)['working_dir'],get_settings().data_dir)))
 
 
 def submit(s,p,action,settings,actor):
@@ -548,9 +548,9 @@ def submit(s,p,action,settings,actor):
     # Validate every story before dispatch; no partial materialization on error.
     gaps=job_envelope.story_problems(d['nodes'])
     if gaps: fail('Every story needs a work kind, size, risk, estimate and route reason before approval. Missing: '+'; '.join(gaps[:8])+('; and more' if len(gaps)>8 else ''),422)
-    std=standards.inspect(d['working_dir'])
+    std=standards.resolve(d['working_dir'],settings.data_dir)
     broken=standards.floor_problems(std,d['nodes'],lambda n:job_envelope.tier_for('human' if n['assignee']=='human' else 'agent',None if n['assignee']=='human' else n['assignee'],n['model'] or None))
-    if broken: fail('This plan breaks the repository standards ('+(std['property'] or 'this repository')+'). '+'; '.join(broken[:8])+('; and more' if len(broken)>8 else ''),422)
+    if broken: fail('This plan breaks the '+('starter' if std.get('source')=='starter' else 'repository')+' standards'+(' ('+std['property']+')' if std.get('property') else '')+'. '+'; '.join(broken[:8])+('; and more' if len(broken)>8 else ''),422)
     for n in d['nodes']:
         if n['kind']=='story':
             probe=cards.create(s,_story_data(p,d,n),settings,'hermes'); s.delete(probe); s.flush()
@@ -558,7 +558,7 @@ def submit(s,p,action,settings,actor):
         'branch':approval.current_branch(Path(d['working_dir'])),'approved_by':actor,'approved_at':now(),
         'fallback_models':{a:('opus' if a=='claude' else REGISTRY[a].default_model() or '') for a in ('claude','codex')},
         'api_work_approved':action.approve_api_work,'dispatch_mode':d['dispatch_mode'],
-        'base_commit':base_commit,'workspaces':{},'artifacts':{},'standards':{k:std[k] for k in ('state','property','sha256')}|{'areas':len(std['areas']),'checks':len(std['checks']),'required_checks':standards.required_checks(std)}}
+        'base_commit':base_commit,'workspaces':{},'artifacts':{},'standards':{k:std[k] for k in ('state','property','sha256')}|{'source':std.get('source'),'areas':len(std['areas']),'checks':len(std['checks']),'required_checks':standards.required_checks(std),'security_checks':std.get('security_checks',[])}}
     manifest['hash']=hashlib.sha256(json.dumps(manifest,sort_keys=True).encode()).hexdigest()
     p.approved_manifest=json.dumps(manifest)
     c=_queue(s,p,'dispatch',delegate['agent'],delegate['model'],role_prompt('dispatch', manifest=json.dumps(manifest)),settings)
@@ -568,7 +568,7 @@ def submit(s,p,action,settings,actor):
 def _story_data(p,d,n,std=None):
     return {'title':n['title'],'body':n['description'],'assignee_type':'human' if n['assignee']=='human' else 'agent',
         'agent':None if n['assignee']=='human' else n['assignee'],'model':n['model'] or None,'agent_target':n['agent_target'] or None,
-        'mode':n['mode'],'working_dir':d['working_dir'],'acceptance':n['acceptance']+standards.checks_text(std,n.get('work_kind')) if n['assignee']!='human' else n['acceptance'],
+        'mode':n['mode'],'working_dir':d['working_dir'],'acceptance':n['acceptance']+standards.checks_text(std,n.get('work_kind'),n.get('risk')) if n['assignee']!='human' else n['acceptance'],
         'assignee_user':(n.get('assignee_user') or None) if n['assignee']=='human' else None,
         'kind':n.get('work_kind'),'size':n.get('size'),'risk':n.get('risk'),'area':n.get('area') or None,
         'estimate_minutes':n.get('estimate_minutes'),'route_reason':n.get('route_reason') or None,

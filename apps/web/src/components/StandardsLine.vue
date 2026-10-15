@@ -15,7 +15,11 @@ watch(() => [props.projectId, props.revision], load, { immediate: true })
 </script>
 <template>
   <div v-if="data" class="standards" data-testid="standards">
-    <p v-if="data.state === 'ok'" class="small">
+    <p v-if="data.state === 'ok' && data.source === 'starter'" class="small" data-testid="starter">
+      <strong>Starter standards</strong> ({{ data.starter_from ?? 'shipped' }}) · {{ data.areas.length }} areas · {{ data.checks.length }} checks.
+      <span class="muted">{{ data.message || 'This repository has no standards of its own.' }}</span>
+    </p>
+    <p v-else-if="data.state === 'ok'" class="small">
       <strong>Standards:</strong> {{ data.property ?? 'this repository' }} · {{ data.areas.length }} {{ data.areas.length === 1 ? 'area' : 'areas' }} ·
       {{ data.checks.length }} {{ data.checks.length === 1 ? 'check' : 'checks' }} · <span class="mono" :title="data.sha256 ?? ''">{{ data.sha256?.slice(0, 12) }}</span>
     </p>

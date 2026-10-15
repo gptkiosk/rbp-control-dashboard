@@ -50,7 +50,8 @@ When the file is found and its risk table is understood, planning and approval f
   and appended to the acceptance of every agent story that writes (implement, test, docs, ops), headed with the property and the
   file's hash. The agent runs the ones that match what it changed and always the any-commit check, and reports what ran. Read-only
   stories (research, plan, review, triage) and human stories do not get them.
-- **A missing or unreadable file enforces nothing.** It is a warning on the project page, as before.
+- **A missing or unreadable file falls back to the [starter standards](starter-standards.md).** The project page says why, so the
+  file can be fixed.
 
 The planner sees a bounded paragraph with the areas, their minimum risk and route guidance. The text is project data and is
 marked as such; it cannot change what an agent is permitted to run. Telemetry groups work by the property the plan was approved

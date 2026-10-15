@@ -42,3 +42,14 @@ it('lists parser notes behind a fold and says nothing when the question cannot b
   expect(failed.find('[data-testid="standards"]').exists()).toBe(false)
   failed.unmount()
 })
+
+it('says plainly when the starter standards are in use, which copy, and why the repository was not used', async () => {
+  stubFetch(() => ({ body: ok({ source: 'starter', starter_from: 'shipped', property: null, repo_state: 'missing', message: 'No docs/development/standards.md in this project\'s working directory. Planning continues without standards.' }) }))
+  const w = mount(StandardsLine, { props: { projectId: 7 } }); await flushPromises()
+  const text = w.get('[data-testid="starter"]').text()
+  expect(text).toContain('Starter standards')
+  expect(text).toContain('shipped')
+  expect(text).toContain('2 areas')
+  expect(text).toContain('No docs/development/standards.md')
+  w.unmount()
+})
