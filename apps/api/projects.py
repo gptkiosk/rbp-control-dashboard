@@ -426,7 +426,7 @@ def _brief(p, include_nodes=False):
 def role_prompt(name, **values):
     if name not in {'coordinate', 'plan', 'review', 'dispatch'}:
         fail('Unknown role prompt.', 422)
-    return Template((RoleStore(get_settings()).pack / (name + '.txt')).read_text()).substitute(values)
+    return Template(RoleStore(get_settings()).source(name + '.txt')).substitute(values)
 
 
 def delegator_route(settings, action=None):

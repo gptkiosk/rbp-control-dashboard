@@ -17,7 +17,10 @@ to: publishing a release is what makes a version reachable.
    flag matches its version, newer than what is installed, with a valid signature, is offered.
 9. **Users update on their own terms.** Never automatic, never while work is in flight, snapshot data first, switch atomically,
    check health, roll back on failure, never downgrade.
-10. **A bad release is fixed forward** with a higher version. Do not move the tag or replace assets.
+10. **User data survives.** Keep user data, settings and customizations outside the install folder, make schema changes additive, give
+    every new setting a safe default, let loaders ignore keys they do not know, keep shipped text and user copies in separate files
+    (the user's copy wins), and never overwrite a file the user edited. Document what an update keeps, replaces and never touches.
+11. **A bad release is fixed forward** with a higher version. Do not move the tag or replace assets.
 
 **Risk.** Publishing reaches machines you cannot reach. Treat it as at least medium risk, and high risk when it touches the update
 path, migrations, authentication, spending controls, secrets or stored data. The signing key, release secret and trust file belong

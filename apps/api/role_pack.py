@@ -112,7 +112,7 @@ class RoleStore:
     def status(self):
         state = self.read()
         available = self.available()
-        return {**state, 'available': available, 'delegator': next((a for a,r in state['roles'].items() if r == 'delegator'), None), 'rollback_available': self.backup.exists(), 'guidance_installed': bool(state['targets']), 'revision': _digest(state), 'recovery_required': self.pending.exists()}
+        return {**state, **self.customized(), 'available': available, 'delegator': next((a for a,r in state['roles'].items() if r == 'delegator'), None), 'rollback_available': self.backup.exists(), 'guidance_installed': bool(state['targets']), 'revision': _digest(state), 'recovery_required': self.pending.exists()}
 
     def target_paths(self, agent, workspace):
         targets = {'hermes': [self.home / '.hermes/SOUL.md', self.home / '.hermes/context/dashboard-delegator.md'], 'claude': [self.home / '.claude/CLAUDE.md'], 'codex': [self.home / '.codex/AGENTS.md']}
@@ -131,9 +131,51 @@ class RoleStore:
             raise RoleError('Workspace must be within an allowed dashboard root.')
         return [path / 'AGENTS.md'] if agent == 'grok' else [path / 'SOUL.md', path / 'AGENTS.md']
 
+    def _custom_state(self, name):
+        """(text or None, problem or None) for the user's own copy of a pack file in <data>/roles/custom/."""
+        mine = self.folder / 'custom' / name
+        if not mine.exists() and not mine.is_symlink():
+            return None, None
+        shipped = (self.pack / name).read_text()
+        tokens = set(re.findall(r'\$[a-z_]+', shipped))
+        try:
+            text = _read(mine)
+            if not text or not text.strip():
+                return None, 'empty'
+            missing = sorted(t for t in tokens if t not in text)
+            if missing:
+                return None, 'missing ' + ', '.join(missing)
+            from string import Template
+            Template(text).substitute({t[1:]: '' for t in tokens})
+        except (RoleError, ValueError, KeyError, OSError) as error:
+            return None, str(error) or 'unusable'
+        return text, None
+
+    def source(self, name):
+        """The text for a pack file: the user's own copy when there is a usable one, else the shipped file.
+
+        An update replaces the shipped files, so a user's wording lives in <data>/roles/custom/<name> instead, where an update
+        never goes. A copy that cannot be used (it drops a placeholder the app fills in, has a stray `$`, is empty or unreadable)
+        is ignored and the shipped text is used, so a broken edit can never stop planning."""
+        text, _ = self._custom_state(name)
+        return text if text is not None else (self.pack / name).read_text()
+
+    def customized(self):
+        """Which pack files the user has replaced, and which of their copies are being ignored (with why)."""
+        used, ignored = [], {}
+        for path in sorted(self.pack.iterdir()):
+            if not path.is_file():
+                continue
+            text, problem = self._custom_state(path.name)
+            if text is not None:
+                used.append(path.name)
+            elif problem:
+                ignored[path.name] = problem
+        return {'custom': used, 'custom_ignored': ignored}
+
     def guidance(self):
         files = ['SOUL.md', 'context.md']
-        text = '\n\n'.join((self.pack / name).read_text() for name in files)
+        text = '\n\n'.join(self.source(name) for name in files)
         if re.search(r'/Users/|/home/|tailscale|tailnet|sk-[A-Za-z0-9]|BEGIN .*PRIVATE KEY', text, re.I):
             raise RoleError('The starter pack contains private host or credential material.')
         return text + '\n\nInstalled agents: ' + ', '.join(self.available()) + '\n'

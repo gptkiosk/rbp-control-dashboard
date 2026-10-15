@@ -50,6 +50,8 @@ Delete your copy to go back. Two optional lines tune the rules:
 Nothing in these files can grant an agent a permission: they can raise a story's risk and add checks, never lower a risk or widen
 what an agent may run.
 
+Your copy is kept across updates; see [What survives an update](upgrades-and-your-data.md).
+
 ## Settings involved
 
 - Data folder file: `standards/starter.md`. No environment setting.

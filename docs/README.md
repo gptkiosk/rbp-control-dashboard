@@ -13,6 +13,7 @@ The public RCD repository currently contains documentation, license and communit
 | Reachable preview and temporary VM lifecycle | [UI testing](development/ui-testing.md) |
 | Agent-managed collaboration | [Agent workflow](development/agent-workflow.md) |
 | How a release reaches users (changelog, tag, signed package, verification, publishing, updates) | [Release and update pipeline](development/distribution.md) |
+| What an update keeps, replaces and never touches | [What survives an update](configuration/upgrades-and-your-data.md) |
 
 The [MCD docs](https://github.com/gptkiosk/mac-control-dashboard/tree/main/docs) explain the shared Mac reference workflows. Mac LaunchAgents, Mac health probes and subscription apps are not Raspberry Pi deployment instructions. RCD's wiki indexes these versioned pages; repository docs are authoritative.
 

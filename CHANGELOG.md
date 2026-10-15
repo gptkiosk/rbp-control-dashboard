@@ -10,6 +10,15 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.4.4] - 2026-10-15
+
+### Added
+- You can keep your own coordinator wording across updates. Copy a file from `packs/roles/delegator/` into `roles/custom/` in your data folder and edit it: your copy is used instead of the shipped one, survives every update, and a copy that would break planning (a dropped placeholder, a stray `$`, empty or unreadable) is ignored in favour of the shipped text. The roles status lists customized and ignored files.
+- A guide, `docs/configuration/upgrades-and-your-data.md`, says what an update keeps, replaces and never touches: settings, the database, preferences, credentials, the coordinator assignment and guidance, standards, project memory, and what your agents know.
+
+### Fixed
+- A profile saved by a newer version (for example after a rollback) no longer breaks the profile page in an older one: preferences this version does not know are ignored when loading, and missing ones take their defaults.
+
 ## [0.4.3] - 2026-10-15
 
 ### Changed
@@ -171,7 +180,8 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 - Claude Code stories may use web search and fetch without any shell, credential or publish permission.
 
 [0.3.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.0
-[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.4.3...HEAD
+[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.4.4...HEAD
+[0.4.4]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.4.4
 [0.4.3]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.4.3
 [0.4.2]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.4.2
 [0.4.1]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.4.1
