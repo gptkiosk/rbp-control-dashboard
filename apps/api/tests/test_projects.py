@@ -58,7 +58,9 @@ def app(make_client, monkeypatch, tmp_path):
         yield client,client.app.state.sessions,tmp_path/'ws/proj',get_settings()
 
 def node(key,**kw):
-    return dict(key=key,title=key,description='Implement a bounded local change.',scope='Only this story-owned file.',acceptance='Checks pass and reviewer verifies the artifact.',assignee='codex',model='gpt-6.1-sol',**kw)
+    base=dict(key=key,title=key,description='Implement a bounded local change.',scope='Only this story-owned file.',acceptance='Checks pass and reviewer verifies the artifact.',assignee='codex',model='gpt-6.1-sol',
+        work_kind='implement',size='s',risk='low',estimate_minutes=45,route_reason='Bounded local change; the catalog route fits.')
+    return {**base,**kw}
 
 def test_managed_workspace_symlink_cannot_escape_approved_root(app,tmp_path):
     import project_workspaces

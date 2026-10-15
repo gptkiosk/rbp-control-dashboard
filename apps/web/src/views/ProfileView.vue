@@ -3,6 +3,7 @@ import RolesPanel from '@/components/RolesPanel.vue'
 import ReportStoragePanel from '@/components/ReportStoragePanel.vue'
 import GithubSettingsPanel from '@/components/GithubSettingsPanel.vue'
 import UpdatePanel from '@/components/UpdatePanel.vue'
+import HousekeepingPanel from '@/components/HousekeepingPanel.vue'
 import AgentToolsPanel from '@/components/AgentToolsPanel.vue'
 import { onMounted, ref } from 'vue'
 import AppIcon from '@/components/AppIcon.vue'
@@ -78,6 +79,7 @@ async function importPreferences(event: Event) { await action(async () => {
     <p v-if="error" class="notice-warn" role="alert">{{ error }}</p><p v-if="notice" class="card" role="status">{{ notice }}</p>
     <ReportStoragePanel />
     <UpdatePanel />
+    <HousekeepingPanel />
     <AgentToolsPanel />
     <RolesPanel />
     <GithubSettingsPanel id="github-settings" />
@@ -99,6 +101,7 @@ async function importPreferences(event: Event) { await action(async () => {
           <label class="check"><input v-model="preferences.allow_discord_planning" type="checkbox" />Allow my Discord requests to start subscription planning with Hermes coordination.</label>
           <label class="check"><input v-model="preferences.allow_discord_control" type="checkbox" />Allow my Discord requests to change how work is routed, such as sending waiting stories to the other subscription while a limit lasts. Approvals, dispatch, billing and credentials stay in RCD.</label>
           <label class="check"><input v-model="preferences.allow_discord_diagnostics" type="checkbox" />Allow Hermes to read failed runs for me in Discord: errors, short handoff excerpts and log tails, with credentials and addresses removed. Read only.</label>
+          <label class="check"><input v-model="preferences.allow_discord_maintenance" type="checkbox" />Allow Hermes to read Housekeeping findings in Discord and propose fixes. It cannot change anything: you approve in Profile.</label>
           <p class="muted small">Hermes uses its configured OpenRouter route, including capped Google BYOK fallback. This permission covers planning when you ask. Paid API planners and story execution require separate review in RCD.</p>
           <div class="actions"><button class="btn" :disabled="busy" @click="save">Save connection</button><button class="btn primary" :disabled="busy || !preferences.discord_channel_id" @click="pair">{{ profile.discord_linked ? 'Pair again' : 'Get pairing code' }}</button><button class="btn" :disabled="busy" @click="refresh">Check pairing</button><button v-if="profile.discord_linked" class="btn" :disabled="busy" @click="unlink">Unlink Discord</button></div>
           <div v-if="pairing" class="pairing" role="status"><strong>Send to Hermes in this channel within 10 minutes:</strong><p>{{ pairing }}</p><small>Treat the code as private. Then choose Check pairing.</small></div>

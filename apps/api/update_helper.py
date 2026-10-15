@@ -14,6 +14,7 @@ undone without the API.
     python -I update_helper.py apply <version id>
     python -I update_helper.py activate-initial <version id>
     python -I update_helper.py enable-signed-updates --fingerprint SHA256:<key> [--allowed-signers FILE]
+    python -I update_helper.py refresh-helper
     python -I update_helper.py recover
     python -I update_helper.py restore-snapshot <snapshot id> --confirm-data-loss <snapshot id>
 
@@ -55,6 +56,7 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("enable-signed-updates")
     p.add_argument("--fingerprint", required=True)
     p.add_argument("--allowed-signers")
+    sub.add_parser("refresh-helper")
     sub.add_parser("recover")
     p = sub.add_parser("restore-snapshot")
     p.add_argument("snapshot_id")
@@ -84,6 +86,8 @@ def main(argv: list[str] | None = None) -> int:
         elif args.command == "enable-signed-updates":
             source = args.allowed_signers or str(cfg.root / "current" / "packaging" / "allowed_signers")
             result = ue.enable_signed_updates(Path(args.config), cfg, Path(source), args.fingerprint)
+        elif args.command == "refresh-helper":
+            result = ue.refresh_helper(cfg)
         elif args.command == "restore-snapshot":
             result = ue.restore_snapshot(cfg, args.snapshot_id, args.confirm_data_loss)
         else:

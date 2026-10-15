@@ -17,6 +17,8 @@ The current local RCD prototype retains MCD’s MAC_CONTROL_ environment prefix 
 
 The OpenRouter key saved in Profile can optionally be shared with Hermes and OpenClaw: see [Share the saved OpenRouter key](configuration/saved-openrouter-key.md).
 
+Housekeeping (leftovers you approve, which Hermes may propose) is described in [Housekeeping](configuration/housekeeping.md), and the standard fields on planned work in [The standard job envelope](configuration/job-envelope.md).
+
 ## Ops reports
 
 The default shown in the UI is computed from the installation user’s home/runtime convention; seeing a username in that displayed path does not itself imply a hardcoded source path. Configure a portable folder with MAC_CONTROL_OPS_REPORTS_DIR. Optional Hermes archives use MAC_CONTROL_HERMES_REPORTS_DIR. Only supported UTF-8 Markdown/text reports are read, with bounded traversal/size and no-follow symlink handling.

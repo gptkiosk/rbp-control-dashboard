@@ -444,6 +444,18 @@ async function save(): Promise<void> {
               <dt>Estimate</dt>
               <dd>{{ formatEstimate(card.estimate_minutes) }}</dd>
             </div>
+            <div v-if="card.assignee_type === 'human'">
+              <dt>Assigned to</dt>
+              <dd data-testid="assignee">{{ card.assignee_user || 'Unassigned' }}</dd>
+            </div>
+            <div v-if="card.kind || card.size || card.risk">
+              <dt>Job envelope</dt>
+              <dd data-testid="envelope">{{ [card.kind, card.size && `size ${card.size}`, card.risk && `${card.risk} risk`, card.route_tier && `${card.route_tier} route`, card.area].filter(Boolean).join(' · ') }}</dd>
+            </div>
+            <div v-if="card.route_reason">
+              <dt>Why this route</dt>
+              <dd>{{ card.route_reason }}</dd>
+            </div>
           </dl>
           <div class="chips">
             <TagPill v-for="tag in card.tags" :key="tag" :tag="tag" />

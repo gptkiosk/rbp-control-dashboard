@@ -10,6 +10,16 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-15
+
+RCD adopts the 0.4 feature level for the parts that make sense on a Raspberry Pi: update progress, Housekeeping and the job envelope, matching MCD 0.4.5 and 0.4.6. The MCD-only checkout updater is not part of it; RCD updates from its signed package.
+
+### Added
+- The Updates panel shows an update step by step, as the MCD checkout updater does: download, verify the signature, prepare the release on the host, safety checks, back up your data, switch, restart and check health, finish. It shows how the update ended (succeeded, rolled back or refused, with the reason) and a log, survives a page reload and the service restart, and reports a helper that stopped without a result. `update_helper.py refresh-helper` brings an older pinned helper up to the current version so it writes this record.
+- Housekeeping in Profile: runs left in "awaiting approval" on stories that are already done can be resolved by you, with the database backed up first and an audit trail. Hermes can read the findings and propose a fix on a free model (new Profile switch, off by default); only your approval acts. Update backups are managed by the updater here, so only stale approval waits are listed.
+- A standard job envelope on every planned story (work kind, size, risk, estimate and a reason for the route), with the job and route tier derived by the server, standard tags, and refusal of an incomplete plan at approval. Human tasks can name the user they are assigned to. The Delegator role pack explains when a free route is safe and when to escalate to a foundation model.
+- Tags may contain a colon.
+
 ## [0.3.7] - 2026-10-15
 
 ### Fixed
@@ -142,7 +152,8 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 - Claude Code stories may use web search and fetch without any shell, credential or publish permission.
 
 [0.3.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.0
-[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.3.7...HEAD
+[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.4.0
 [0.3.7]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.7
 [0.3.6]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.6
 [0.3.5]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.5

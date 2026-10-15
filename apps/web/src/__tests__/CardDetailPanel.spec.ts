@@ -42,6 +42,25 @@ const reviewCard = (): CardDetail => ({
 })
 
 describe('CardDetailPanel', () => {
+  it('shows the job envelope, who it is assigned to and why this route, only when the card has them', async () => {
+    const withEnvelope = { ...card({ id: 7 }), runs: [], kind: 'implement', size: 'm', risk: 'low', area: 'web', route_tier: 'free', route_reason: 'Reversible and low risk: free is enough.' } as unknown as CardDetail
+    const { w } = mountPanel(withEnvelope)
+    await flushPromises()
+    expect(w.get('[data-testid="envelope"]').text()).toBe('implement · size m · low risk · free route · web')
+    expect(w.text()).toContain('Reversible and low risk: free is enough.')
+    w.unmount()
+    const human = { ...card({ id: 9 }), runs: [], assignee_type: 'human', assignee_user: 'jamie@example.com' } as unknown as CardDetail
+    const third = mountPanel(human)
+    await flushPromises()
+    expect(third.w.get('[data-testid="assignee"]').text()).toBe('jamie@example.com')
+    third.w.unmount()
+    const plain = { ...card({ id: 8 }), runs: [] } as unknown as CardDetail
+    const second = mountPanel(plain)
+    await flushPromises()
+    expect(second.w.find('[data-testid="envelope"]').exists()).toBe(false)
+    second.w.unmount()
+  })
+
   it('explains a normal CLI exit when the provider timed out', async () => {
     const detail: CardDetail = {
       ...card({ id: 5, column: 'failed' }),

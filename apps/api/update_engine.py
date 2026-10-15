@@ -305,7 +305,197 @@ def _finish(cfg: HelperConfig, state: dict, outcome: str, detail: str, **extra) 
     save_state(cfg, state)
     _history(cfg, state["last"])
     _receipt(cfg, state["last"])
+    OperationLog.attach(cfg).on_finish(tx, outcome, detail)
     return state
+
+
+# --- operation record -------------------------------------------------------------------
+# A private, best-effort record of one update that the Updates page reads: ordered steps with their state, and a plain log. It never
+# affects the update: every write is wrapped, and a failure to record is ignored. The page also works without it (older helpers).
+
+OP_STEPS = ("fetch", "verify", "stage", "safety", "snapshot", "switch", "health", "finish")
+OP_FINAL = ("succeeded", "rolled_back", "failed")
+OP_MAX_LOG = 200_000
+OP_REUSE_S = 30 * 60
+
+
+class OperationLog:
+    def __init__(self, cfg: HelperConfig):
+        self.cfg, self.data = cfg, None
+        self.path, self.log_path = cfg.state_dir / "operation.json", cfg.state_dir / "operation.log"
+
+    @classmethod
+    def begin(cls, cfg: HelperConfig, version: str) -> "OperationLog":
+        """Start recording an update to `version`, or carry on with the one that staged it a moment ago."""
+        op = cls(cfg)
+        try:
+            current = op._read()
+            now = int(time.time())
+            if current and current.get("version") == version and current.get("state") in ("running", "staged") and now - int(current.get("updated_at") or 0) < OP_REUSE_S:
+                op.data = current
+                op.data.update(state="running", message="")
+            else:
+                op.data = {"id": secrets.token_hex(4), "version": version, "state": "running", "message": "", "steps": [], "started_at": now, "updated_at": now}
+                fd = os.open(op.log_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o600)
+                os.close(fd)
+            op._save()
+        except Exception:  # noqa: BLE001 - recording never affects an update
+            op.data = None
+        return op
+
+    @classmethod
+    def attach(cls, cfg: HelperConfig) -> "OperationLog":
+        """The record in progress, if any (used where only the transaction is at hand)."""
+        op = cls(cfg)
+        try:
+            current = op._read()
+            op.data = current if current and current.get("state") in ("running", "staged") else None
+        except Exception:  # noqa: BLE001
+            op.data = None
+        return op
+
+    def _read(self) -> dict | None:
+        try:
+            data = json.loads(self.path.read_text())
+        except (OSError, ValueError):
+            return None
+        return data if isinstance(data, dict) else None
+
+    def _save(self) -> None:
+        self.data["updated_at"] = int(time.time())
+        tmp = self.path.with_name(f"operation.json.{os.getpid()}.tmp")
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o600)
+        with os.fdopen(fd, "w") as handle:
+            json.dump(self.data, handle, indent=1, sort_keys=True)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(tmp, self.path)
+
+    def step(self, name: str, state: str, detail: str = "") -> None:
+        if self.data is None:
+            return
+        try:
+            steps = [s for s in self.data["steps"] if s["name"] != name]
+            steps.append({"name": name, "state": state, "detail": detail[:300], "at": int(time.time())})
+            self.data["steps"] = sorted(steps, key=lambda s: OP_STEPS.index(s["name"]) if s["name"] in OP_STEPS else 99)
+            self.write_log(f"{name}: {state}{' - ' + detail if detail else ''}")
+            self._save()
+        except Exception:  # noqa: BLE001
+            pass
+
+    def write_log(self, text: str) -> None:
+        if self.data is None:
+            return
+        try:
+            if self.log_path.stat().st_size > OP_MAX_LOG:
+                return
+            fd = os.open(self.log_path, os.O_WRONLY | os.O_CREAT | os.O_APPEND | os.O_NOFOLLOW, 0o600)
+            with os.fdopen(fd, "a") as handle:
+                handle.write(f"{time.strftime('%H:%M:%S')}  {text[:300]}\n")
+        except Exception:  # noqa: BLE001
+            pass
+
+    def finish(self, state: str, message: str) -> None:
+        if self.data is None or self.data.get("state") in OP_FINAL:
+            return
+        try:
+            self.data.update(state=state, message=message[:300], finished_at=int(time.time()))
+            self.write_log(f"result: {state} - {message}")
+            self._save()
+        except Exception:  # noqa: BLE001
+            pass
+
+    def on_finish(self, tx: dict, outcome: str, detail: str) -> None:
+        """Called when a transaction ends, so every way of ending is reflected, including rollbacks and aborts."""
+        if self.data is None:
+            return
+        kind = (tx or {}).get("kind")
+        if kind == "stage":
+            if outcome == "staged":
+                self.step("stage", "ok", detail)
+                self.data["state"], self.data["message"] = "staged", "Verified and staged. It is not installed until you install it."
+                self.write_log("staged: not installed yet")
+                self._save()
+            else:
+                self.step("stage", "failed", detail)
+                self.finish("failed", detail)
+        elif kind == "switch":
+            if outcome == "committed":
+                self.step("health", "ok", detail)
+                self.step("finish", "ok", detail)
+                self.finish("succeeded", detail)
+            elif outcome == "rolled_back":
+                self.step("health", "failed", detail)
+                self.step("finish", "failed", "rolled back to the previous version")
+                self.finish("rolled_back", "The new version did not pass its health check and the previous version was restored. " + detail)
+            else:
+                self.step("switch", "failed", detail)
+                self.finish("failed", detail)
+
+
+HELPER_FILES = ("update_helper.py", "update_engine.py", "release_fetch.py", "release_verify.py", "update_recovery.py")
+
+
+def refresh_helper(cfg: HelperConfig, source: Path | None = None) -> dict:
+    """Bring the pinned helper copy up to the code of the current, sealed version, on the operator's explicit command.
+
+    An update never replaces the helper (that is the point of pinning it), so a host installed with an older helper keeps its old
+    behaviour until this is run. The source must be the current version's own apps/api folder, whose package was verified and sealed
+    when it was staged; the old copies are kept in helper/previous."""
+    prepare_layout(cfg)
+    with invocation_lock(cfg):
+        _require_no_tx(load_state(cfg))
+        current = _link_target(cfg, "current")
+        if not current or not read_receipt(cfg, current):
+            raise UpdateError("no managed current version to take the helper from")
+        src = Path(source) if source else cfg.versions / current / "apps" / "api"
+        expected = (cfg.versions / current / "apps" / "api").resolve()
+        if src.resolve() != expected:
+            raise UpdateError("the helper can only be refreshed from the current version's own apps/api folder")
+        helper_dir = cfg.root / "helper"
+        check_private_dir(helper_dir)
+        previous = helper_dir / "previous"
+        previous.mkdir(mode=0o700, exist_ok=True)
+        changed = []
+        for name in HELPER_FILES:
+            data, _ = rv.read_regular(src / name, 2 * 1024 * 1024, f"{name} of the current version")
+            target = helper_dir / name
+            old = target.read_bytes() if target.is_file() else None
+            if old == data:
+                continue
+            if old is not None:
+                _write_private(previous / name, old)
+            _write_private(target, data)
+            changed.append(name)
+        return {"refreshed": changed, "from": current, "kept_previous_in": str(previous)}
+
+
+def operation_status(cfg: HelperConfig, log_lines: int = 80) -> dict:
+    """What the Updates page shows: the latest operation record, whether a helper is working right now, and the log tail.
+    A record still marked running while no helper holds the lock is reported as failed instead of spinning forever."""
+    op = OperationLog(cfg)
+    data = op._read()
+    active = False
+    try:
+        fd = os.open(cfg.state_dir / "lock", os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            fcntl.flock(fd, fcntl.LOCK_UN)
+        except BlockingIOError:
+            active = True
+        finally:
+            os.close(fd)
+    except OSError:
+        pass
+    if data and data.get("state") == "running" and not active and time.time() - int(data.get("updated_at") or 0) > 20:
+        data = {**data, "state": "failed", "message": "The update helper stopped without reporting a result. Check the log, then recovery on the host."}
+    lines: list[str] = []
+    if data:
+        try:
+            lines = [line[:300] for line in op.log_path.read_text(errors="replace").splitlines()[-log_lines:]]
+        except OSError:
+            pass
+    return {"operation": data, "active": active, "log": lines}
 
 
 @contextmanager
@@ -939,18 +1129,29 @@ def stage(cfg: HelperConfig, name: str, manifest_sha256: str | None = None,
         policy = rv.TrustPolicy(product=cfg.product, platform=cfg.platform,
                                 authenticator=authenticator(cfg, manifest_sha256), installed_version=installed,
                                 allow_prerelease=cfg.allow_prerelease, allow_downgrade=cfg.allow_downgrade)
+        op = None
         try:
             release = rv.verify_release(manifest, artifact, policy, signature)
         except rv.VerificationError as exc:
+            op = OperationLog.begin(cfg, name)
+            op.step("verify", "failed", "; ".join(exc.problems)[:300])
+            op.finish("failed", "The package was refused: " + "; ".join(exc.problems)[:250])
             raise UpdateError(["package refused"] + exc.problems) from None
         vid = version_id(release)
+        op = OperationLog.begin(cfg, release.version)
+        op.step("verify", "ok", release.authenticity)
         if read_receipt(cfg, vid):
+            op.step("stage", "ok", "already staged on this host")
+            if op.data is not None:
+                op.data["state"], op.data["message"] = "staged", "Already staged."
+                op._save()
             return {"id": vid, "version": release.version, "already_staged": True}
         if os.path.lexists(cfg.versions / vid):
             raise UpdateError(f"a partial copy of {vid} exists; run recovery first")
         state["tx"] = {"id": secrets.token_hex(8), "kind": "stage", "phase": "staging", "target": vid,
                        "from": current, "started_at": int(time.time())}
         save_state(cfg, state)
+        op.step("stage", "running", "extracting and building the runtime; on a Raspberry Pi this takes a few minutes")
         try:
             rv.extract(release, cfg.versions / vid)
             builder(cfg, cfg.versions / vid, release)
@@ -1011,13 +1212,22 @@ def apply(cfg: HelperConfig, vid: str, service: ServiceControl | None = None,
             raise UpdateError("no managed current version; this install is updated by hand")
         if current == vid:
             raise UpdateError(f"version {vid} is already current")
-        schema = database_revision(cfg.db_path)
-        if not schema_compatible(schema, known_revisions(cfg.versions / vid)):
-            raise UpdateError(f"the database is on schema {schema}, which version {vid} does not know; "
-                              "apply a version that knows it, or restore a matching snapshot explicitly")
-        found = blockers(cfg.db_path)
-        if found:
-            raise UpdateError(["drain first; nothing was stopped"] + found)
+        op = OperationLog.begin(cfg, receipt["version"])
+        op.step("safety", "running", "checking that nothing is running or waiting and the database fits the new version")
+        try:
+            schema = database_revision(cfg.db_path)
+            if not schema_compatible(schema, known_revisions(cfg.versions / vid)):
+                raise UpdateError(f"the database is on schema {schema}, which version {vid} does not know; "
+                                  "apply a version that knows it, or restore a matching snapshot explicitly")
+            found = blockers(cfg.db_path)
+            if found:
+                raise UpdateError(["drain first; nothing was stopped"] + found)
+        except UpdateError as exc:
+            reason = "; ".join(exc.problems)[:280]
+            op.step("safety", "failed", reason)
+            op.finish("failed", "Nothing was stopped or changed. " + reason)
+            raise
+        op.step("safety", "ok", "nothing running or waiting; the database fits the new version")
 
         tx_id = secrets.token_hex(8)
         state["tx"] = {"id": tx_id, "kind": "switch", "phase": "prepared", "target": vid, "from": current,
@@ -1030,7 +1240,11 @@ def apply(cfg: HelperConfig, vid: str, service: ServiceControl | None = None,
                 service.start()
                 _finish(cfg, state, "aborted", "work started while stopping; nothing was switched")
                 raise UpdateError(["work started during the update; nothing was switched"] + found)
+            op.write_log("service stopped")
+            op.step("snapshot", "running", "saving a consistent copy of your data")
             backup = backup_database(cfg, tx_id, current)
+            op.step("snapshot", "ok", ("saved " + Path(backup["path"]).name) if backup else "no database to back up")
+            op.step("switch", "running", "pointing the service at the new version")
             state["tx"].update(phase="switching", backup=backup["path"] if backup else None,
                                backup_meta={"sha256": backup["sha256"], "schema_revision": backup["schema_revision"]}
                                if backup else None)
@@ -1040,6 +1254,8 @@ def apply(cfg: HelperConfig, vid: str, service: ServiceControl | None = None,
             state["tx"]["phase"] = "starting"
             save_state(cfg, state)
             started = time.time()
+            op.step("switch", "ok", "the new version is in place")
+            op.step("health", "running", "starting the service and waiting for the new version to report healthy")
             service.start()
         except UpdateError:
             if state.get("tx"):

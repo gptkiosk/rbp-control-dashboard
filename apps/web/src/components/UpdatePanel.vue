@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import AppSelect from '@/components/AppSelect.vue'
+import UpdateProgress, { type UpdateOperation } from '@/components/UpdateProgress.vue'
 import { ApiError, getJson, postJson } from '@/lib/api'
 
 // Only this product and repository are ever offered. The server enforces the same rule; this is a second check.
@@ -35,6 +36,7 @@ const status = ref<UpdateStatus | null>(null)
 const pending = ref<Pending | null>(null), confirmed = ref(false)
 const downloadAsk = ref(false), downloadConfirmed = ref(false), downloading = ref(false)
 const updateAsk = ref(false), updateConfirmed = ref(false)
+const opStatus = ref<{ operation: UpdateOperation | null; active: boolean; log: string[] } | null>(null)
 const operation = ref<Operation | null>(null), reconnecting = ref(false), busy = ref(false)
 const error = ref(''), notice = ref('')
 let timer: ReturnType<typeof setTimeout> | undefined
@@ -124,11 +126,17 @@ function refusal(e: unknown, fallback: string) {
   return denied(e, fallback)
 }
 
+// The latest update's steps and log, kept by the helper on this host. Best effort: an older helper has none, and the page works without it.
+async function readOperation() {
+  try { opStatus.value = await getJson('/api/app-updates/operation') } catch { /* no record available */ }
+}
+
 // Reads this host's install state only. It never contacts GitHub.
 async function read(): Promise<boolean> {
   try {
     status.value = await getJson<UpdateStatus>('/api/app-updates')
     reconnecting.value = false; error.value = ''
+    if (managed.value) await readOperation()   // local only; an unmanaged host has no helper record
     return true
   } catch (e) {
     // While an operation runs, a network error or 5xx usually means the service is restarting.
@@ -390,6 +398,7 @@ onBeforeUnmount(() => { alive = false; if (timer) clearTimeout(timer) })
           </div>
         </section>
 
+        <UpdateProgress v-if="opStatus?.operation" :operation="opStatus.operation" :log="opStatus.log" />
         <p v-if="downloading" class="status" role="status">{{ signed ? `Downloading, verifying the signature and preparing it on this host${install?.tx ? ` (${PHASES[install.tx.phase] ?? 'working'})` : ''}. Nothing is installed until this finishes. On a Raspberry Pi this can take several minutes: you can leave or reload this page and it will carry on with the update you confirmed.` : 'Downloading and verifying. Nothing is installed yet.' }}</p>
 
         <p>Installed <strong>{{ label(install?.current) }}</strong> · Previous: {{ install?.previous ? label(install.previous) : 'none kept' }}</p>
@@ -397,6 +406,7 @@ onBeforeUnmount(() => { alive = false; if (timer) clearTimeout(timer) })
           <li v-for="b in blockers" :key="b">{{ b }}</li>
         </ul>
         <p v-if="blockers.length" class="muted small">Drain first. Nothing is stopped or cancelled for you.</p>
+        <p v-if="blockers.some(b => b.includes('waiting on a human decision'))" class="muted small">If an approval wait is an old run that is already finished, <a href="#housekeeping">Housekeeping</a> below can resolve it.</p>
         <p v-if="install?.needs_recovery" class="notice-warn" role="alert">An earlier update was interrupted. Run recovery on the host before changing versions.</p>
 
         <h3>Available</h3>
@@ -444,7 +454,7 @@ onBeforeUnmount(() => { alive = false; if (timer) clearTimeout(timer) })
           </div>
         </section>
 
-        <p v-if="operation" class="status" role="status">{{ progressText }}</p>
+        <p v-if="operation && !opStatus?.operation" class="status" role="status">{{ progressText }}</p>
       </template>
     </template>
   </section>

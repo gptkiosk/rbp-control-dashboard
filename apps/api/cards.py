@@ -23,14 +23,15 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 import approval
+import job_envelope
 from agents import REGISTRY
 from models import COLUMNS, Card, CardDependency
 
 APPROVAL_FIELDS = {"body", "mode", "working_dir", "agent", "model", "agent_target", "assignee_type"}
 EDITABLE_FIELDS = APPROVAL_FIELDS | {"title", "timeout_s", "idle_timeout_s", "max_attempts", "retry_backoff_s", "budget_usd", "priority", "due_date",
-                                     "estimate_minutes", "tags", "acceptance"}
+                                     "estimate_minutes", "tags", "acceptance", "kind", "size", "risk", "area", "route_reason", "assignee_user"}
 PRIORITIES = ("urgent", "high", "normal", "low")
-TAG_RE = re.compile(r"^[a-z0-9][a-z0-9 &._-]{0,31}$")
+TAG_RE = re.compile(r"^[a-z0-9][a-z0-9 &._:-]{0,31}$")   # ":" allows namespaced tags such as kind:implement
 MAX_TAGS = 10
 
 
@@ -97,6 +98,9 @@ def validate_fields(data: dict) -> None:
             date.fromisoformat(data["due_date"])
         except ValueError as exc:
             raise HTTPException(status_code=422, detail="Due date must be YYYY-MM-DD") from exc
+    envelope = job_envelope.problems(data)
+    if envelope:
+        raise HTTPException(status_code=422, detail="; ".join(envelope))
     if data.get("estimate_minutes") is not None and not 1 <= int(data["estimate_minutes"]) <= 100_000:
         raise HTTPException(status_code=422, detail="Estimate must be 1 to 100000 minutes")
     if "mode" in data and data["mode"] not in ("read", "edit"):
@@ -128,8 +132,14 @@ def create(s: Session, data: dict, settings, created_by: str = "operator") -> Ca
         estimate_minutes=data.get("estimate_minutes"),
         tags=json.dumps(normalize_tags(data.get("tags"))) if data.get("tags") else None,
         acceptance=data.get("acceptance") or None,
+        assignee_user=data.get("assignee_user") or None,
+        kind=data.get("kind") or None, size=data.get("size") or None, risk=data.get("risk") or None,
+        area=data.get("area") or None, route_reason=data.get("route_reason") or None,
+        route_tier=job_envelope.tier_for(data.get("assignee_type") or "agent", data.get("agent"), data.get("model")),
         created_at=now, updated_at=now, needs_approval=False,
     )
+    if card.assignee_user and card.assignee_type != "human":
+        raise HTTPException(status_code=422, detail="Only a human task is assigned to a person; an agent task is assigned through its agent and model.")
     _apply_rules(card, settings.workdir_roots)
     s.add(card)
     s.flush()
@@ -149,9 +159,11 @@ def edit(s: Session, card: Card, data: dict, settings) -> Card:
     changed = {k for k in data if k in EDITABLE_FIELDS and getattr(card, k) != data[k]}
     for key in changed:
         value = data[key]
-        if key in ("model", "due_date", "acceptance") and not value:
+        if key in ("model", "due_date", "acceptance", "assignee_user") and not value:
             value = None
         setattr(card, key, value)
+    if card.assignee_user and card.assignee_type != "human":
+        raise HTTPException(status_code=422, detail="Only a human task is assigned to a person; an agent task is assigned through its agent and model.")
     if changed & APPROVAL_FIELDS:
         _apply_rules(card, settings.workdir_roots)
         if card.column in ("queued", "review"):
