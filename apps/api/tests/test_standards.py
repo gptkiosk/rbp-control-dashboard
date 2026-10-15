@@ -389,7 +389,7 @@ def test_the_consultant_and_the_planner_know_what_is_installed_and_the_spending_
     monkeypatch.setattr(AgentSpec, 'available', lambda self, st: self.id in ('claude', 'hermes'))
     monkeypatch.setattr(settings, 'dispatch_free_only', True)
     text = c.get('/api/projects/consultant-context', params={'working_dir': str(wd)}).json()['text']
-    assert '## This installation and its configuration' in text and 'Mac Control Dashboard on' in text
+    assert '## This installation and its configuration' in text and f'{settings.product_name} on' in text
     assert '- claude (' in text and ': installed' in text.split('- claude (')[1].split('\n')[0]
     assert 'not installed' in text.split('- codex (')[1].split('\n')[0]
     assert 'free routes only (paid routes are refused)' in text and 'Delegator (the coordinator):' in text
