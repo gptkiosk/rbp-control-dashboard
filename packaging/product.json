@@ -51,6 +51,7 @@
     "ops/systemd/*.timer",
     "packs/roles/delegator/*",
     "packs/standards/*",
+    "packs/evaluation/*",
     "packaging/allowed_signers"
   ],
   "excluded_components": [

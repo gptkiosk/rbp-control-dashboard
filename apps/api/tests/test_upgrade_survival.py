@@ -114,3 +114,12 @@ def test_preferences_saved_by_an_older_version_get_defaults_for_what_is_new():
 def test_editing_still_rejects_unknown_keys():
     with pytest.raises(ValueError):
         profiles.Preferences.model_validate({'theme': 'dark', 'surprise': 1})
+
+
+def test_the_coordinator_wording_has_a_version_label_and_a_hash_that_follow_what_is_in_effect(store):
+    shipped = store.version()
+    assert shipped['shipped'] == '2' and shipped['label'] == 'v2' and shipped['custom'] == [] and len(shipped['sha']) == 12
+    custom(store, 'plan.txt', (store.pack / 'plan.txt').read_text().replace('Read-only project planning.', 'MY WORDING.'))
+    mine = store.version()
+    assert mine['label'] == 'v2+custom' and mine['custom'] == ['plan.txt'] and mine['sha'] != shipped['sha']
+    assert 'VERSION' not in store.customized()['custom'] and 'VERSION' not in store.customized()['custom_ignored']

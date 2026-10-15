@@ -23,6 +23,7 @@ import cards
 import job_envelope
 import standards
 import model_profiles
+import scorecard
 import project_workspaces as workspaces
 import provider_limits
 from agents import REGISTRY, SUBSCRIPTION_AGENTS
@@ -380,7 +381,7 @@ def detail(s, p):
             'output_approval':{'run_id':r.id,'path':str(project_outputs.path(get_settings(),p.id,c.id,r.id,link.node_key)),
                 'plan':r.result_text or ''} if c and r and c.column=='review' and r.stage=='awaiting_approval'
                     and link.role=='story' and p.state=='active' and c.mode=='read' and c.agent=='claude' else None})
-    records = list(s.scalars(select(ProjectMemory).where(ProjectMemory.project_id==p.id).order_by(ProjectMemory.id.desc()).limit(100)))
+    records = list(s.scalars(select(ProjectMemory).where(ProjectMemory.project_id==p.id,ProjectMemory.kind!='scorecard').order_by(ProjectMemory.id.desc()).limit(100)))
     return {'id':p.id, 'document':document(p), 'revision':p.revision, 'state':p.state, 'can_resume_plan':recoverable(s,p),
         'approved_revision':json.loads(p.approved_manifest)['revision'] if p.approved_manifest else None,
         'pipeline':json.loads(p.pipeline) if p.pipeline else None, 'error':p.error,
@@ -616,7 +617,9 @@ def submit(s,p,action,settings,actor):
         'branch':approval.current_branch(Path(d['working_dir'])),'approved_by':actor,'approved_at':now(),
         'fallback_models':{a:('opus' if a=='claude' else REGISTRY[a].default_model() or '') for a in ('claude','codex')},
         'api_work_approved':action.approve_api_work,'dispatch_mode':d['dispatch_mode'],
-        'base_commit':base_commit,'workspaces':{},'artifacts':{},'standards':{k:std[k] for k in ('state','property','sha256')}|{'source':std.get('source'),'areas':len(std['areas']),'checks':len(std['checks']),'required_checks':standards.required_checks(std),'security_checks':std.get('security_checks',[])}}
+        'base_commit':base_commit,'workspaces':{},'artifacts':{},'standards':{k:std[k] for k in ('state','property','sha256')}|{'source':std.get('source'),'areas':len(std['areas']),'checks':len(std['checks']),'required_checks':standards.required_checks(std),'security_checks':std.get('security_checks',[])},'scorecard':None}
+    try: manifest['scorecard']=scorecard.at_approval(s,p,d,settings)
+    except Exception: manifest['scorecard']=None   # never block an approval on the scorecard
     manifest['hash']=hashlib.sha256(json.dumps(manifest,sort_keys=True).encode()).hexdigest()
     p.approved_manifest=json.dumps(manifest)
     c=_queue(s,p,'dispatch',delegate['agent'],delegate['model'],role_prompt('dispatch', manifest=json.dumps(manifest)),settings)
@@ -708,7 +711,10 @@ def advance(s,settings):
                 elif step=='return':
                     if not isinstance(data,dict) or set(data)!={'nodes'}: fail('Delegator response must contain only nodes.',422)
                     proposed=proposal(document(p),data['nodes'],settings)
-                    p.document=json.dumps(proposed);p.revision+=1;p.state='review';p.pipeline=None
+                    p.document=json.dumps(proposed);p.revision+=1;p.state='review'
+                    try: scorecard.record_returned(s,p,proposed['nodes'],settings,pipeline.get('chosen'),{'agent':r.agent,'model':r.model_reported or r.model_requested})
+                    except Exception: pass   # a scorecard problem must never block planning
+                    p.pipeline=None
                     memory(s,p,'proposal',f'Delegator returned editable map revision {p.revision}; operator review required.',r.agent,r.card_id,r.id)
                 elif step=='dispatch': _materialize(s,p,data.get('order'),settings)
                 else: fail('Unknown project pipeline stage.',422)

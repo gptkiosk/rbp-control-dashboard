@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import AppIcon from '@/components/AppIcon.vue'
 import ChipTag from '@/components/ChipTag.vue'
+import ServiceActions from '@/components/ServiceActions.vue'
 import { usePolledJson } from '@/composables/usePolledJson'
 import type { ServiceInfo, ServicesPayload } from '@/lib/api'
 import { DASH } from '@/lib/format'
 import { navIcon } from '@/router/routes'
 
-const { data, error, pending, loaded } = usePolledJson<ServicesPayload>('/api/services', 30_000)
+const { data, error, pending, loaded, refresh } = usePolledJson<ServicesPayload>('/api/services', 30_000)
 
 function exitText(code: number | null | undefined, fallback: string | null): string {
   if (code != null && code < 0) return `Stopped by signal ${Math.abs(code)}`
@@ -45,6 +46,7 @@ function runs24(s: ServiceInfo): string {
             <th scope="col">Runs in 24 h</th>
             <th scope="col">Last exit</th>
             <th scope="col">Flags</th>
+            <th scope="col">Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -73,6 +75,7 @@ function runs24(s: ServiceInfo): string {
                 <span v-if="s.flags.length === 0" class="muted">{{ DASH }}</span>
               </div>
             </td>
+            <td data-label="Actions"><ServiceActions :service="s" @done="refresh()" /></td>
           </tr>
         </tbody>
       </table>

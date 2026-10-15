@@ -48,6 +48,12 @@ onMounted(load)
     <div class="refresh card">
       <p class="small"><strong>Free models:</strong> {{ data.snapshot ? `${data.snapshot.free} free of ${data.snapshot.count} on OpenRouter, read ${when(data.snapshot.fetched_at)}` : 'the list has not been read yet' }}.
         <button type="button" class="btn" :disabled="busy" @click="refresh">Refresh free models</button></p>
+      <p v-if="data.watch" class="small" data-testid="watch">
+        <strong>Weekly watch:</strong>
+        <template v-if="data.watch.enabled">on, every {{ data.watch.interval_days }} days{{ data.watch.last_run ? `; last run ${when(data.watch.last_run)}` : '; not run yet' }}{{ data.watch.last_ok === false ? ` (failed: ${data.watch.last_error})` : data.watch.last_summary ? `: ${data.watch.last_summary}` : '' }}.
+          <RouterLink v-if="data.watch.last_card_id" :to="`/tasks?card=${data.watch.last_card_id}`">Open the card</RouterLink></template>
+        <template v-else>off. When on, it checks the public list once a week and leaves one Backlog card when a model needs a decision. Switch it on with <code>MAC_CONTROL_MODEL_WATCH_ENABLED=true</code>.</template>
+      </p>
       <div v-if="result" class="small" data-testid="refresh-result">
         <p>Read {{ result.count }} models ({{ result.free }} free). Nothing was changed: adopting or dropping a model is a normal reviewed change.</p>
         <p v-if="result.diff.new_free.length"><strong>New free models:</strong> {{ result.diff.new_free.join(', ') }}</p>

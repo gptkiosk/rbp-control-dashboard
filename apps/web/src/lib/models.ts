@@ -11,6 +11,7 @@ export interface ModelProfile {
 export interface Profiles {
   generated_at: number; days: number; proven_runs: number; stale_days: number; stale_notes: number
   snapshot: { fetched_at: number; count: number; free: number } | null; models: ModelProfile[]
+  watch?: { enabled: boolean; interval_days: number; last_run: number | null; last_ok: boolean | null; last_error: string | null; last_summary: string | null; last_card_id: number | null; due: boolean }
 }
 export interface RefreshResult {
   fetched_at: number; count: number; free: number

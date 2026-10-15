@@ -5,6 +5,7 @@ import AppSelect from '@/components/AppSelect.vue'
 import BarList from '@/components/BarList.vue'
 import DonutChart from '@/components/DonutChart.vue'
 import StackedBars from '@/components/StackedBars.vue'
+import CoordinatorScorecard from '@/components/CoordinatorScorecard.vue'
 import ModelProfiles from '@/components/ModelProfiles.vue'
 import StatTile from '@/components/StatTile.vue'
 import { ApiError, getJson } from '@/lib/api'
@@ -109,6 +110,7 @@ onMounted(load)
           <li v-for="a in data.activity" :key="`${a.card_id}-${a.at}`"><strong>{{ a.title }}</strong> <span class="muted small">{{ a.outcome }} · {{ a.assignee }} · {{ a.model ?? a.agent }}{{ a.job ? ` · ${a.job}` : '' }} · {{ when(a.at) }}</span></li>
         </ul>
       </section>
+      <CoordinatorScorecard />
       <ModelProfiles />
     </template>
     <p v-else-if="loading" class="muted" role="status">Loading…</p>

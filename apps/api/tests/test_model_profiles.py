@@ -271,3 +271,100 @@ def test_runs_with_no_recorded_model_are_not_called_free_or_paid(sessions, tmp_p
         out = mp.profiles(s, tmp_path, NOW)
     row = next(m for m in out["models"] if m["id"] == "unknown")
     assert row["free"] is None and row["name"] == "model not recorded" and row["observed"]["runs"] == 1
+
+
+# ------------------------------------------------------------------------------------------------------- the weekly watch
+import model_watch as mw  # noqa: E402
+from models import Card  # noqa: E402
+from settings import get_settings  # noqa: E402
+
+
+@pytest.fixture
+def watching(sessions, tmp_path):
+    settings = get_settings().model_copy(update={"data_dir": tmp_path, "model_watch_enabled": True, "model_refresh_enabled": True})
+    return sessions, settings
+
+
+def free_list(*ids, **kw):
+    return listing(*[entry(i, free=True, **kw) for i in ids])
+
+
+def cards_made(sessions):
+    with sessions() as s:
+        return [c for c in s.scalars(__import__("sqlalchemy").select(Card)) if c.created_by == "model-watch"]
+
+
+def test_the_watch_is_off_by_default_and_does_nothing_until_switched_on(sessions, tmp_path):
+    settings = get_settings().model_copy(update={"data_dir": tmp_path})
+    assert settings.model_watch_enabled is False
+    assert mw.tick(sessions, settings, NOW, fetch=lambda: (_ for _ in ()).throw(AssertionError("must not fetch"))) is None
+    assert mw.status(settings, NOW)["due"] is False
+
+
+def test_it_leaves_one_backlog_card_with_sources_what_differs_and_what_not_to_do(watching):
+    sessions, settings = watching
+    out = mw.tick(sessions, settings, NOW, fetch=lambda: free_list("acme/shiny:free", "google/gemma-4-31b-it:free"))
+    assert out["ok"] and out["card_id"] and out["findings"]["new"] == 1 and out["findings"]["gone"] > 0
+    card = cards_made(sessions)[0]
+    assert card.column == "backlog" and card.assignee_type == "human" and card.kind == "triage" and card.priority == "low"
+    assert card.title.startswith("Model watch ") and "no longer free" in card.title and "new free" in card.title
+    body = card.body
+    assert body.index("Check first") < body.index("Listed as free on OpenRouter but not in the price catalog")      # the money risk comes first
+    assert "`acme/shiny:free`" in body and "https://openrouter.ai/api/v1/models" in body and "Nothing was changed" in body
+    assert "Do not adopt a model on this note alone" in body and "pricing-catalog.md" in body
+
+
+def test_it_runs_at_most_once_per_interval_and_does_not_repeat_the_same_card(watching):
+    sessions, settings = watching
+    fetch = lambda: free_list("acme/shiny:free")
+    first = mw.tick(sessions, settings, NOW, fetch=fetch)
+    assert first["card_id"]
+    assert mw.tick(sessions, settings, NOW + 3 * DAY, fetch=lambda: (_ for _ in ()).throw(AssertionError("not due"))) is None
+    again = mw.tick(sessions, settings, NOW + 8 * DAY, fetch=fetch)                       # due again, same findings
+    assert again["ok"] and again["card_id"] is None and len(cards_made(sessions)) == 1
+    changed = mw.tick(sessions, settings, NOW + 16 * DAY, fetch=lambda: free_list("acme/shiny:free", "acme/another:free"))
+    assert changed["card_id"] and len(cards_made(sessions)) == 2
+
+
+def test_a_quiet_week_leaves_no_card_and_says_so(watching):
+    sessions, settings = watching
+    import billing
+    same = listing(*[entry(i, free=True) for i in billing.CATALOG["free_models"]])
+    out = mw.tick(sessions, settings, NOW, fetch=lambda: same)
+    assert out["ok"] and out["card_id"] is None and out["summary"].endswith("nothing new") and cards_made(sessions) == []
+
+
+def test_a_failed_read_is_recorded_and_retried_not_reported_as_a_change(watching):
+    sessions, settings = watching
+    out = mw.tick(sessions, settings, NOW, fetch=lambda: (_ for _ in ()).throw(OSError("down")))
+    assert out["ok"] is False and cards_made(sessions) == []
+    st = mw.status(settings, NOW + 60)
+    assert st["last_ok"] is False and "could not be read" in st["last_error"]
+    assert mw.status(settings, NOW + 8 * DAY)["due"] is True
+
+
+def test_the_watch_respects_the_refresh_switch_and_changes_no_catalog(watching):
+    import billing
+    sessions, settings = watching
+    before = json.dumps(billing.CATALOG, sort_keys=True)
+    off = settings.model_copy(update={"model_refresh_enabled": False})
+    out = mw.tick(sessions, off, NOW, fetch=lambda: (_ for _ in ()).throw(AssertionError("must not fetch")))
+    assert out["ok"] is False and "switched off" in out["error"]
+    mw.tick(sessions, settings, NOW + 9 * DAY, fetch=lambda: free_list("acme/shiny:free"))
+    assert json.dumps(billing.CATALOG, sort_keys=True) == before
+
+
+def test_the_routes_show_the_watch_and_run_it_on_request(secured, tmp_path, monkeypatch):  # noqa: F811
+    signed(secured)
+    got = secured.get("/api/models/profiles").json()["watch"]
+    assert got["enabled"] is False and got["last_run"] is None
+    monkeypatch.setattr(mp, "default_fetch", lambda: free_list("acme/route-watch:free"))
+    assert secured.post("/api/models/watch/run", json={"confirm": False}).status_code == 422
+    done = secured.post("/api/models/watch/run", json={"confirm": True})
+    assert done.status_code == 200 and done.json()["ok"] and done.json()["card_id"]
+    assert secured.get("/api/models/profiles").json()["watch"]["last_card_id"] == done.json()["card_id"]
+
+
+def test_the_collector_runs_the_watch_loop():
+    import collector
+    assert hasattr(collector.Collector, "_model_watch_loop")
