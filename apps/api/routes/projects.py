@@ -9,6 +9,7 @@ from settings import get_settings
 from models import Project, ProjectTask, Card, CardDependency, Run
 from project_schemas import Close, Document, Save, Action, Retry, GoFree, ContinueOutput, Note, Accept, HandoffPolicy, Retier, RepairExecution, ModelLock
 import projects
+import standards
 
 router=APIRouter(prefix='/api/projects')
 
@@ -32,6 +33,10 @@ def create_project(body: Document,request: Request,s: Session=Depends(get_sessio
 @router.get('/{project_id}')
 def get_project(project_id:int,request:Request,s:Session=Depends(get_session)):
     actor(request);return projects.detail(s,projects.get(s,project_id))
+
+@router.get('/{project_id}/standards')
+def standards_for(project_id:int,request:Request,s:Session=Depends(get_session)):
+    actor(request);return standards.inspect(projects.document(projects.get(s,project_id))['working_dir'])
 
 @router.patch('/{project_id}')
 def save(project_id:int,body:Save,request:Request,s:Session=Depends(get_session)):

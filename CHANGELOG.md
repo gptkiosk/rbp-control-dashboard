@@ -10,6 +10,11 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-10-15
+
+### Added
+- Repository standards, matching MCD 0.4.8: a project reads `docs/development/standards.md` from its working directory, shows on the project page which standards it is working under (the property, the number of areas and checks, and the file's hash), and records that on each approved plan revision. The two tables in the file (Definition of done, Risk by area) are parsed by fixed code. A missing or unreadable file is a warning and planning goes on without it. Nothing is fetched and nothing outside the working directory is read. See `docs/configuration/standards.md`.
+
 ## [0.4.1] - 2026-10-15
 
 ### Added
@@ -157,7 +162,8 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 - Claude Code stories may use web search and fetch without any shell, credential or publish permission.
 
 [0.3.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.0
-[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.4.1...HEAD
+[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.4.2...HEAD
+[0.4.2]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.4.2
 [0.4.1]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.4.1
 [0.4.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.4.0
 [0.3.7]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.7
