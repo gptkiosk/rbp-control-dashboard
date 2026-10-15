@@ -1,8 +1,10 @@
 # Project consultant and AI defaults (0.3.1)
 
-Open Projects and choose **Refine with project consultant** below Create project brief. Its glass panel asks for the project name, allowed working directory and initial goal. Start begins a tracked read-only agent conversation. Discuss the goal, phases, stories, scope, definitions of done and dependencies; ask the consultant to produce a complete brief when ready.
+Open Projects and choose **Refine with project consultant** below Create project brief. Its glass panel asks for the project name, allowed working directory and initial goal. Start begins a tracked read-only agent conversation. The consultant answers what you ask, then asks the few questions that would most change the plan, and keeps going until you say it is enough. The chat shows only your words; the guidance and what this installation knows (standards, installed agents, models) travel with the message as background and are not displayed.
 
-Choose **Review brief & submit to Hermes** to copy the latest completed reply into an editable New project review. Check the title, brief, workspace and planning model. Approve coordination and submit, or save a draft. Hermes must be the assigned Delegator in Settings → Agent roles. Coordination returns a project map for review; implementation stories still require their separate approved revision. Busy or approval-pending chat turns cannot be silently handed off. Closing the panel keeps its thread; its Projects URL includes the consultant thread number for reopening. Full conversation history is also in Chat.
+Choose **That’s enough, write up the plan** when you are ready. The consultant writes the brief from the whole conversation and it opens as an editable New project review automatically.
+
+If the latest reply already is the brief, **Review brief & submit to the coordinator** copies it into the same editable New project review. Check the title, brief, workspace and planning model. Approve coordination and submit, or save a draft. The coordinator is whichever agent is assigned as Delegator in Settings → Agent roles. Coordination returns a project map for review; implementation stories still require their separate approved revision. Busy or approval-pending chat turns cannot be silently handed off. Closing the panel keeps its thread; its Projects URL includes the consultant thread number for reopening. Full conversation history is also in Chat.
 
 ## What the consultant knows
 

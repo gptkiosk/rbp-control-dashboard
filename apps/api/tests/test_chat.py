@@ -105,6 +105,33 @@ def test_message_needing_approval_waits(tc, tmp_path):
     assert d["messages"][0]["status"] == "done"
 
 
+def test_background_sent_with_a_message_is_not_the_operators_words(tc, tmp_path):
+    """The project consultant opens with long guidance that mentions releases and deploys. That background must reach the agent and must not
+    put the operator's own first message behind an approval that nobody knows to give."""
+    t = _thread(tc, tmp_path)
+    background = "Guidance for the consultant: describe how the app is released, deployed and published. Ask about the release model."
+    m = tc.post(f"/api/chat/threads/{t['id']}/messages", json={"context": background, "text": "Project: Notes app. Goal: a small notes app."}).json()
+    assert m["status"] == "running" and m["approval_reasons"] == []
+    assert m["text"] == "Project: Notes app. Goal: a small notes app." and m["context_chars"] == len(background)
+    d = _wait(tc, t["id"], lambda d: _idle(d) and len(d["messages"]) == 2)
+    assert d["messages"][0]["text"] == "Project: Notes app. Goal: a small notes app."     # the bubble shows only the operator's words
+    # the operator's own words are still checked
+    pushed = tc.post(f"/api/chat/threads/{t['id']}/messages", json={"context": background, "text": "then git push the fix"}).json()
+    assert pushed["status"] == "pending_approval"
+
+
+def test_a_route_nobody_reviewed_is_refused_up_front_with_a_way_forward(tc, tmp_path):
+    """A hermes chat on a model its config does not list used to be accepted and then fail with PRICE_UNKNOWN in the bubble."""
+    r = tc.post("/api/chat/threads", json={"agent": "fake", "model": "unreviewed-model", "working_dir": str(tmp_path / "ws" / "proj")})
+    assert r.status_code == 409 and "not been reviewed for pricing" in r.json()["detail"] and "AI defaults" in r.json()["detail"]
+    assert tc.get("/api/chat/threads").json()["threads"] == []                      # no empty thread is left behind
+    t = _thread(tc, tmp_path)
+    tc.app.state.dispatcher.settings.dispatch_route_classes.clear()                  # the review is revoked after the thread exists
+    r = tc.post(f"/api/chat/threads/{t['id']}/messages", json={"text": "hello"})
+    assert r.status_code == 409 and "cannot run fake-model" in r.json()["detail"]
+    assert tc.get(f"/api/chat/threads/{t['id']}").json()["messages"] == []
+
+
 def test_reject_pending_message(tc, tmp_path):
     t = _thread(tc, tmp_path)
     m = tc.post(f"/api/chat/threads/{t['id']}/messages", json={"text": "deploy it"}).json()

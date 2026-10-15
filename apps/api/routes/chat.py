@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import time
 import uuid
+from types import SimpleNamespace
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
@@ -18,6 +19,7 @@ from sqlalchemy.orm import Session
 import approval
 from agents import REGISTRY
 from deps import get_session
+from dispatch_gate import reviewed_route_class
 from dispatcher import remove_run_logs
 from models import ChatMessage, ChatThread, Run
 from settings import get_settings
@@ -42,6 +44,17 @@ class ThreadPatch(BaseModel):
 
 class MessageIn(BaseModel):
     text: str = Field(min_length=1, max_length=100_000)
+    # Background the app adds for the agent (the project consultant's guidance and what this installation knows). It is sent to the agent with
+    # the message but is not the operator's words: the approval check reads `text` only, and the chat shows `text` plus a note that it was sent.
+    context: str | None = Field(default=None, max_length=30_000)
+
+
+CONTEXT_MARK = "\n\n---\nThe operator's message:\n"
+
+
+def _split_context(stored: str) -> tuple[str, str]:
+    head, mark, tail = stored.partition(CONTEXT_MARK)
+    return (head, tail) if mark else ("", stored)
 
 
 def _now() -> int:
@@ -55,6 +68,31 @@ def _dispatcher(request: Request):
     return d
 
 
+def route_problem(s: Session, request: Request, agent: str, agent_target: str | None, model: str | None) -> str | None:
+    """Why the dispatch gate would refuse this route, in words the operator can act on, or None when it can start.
+
+    The gate refuses a route nobody has reviewed (PRICE_UNKNOWN) only after the message was accepted, so the chat looked sent and then failed
+    with a code. Asking first keeps the refusal at the moment the operator can still pick another model."""
+    spec = REGISTRY.get(agent)
+    d = getattr(request.app.state, "dispatcher", None)
+    settings = d.settings if d is not None else get_settings()    # the settings the gate itself will read
+    chosen = model or (spec.default_model() if spec else None)
+    if spec is None or not chosen:
+        return None
+    price = reviewed_route_class(s, settings, SimpleNamespace(agent=agent, agent_target=agent_target, id=None), chosen)
+    if price is None:
+        hint = "Choose a model in Profile, AI defaults, or review the route in Billing & rates."
+        if agent == "hermes":
+            from native_routes import read
+            free = [m for m in read(settings).get("hermes", {}).get("models", ()) if m and (m.endswith(":free") or m == "openrouter/free")]
+            hint = (f"Hermes is set up with these free models: {', '.join(free)}. Choose one in Profile, AI defaults." if free else
+                    "Hermes has no free model configured. Run `hermes setup` or choose another agent in Profile, AI defaults.")
+        return f"{spec.name} cannot run {chosen} here: that route has not been reviewed for pricing, so the dashboard will not start it. {hint}"
+    if getattr(settings, "dispatch_free_only", False) and price != "free":
+        return f"{chosen} is a {price} route and this installation only starts free routes. Choose a free model in Profile, AI defaults."
+    return None
+
+
 def _thread(s: Session, thread_id: int) -> ChatThread:
     t = s.get(ChatThread, thread_id)
     if t is None:
@@ -63,8 +101,9 @@ def _thread(s: Session, thread_id: int) -> ChatThread:
 
 
 def _msg_dict(m: ChatMessage) -> dict:
+    context, text = _split_context(m.text) if m.role == "user" else ("", m.text)
     return {
-        "id": m.id, "thread_id": m.thread_id, "role": m.role, "text": m.text, "status": m.status,
+        "id": m.id, "thread_id": m.thread_id, "role": m.role, "text": text, "context_chars": len(context), "status": m.status,
         "approval_reasons": json.loads(m.approval_reasons) if m.approval_reasons else [],
         "approved_at": m.approved_at, "run_id": m.run_id, "model": m.model,
         "input_tokens": m.input_tokens, "output_tokens": m.output_tokens, "cost_usd": m.cost_usd,
@@ -77,7 +116,7 @@ def _thread_dict(t: ChatThread, busy: bool, last: ChatMessage | None = None) -> 
         "id": t.id, "agent": t.agent, "agent_target": t.agent_target, "title": t.title,
         "model": t.model, "mode": t.mode, "working_dir": t.working_dir, "session_id": t.session_id,
         "created_at": t.created_at, "last_activity_at": t.last_activity_at, "busy": busy,
-        "last_message": ({"role": last.role, "text": last.text[:200], "status": last.status}
+        "last_message": ({"role": last.role, "text": (_split_context(last.text)[1] if last.role == "user" else last.text)[:200], "status": last.status}
                          if last else None),
     }
 
@@ -95,7 +134,7 @@ def list_threads(request: Request, s: Session = Depends(get_session)):
 
 
 @router.post("/threads", status_code=201)
-def create_thread(body: ThreadIn, s: Session = Depends(get_session)):
+def create_thread(body: ThreadIn, request: Request, s: Session = Depends(get_session)):
     spec = REGISTRY.get(body.agent)
     if spec is None:
         raise HTTPException(status_code=422, detail=f"Unknown agent: {body.agent}")
@@ -106,6 +145,9 @@ def create_thread(body: ThreadIn, s: Session = Depends(get_session)):
     if real is None:
         raise HTTPException(status_code=422, detail="Working directory must be an existing folder inside "
                             + ", ".join(str(r) for r in roots))
+    problem = route_problem(s, request, body.agent, body.agent_target, body.model)
+    if problem:
+        raise HTTPException(status_code=409, detail=problem)
     now = _now()
     t = ChatThread(
         agent=body.agent, agent_target=body.agent_target, title=(body.title or f"Chat with {spec.name}").strip(),
@@ -147,13 +189,17 @@ async def send_message(thread_id: int, body: MessageIn, request: Request, s: Ses
     t = _thread(s, thread_id)
     if d.thread_busy(t.id):
         raise HTTPException(status_code=409, detail="The agent is still answering. Wait or stop it first.")
+    problem = route_problem(s, request, t.agent, t.agent_target, t.model)
+    if problem:
+        raise HTTPException(status_code=409, detail=problem)
     pending = s.execute(select(ChatMessage).where(ChatMessage.thread_id == t.id,
                                                   ChatMessage.status == "pending_approval")).first()
     if pending:
         raise HTTPException(status_code=409, detail="A message is waiting for your approval in this thread.")
     reasons = approval.reasons_for(body.text, t.mode, approval.current_branch(approval.Path(t.working_dir)))
     now = _now()
-    msg = ChatMessage(thread_id=t.id, role="user", text=body.text,
+    stored = f"{body.context.strip()}{CONTEXT_MARK}{body.text}" if body.context and body.context.strip() else body.text
+    msg = ChatMessage(thread_id=t.id, role="user", text=stored,
                       status="pending_approval" if reasons else "running",
                       approval_reasons=json.dumps(reasons) if reasons else None, created_at=now)
     s.add(msg)

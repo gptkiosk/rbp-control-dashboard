@@ -531,6 +531,8 @@ export interface ChatMessage {
   thread_id: number
   role: 'user' | 'assistant'
   text: string
+  /** Characters of background the app sent to the agent with this message (not shown in the bubble). */
+  context_chars?: number
   status: ChatMessageStatus
   approval_reasons: string[]
   approved_at: Num
