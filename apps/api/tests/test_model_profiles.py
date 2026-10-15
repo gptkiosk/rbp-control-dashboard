@@ -9,6 +9,7 @@ import pytest
 import model_profiles as mp
 from tests.test_auth import secured  # noqa: F401
 from tests.test_profiles import signed
+from tests.test_projects import app  # noqa: F401
 from tests.test_telemetry import NOW, card, run
 
 DAY = 86400
@@ -174,3 +175,89 @@ def test_the_refresh_switch_turns_the_action_off(secured, monkeypatch):  # noqa:
     monkeypatch.setattr(get_settings(), "model_refresh_enabled", False)
     monkeypatch.setattr(mp, "default_fetch", lambda: (_ for _ in ()).throw(AssertionError("must not fetch")))
     assert secured.post("/api/models/refresh", json={"confirm": True}).status_code == 409
+
+
+# ------------------------------------------------------------------------------------------- routing guidance and advice
+def seed_runs(s, model, kind, ok, bad, requested=None):
+    for i in range(ok + bad):
+        c = card(s, f"{kind} {model} {i}", kind=kind)
+        run(s, c, "succeeded" if i < ok else "failed", model=model, requested=requested or model)
+    s.commit()
+
+
+def test_the_planner_is_given_facts_and_a_track_record_with_unproven_stated(sessions, tmp_path):
+    mp.refresh(tmp_path, now=NOW, fetch=lambda: listing(entry("google/gemma-4-31b-it:free", free=True, context=262144, tools=True), entry("acme/no-tools:free", free=True, tools=False)))
+    with sessions() as s:
+        seed_runs(s, "google/gemma-4-31b-it:free", "implement", 9, 3)
+        text = mp.guidance_text(s, tmp_path, [{"agent": "hermes", "models": ["google/gemma-4-31b-it:free", "acme/no-tools:free", "claude-opus-5-5"]},
+                                              {"agent": "openclaw", "models": ["openrouter/google/gemma-4-31b-it:free"]}], NOW)
+    assert "advice, not authorization" in text and "unproven for it" in text
+    assert "hermes/google/gemma-4-31b-it:free: free; context 262,144; tools; here: implement 75% of 12" in text
+    assert "acme/no-tools:free: free; context 128,000; no tool use listed; never run here (unproven)" in text
+    assert "hermes/claude-opus-5-5: paid" in text and "openclaw/google/gemma-4-31b-it:free" in text
+    assert len(text) <= mp.GUIDANCE_MAX_CHARS
+
+
+def test_no_guidance_for_models_nothing_is_known_about(sessions, tmp_path):
+    with sessions() as s:
+        assert mp.guidance_text(s, tmp_path, [{"agent": "hermes", "models": ["totally/unknown-model"]}], NOW) == ""
+        assert mp.guidance_text(s, tmp_path, [], NOW) == ""
+
+
+def test_the_planner_prompt_carries_the_guidance_even_with_a_users_own_plan_text(app, tmp_path):  # noqa: F811
+    from tests.test_projects import new
+    import projects
+    c, s, wd, settings = app
+    p = new(app, [])
+    with s() as db:
+        seed_runs(db, "google/gemma-4-31b-it:free", "implement", 3, 0)
+        prompt = projects._planner_prompt(projects.get(db, p["id"]), [{"agent": "hermes", "models": ["google/gemma-4-31b-it:free"]}], db)
+    assert "Model facts and track record" in prompt and "hermes/google/gemma-4-31b-it:free" in prompt
+    mine = settings.data_dir / "roles" / "custom"
+    mine.mkdir(parents=True, exist_ok=True)
+    shipped = (__import__("pathlib").Path(__file__).resolve().parents[3] / "packs/roles/delegator/plan.txt").read_text()
+    (mine / "plan.txt").write_text(shipped.replace("Read-only project planning.", "MY WORDING."))
+    with s() as db:
+        prompt = projects._planner_prompt(projects.get(db, p["id"]), [{"agent": "hermes", "models": ["google/gemma-4-31b-it:free"]}], db)
+    assert prompt.startswith("MY WORDING.") and "Model facts and track record" in prompt
+
+
+def story(key, model, kind="implement", risk="low", assignee="hermes"):
+    return {"kind": "story", "key": key, "assignee": assignee, "model": model, "work_kind": kind, "risk": risk}
+
+
+def test_advice_warns_about_a_poor_record_missing_tools_and_unproven_routes_but_never_blocks(sessions, tmp_path):
+    mp.refresh(tmp_path, now=NOW, fetch=lambda: listing(entry("acme/no-tools:free", free=True, tools=False), entry("acme/weak:free", free=True)))
+    with sessions() as s:
+        seed_runs(s, "acme/weak:free", "implement", 3, 9)                 # 25% of 12: proven and poor
+        nodes = [story("a", "acme/weak:free"), story("b", "acme/no-tools:free"), story("c", "acme/weak:free", kind="docs", risk="high"),
+                 story("d", "acme/no-tools:free", kind="research"), story("e", "", kind="implement"), story("f", "x/y", assignee="human"),
+                 {"kind": "phase", "key": "p"}]
+        advice = mp.route_advice(s, tmp_path, nodes, NOW)
+    by = {}
+    for a in advice:
+        by.setdefault(a["key"], []).append(a)
+    assert any("only 25% of 12 implement runs" in a["text"] and a["level"] == "warn" for a in by["a"])
+    assert any("does not list tool use" in a["text"] for a in by["b"])
+    assert any(a["level"] == "info" and "unproven for docs" in a["text"] and "high risk" in a["text"] for a in by["c"])
+    assert "d" not in by or not any("tool use" in a["text"] for a in by["d"])         # read-only work does not need tools
+    assert not {"e", "f", "p"} & set(by)                                              # no model, human, or phase: nothing to say
+
+
+def test_a_proven_good_route_gets_no_advice(sessions, tmp_path):
+    with sessions() as s:
+        seed_runs(s, "claude-opus-5-5", "implement", 11, 1)
+        assert mp.route_advice(s, tmp_path, [story("a", "claude-opus-5-5", risk="high", assignee="claude")], NOW) == []
+
+
+def test_the_advice_route_reads_the_saved_plan(secured, tmp_path):  # noqa: F811
+    from models import Project
+    signed(secured)
+    doc = {"title": "t", "working_dir": str(tmp_path), "nodes": [story("a", "acme/never-seen:free", risk="medium")]}
+    with secured.app.state.sessions.begin() as s:
+        p = Project(document=json.dumps(doc), state="draft", created_by="op", created_at=0, updated_at=0)
+        s.add(p)
+        s.flush()
+        pid = p.id
+    assert secured.get(f"/api/models/advice?project_id={pid}").json() == {"advice": []}      # an unknown model: nothing to say
+    assert secured.get("/api/models/advice?project_id=999").status_code == 404

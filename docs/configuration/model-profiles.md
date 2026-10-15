@@ -29,10 +29,20 @@ catalog. Text from the list is shortened and cleaned before it is stored.
 
 The glance chart shows observed success by model. The full profile table and the notes are behind folds.
 
+## How the coordinator uses it
+
+- **Planner guidance.** When a plan is requested, the planner is given a compact paragraph for the models it may choose: free or paid,
+  context, tool support, and what has actually happened here by kind of work (success rate and how many runs), with **unproven**
+  stated plainly. It is advice, not authorization: the free-only gate, reviewed routes, the standards' risk floors and your approvals
+  still decide. The paragraph is added after your coordinator text is filled in, so your own `plan.txt` copy keeps working.
+- **Route advice before you submit.** The submit review shows non-blocking advice for each story's route: a model with a proven poor
+  record for that kind of work (under half of at least 10 runs), a model that does not list tool use for work that edits files, and a
+  model that is unproven for the kind when the story is medium or high risk. Nothing is refused here; it is a prompt to look again.
+
 ## Settings involved
 
 - `MAC_CONTROL_MODEL_REFRESH_ENABLED` (default on). Off: the refresh action is refused and nothing is fetched.
 - Files in the data folder: `models/openrouter.json` (the last snapshot) and `models/notes.json` (your notes). Updates keep both; see
   [What survives an update](upgrades-and-your-data.md).
 - Operator API: `GET /api/models/profiles`, `POST /api/models/refresh` (needs `confirm: true`), `POST /api/models/notes`,
-  `DELETE /api/models/notes/{id}`. Agents get 403.
+  `DELETE /api/models/notes/{id}`, `GET /api/models/advice?project_id=`. Agents get 403.

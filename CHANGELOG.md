@@ -10,6 +10,11 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.4.7] - 2026-10-15
+
+### Added
+- The coordinator now uses model profiles. A planning request includes a compact paragraph on the models it may choose (free or paid, context, tool support, and the track record here by kind of work, with unproven stated plainly), and the submit review shows non-blocking route advice for each story: a proven poor record for that kind of work, no listed tool use for work that edits files, or an unproven model on medium or high risk work. The gates, risk floors and approvals still decide; your own coordinator wording keeps working. See `docs/configuration/model-profiles.md`.
+
 ## [0.4.6] - 2026-10-15
 
 ### Added
@@ -191,7 +196,8 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 - Claude Code stories may use web search and fetch without any shell, credential or publish permission.
 
 [0.3.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.0
-[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.4.6...HEAD
+[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.4.7...HEAD
+[0.4.7]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.4.7
 [0.4.6]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.4.6
 [0.4.5]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.4.5
 [0.4.4]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.4.4

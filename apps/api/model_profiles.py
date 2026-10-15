@@ -255,3 +255,61 @@ def profiles(s, data_dir, now: int | None = None, days: int = 90) -> dict:
     return {"generated_at": now, "days": days, "proven_runs": PROVEN_RUNS, "stale_days": STALE_DAYS,
             "snapshot": {"fetched_at": live["fetched_at"], "count": len(live["models"]), "free": sum(1 for m in live["models"] if m["free"])} if live else None,
             "models": rows, "stale_notes": sum(1 for n in all_notes if n["stale"])}
+
+
+# ------------------------------------------------------------------------------------------------------- routing guidance
+WRITE_KINDS = ("implement", "test", "docs", "ops")
+GUIDANCE_MAX_CHARS = 3500
+GUIDANCE_MAX_MODELS = 24
+
+
+def guidance_text(s, data_dir, catalog: list[dict], now: int | None = None) -> str:
+    """A compact paragraph for the planner: for the models it may choose, free or paid, context, tool support and what has actually happened
+    here by kind of work, with unproven stated plainly. Advice for the coordinator; the server still enforces every gate."""
+    now = int(now if now is not None else time.time())
+    by_id = {m["id"]: m for m in profiles(s, data_dir, now)["models"]}
+    lines, seen = [], set()
+    for entry in catalog or []:
+        for model in entry.get("models", []):
+            key = (entry.get("agent"), _norm(model))
+            if key in seen or len(lines) >= GUIDANCE_MAX_MODELS or not _norm(model):
+                continue
+            seen.add(key)
+            p = by_id.get(_norm(model))
+            if not p:
+                continue
+            bits = ["free" if p["free"] else "paid"]
+            if p["context"]:
+                bits.append(f"context {p['context']:,}")
+            if p["tools"] is not None:
+                bits.append("tools" if p["tools"] else "no tool use listed")
+            seen_kinds = [f"{k['kind']} {round(k['success_rate'] * 100)}% of {k['runs']}" + ("" if k["proven"] else " (unproven)") for k in p["kinds"][:4]]
+            bits.append("here: " + ", ".join(seen_kinds) if seen_kinds else "never run here (unproven)")
+            lines.append(f"- {entry.get('agent')}/{_norm(model)}: " + "; ".join(bits))
+    if not lines:
+        return ""
+    head = ("Model facts and track record from this installation (advice, not authorization; a model with under "
+            f"{PROVEN_RUNS} runs of a kind is unproven for it, so prefer a proven route for medium or high risk work):")
+    return (head + "\n" + "\n".join(lines))[:GUIDANCE_MAX_CHARS]
+
+
+def route_advice(s, data_dir, nodes: list[dict], now: int | None = None) -> list[dict]:
+    """Non-blocking advice on a plan's routes, from observed numbers and listed facts. Never refuses anything; the gates do that."""
+    now = int(now if now is not None else time.time())
+    by_id = {m["id"]: m for m in profiles(s, data_dir, now)["models"]}
+    out = []
+    for node in nodes:
+        if node.get("kind") != "story" or node.get("assignee") in (None, "", "human") or not node.get("model"):
+            continue
+        model, kind, risk, key = _norm(node["model"]), node.get("work_kind"), node.get("risk"), node.get("key")
+        p = by_id.get(model)
+        if not p:
+            continue
+        stat = next((k for k in p["kinds"] if k["kind"] == kind), None)
+        if kind in WRITE_KINDS and p["tools"] is False:
+            out.append({"key": key, "level": "warn", "text": f"{model} does not list tool use; an agent that edits files normally needs it."})
+        if stat and stat["proven"] and stat["success_rate"] < 0.5:
+            out.append({"key": key, "level": "warn", "text": f"{model} has succeeded on only {round(stat['success_rate'] * 100)}% of {stat['runs']} {kind} runs here; consider another route."})
+        elif (not stat or not stat["proven"]) and risk in ("medium", "high"):
+            out.append({"key": key, "level": "info", "text": f"{model} is unproven for {kind or 'this kind of'} work here ({stat['runs'] if stat else 0} runs) and this story is {risk} risk; consider a route with a track record or a review step."})
+    return out
