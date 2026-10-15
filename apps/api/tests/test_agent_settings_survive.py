@@ -11,7 +11,7 @@ import pytest
 import dispatcher
 import role_pack as rp
 import tool_install as ti
-from tests.test_tool_install import bump, catalog, catalog_dir, cfg, facts, run  # noqa: F401
+from tests.test_tool_install import FakeOps, bump, catalog_dir, facts as linux_facts, run  # noqa: F401
 
 NATIVE = {
     '.claude/settings.json': '{"model": "user-choice", "permissions": {"allow": ["Bash(ls)"]}}\n',
@@ -36,6 +36,36 @@ def snapshot(home: Path) -> dict:
         rel = str(path.relative_to(home))
         out[rel] = (path.read_bytes(), path.stat().st_mtime_ns) if path.is_file() else ('dir', None)
     return out
+
+
+PLATFORMS = {
+    'linux-arm64': {},
+    'darwin-arm64': dict(system='Darwin', machine='arm64', os_name='macOS', os_family='macos'),
+}
+
+
+@pytest.fixture(params=sorted(PLATFORMS))
+def platform(request, catalog_dir):  # noqa: F811
+    if request.param not in ti.load_catalog(catalog_dir).raw['requirements']['platforms']:
+        pytest.skip(f'this product does not install tools on {request.param}')
+    return request.param
+
+
+@pytest.fixture
+def cfg(tmp_path, catalog_dir, platform):  # noqa: F811
+    home = tmp_path / 'home'
+    home.mkdir()
+    return ti.ToolsConfig(root=tmp_path / 'tools-root', catalog_dir=catalog_dir, platform_key=platform, home=home)
+
+
+@pytest.fixture
+def catalog(cfg):  # noqa: F811
+    return ti.load_catalog(cfg.catalog_dir)
+
+
+@pytest.fixture
+def host(platform):
+    return linux_facts(**PLATFORMS[platform])
 
 
 @pytest.fixture
@@ -66,37 +96,35 @@ def test_the_snapshot_would_notice_a_changed_added_or_removed_setting(user_home)
 
 
 @pytest.mark.parametrize('tool', ['claude-code', 'codex', 'openclaw'])
-def test_updating_a_managed_npm_agent_tool_leaves_every_agents_settings_alone(cfg, catalog, user_home, tool):  # noqa: F811
+def test_updating_a_managed_npm_agent_tool_leaves_every_agents_settings_alone(cfg, catalog, user_home, host, tool):  # noqa: F811
     before = snapshot(user_home)
-    run(cfg, catalog, tool, 'install')
+    run(cfg, catalog, tool, 'install', host=host)
     assert snapshot(user_home) == before
     first = ti.load_catalog(cfg.catalog_dir).raw['tools'][tool]['version']
     major, minor, patch = (first.split('-')[0].split('.') + ['0', '0'])[:3]
     bump(cfg, tool, f'{major}.{minor}.{int(patch) + 1}')
     catalog2 = ti.load_catalog(cfg.catalog_dir)
-    run(cfg, catalog2, tool, 'update')
+    run(cfg, catalog2, tool, 'update', host=host)
     assert snapshot(user_home) == before
-    run(cfg, catalog2, tool, 'rollback')
+    run(cfg, catalog2, tool, 'rollback', host=host)
     assert snapshot(user_home) == before
-    run(cfg, catalog2, tool, 'remove')
+    run(cfg, catalog2, tool, 'remove', host=host)
     assert snapshot(user_home) == before, 'removing a managed tool must not remove or change anything the user owns'
 
 
 @pytest.mark.parametrize('tool', ['hermes', 'grok'])
-def test_installing_and_removing_hermes_or_grok_leaves_every_agents_settings_alone(cfg, catalog, user_home, tool):  # noqa: F811
+def test_installing_and_removing_hermes_or_grok_leaves_every_agents_settings_alone(cfg, catalog, user_home, host, tool):  # noqa: F811
     before = snapshot(user_home)
-    run(cfg, catalog, tool, 'install')
+    run(cfg, catalog, tool, 'install', host=host)
     assert snapshot(user_home) == before
-    run(cfg, catalog, tool, 'remove')
+    run(cfg, catalog, tool, 'remove', host=host)
     assert snapshot(user_home) == before
 
 
-def test_installers_never_run_with_the_users_real_home_as_home(cfg, catalog, user_home):  # noqa: F811
+def test_installers_never_run_with_the_users_real_home_as_home(cfg, catalog, user_home, host):  # noqa: F811
     for tool in ('claude-code', 'codex', 'openclaw', 'hermes', 'grok'):
-        ops = None
-        from tests.test_tool_install import FakeOps
         ops = FakeOps(catalog)
-        run(cfg, catalog, tool, 'install', ops=ops)
+        run(cfg, catalog, tool, 'install', ops=ops, host=host)
         homes = {env.get('HOME') for env in ops.envs}
         assert str(user_home) not in homes, f'{tool}: an installer step ran with the real home as HOME'
 
