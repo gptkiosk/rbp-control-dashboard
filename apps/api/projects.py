@@ -22,6 +22,7 @@ import billing
 import cards
 import job_envelope
 import standards
+import model_profiles
 import project_workspaces as workspaces
 import provider_limits
 from agents import REGISTRY, SUBSCRIPTION_AGENTS
@@ -516,9 +517,13 @@ def proposal(doc, nodes, settings):
         normalized.append(row)
     return validate({**doc, 'nodes': normalized}, settings, True)
 
-def _planner_prompt(p,catalog=None):
-    return role_prompt('plan', schema=json.dumps(Node.model_json_schema()), catalog=json.dumps(catalog or []), project=_brief(p, True),
-        standards=standards.prompt_section(standards.resolve(document(p)['working_dir'],get_settings().data_dir)))
+def _planner_prompt(p,catalog=None,s=None):
+    settings=get_settings()
+    text=role_prompt('plan', schema=json.dumps(Node.model_json_schema()), catalog=json.dumps(catalog or []), project=_brief(p, True),
+        standards=standards.prompt_section(standards.resolve(document(p)['working_dir'],settings.data_dir)))
+    # Appended after substitution, so a user's own plan.txt keeps working without a new placeholder.
+    extra=model_profiles.guidance_text(s,settings.data_dir,catalog) if s is not None else ''
+    return text+('\n'+extra if extra else '')
 
 
 def submit(s,p,action,settings,actor):
@@ -627,7 +632,7 @@ def advance(s,settings):
             alternative=next((v for v in pipeline['choices'] if (v['agent'],v['model']) not in attempted),None)
             memory(s,p,'checkpoint','Planner stopped on a reported quota/limit. No implementation started.\n'+(r.error or '')+'\n'+(r.result_text or ''),r.agent,c.id,r.id)
             if alternative:
-                c=_queue(s,p,'plan',alternative['agent'],alternative['model'],_planner_prompt(p,pipeline.get('execution_catalog')),settings)
+                c=_queue(s,p,'plan',alternative['agent'],alternative['model'],_planner_prompt(p,pipeline.get('execution_catalog'),s),settings)
                 p.pipeline=json.dumps({**pipeline,'card_id':c.id,'chosen':alternative});continue
         if not c or not r or r.stage!='succeeded':
             p.state='planning_failed' if p.state=='planning' else 'dispatch_failed';p.error='Planning/dispatch task stopped or failed. Inspect its board run and explicitly retry.';continue
@@ -638,7 +643,7 @@ def advance(s,settings):
                 if step=='coordinate':
                     chosen=next((v for v in pipeline['choices'] if v['agent']==data.get('agent') and v['model']==data.get('model')),None)
                     if not chosen: fail('Delegator selected an unapproved planner/model. No fallback was run.',422)
-                    c=_queue(s,p,'plan',chosen['agent'],chosen['model'],_planner_prompt(p,pipeline.get('execution_catalog')),settings)
+                    c=_queue(s,p,'plan',chosen['agent'],chosen['model'],_planner_prompt(p,pipeline.get('execution_catalog'),s),settings)
                     p.pipeline=json.dumps({**pipeline,'step':'plan','card_id':c.id,'chosen':chosen})
                     memory(s,p,'proposal','Planner choice: '+json.dumps(data),r.agent,r.card_id,r.id)
                 elif step=='plan':

@@ -6,6 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.orm import Session
 
 import model_profiles as mp
+import projects
 import telemetry
 from deps import get_session
 from routes.agent_tools import operator
@@ -31,6 +32,14 @@ class RefreshIn(BaseModel):
 def profiles(request: Request, days: int = Query(90, ge=1, le=telemetry.MAX_DAYS), s: Session = Depends(get_session)):
     operator(request)
     return mp.profiles(s, get_settings().data_dir, int(time.time()), days)
+
+
+@router.get("/advice")
+def advice(project_id: int, request: Request, s: Session = Depends(get_session)):
+    """Non-blocking advice on the saved plan's routes. Refuses nothing: the dispatch gates, risk floors and approvals do that."""
+    operator(request)
+    nodes = projects.document(projects.get(s, project_id)).get("nodes", [])
+    return {"advice": mp.route_advice(s, get_settings().data_dir, nodes, int(time.time()))}
 
 
 @router.post("/refresh")
