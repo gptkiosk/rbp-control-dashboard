@@ -17,6 +17,8 @@ The current local RCD prototype retains MCD’s MAC_CONTROL_ environment prefix 
 
 The OpenRouter key saved in Profile can optionally be shared with Hermes and OpenClaw: see [Share the saved OpenRouter key](configuration/saved-openrouter-key.md).
 
+Repository standards (the engineering standards a project works under, read from its working directory) are described in [Repository standards](configuration/standards.md).
+
 Jobs and telemetry (who work is assigned to, the agent and model that ran it, time and cost) is described in [Jobs and telemetry](configuration/telemetry.md).
 
 Housekeeping (leftovers you approve, which Hermes may propose) is described in [Housekeeping](configuration/housekeeping.md), and the standard fields on planned work in [The standard job envelope](configuration/job-envelope.md).

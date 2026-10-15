@@ -21,6 +21,7 @@ import approval
 import billing
 import cards
 import job_envelope
+import standards
 import project_workspaces as workspaces
 import provider_limits
 from agents import REGISTRY, SUBSCRIPTION_AGENTS
@@ -553,7 +554,7 @@ def submit(s,p,action,settings,actor):
         'branch':approval.current_branch(Path(d['working_dir'])),'approved_by':actor,'approved_at':now(),
         'fallback_models':{a:('opus' if a=='claude' else REGISTRY[a].default_model() or '') for a in ('claude','codex')},
         'api_work_approved':action.approve_api_work,'dispatch_mode':d['dispatch_mode'],
-        'base_commit':base_commit,'workspaces':{},'artifacts':{}}
+        'base_commit':base_commit,'workspaces':{},'artifacts':{},'standards':standards.summary(d['working_dir'])}
     manifest['hash']=hashlib.sha256(json.dumps(manifest,sort_keys=True).encode()).hexdigest()
     p.approved_manifest=json.dumps(manifest)
     c=_queue(s,p,'dispatch',delegate['agent'],delegate['model'],role_prompt('dispatch', manifest=json.dumps(manifest)),settings)
