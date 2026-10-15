@@ -26,6 +26,7 @@ there is nothing extra to maintain.
   model, which differs after a fallback), and the route (free, subscription, api, human). The table shows runs, success rate, median
   time, tokens, reported cost, API-equivalent cost and how many runs were served by a different model than requested.
 - **By kind of work:** time, how often a story finished on the first attempt, and actual time over the estimate.
+- **Models.** Facts, observed numbers and people's notes for each model, with a refresh of the free-model list: see [Model profiles](model-profiles.md).
 - **Latest activity.**
 
 **Cost is shown two ways, kept apart.** *Reported cost* is what the agent reported. *API-equivalent* is an estimate from the price

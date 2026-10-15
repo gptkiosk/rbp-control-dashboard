@@ -1,0 +1,38 @@
+# Model profiles
+
+## Purpose
+
+Explains the **Models** section of the Telemetry page: what each model can do, how it has actually done in your own runs, and what people
+have noted about it. It helps you and the coordinator choose a model for a kind of work: when a free model is enough and when a
+paid foundation model is justified. It never changes a route by itself.
+
+## Screenshots
+
+Pending capture: `telemetry-models.png`.
+
+## Controls
+
+Open **Telemetry** and scroll to **Models**. The three kinds of information are kept apart:
+
+- **Facts**: from your price catalog and from OpenRouter's public model list: free or paid, context size, whether it supports tools,
+  structured output and reasoning, the input types it accepts, and its price.
+- **Observed**: computed from the work you have already run (nothing extra is stored): runs, success rate, median time, tokens, cost,
+  how often a different model served a run than the one requested, and the same by kind of work. A model with fewer than 10 runs of a
+  kind is shown as **unproven** for it. That is the honest starting point for any model you have not tried.
+- **Notes**: short text that people add, each with a **source** and a **date**. A note older than 90 days is marked stale. RCD ships no
+  opinions about which model is better at what, because those claims age quickly and cannot be checked from here.
+
+**Refresh free models** reads OpenRouter's public list (one HTTPS address, no key, no redirects, a size limit) and stores a dated
+snapshot. It then shows what is new and free, what the catalog lists as free that is no longer listed as free, and what changed since the
+last read (context, tool support, price). Nothing else changes: adopting or dropping a model is still a normal reviewed change to the price
+catalog. Text from the list is shortened and cleaned before it is stored.
+
+The glance chart shows observed success by model. The full profile table and the notes are behind folds.
+
+## Settings involved
+
+- `MAC_CONTROL_MODEL_REFRESH_ENABLED` (default on). Off: the refresh action is refused and nothing is fetched.
+- Files in the data folder: `models/openrouter.json` (the last snapshot) and `models/notes.json` (your notes). Updates keep both; see
+  [What survives an update](upgrades-and-your-data.md).
+- Operator API: `GET /api/models/profiles`, `POST /api/models/refresh` (needs `confirm: true`), `POST /api/models/notes`,
+  `DELETE /api/models/notes/{id}`. Agents get 403.

@@ -10,6 +10,11 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.4.6] - 2026-10-15
+
+### Added
+- Model profiles, in a new Models section of the Telemetry page: what each model can do (free or paid, context size, tools, structured output, reasoning, price), how it has done in your own runs (runs, success rate, median time, cost, by kind of work, with a model shown as unproven for a kind until it has 10 runs) and notes people add with a source and a date (stale after 90 days). A Refresh free models action reads OpenRouter's public model list and shows what is new, what is no longer free and what changed, without editing your price catalog or any route. RCD ships no opinions about which model is better at what. The last read and your notes are kept across updates, and `MAC_CONTROL_MODEL_REFRESH_ENABLED` can switch the refresh off. See `docs/configuration/model-profiles.md`.
+
 ## [0.4.5] - 2026-10-15
 
 ### Added
@@ -186,7 +191,8 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 - Claude Code stories may use web search and fetch without any shell, credential or publish permission.
 
 [0.3.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.0
-[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.4.5...HEAD
+[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.4.6...HEAD
+[0.4.6]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.4.6
 [0.4.5]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.4.5
 [0.4.4]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.4.4
 [0.4.3]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.4.3

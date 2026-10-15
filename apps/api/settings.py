@@ -98,6 +98,7 @@ class Settings(BaseSettings):
                                    description="A live runner silent this long is shown as quiet, not as working.")
     default_budget_usd: float = Field(default=0.0, ge=0.0, le=50.0)
     dispatch_free_only: bool = Field(default=True)
+    model_refresh_enabled: bool = Field(default=True, description="Allow the operator to read OpenRouter's public model list from the Models section. Off: nothing is fetched.")
     dispatch_max_budget_usd: float = Field(default=0.0, ge=0.0, le=50.0)
     agent_git_grants_file: Path = Field(
         default=DEFAULT_DATA_DIR / "agent-git" / "grants.json",
