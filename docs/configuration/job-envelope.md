@@ -28,6 +28,8 @@ Every story the coordinator plans carries:
 | `route_tier` | free, subscription, api or human | **the server**, from the agent and model that will actually run |
 | job | `pNrR` | **the server**, from the approved revision |
 
+**Area under repository standards.** When the project's repository carries `docs/development/standards.md` (see [Repository standards](standards.md)), `area` must be one of that file's areas, `risk` may not be below the area's minimum, and a high-risk story may not use a free-only route. Otherwise `area` stays a short lowercase component name.
+
 **Who it is assigned to.** Work is assigned to a person or to an agent, never both. A human task names its user in `assignee_user`; an agent task is assigned through its agent and model (the telemetry records the agent, the model requested and the model that actually served each run). An agent task cannot carry an `assignee_user`.
 
 **A plan is refused at approval** when any story lacks `work_kind`, `size`, `risk`, `estimate_minutes` or `route_reason`, and the

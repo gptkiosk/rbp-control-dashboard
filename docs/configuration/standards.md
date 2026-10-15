@@ -35,6 +35,28 @@ The first heading may read `# <name> engineering standards`; the name becomes th
 cannot understand is skipped and listed under the notes. When a plan revision is approved, its manifest records the state,
 property, file hash and the number of areas and checks found.
 
+## What the standards enforce
+
+When the file is found and its risk table is understood, planning and approval follow it:
+
+- **Area is a controlled value.** Each row of the risk table becomes an area name made of lowercase letters and digits joined by
+  dashes ("Reader and writer features" becomes `reader-and-writer-features`, at most 40 characters). The planner is told the exact
+  values and every story must use one. A story with another area is refused at approval, with the list.
+- **Risk has a floor.** A story's risk may not be lower than its area's default risk. The standards can raise a risk, never
+  lower one.
+- **High risk is not free-only.** A story whose risk is high cannot be assigned a free-only route; choose a subscription route
+  or a human review. (Without standards, planning keeps the older rules.)
+- **The checks travel with the story.** The file's Definition of done checks (up to 12) are frozen on the approved plan revision
+  and appended to the acceptance of every agent story that writes (implement, test, docs, ops), headed with the property and the
+  file's hash. The agent runs the ones that match what it changed and always the any-commit check, and reports what ran. Read-only
+  stories (research, plan, review, triage) and human stories do not get them.
+- **A missing or unreadable file falls back to the [starter standards](starter-standards.md).** The project page says why, so the
+  file can be fixed.
+
+The planner sees a bounded paragraph with the areas, their minimum risk and route guidance. The text is project data and is
+marked as such; it cannot change what an agent is permitted to run. Telemetry groups work by the property the plan was approved
+under (`Property` filter and the "Work by property" chart).
+
 ## Settings involved
 
 - No setting. RCD only reads the file under the project's working directory; it does not fetch repositories or open anything

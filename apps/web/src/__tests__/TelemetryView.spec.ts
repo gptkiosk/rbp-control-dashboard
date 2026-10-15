@@ -6,9 +6,10 @@ import { calls, stubFetch } from './helpers'
 afterEach(() => { vi.unstubAllGlobals() })
 
 const body = (over: Record<string, unknown> = {}) => ({
-  generated_at: 1_800_000_000, days: 30, filters: {}, options: { job: ['p1r1'], kind: ['implement', 'review'], risk: [], size: [], tier: ['free', 'subscription'], assignee: ['codex', 'jamie@example.com'], agent: ['codex', 'hermes'], model: ['gpt-6.1-sol'] },
+  generated_at: 1_800_000_000, days: 30, filters: {}, options: { job: ['p1r1'], property: ['upubhub', 'wegamehub'], kind: ['implement', 'review'], risk: [], size: [], tier: ['free', 'subscription'], assignee: ['codex', 'jamie@example.com'], agent: ['codex', 'hermes'], model: ['gpt-6.1-sol'] },
   tiles: { unassigned: 2, in_progress: 3, waiting_for_you: 1, completed: 14, completed_days: 30, estimates_missing: 4, failed: 1, untagged: 5 },
   by_status: [{ column: 'backlog', count: 4 }, { column: 'running', count: 3 }, { column: 'done', count: 14 }],
+  by_property: [{ property: 'upubhub', stories: 10, open: 3, done: 6, failed: 1, first_pass_rate: 0.67, median_minutes: 42 }, { property: 'none', stories: 2, open: 2, done: 0, failed: 0, first_pass_rate: null, median_minutes: null }],
   by_tier: [{ tier: 'free', count: 12 }, { tier: 'subscription', count: 6 }, { tier: 'api', count: 0 }, { tier: 'human', count: 2 }],
   by_assignee: [{ name: 'codex', type: 'agent', open: 2, done: 9, failed: 1 }, { name: 'jamie@example.com', type: 'human', open: 1, done: 3, failed: 0 }, { name: 'Unassigned', type: 'human', open: 2, done: 0, failed: 0 }],
   velocity: [{ week: '2026-10-05', done: 6 }, { week: '2026-10-12', done: 8 }],
@@ -47,6 +48,9 @@ it('shows charts at a glance (donuts and stacked bars) with the tables folded aw
   expect(status.text()).toContain('done')
   expect(status.text()).toContain('67%')                                    // 14 of 21, so colour is never the only signal
   expect(w.get('[aria-label="Work by route"]').text()).toContain('free')
+  const props = w.get('[aria-label="Work by property"]')
+  expect(props.text()).toContain('upubhub')
+  expect(props.get('ul.list li').attributes('title')).toContain('first pass 67%')
   const assignees = w.get('[aria-label="Work by assignee"]')
   expect(assignees.findAll('.seg').length).toBeGreaterThan(0)
   expect(assignees.text()).toContain('9 done')
@@ -75,7 +79,7 @@ it('says so when there is nothing yet and explains a refused read', async () => 
   const refused = mount(TelemetryView); await flushPromises()
   expect(refused.get('[role="alert"]').text()).toContain('Operator sign-in is required')
   refused.unmount()
-  stubFetch(url => url.startsWith('/api/telemetry') ? { body: body({ jobs: [], models: [], by_kind: [], activity: [], velocity: [], by_assignee: [], by_status: [], by_tier: [] }) } : undefined)
+  stubFetch(url => url.startsWith('/api/telemetry') ? { body: body({ jobs: [], models: [], by_kind: [], activity: [], velocity: [], by_assignee: [], by_status: [], by_tier: [], by_property: [] }) } : undefined)
   const empty = mount(TelemetryView); await flushPromises()
   expect(empty.text()).toContain('No approved plans yet')
   expect(empty.text()).toContain('No runs in this period')

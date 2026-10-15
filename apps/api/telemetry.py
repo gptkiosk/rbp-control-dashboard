@@ -24,7 +24,7 @@ from models import Card, Project, ProjectTask, Run
 OPEN = ("queued", "running", "review")
 DAY = 86400
 MAX_DAYS = 365
-DIMENSIONS = ("job", "kind", "risk", "size", "tier", "assignee", "agent", "model")
+DIMENSIONS = ("job", "property", "kind", "risk", "size", "tier", "assignee", "agent", "model")
 
 
 def _median(values):
@@ -37,6 +37,14 @@ def _label(card: Card) -> tuple[str, str]:
     if card.assignee_type == "human":
         return (card.assignee_user or "Unassigned"), "human"
     return (card.agent or "Unassigned"), "agent"
+
+
+def _property(project: Project | None) -> str | None:
+    """The repository standards' property the plan was approved under (recorded on the manifest), or None."""
+    try:
+        return (json.loads(project.approved_manifest).get("standards") or {}).get("property") or None
+    except (AttributeError, TypeError, ValueError):
+        return None
 
 
 def _title(project: Project | None) -> str:
@@ -76,7 +84,7 @@ def collect(s, now: int, days: int, cfg: dict | None = None) -> list[dict]:
         completed_at = (final.ended_at if final and final.ended_at else card.updated_at) if card.column == "done" else None
         out.append({
             "card": card, "job": f"p{link.project_id}r{link.revision}" if link and link.role == "story" else None,
-            "project_id": link.project_id if link else None, "project": _title(projects.get(link.project_id)) if link else None,
+            "project_id": link.project_id if link else None, "property": _property(projects.get(link.project_id)) if link else None, "project": _title(projects.get(link.project_id)) if link else None,
             "story": bool(link and link.role == "story"), "assignee": who, "assignee_type": who_type,
             "tier": card.route_tier or job_envelope.tier_for(card.assignee_type, card.agent, card.model), "runs": mine, "attempts": len(mine), "final": final, "last": last,
             "completed_at": completed_at,
@@ -88,7 +96,7 @@ def collect(s, now: int, days: int, cfg: dict | None = None) -> list[dict]:
 
 def _match(rec: dict, f: dict) -> bool:
     card = rec["card"]
-    values = {"job": rec["job"], "kind": card.kind, "risk": card.risk, "size": card.size, "tier": rec["tier"],
+    values = {"job": rec["job"], "property": rec["property"], "kind": card.kind, "risk": card.risk, "size": card.size, "tier": rec["tier"],
               "assignee": rec["assignee"], "agent": card.agent, "model": rec["model"]}
     return all(not f.get(k) or values[k] == f[k] for k in DIMENSIONS)
 
@@ -153,6 +161,19 @@ def overview(s, now: int | None = None, days: int = 30, filters: dict | None = N
     job_rows = sorted(({**j, "actual_minutes": round(j["actual_minutes"], 1), "cost_usd": round(j["cost_usd"], 4), "api_equivalent_usd": round(j["api_equivalent_usd"], 4)}
                        for j in jobs.values()), key=lambda j: -j["last_activity"])
 
+    props: dict[str, dict] = {}
+    for r in recs:
+        card = r["card"]
+        p = props.setdefault(r["property"] or "none", {"property": r["property"] or "none", "stories": 0, "open": 0, "done": 0, "failed": 0, "first_pass": 0, "minutes": []})
+        p["stories"] += 1
+        p["done" if card.column == "done" else ("failed" if card.column == "failed" else "open")] += 1
+        if card.column == "done":
+            p["minutes"].append(r["exec_s"] / 60)
+            p["first_pass"] += 1 if r["attempts"] == 1 else 0
+    by_property = sorted(({"property": p["property"], "stories": p["stories"], "open": p["open"], "done": p["done"], "failed": p["failed"],
+                           "first_pass_rate": round(p["first_pass"] / p["done"], 2) if p["done"] else None, "median_minutes": _median(p["minutes"])}
+                          for p in props.values()), key=lambda p: -p["stories"])
+
     kinds: dict[str, dict] = {}
     for r in recs:
         card = r["card"]
@@ -201,11 +222,11 @@ def overview(s, now: int | None = None, days: int = 30, filters: dict | None = N
                          "agent": run.agent, "model": run.model_reported or run.model_requested, "job": r["job"]})
 
     options = {k: sorted({v for v in values if v}) for k, values in {
-        "job": [r["job"] for r in everything], "kind": [r["card"].kind for r in everything], "risk": [r["card"].risk for r in everything],
+        "job": [r["job"] for r in everything], "property": [r["property"] for r in everything], "kind": [r["card"].kind for r in everything], "risk": [r["card"].risk for r in everything],
         "size": [r["card"].size for r in everything], "tier": [r["tier"] for r in everything], "assignee": [r["assignee"] for r in everything],
         "agent": [r["card"].agent for r in everything], "model": [r["model"] for r in everything]}.items()}
     return {
-        "generated_at": now, "days": days, "filters": f, "options": options, "tiles": tiles, "by_status": status, "by_tier": by_tier, "by_assignee": by_assignee,
+        "generated_at": now, "days": days, "filters": f, "options": options, "tiles": tiles, "by_status": status, "by_tier": by_tier, "by_property": by_property, "by_assignee": by_assignee,
         "velocity": velocity, "jobs": job_rows, "by_kind": by_kind, "models": model_rows, "activity": activity,
         "totals": {"cost_usd": round(sum(r["cost_usd"] for r in recs), 4), "api_equivalent_usd": round(sum(r["api_equivalent_usd"] for r in recs), 4),
                    "unpriced_runs": sum(r["unpriced"] for r in recs), "tokens": sum(r["tokens"] for r in recs), "cards": len(recs)},

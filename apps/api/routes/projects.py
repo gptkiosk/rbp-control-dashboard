@@ -36,7 +36,7 @@ def get_project(project_id:int,request:Request,s:Session=Depends(get_session)):
 
 @router.get('/{project_id}/standards')
 def standards_for(project_id:int,request:Request,s:Session=Depends(get_session)):
-    actor(request);return standards.inspect(projects.document(projects.get(s,project_id))['working_dir'])
+    actor(request);return standards.resolve(projects.document(projects.get(s,project_id))['working_dir'],get_settings().data_dir)
 
 @router.patch('/{project_id}')
 def save(project_id:int,body:Save,request:Request,s:Session=Depends(get_session)):
