@@ -1,5 +1,9 @@
 # Release flow (MCD and RCD)
 
+For the whole distribution picture (why a release is a distribution act, what makes a version reachable to users, how to verify a
+draft before publishing, and what users do) see [How this product reaches users](distribution.md). This page is the maintainer's
+step list.
+
 A version is finished when it is **committed, on GitHub, released with its notes, and the running app
 is on that release**. The same steps apply to both products; MCD and RCD share major.minor. RCD installs update from the
 GitHub release; MCD's own host upgrades with its driver script.
