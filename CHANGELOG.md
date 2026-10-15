@@ -10,6 +10,11 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-10-16
+
+### Added
+- After-hours housekeeping. Set `MAC_CONTROL_HOUSEKEEPING_AUTO` to the kinds you want cleaned up overnight (`stale_approval_wait`, `old_update_backup`) and the server applies exactly those fixed actions once a day inside a window (default 1 to 5 local time). Off by default. Each finding is re-checked at that moment, a database backup is taken before any row changes, and every action is audited as `after-hours`. The Housekeeping panel shows the last run; Hermes can read and explain the status.
+
 ## [0.5.0] - 2026-10-15
 
 ### Added
@@ -209,7 +214,8 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 - Claude Code stories may use web search and fetch without any shell, credential or publish permission.
 
 [0.3.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.0
-[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.5.1...HEAD
+[0.5.1]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.5.1
 [0.5.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.5.0
 [0.4.8]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.4.8
 [0.4.7]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.4.7

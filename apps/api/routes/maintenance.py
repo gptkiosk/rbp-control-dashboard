@@ -30,7 +30,7 @@ def overview(request: Request, s: Session = Depends(get_session)):
     operator(request)
     data_dir = get_settings().data_dir
     proposals = s.scalars(select(MaintenanceProposal).order_by(MaintenanceProposal.id.desc()).limit(20)).all()
-    return {"findings": maintenance.scan(s, data_dir), "proposals": [maintenance.proposal_dict(p) for p in proposals],
+    return {"findings": maintenance.scan(s, data_dir), "proposals": [maintenance.proposal_dict(p) for p in proposals], "auto": maintenance.auto_status(get_settings()),
             "retention": {"keep_newest_backups": maintenance.BACKUP_KEEP_NEWEST, "backup_min_age_days": maintenance.BACKUP_MIN_AGE_S // 86400}}
 
 
