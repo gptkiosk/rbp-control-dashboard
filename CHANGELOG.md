@@ -10,6 +10,11 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.4.9] - 2026-10-15
+
+### Added
+- Coordinator scorecard, in a new section of the Telemetry page. Every approved plan is scored by fixed checks (schema, the job envelope, estimates against size, checkable acceptance criteria, bounded scope, dependencies, route reasons, no stories too big to run, a review for high-risk work, and the standards' floors), compared with what the coordinator returned (how many nodes a person added, removed or changed) and recorded with the planner, the Delegator and the coordinator wording in effect (a version label such as `v2`, `+custom` for your own copies, and a hash). The page shows plan score by planner and by wording with edits per plan, first-pass completion and estimate error, so a change can be compared with the one before it. Eight fixed, general briefs and a scoring route let you try any model or wording change on the same plans. See `docs/configuration/coordinator-scorecard.md`.
+
 ## [0.4.8] - 2026-10-15
 
 ### Changed
@@ -201,7 +206,8 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 - Claude Code stories may use web search and fetch without any shell, credential or publish permission.
 
 [0.3.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.0
-[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.4.8...HEAD
+[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.4.9...HEAD
+[0.4.9]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.4.9
 [0.4.8]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.4.8
 [0.4.7]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.4.7
 [0.4.6]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.4.6

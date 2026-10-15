@@ -164,7 +164,7 @@ class RoleStore:
         """Which pack files the user has replaced, and which of their copies are being ignored (with why)."""
         used, ignored = [], {}
         for path in sorted(self.pack.iterdir()):
-            if not path.is_file():
+            if not path.is_file() or path.name == 'VERSION':
                 continue
             text, problem = self._custom_state(path.name)
             if text is not None:
@@ -172,6 +172,20 @@ class RoleStore:
             elif problem:
                 ignored[path.name] = problem
         return {'custom': used, 'custom_ignored': ignored}
+
+    NAMES = ('plan.txt', 'review.txt', 'dispatch.txt', 'coordinate.txt', 'SOUL.md', 'context.md')
+
+    def version(self):
+        """Which coordinator wording is in effect: the shipped version number, which files are the user's own, and a short hash of the effective
+        text, so plans made under different wording can be compared."""
+        import hashlib
+        try:
+            shipped = (self.pack / 'VERSION').read_text().strip()[:12] or '0'
+        except OSError:
+            shipped = '0'
+        custom = self.customized()['custom']
+        text = '\n'.join(self.source(name) for name in self.NAMES if (self.pack / name).exists())
+        return {'shipped': shipped, 'custom': custom, 'sha': hashlib.sha256(text.encode()).hexdigest()[:12], 'label': f'v{shipped}' + ('+custom' if custom else '')}
 
     def guidance(self):
         files = ['SOUL.md', 'context.md']

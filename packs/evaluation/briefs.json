@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "note": "Fixed, generic planning briefs for scoring how well a coordinator plans. They name no product. Each brief says what a good plan must contain; the scorer checks the plan, not the model.",
+  "briefs": [
+    {"id": "checkout", "title": "Add a paid checkout to a web app", "brief": "Our hosted web app lets people read stories for free. Add a way for readers to pay a monthly subscription with a card, see their plan, and cancel. Use an existing payment provider. The app has a database and a test suite.",
+     "expect": {"min_stories": 5, "needs_human_review": true, "areas": ["payments-and-billing"], "kinds": ["implement", "test", "docs"], "no_free_for_high": true}},
+    {"id": "migration", "title": "Rename a database column safely", "brief": "A column in a large table is badly named and used across the codebase. Rename it with no downtime and a way back. The service is live and has no staging environment.",
+     "expect": {"min_stories": 4, "needs_human_review": true, "areas": ["database-migrations-and-schema"], "kinds": ["implement", "test"], "no_free_for_high": true}},
+    {"id": "release", "title": "Ship a new version of a desktop app", "brief": "Our desktop app is installed on users' own computers and updates itself from public releases. Prepare and publish version 2.1 with a changelog, a signed package and a safe update path.",
+     "expect": {"min_stories": 5, "needs_human_review": true, "areas": ["update-install-and-release-path"], "kinds": ["docs", "test", "ops"], "no_free_for_high": true}},
+    {"id": "login", "title": "Harden sign-in", "brief": "Review and strengthen how people sign in and reset passwords on our web app: rate limits, session expiry, and reset token handling. Fix what you find.",
+     "expect": {"min_stories": 4, "needs_human_review": true, "areas": ["authentication-and-sessions"], "kinds": ["research", "implement", "test"], "no_free_for_high": true}},
+    {"id": "docs", "title": "Write a how-to guide", "brief": "Write a short how-to guide for a feature that already exists: connecting the app to a calendar. Include screenshots placeholders and a troubleshooting section.",
+     "expect": {"min_stories": 2, "needs_human_review": false, "areas": ["documentation-and-copy"], "kinds": ["docs"], "no_free_for_high": true}},
+    {"id": "flaky", "title": "Find why a test fails sometimes", "brief": "One test in our suite fails about one run in twenty. Find the cause and fix it without deleting the test.",
+     "expect": {"min_stories": 2, "needs_human_review": false, "areas": [], "kinds": ["research", "test"], "no_free_for_high": true}},
+    {"id": "dependency", "title": "Upgrade a major dependency", "brief": "Upgrade the web framework our app depends on by one major version. Keep the app working, keep the tests passing, and keep a way back.",
+     "expect": {"min_stories": 4, "needs_human_review": true, "areas": ["dependencies-and-supply-chain"], "kinds": ["research", "implement", "test"], "no_free_for_high": true}},
+    {"id": "report", "title": "Add a usage report page", "brief": "Add a page that shows each team's weekly usage as a chart and a table, read-only, computed from data we already store.",
+     "expect": {"min_stories": 3, "needs_human_review": false, "areas": ["user-interface"], "kinds": ["implement", "test", "docs"], "no_free_for_high": true}}
+  ]
+}
