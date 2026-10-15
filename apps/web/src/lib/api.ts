@@ -160,6 +160,7 @@ export type ServiceFlag = 'crash_loop' | 'last_exit_nonzero'
 
 export interface ServiceInfo {
   label: string
+  own?: boolean
   domain: string
   state: string
   pid: Num

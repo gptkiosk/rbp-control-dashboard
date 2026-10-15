@@ -6,6 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.orm import Session
 
 import model_profiles as mp
+import model_watch
 import projects
 import telemetry
 from deps import get_session
@@ -31,7 +32,9 @@ class RefreshIn(BaseModel):
 @router.get("/profiles")
 def profiles(request: Request, days: int = Query(90, ge=1, le=telemetry.MAX_DAYS), s: Session = Depends(get_session)):
     operator(request)
-    return mp.profiles(s, get_settings().data_dir, int(time.time()), days)
+    out = mp.profiles(s, get_settings().data_dir, int(time.time()), days)
+    out["watch"] = model_watch.status(get_settings())
+    return out
 
 
 @router.get("/advice")
@@ -52,6 +55,18 @@ def refresh(request: Request, body: RefreshIn):
         return mp.refresh(settings.data_dir, enabled=settings.model_refresh_enabled)
     except mp.ModelError as error:
         raise HTTPException(409, str(error)) from None
+
+
+@router.post("/watch/run")
+def watch_run(request: Request, body: RefreshIn, s: Session = Depends(get_session)):
+    """Run the model watch now (the same job the schedule runs); it leaves at most one Backlog card and changes nothing else."""
+    operator(request)
+    if not body.confirm:
+        raise HTTPException(422, "Explicit confirmation is required.")
+    settings = get_settings()
+    if not settings.model_refresh_enabled:
+        raise HTTPException(409, "Refreshing the model list is switched off in this installation.")
+    return model_watch.run(s, settings, int(time.time()))
 
 
 @router.post("/notes")

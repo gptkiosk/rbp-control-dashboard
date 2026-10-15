@@ -10,10 +10,13 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
-## [0.4.9] - 2026-10-15
+## [0.5.0] - 2026-10-15
 
 ### Added
 - Coordinator scorecard, in a new section of the Telemetry page. Every approved plan is scored by fixed checks (schema, the job envelope, estimates against size, checkable acceptance criteria, bounded scope, dependencies, route reasons, no stories too big to run, a review for high-risk work, and the standards' floors), compared with what the coordinator returned (how many nodes a person added, removed or changed) and recorded with the planner, the Delegator and the coordinator wording in effect (a version label such as `v2`, `+custom` for your own copies, and a hash). The page shows plan score by planner and by wording with edits per plan, first-pass completion and estimate error, so a change can be compared with the one before it. Eight fixed, general briefs and a scoring route let you try any model or wording change on the same plans. See `docs/configuration/coordinator-scorecard.md`.
+- A weekly model watch (off by default; `MAC_CONTROL_MODEL_WATCH_ENABLED=true`). It reads OpenRouter's public model list and, only when something is new, leaves one Backlog card with the sources and exactly what differs: first, models your catalog lists as free that are no longer free, then new free models and changes. It edits nothing: adopting or dropping a model stays a reviewed change. The Models section shows when it last ran. See `docs/configuration/model-profiles.md`.
+- Service actions on the Services page: **Why** (a plain explanation, the safest next step and the job's own log as evidence), **Run now**, **Restart** and **Remove** (stops the service for now; the unit file is untouched; you type the label to confirm). Only listed services can be acted on, the dashboard's own service is protected, and every action is audited. See `docs/configuration/service-actions.md`.
+
 
 ## [0.4.8] - 2026-10-15
 
@@ -206,8 +209,8 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 - Claude Code stories may use web search and fetch without any shell, credential or publish permission.
 
 [0.3.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.0
-[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.4.9...HEAD
-[0.4.9]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.4.9
+[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.5.0
 [0.4.8]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.4.8
 [0.4.7]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.4.7
 [0.4.6]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.4.6

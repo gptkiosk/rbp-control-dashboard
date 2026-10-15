@@ -29,6 +29,22 @@ catalog. Text from the list is shortened and cleaned before it is stored.
 
 The glance chart shows observed success by model. The full profile table and the notes are behind folds.
 
+## The weekly model watch
+
+Switch it on with `MAC_CONTROL_MODEL_WATCH_ENABLED=true` (off by default, because it reads the network on a schedule). Once a week
+(`MAC_CONTROL_MODEL_WATCH_INTERVAL_DAYS`, 1 to 30) it reads OpenRouter's public list, compares it with your price catalog and the last read, and, only
+when something is new since the last card, leaves **one Backlog card** for a person with the sources and exactly what differs:
+
+- **Check first**: models the catalog lists as free that are no longer listed as free. A model priced at zero that is no longer free can spend money,
+  so do not route work to it until the catalog is reviewed.
+- **Listed as free but not in the catalog**, with their context and tool support.
+- **Changed since the last read** (context, tools, price).
+
+The card says plainly what to do and not to do: nothing was changed; adopting or dropping a model is a normal reviewed change to the price catalog;
+try a new model on low-risk work first and add a note with where it came from. A failed read is recorded and tried again next time, never reported as
+a change. The Models section shows whether the watch is on, when it last ran and what it found, and links the card. It uses the same fixed read as
+Refresh, so `MAC_CONTROL_MODEL_REFRESH_ENABLED=false` stops it too.
+
 ## How the coordinator uses it
 
 - **Planner guidance.** When a plan is requested, the planner is given a compact paragraph for the models it may choose: free or paid,
@@ -42,7 +58,8 @@ The glance chart shows observed success by model. The full profile table and the
 ## Settings involved
 
 - `MAC_CONTROL_MODEL_REFRESH_ENABLED` (default on). Off: the refresh action is refused and nothing is fetched.
+- `MAC_CONTROL_MODEL_WATCH_ENABLED` (default off) and `MAC_CONTROL_MODEL_WATCH_INTERVAL_DAYS` (default 7): the weekly watch.
 - Files in the data folder: `models/openrouter.json` (the last snapshot) and `models/notes.json` (your notes). Updates keep both; see
   [What survives an update](upgrades-and-your-data.md).
 - Operator API: `GET /api/models/profiles`, `POST /api/models/refresh` (needs `confirm: true`), `POST /api/models/notes`,
-  `DELETE /api/models/notes/{id}`, `GET /api/models/advice?project_id=`. Agents get 403.
+  `DELETE /api/models/notes/{id}`, `GET /api/models/advice?project_id=`, `POST /api/models/watch/run` (runs the watch now). Agents get 403.
