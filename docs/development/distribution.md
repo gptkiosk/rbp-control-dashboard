@@ -79,7 +79,7 @@ before trusting the new key.
   manifest SHA-256 from the release page. The panel shows numbered steps and a log, and survives a page reload.
 - A source checkout or dev build gets the manual steps only.
 
-Updates are never automatic and never run while work is in flight. The user sees each step, the log and the result, and a
+What an update keeps, replaces and never touches is described in [What survives an update](../configuration/upgrades-and-your-data.md). Updates are never automatic and never run while work is in flight. The user sees each step, the log and the result, and a
 failed update is rolled back to the previous version and data snapshot. Release notes are shown with the version, so write
 them for the user (section 2, step 2).
 

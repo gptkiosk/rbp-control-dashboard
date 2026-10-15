@@ -47,6 +47,25 @@ class Preferences(BaseModel):
     github: GithubPreferences = Field(default_factory=GithubPreferences)
     setup: SetupProgress = Field(default_factory=SetupProgress)
 
+    @classmethod
+    def stored(cls, raw):
+        """Load saved preferences, ignoring keys this version does not know.
+
+        A profile saved by a newer version can carry preferences an older one lacks (after a rollback or restored snapshot).
+        The model forbids unknown keys when the operator edits, so loading drops them instead of breaking the profile page.
+        Missing keys take their defaults, which is how a new version adds a preference without touching saved ones."""
+        import json
+        def keep(model, data):
+            if not isinstance(data, dict):
+                return data
+            out = {}
+            for name, field in model.model_fields.items():
+                if name in data:
+                    nested = field.annotation
+                    out[name] = keep(nested, data[name]) if isinstance(nested, type) and issubclass(nested, BaseModel) else data[name]
+            return out
+        return cls.model_validate(keep(cls, json.loads(raw)))
+
     @field_validator('dashboard_origin')
     @classmethod
     def origin(cls,value):
@@ -72,7 +91,7 @@ def get(s,identity):
 
 def prefs(s,identity):
     row=s.get(UserProfile,identity)
-    return Preferences.model_validate_json(row.preferences) if row else Preferences()
+    return Preferences.stored(row.preferences) if row else Preferences()
 
 def private_file(path,create=None):
     """No symlinks, shared modes or replacement of an existing trust root."""
@@ -114,7 +133,7 @@ def saved_key_owners(s):
     owners=[]
     for row in s.scalars(select(UserProfile)):
         try:
-            if Preferences.model_validate_json(row.preferences).use_saved_openrouter_key: owners.append(row.owner)
+            if Preferences.stored(row.preferences).use_saved_openrouter_key: owners.append(row.owner)
         except ValueError: continue
     return owners
 
@@ -136,7 +155,7 @@ def put_credential(s,identity,provider,value,settings):
 
 def payload(s,identity):
     row=get(s,identity)
-    return {'owner':identity,'preferences':Preferences.model_validate_json(row.preferences).model_dump(),'discord_linked':bool(row.discord_user_id),'discord_user_id':row.discord_user_id,
+    return {'owner':identity,'preferences':Preferences.stored(row.preferences).model_dump(),'discord_linked':bool(row.discord_user_id),'discord_user_id':row.discord_user_id,
         'credentials':[{'provider':r.provider,'hint':r.hint} for r in s.scalars(select(UserCredential).where(UserCredential.owner==identity))]}
 
 def bridge_token(settings,create=False):
