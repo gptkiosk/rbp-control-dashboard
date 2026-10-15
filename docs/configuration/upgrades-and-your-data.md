@@ -27,6 +27,23 @@ after an update.
 | What your agents know (Hermes, Claude, Codex, Grok and OpenClaw memory, notes and projects) | each agent's own home | **Never read or changed by an update.** The only thing RCD writes there is the managed guidance block. |
 | Run logs, reports, project outputs, workspaces, alert rules | the data folder | **Keeps them.** Old runs are pruned only by the retention setting (90 days by default). |
 
+## Your agents' own settings
+
+Claude Code, Codex, Grok, Hermes and OpenClaw keep their settings, credentials, memory and instructions in their own folders
+(for example `~/.claude`, `~/.codex`, `~/.hermes`, `~/.openclaw`). RCD does not own any of that, and these rules keep it safe:
+
+- **Managed tool copies live apart.** When RCD installs or updates an agent tool, the program goes into its own tools folder with
+  its own `current` and `previous` links, using a throwaway home folder for the installer. Updating, rolling back or removing that
+  copy never reads, rewrites or deletes anything in your agent's own folder. An update of the tool is only ever a new program;
+  your settings are still read by it from where you put them.
+- **Runs see your settings.** An agent started by RCD gets the service's own environment (so `HOME` and any settings location
+  such as `CODEX_HOME` or `HERMES_HOME` point where you set them) minus RCD's own settings and credentials.
+- **The only things RCD ever writes into an agent's folder** are the marked guidance block when you apply roles (your own text
+  around it is kept byte for byte, and rolling back restores it), and, only if you run the Hermes plugin installer yourself, the
+  plugin files and one added entry in Hermes' Discord toolset list. It refuses to replace a plugin that differs from its own.
+- **Tests check this** for every agent: a synthetic copy of each agent's settings, credentials and memory is left byte for byte
+  unchanged, with unchanged modification times and no new files, across install, update, rollback and remove of its managed tool.
+
 ## Customizing the coordinator so it survives updates
 
 The shipped coordinator text lives in the program folder, so editing it there would be lost (or would stop a checkout updating).
