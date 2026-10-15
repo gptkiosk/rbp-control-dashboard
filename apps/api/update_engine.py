@@ -472,7 +472,10 @@ def inbox_paths(cfg: HelperConfig, name: str) -> tuple[Path, Path, Path | None]:
 DRAIN_COUNTS = (
     ("SELECT count(*) FROM run WHERE ended_at IS NULL", "agent runs",
      "{n} agent or chat run(s) still running: let them finish or cancel them"),
-    ("SELECT count(*) FROM run WHERE stage = 'awaiting_approval'", "approval waits",
+    # A run left in awaiting_approval on a story that is already done or failed has nothing left to decide
+    # (a later run completed it); only waits on stories still open, or on no story at all, block an update.
+    ("SELECT count(*) FROM run r LEFT JOIN card c ON c.id = r.card_id WHERE r.stage = 'awaiting_approval' "
+     "AND (c.id IS NULL OR c.\"column\" NOT IN ('done', 'failed'))", "approval waits",
      "{n} run(s) waiting on a human decision: decide or reject them first"),
     ("SELECT count(*) FROM card WHERE \"column\" IN ('queued', 'running')", "queued tasks",
      "{n} task(s) queued or running: let them finish or move them to Backlog"),

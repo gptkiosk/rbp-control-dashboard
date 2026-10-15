@@ -30,7 +30,7 @@ def private_helper_dir(tmp_path, monkeypatch):
 def db_schema(cfg):
     con = sqlite3.connect(cfg.db_path)
     con.executescript(
-        'CREATE TABLE run (id INTEGER PRIMARY KEY, ended_at INTEGER, stage TEXT);'
+        'CREATE TABLE run (id INTEGER PRIMARY KEY, card_id INTEGER, ended_at INTEGER, stage TEXT);'
         'CREATE TABLE card (id INTEGER PRIMARY KEY, "column" TEXT, approved_at INTEGER, approval_grant TEXT);'
         'CREATE TABLE project (id INTEGER PRIMARY KEY, state TEXT);')
     con.commit()

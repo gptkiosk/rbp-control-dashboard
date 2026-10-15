@@ -473,6 +473,33 @@ def test_drain_blockers_read_the_real_task_database(tmp_path):
     assert "could not be opened" in ue.drain_blockers(tmp_path / "missing" / "data.db")[0]
 
 
+def test_a_settled_story_with_a_stale_approval_wait_does_not_block_an_update(tmp_path):
+    """A run left in awaiting_approval after its story was completed by a later run is not a decision anyone can still make."""
+    from db import make_engine, make_session_factory
+    from migrate import upgrade_to_head
+    from models import Card, Run
+
+    db_path = tmp_path / "data.db"
+    engine = make_engine(db_path)
+    upgrade_to_head(engine)
+    sessions = make_session_factory(engine)
+
+    def waiting(column):
+        with sessions() as s:
+            card = Card(title=column, body="b", column=column, timeout_s=60, created_at=0, updated_at=0)
+            s.add(card)
+            s.flush()
+            s.add(Run(card_id=card.id, agent="claude", stage="awaiting_approval", started_at=0, ended_at=1,
+                      working_dir="/tmp", command="[]", log_path="/tmp/z"))
+            s.commit()
+
+    waiting("done"); waiting("failed")
+    assert ue.drain_blockers(db_path) == []                                   # both stories are settled
+    waiting("review")
+    assert any("1 run(s) waiting on a human decision" in b for b in ue.drain_blockers(db_path))   # an open story still blocks
+    engine.dispose()
+
+
 # --- data snapshots, schema compatibility and explicit restore (s5-engine-data) -----------------
 
 
