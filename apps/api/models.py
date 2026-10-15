@@ -484,3 +484,23 @@ class MaintenanceProposal(Base):
     decided_at: Mapped[int | None] = mapped_column(Integer)
     decided_by: Mapped[str | None] = mapped_column(String(255))
     result: Mapped[str | None] = mapped_column(Text)  # JSON per-finding outcome
+
+
+class StandardsProposal(Base):
+    """An addition to a repository's standards file that the coordinator proposed. It carries the exact diff frozen at proposal time and the
+    hash of the file it was made against; only the operator's approval makes the app (never a model) put it on a new branch.
+    ``status``: pending, applied, rejected, failed."""
+    __tablename__ = "standards_proposal"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    created_at: Mapped[int] = mapped_column(Integer)
+    created_by: Mapped[str] = mapped_column(String(255))
+    project_id: Mapped[int] = mapped_column(Integer, index=True)
+    summary: Mapped[str] = mapped_column(String(500))
+    section: Mapped[str] = mapped_column(String(16))
+    base_sha256: Mapped[str] = mapped_column(String(64))
+    patch: Mapped[str] = mapped_column(Text)
+    new_text: Mapped[str] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(16), index=True, default="pending")
+    decided_at: Mapped[int | None] = mapped_column(Integer)
+    decided_by: Mapped[str | None] = mapped_column(String(255))
+    result: Mapped[str | None] = mapped_column(Text)  # JSON: branch, commit, or the reason it failed

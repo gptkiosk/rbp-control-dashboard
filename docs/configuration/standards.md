@@ -57,9 +57,27 @@ The planner sees a bounded paragraph with the areas, their minimum risk and rout
 marked as such; it cannot change what an agent is permitted to run. Telemetry groups work by the property the plan was approved
 under (`Property` filter and the "Work by property" chart).
 
+## Asking Hermes to add a rule
+
+Turn on **Allow Hermes to read a project's standards in Discord and propose additions** in Profile. Then you can ask Hermes, for
+example, "add email sending as a high-risk area". Hermes can read the standards a project works under and propose an **addition** to
+the repository's standards file: a row in the Risk by area table, a check in the Definition of done, a security bullet, or a
+tightening rule (`unknown areas: refused`, `high-risk free routes: refused`). It cannot change, reword, lower or remove anything.
+
+- The server writes the new file text itself and proves it only adds: no line removed or changed, no area lowered or rerouted, no check
+  dropped, no rule loosened. Anything else is refused with the reason, and an existing area cannot be changed this way.
+- The proposal appears on the project page with the **exact diff**. Nothing has changed yet.
+- **Approve: create a branch** re-checks that the file has not changed since, then commits the addition on a **new branch**
+  (`standards/<id>-<section>`) using a temporary working folder. Your current branch and your files are not touched, and nothing is
+  pushed. Review the branch and merge it like any other change to the repository. **Reject** records the decision and changes nothing.
+- If the repository has no standards file, nothing can be proposed: the file is created by a normal change in the repository.
+- The commit uses the repository's own git identity and signing settings; if git cannot commit, the proposal fails with the reason
+  and leaves no branch behind.
+
 ## Settings involved
 
 - No setting. RCD only reads the file under the project's working directory; it does not fetch repositories or open anything
   outside that directory.
-- Operator API: `GET /api/projects/{id}/standards` (signed-in operator only; agents get 403).
+- Operator API: `GET /api/projects/{id}/standards` (signed-in operator only; agents get 403); `GET /api/standards/proposals?project_id=`, `POST /api/standards/proposals/{id}/approve` and `/reject`.
+- Profile switch: Allow Hermes to propose standards additions (off by default).
 - The standards file changes through a normal pull request in its own repository.

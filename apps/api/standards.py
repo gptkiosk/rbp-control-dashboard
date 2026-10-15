@@ -273,3 +273,118 @@ def floor_problems(found: dict, nodes: list[dict], tier_of) -> list[str]:
         if risk == 'high' and not free_high_ok and tier_of(node) == 'free':
             out.append(f"{key}: a high-risk story must not use a free-only route; choose a subscription route or a human review")
     return out
+
+
+# ------------------------------------------------------------------------- additions (proposed by Hermes, approved by the operator)
+SECTIONS = {'risk': 'risk by area', 'checks': 'definition of done', 'security': 'security checks', 'rules': 'rules'}
+MAX_ITEMS = 5
+CELL_MAX = 200
+SAFE_RULES = {'unknown areas': 'refused', 'high-risk free routes': 'refused'}   # an addition may only tighten
+
+
+class AdditionError(ValueError):
+    pass
+
+
+def _cell(value) -> str:
+    text = re.sub(r'\s+', ' ', str(value or '')).replace('|', '/').replace('`', "'").strip()
+    return text[:CELL_MAX]
+
+
+def _heading_index(lines: list[str], phrase: str):
+    for i, line in enumerate(lines):
+        if line.startswith('#') and phrase in line.lstrip('#').strip().lower():
+            return i
+    return None
+
+
+def _section_end(lines: list[str], start: int) -> int:
+    for j in range(start + 1, len(lines)):
+        if lines[j].startswith('#'):
+            return j
+    return len(lines)
+
+
+def compose_addition(text: str, section: str, items: list[dict]) -> str:
+    """The file text with ``items`` ADDED to ``section``: table rows at the end of a table, or bullets at the end of a list.
+    Existing lines are never changed. Raises AdditionError for anything that is not a plain addition."""
+    if section not in SECTIONS:
+        raise AdditionError('Section must be one of: ' + ', '.join(SECTIONS))
+    if not items or len(items) > MAX_ITEMS:
+        raise AdditionError(f'Propose between 1 and {MAX_ITEMS} additions.')
+    lines = text.split('\n')
+    old = _parse(text, hashlib.sha256(text.encode()).hexdigest(), {})
+    index = _heading_index(lines, SECTIONS[section])
+    if section in ('risk', 'checks'):
+        if index is None:
+            raise AdditionError(f'This file has no "{SECTIONS[section].title()}" table to add to.')
+        end = _section_end(lines, index)
+        rows = [i for i in range(index + 1, end) if lines[i].strip().startswith('|')]
+        if len(rows) < 2:
+            raise AdditionError('That section has no table to add to.')
+        header = [h.lower() for h in _table(lines[index + 1:end])[0] or []]
+        existing_slugs = {a['slug'] for a in old.get('areas', [])}
+        existing_checks = {(c['touches'].lower(), c['run'].lower()) for c in old.get('checks', [])}
+        new_rows = []
+        for item in items:
+            if not isinstance(item, dict):
+                raise AdditionError('Each addition must be an object.')
+            if section == 'risk':
+                area, risk = _cell(item.get('area')), _cell(item.get('default_risk')).lower()
+                if not area or risk not in RISKS or not slug(area):
+                    raise AdditionError('A risk row needs an area and a default risk of low, medium or high.')
+                if slug(area) in existing_slugs:
+                    raise AdditionError(f"Area '{area}' already exists; changing an existing area is a normal change in the repository.")
+                existing_slugs.add(slug(area))
+                values = {'area': area, 'example': _cell(item.get('examples')), 'default': risk, 'route': _cell(item.get('route')), 'extra': _cell(item.get('extra'))}
+            else:
+                touches, run = _cell(item.get('touches')), _cell(item.get('run'))
+                if not touches or not run:
+                    raise AdditionError('A check needs "touches" and "run".')
+                if (touches.lower(), run.lower()) in existing_checks:
+                    raise AdditionError('That check is already listed.')
+                existing_checks.add((touches.lower(), run.lower()))
+                values = {'touches': touches, 'run': run, 'notes': _cell(item.get('notes'))}
+            cells = []
+            for name in header:
+                key = next((k for k in values if k in name), None)
+                cells.append(values.get(key, '') if key else '')
+            new_rows.append('| ' + ' | '.join(cells) + ' |')
+        return '\n'.join(lines[:rows[-1] + 1] + new_rows + lines[rows[-1] + 1:])
+    bullets = []
+    for item in items:
+        if section == 'rules':
+            key, value = _cell(item.get('rule')).lower(), _cell(item.get('value')).lower()
+            if SAFE_RULES.get(key) != value:
+                raise AdditionError('Only tightening rules can be added: ' + ', '.join(f'"{k}: {v}"' for k, v in SAFE_RULES.items()) + '.')
+            bullets.append(f'- {key}: {value}')
+        else:
+            text_item = _cell(item.get('text'))
+            if not text_item:
+                raise AdditionError('A security check needs "text".')
+            bullets.append(f'- {text_item}')
+    if index is None:
+        title = '## Security checks for high-risk stories' if section == 'security' else '## Rules'
+        return text.rstrip('\n') + '\n\n' + title + '\n\n' + '\n'.join(bullets) + '\n'
+    end = _section_end(lines, index)
+    last = max([i for i in range(index + 1, end) if lines[i].strip()] or [index])
+    return '\n'.join(lines[:last + 1] + bullets + lines[last + 1:])
+
+
+def additive_problems(old: str, new: str) -> list[str]:
+    """Why ``new`` is not a pure addition to ``old``: removed or reworded lines, a changed or lowered area, a dropped check, a looser rule."""
+    import difflib
+    problems = [f'removed or changed line: {line[:60]}' for line in difflib.ndiff(old.split('\n'), new.split('\n')) if line.startswith('- ')]
+    before = _parse(old, 'x', {})
+    after = _parse(new, 'x', {})
+    if after.get('state') != 'ok':
+        return problems + ['the result could not be understood by the parser']
+    areas = {a['slug']: a for a in after['areas']}
+    for a in before.get('areas', []):
+        n = areas.get(a['slug'])
+        if not n or RANK[n['risk']] < RANK[a['risk']] or n['route'] != a['route']:
+            problems.append(f"area {a['slug']} was removed, lowered or rerouted")
+    have = {(c['touches'], c['run']) for c in after['checks']}
+    problems += [f"check '{c['touches']}' was dropped" for c in before.get('checks', []) if (c['touches'], c['run']) not in have]
+    loosened = [k for k, v in after.get('rules', {}).items() if v == 'allowed' and before.get('rules', {}).get(k) != 'allowed']
+    return problems + [f'rule {k} was loosened' for k in loosened]

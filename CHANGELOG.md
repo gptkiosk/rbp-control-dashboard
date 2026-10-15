@@ -10,6 +10,11 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.4.5] - 2026-10-15
+
+### Added
+- Ask Hermes to add to a repository's standards. With the new Profile switch on, Hermes can read a project's standards and propose an addition to the repository's standards file: a risk area, a check, a security bullet or a tightening rule. The server proves it is only an addition (nothing removed, reworded, lowered or loosened) and shows you the exact diff on the project page. Approving creates a new branch in the repository for you to review and merge; your current branch and files are not touched and nothing is pushed. See `docs/configuration/standards.md`.
+
 ## [0.4.4] - 2026-10-15
 
 ### Added
@@ -181,7 +186,8 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 - Claude Code stories may use web search and fetch without any shell, credential or publish permission.
 
 [0.3.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.0
-[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.4.4...HEAD
+[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.4.5...HEAD
+[0.4.5]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.4.5
 [0.4.4]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.4.4
 [0.4.3]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.4.3
 [0.4.2]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.4.2
