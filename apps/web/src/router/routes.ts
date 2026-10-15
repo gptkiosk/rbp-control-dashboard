@@ -52,6 +52,11 @@ export const navItems: NavItem[] = [
     component: () => import('@/views/TasksView.vue'),
   },
   {
+    path: '/telemetry', name: 'telemetry', label: 'Telemetry', icon: 'activity', phase: '9',
+    description: 'Jobs and their telemetry: assignee, agent and model, time and cost.',
+    component: () => import('@/views/TelemetryView.vue'),
+  },
+  {
     path: '/agents',
     name: 'agents',
     label: 'Agents',

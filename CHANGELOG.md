@@ -10,6 +10,11 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-10-15
+
+### Added
+- Telemetry: a Jobs and telemetry page, matching MCD 0.4.7. It shows how work is going by job (one approved plan revision), kind, risk, size, route, who it is assigned to (a person or an agent), agent and model: unassigned, in progress, waiting for you, completed, estimates missing and failed work; as charts you can read at a glance (donuts for workload by status and by route; stacked bars for work by assignee, by job, by model and by kind; completed per week; median time per kind), with the numbers on hover. The detailed tables (jobs, agents and models with success rate, median time, tokens, reported cost, API-equivalent cost and how often a different model served a run than the one requested, and kinds of work) are folded away until you open them. Read-only and computed from the existing records, so it stays light on a Raspberry Pi. See `docs/configuration/telemetry.md`.
+
 ## [0.4.0] - 2026-10-15
 
 RCD adopts the 0.4 feature level for the parts that make sense on a Raspberry Pi: update progress, Housekeeping and the job envelope, matching MCD 0.4.5 and 0.4.6. The MCD-only checkout updater is not part of it; RCD updates from its signed package.
@@ -152,7 +157,8 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 - Claude Code stories may use web search and fetch without any shell, credential or publish permission.
 
 [0.3.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.0
-[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.4.1
 [0.4.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.4.0
 [0.3.7]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.7
 [0.3.6]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.6
