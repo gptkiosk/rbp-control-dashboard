@@ -10,6 +10,11 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.4.8] - 2026-10-15
+
+### Changed
+- The project consultant chat now starts with the same knowledge a plan run gets: how the software is delivered, which agent runtimes are installed here and the spending policy, the standards that apply to the chosen working directory, the methods and practices (development practice, hosted and packaged delivery, application security) and the track record of the models it could recommend. It writes the brief so the coordinator can plan from it directly (approach and methods, risks by standards area, security considerations, model and route considerations). You can keep your own copy of any guide in the data folder. It is advice for the conversation and authorizes nothing; if it cannot be read the chat starts without it. See `docs/project-consultant.md`.
+
 ## [0.4.7] - 2026-10-15
 
 ### Added
@@ -196,7 +201,8 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 - Claude Code stories may use web search and fetch without any shell, credential or publish permission.
 
 [0.3.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.0
-[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.4.7...HEAD
+[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.4.8...HEAD
+[0.4.8]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.4.8
 [0.4.7]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.4.7
 [0.4.6]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.4.6
 [0.4.5]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.4.5

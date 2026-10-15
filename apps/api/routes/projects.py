@@ -30,6 +30,10 @@ def create_project(body: Document,request: Request,s: Session=Depends(get_sessio
     identity=actor(request);write(s)
     p=projects.create(s,body.model_dump(),get_settings(),identity);s.commit();return projects.detail(s,p)
 
+@router.get('/consultant-context')
+def consultant_context(working_dir:str,request:Request,s:Session=Depends(get_session)):
+    actor(request);return {'text':projects.consultant_context(s,get_settings(),working_dir)}
+
 @router.get('/{project_id}')
 def get_project(project_id:int,request:Request,s:Session=Depends(get_session)):
     actor(request);return projects.detail(s,projects.get(s,project_id))

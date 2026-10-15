@@ -14,7 +14,7 @@ it('opens without a model call and starts a free read-only consultant only on re
  const request=JSON.parse(String(f.mock.calls.find(([url])=>url==='/api/chat/threads')![1]?.body))
  expect(request).toMatchObject({agent:'hermes',model:'openrouter/free',mode:'read',working_dir:'/workspace'})
  expect(w.emitted('started')![0]).toEqual([7])
- expect(f.mock.calls.map(([url])=>url)).not.toContain('/api/projects')
+ expect(f.mock.calls.map(([url])=>url)).not.toContain('/api/projects')   // no project is created
  w.unmount()
 })
 it('uses explicit membership profile defaults and hands a completed answer to editable review',async()=>{
@@ -24,7 +24,7 @@ it('uses explicit membership profile defaults and hands a completed answer to ed
  expect(JSON.parse(String(f.mock.calls[0]![1]?.body))).toMatchObject({agent:'codex',model:'gpt-6-luna'})
  await w.findAll('button').find(b=>b.text().includes('Review brief'))!.trigger('click');await flushPromises()
  expect(w.emitted('review')![0]![0]).toMatchObject({title:'Goal',working_dir:'/workspace',brief:expect.stringContaining('Definitions of done')})
- expect(f.mock.calls.some(([url])=>url.startsWith('/api/projects'))).toBe(false)
+ expect(f.mock.calls.some(([url,init])=>url.startsWith('/api/projects')&&init?.method==='POST')).toBe(false)   // nothing is created or submitted
  w.unmount()
 })
 it('refuses to hand off an unfinished or approval-pending conversation',async()=>{
@@ -33,4 +33,24 @@ it('refuses to hand off an unfinished or approval-pending conversation',async()=
  await w.get('button').trigger('click');await w.findAll('button').find(b=>b.text().includes('Review brief'))!.trigger('click');await flushPromises()
  expect(w.emitted('review')).toBeUndefined();expect(w.text()).toContain('Wait for the conversation')
  w.unmount()
+})
+it('gives the first message the same knowledge the plan run gets, and still starts if that cannot be read',async()=>{
+ const f=stubFetch(url=> url==='/api/chat/threads'?{body:{id:7}}: url.startsWith('/api/projects/consultant-context')?{body:{text:'Starter standards apply. area money: minimum risk high.'}}:{body:{id:1}})
+ const w=mount(ProjectConsultant,options)
+ await w.get('button').trigger('click');await w.get('input').setValue('Build a dashboard');await w.get('textarea').setValue('Compare goals')
+ await w.get('form').trigger('submit');await flushPromises()
+ const asked=f.mock.calls.find(([url])=>String(url).startsWith('/api/projects/consultant-context'))![0]
+ expect(asked).toBe('/api/projects/consultant-context?working_dir=%2Fworkspace')
+ const sent=JSON.parse(String(f.mock.calls.find(([url])=>url==='/api/chat/threads/7/messages')![1]?.body)).text
+ expect(sent).toContain('advice for this conversation, not authorization')
+ expect(sent).toContain('area money: minimum risk high')
+ expect(sent).toContain('Initial goal: Compare goals')
+ w.unmount()
+ const g=stubFetch(url=> url==='/api/chat/threads'?{body:{id:8}}: url.startsWith('/api/projects/consultant-context')?{status:500,body:{detail:'boom'}}:{body:{id:1}})
+ const v=mount(ProjectConsultant,options)
+ await v.get('button').trigger('click');await v.get('input').setValue('X');await v.get('textarea').setValue('Y')
+ await v.get('form').trigger('submit');await flushPromises()
+ const plain=JSON.parse(String(g.mock.calls.find(([url])=>url==='/api/chat/threads/8/messages')![1]?.body)).text
+ expect(plain).toContain('Initial goal: Y');expect(plain).not.toContain('What this installation knows')
+ v.unmount()
 })

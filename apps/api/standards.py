@@ -200,6 +200,27 @@ def starter(data_dir=None) -> dict:
             'message': 'No starter standards were found.', 'rules': {}, 'security_checks': []}
 
 
+GUIDES = ('practices.md', 'security.md', 'web-app-delivery.md', 'packaged-app-delivery.md')
+
+
+def guide_text(name: str, data_dir=None, limit: int = 2200) -> str:
+    """One shipped guide (or the user's own copy of it in <data>/standards/), flattened to plain text and bounded. Empty if unreadable."""
+    if name not in GUIDES:
+        return ''
+    mine, _ = _starter_paths(data_dir)
+    from settings import REPO_ROOT
+    for path in ((Path(data_dir) / 'standards' / name) if data_dir else None, Path(REPO_ROOT) / 'packs' / 'standards' / name):
+        try:
+            if path is None or not path.is_file() or path.is_symlink() or path.stat().st_size > MAX_BYTES:
+                continue
+            text = path.read_text('utf-8')
+        except (OSError, UnicodeError):
+            continue
+        lines = [l.rstrip() for l in text.splitlines() if l.strip() and not l.startswith('# ')]
+        return re.sub(r'[ \t]+', ' ', '\n'.join(l.lstrip('#').strip() if l.startswith('#') else l for l in lines))[:limit]
+    return ''
+
+
 def resolve(workdir, data_dir=None) -> dict:
     """The standards that apply to a project: its repository's file when it has a readable one, else the starter standards."""
     repo = inspect(workdir)
