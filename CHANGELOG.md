@@ -10,6 +10,11 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.3.7] - 2026-10-15
+
+### Fixed
+- An update is no longer blocked by approval waits that nobody can decide. A run left in "awaiting approval" on a story that is already done or failed (a later run completed it) was counted as a pending human decision forever, so the Updates panel and the helper refused to install. Only waits on stories that are still open, or on no story, block an update now.
+
 ## [0.3.6] - 2026-10-15
 
 ### Added
@@ -137,7 +142,8 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 - Claude Code stories may use web search and fetch without any shell, credential or publish permission.
 
 [0.3.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.0
-[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.3.6...HEAD
+[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.3.7...HEAD
+[0.3.7]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.7
 [0.3.6]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.6
 [0.3.5]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.5
 [0.3.4]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.4
