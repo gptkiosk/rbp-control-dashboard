@@ -10,6 +10,22 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.5.2] - 2026-10-16
+
+### Fixed
+
+- The project consultant's first message no longer waits for an approval nobody knew to give. The consultant opens with long guidance and
+  your installation's standards, which mention releases and deploys, and the approval check read all of it as if you had asked to
+  publish something. The guidance now travels as background beside your own words, and only your words are checked. The chat shows
+  your message with a note that background was sent with it, and a "Sending your goal" line while the first message goes out.
+- The project consultant now works as a conversation. It answers what you ask, asks a few clarifying questions at a time, and keeps going
+  until you choose **That’s enough, write up the plan**, which asks for the brief from the whole discussion and opens it for you to edit
+  before anything goes to the coordinator. The chat no longer shows the consultant’s instructions or your installation’s background.
+- A chat on a model the dashboard has no reviewed pricing for (for example Hermes on `openrouter/free` when Hermes does not list that
+  model) no longer looks sent and then fails with `PRICE_UNKNOWN` in the bubble. The dashboard now says so before the conversation
+  starts: which agent and model, that the route has not been reviewed, and which free models Hermes is set up with so you can choose
+  one in Profile, AI defaults. No empty thread is left behind.
+
 ## [0.5.1] - 2026-10-16
 
 ### Added
@@ -214,7 +230,8 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 - Claude Code stories may use web search and fetch without any shell, credential or publish permission.
 
 [0.3.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.0
-[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.5.1...HEAD
+[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.5.2...HEAD
+[0.5.2]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.5.2
 [0.5.1]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.5.1
 [0.5.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.5.0
 [0.4.8]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.4.8

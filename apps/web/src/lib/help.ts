@@ -253,9 +253,9 @@ export const helpGuides: HelpGuide[] = [
   },
   {
     id: 'project-consultant', title: 'Refine a project with the consultant', area: 'Projects',
-    summary: 'Discuss your idea, review a brief, then ask Hermes to coordinate it.',
+    summary: 'Talk your idea through, say when it is enough, then send the plan to the coordinator.',
     keywords: ['consultant','ai defaults','free','openrouter','membership','plan'],
-    steps: ['Open Projects and choose Refine with project consultant below Create project brief.', 'Choose an allowed workspace, enter a project name and goal, and start the conversation.', 'New AI conversations use Hermes with openrouter/free unless you changed Profile → AI defaults. Install and configure the selected native agent first.', 'Ask questions and request a complete brief with goal, phases, stories, scope, definitions of done and dependencies.', 'Choose Review brief & submit to Hermes. Edit the brief, confirm the working directory and approve Delegator coordination. Hermes must be the assigned Delegator.', 'Review the returned project map before separately approving story execution.'],
+    steps: ['Open Projects and choose Refine with project consultant below Create project brief.', 'Choose an allowed workspace, enter a project name and goal, and start the conversation.', 'New AI conversations use Hermes with openrouter/free unless you changed Profile → AI defaults. Install and configure the selected native agent first.', 'The consultant answers, then asks what it needs to know. Keep talking until you are satisfied; you never have to read its instructions.', 'Choose That’s enough, write up the plan. The brief opens for you to edit. Confirm the working directory and approve coordination; the assigned Delegator then creates the project map and stories.', 'Review the returned project map before separately approving story execution.'],
     links: [{label:'Configure AI defaults',to:'/profile#ai-settings'},{label:'Open Projects',to:'/projects'}],
     note: 'Free routes can throttle or fail. Profile → AI defaults also supplies new chat, task and planning forms; existing work keeps its routes. Native membership accounts and API billing are separate. The built-in help chat uses local guides and makes no model calls.',
   },

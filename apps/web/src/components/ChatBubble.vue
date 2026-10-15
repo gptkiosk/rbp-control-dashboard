@@ -72,6 +72,7 @@ onBeforeUnmount(() => {
         <ChipTag :tone="chip.tone">{{ chip.label }}</ChipTag>
       </div>
       <p class="text">{{ message.text || (message.status === 'failed' ? 'The agent did not return a reply.' : '') }}</p>
+      <p v-if="message.context_chars" class="muted small context-note" data-testid="context-note">Sent with {{ message.context_chars.toLocaleString() }} characters of background (the consultant’s guidance and what this installation knows).</p>
 
       <div v-if="message.status === 'pending_approval'" class="approval" data-testid="approval">
         <p class="approval-title has-icon"><AppIcon name="approval" />This message needs your approval before it runs.</p>
