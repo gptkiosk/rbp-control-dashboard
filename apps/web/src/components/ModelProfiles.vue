@@ -30,7 +30,7 @@ async function removeNote(id: string) {
 }
 const observed = computed(() => (data.value?.models ?? []).filter(m => m.observed))
 const withNotes = computed(() => (data.value?.models ?? []).filter(m => m.notes.length))
-const route = (m: ModelProfile) => (m.free ? 'free' : 'paid')
+const route = (m: ModelProfile) => (m.free === null ? 'not recorded' : m.free ? 'free' : 'paid')
 const flags = (m: ModelProfile) => [m.tools ? 'tools' : null, m.structured ? 'structured output' : null, m.reasoning ? 'reasoning' : null].filter(Boolean).join(', ') || '–'
 const when = (ts: number) => new Date(ts * 1000).toLocaleDateString()
 onMounted(load)
@@ -63,7 +63,7 @@ onMounted(load)
         <caption class="sr-only">Model profiles</caption>
         <thead><tr><th>Model</th><th>Route</th><th class="num">Context</th><th>Can do</th><th class="num">Runs</th><th class="num">Success</th><th>Proven for</th><th class="num">Notes</th></tr></thead>
         <tbody><tr v-for="m in data.models" :key="m.id">
-          <td :title="m.name">{{ m.id }}</td><td>{{ route(m) }}{{ m.price_in != null && !m.free ? ` · $${m.price_in}/$${m.price_out} per M` : '' }}</td>
+          <td :title="m.name">{{ m.id }}</td><td>{{ route(m) }}{{ m.price_in != null && m.free === false ? ` · $${m.price_in}/$${m.price_out} per M` : '' }}</td>
           <td class="num">{{ m.context ? m.context.toLocaleString() : '–' }}</td><td>{{ flags(m) }}</td>
           <td class="num">{{ m.observed?.runs ?? 0 }}</td><td class="num">{{ m.observed ? percent(m.observed.success_rate) : '–' }}</td>
           <td>{{ m.kinds.filter(k => k.proven).map(k => k.kind).join(', ') || (m.observed ? 'unproven' : '–') }}</td><td class="num">{{ m.notes.length }}</td>

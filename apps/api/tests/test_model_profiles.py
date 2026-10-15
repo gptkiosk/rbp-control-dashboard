@@ -261,3 +261,13 @@ def test_the_advice_route_reads_the_saved_plan(secured, tmp_path):  # noqa: F811
         pid = p.id
     assert secured.get(f"/api/models/advice?project_id={pid}").json() == {"advice": []}      # an unknown model: nothing to say
     assert secured.get("/api/models/advice?project_id=999").status_code == 404
+
+
+def test_runs_with_no_recorded_model_are_not_called_free_or_paid(sessions, tmp_path):
+    with sessions() as s:
+        c = card(s, "x", kind="implement")
+        run(s, c, "succeeded", model=None, requested=None)
+        s.commit()
+        out = mp.profiles(s, tmp_path, NOW)
+    row = next(m for m in out["models"] if m["id"] == "unknown")
+    assert row["free"] is None and row["name"] == "model not recorded" and row["observed"]["runs"] == 1

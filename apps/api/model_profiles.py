@@ -239,12 +239,14 @@ def profiles(s, data_dir, now: int | None = None, days: int = 90) -> dict:
         fact = live_by_id.get(mid)
         obs = observed.get(mid)
         free = bool(fact["free"]) if fact else (mid in billing.CATALOG.get("free_models", {}) or mid.endswith(":free") or mid == "openrouter/free")
+        if mid == "unknown":
+            free = None        # runs that recorded no model: we cannot say whether they were free
         kinds = []
         if obs:
             for kind, k in sorted(obs["kinds"].items(), key=lambda kv: -kv[1]["runs"]):
                 kinds.append({"kind": kind, "runs": k["runs"], "success_rate": round(k["succeeded"] / k["runs"], 2), "first_pass": k["first_pass"], "proven": k["runs"] >= PROVEN_RUNS})
         rows.append({
-            "id": mid, "name": (fact or {}).get("name") or mid, "free": free, "platform": cat.get("platform"), "agents": cat.get("agents", []), "status": cat.get("status"),
+            "id": mid, "name": "model not recorded" if mid == "unknown" else (fact or {}).get("name") or mid, "free": free, "platform": cat.get("platform"), "agents": cat.get("agents", []), "status": cat.get("status"),
             "in_catalog": bool(cat), "in_snapshot": bool(fact), "context": (fact or {}).get("context") or cat.get("max_input"), "tools": (fact or {}).get("tools"),
             "structured": (fact or {}).get("structured"), "reasoning": (fact or {}).get("reasoning"), "inputs": (fact or {}).get("inputs", []),
             "price_in": cat.get("input", (fact or {}).get("prompt_per_m")), "price_out": cat.get("output", (fact or {}).get("completion_per_m")),
