@@ -34,12 +34,20 @@ default) and a paired Discord account, Hermes can list the findings, explain the
 redacted evidence marked as untrusted text. It has no way to apply anything: the apply route is operator-only and agent
 processes are refused. The explanation and proposal run on whatever route you give Hermes, including the free router.
 
+**After hours.** Set `MAC_CONTROL_HOUSEKEEPING_AUTO` to the kinds you want cleaned up overnight, for example
+`stale_approval_wait,old_update_backup`, and the server applies exactly those fixed actions once a day between
+`MAC_CONTROL_HOUSEKEEPING_WINDOW_START_HOUR` and `..._END_HOUR` (default 1 to 5, local time). It is off by default. Each finding is checked
+again at that moment, nothing runs while an update is running, a database backup is taken before any row changes, and every action goes
+to the audit file as `after-hours`. The panel shows the last run and what it did. Hermes can read the same status and explain it, but
+the schedule and the actions are fixed code, not a model.
+
 The Updates panel points here when a blocker is an approval wait.
 
 ## Settings involved
 
 - Profile preference `allow_discord_maintenance` (default off).
 - Update backups on this product are managed by the updater itself (`<update root>/state/backups`, kept per `keep_versions`), so Housekeeping lists only stale approval waits here.
+- `MAC_CONTROL_HOUSEKEEPING_AUTO` (default empty), `MAC_CONTROL_HOUSEKEEPING_WINDOW_START_HOUR` (1) and `MAC_CONTROL_HOUSEKEEPING_WINDOW_END_HOUR` (5).
 - Operator API: `GET /api/maintenance`, `POST /api/maintenance/apply {finding_ids, confirm}`,
   `POST /api/maintenance/proposals/<id>/approve|reject`. Hermes bridge actions: `maintenance`, `maintenance_propose`.
 

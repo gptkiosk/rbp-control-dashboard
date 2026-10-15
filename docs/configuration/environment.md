@@ -65,6 +65,9 @@ The profile UI is separate from the host environment table; it does not expose o
 | `MAC_CONTROL_MODEL_REFRESH_ENABLED` | `true` | `bool` | Lets the operator read OpenRouter's public model list from the Models section. `false` refuses the refresh and fetches nothing. | No |
 | `MAC_CONTROL_MODEL_WATCH_ENABLED` | `false` | `bool` | Runs the weekly model watch: reads OpenRouter's public model list and leaves one Backlog card when a model needs a decision. | No |
 | `MAC_CONTROL_MODEL_WATCH_INTERVAL_DAYS` | `7` | `int` (`1`-`30`) | Days between model watch runs. | No |
+| `MAC_CONTROL_HOUSEKEEPING_AUTO` | empty | `str` | Comma-separated housekeeping kinds cleaned up automatically after hours (`stale_approval_wait`, `old_update_backup`). Empty: nothing is automatic. | No |
+| `MAC_CONTROL_HOUSEKEEPING_WINDOW_START_HOUR` | `1` | `int` (`0`-`23`) | Local hour the after-hours window opens. | No |
+| `MAC_CONTROL_HOUSEKEEPING_WINDOW_END_HOUR` | `5` | `int` (`0`-`23`) | Local hour the after-hours window closes (a window may cross midnight). | No |
 | `MAC_CONTROL_WORKDIR_ROOTS` | `(~/Projects, ~/.rcd-control/workspaces)` | `tuple[Path, ...]` | Allowed working directories for agent runs (e.g. `~/Projects`, `~/.rcd-control/workspaces`). A card’s working directory must be inside one of these. | No |
 | `MAC_CONTROL_CLAUDE_PATH` | first `claude` found (see below) | `str` | Path to Claude CLI binary. Optional. | No |
 | `MAC_CONTROL_CODEX_PATH` | first `codex` found (see below) | `str` | Path to Codex CLI binary. Optional. | No |

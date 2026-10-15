@@ -41,7 +41,7 @@ def test_actions_are_fixed_launchctl_calls_on_this_users_domain_when_previewed_o
     monkeypatch.setattr(sc, "linux", lambda: False)
     uid = os.getuid()
     for action, argv in (("run", ["launchctl", "kickstart", f"gui/{uid}/ai.hermes.gateway"]), ("restart", ["launchctl", "kickstart", "-k", f"gui/{uid}/ai.hermes.gateway"]),
-                         ("remove", ["launchctl", "bootout", f"gui/{uid}/ai.hermes.gateway"])):
+                         ("remove", ["launchctl", "remove", "ai.hermes.gateway"])):
         run = Recorder()
         out = sc.act(action, "ai.hermes.gateway", LISTED, PREFIXES, tmp_path, "op", run=run, confirm_label="ai.hermes.gateway")
         assert run.calls == [argv] and out["ok"]

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import sys
 import time
 from collections.abc import Awaitable, Callable
 from typing import Any
@@ -104,7 +105,7 @@ class Collector:
 
     def start(self) -> None:
         loops = (self._metrics_loop, self._services_loop, self._tailscale_loop,
-                 self._updates_loop, self._maintenance_loop, self._model_watch_loop, self._subagents_loop, self._usage_loop, self._openrouter_loop)
+                 self._updates_loop, self._maintenance_loop, self._housekeeping_loop, self._model_watch_loop, self._subagents_loop, self._usage_loop, self._openrouter_loop)
         self._tasks = [asyncio.create_task(loop(), name=loop.__name__) for loop in loops]
 
     async def stop(self) -> None:
@@ -218,6 +219,17 @@ class Collector:
             except Exception:
                 logger.exception("usage indexing failed")
             await asyncio.sleep(15)
+
+    async def _housekeeping_loop(self) -> None:
+        """Every half hour: the after-hours housekeeping the operator allowed (see maintenance.auto_tick)."""
+        import maintenance
+        from settings import get_settings
+        while True:
+            await asyncio.sleep(1800)
+            try:
+                await asyncio.to_thread(maintenance.auto_tick, self.sessions, get_settings(), int(self.clock()))
+            except Exception:
+                logger.exception("housekeeping failed")
 
     async def _model_watch_loop(self) -> None:
         """Every six hours: the model watch runs only when switched on and due (see model_watch)."""

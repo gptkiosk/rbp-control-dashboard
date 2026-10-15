@@ -8,6 +8,8 @@ Kinds (each: scan, verify at apply time, apply):
   stale_approval_wait   a run left in awaiting_approval on a story that is already done or failed, because a later run on that
                         story succeeded. Nothing can be decided any more. Applied as stage 'cancelled' (superseded) with an
                         audit note; results, logs, usage and sessions are never touched.
+  stale_update_helper   an update helper job still registered with launchd after its update finished (at least fifteen minutes old and no update
+                        running). Applied by unloading the job (`launchctl remove`); nothing else changes.
   old_update_backup     an update backup folder under <data>/upgrades older than the retention rule. The newest few are always
                         kept, and nothing is removed while a source update is running. Receipts (the small audit JSON) are kept.
 """
@@ -18,6 +20,7 @@ import os
 import re
 import shutil
 import sqlite3
+import sys
 import time
 from pathlib import Path
 
@@ -29,7 +32,9 @@ from models import MaintenanceProposal, Run, RunEvent
 BACKUP_KEEP_NEWEST = 3
 BACKUP_MIN_AGE_S = 30 * 86400
 BACKUP_NAME = re.compile(r"^(?:[0-9]{8}T[0-9]{6}Z|pre-[a-z0-9-]{3,60}-[0-9]{8}T[0-9]{6})$")
-FINDING_ID = re.compile(r"^(?:stale_approval_wait:[0-9]{1,9}|old_update_backup:[A-Za-z0-9-]{8,90})$")
+FINDING_ID = re.compile(r"^(?:stale_approval_wait:[0-9]{1,9}|old_update_backup:[A-Za-z0-9-]{8,90}|stale_update_helper:[A-Za-z0-9._-]{20,160})$")
+KINDS = ("stale_approval_wait", "old_update_backup")      # update helper jobs are a launchd (macOS checkout) matter; the Pi updater has none
+AUTO_STATE = "auto.json"
 MAX_IDS = 50
 
 STALE_SQL = text(
@@ -106,9 +111,31 @@ def _backup_findings(data_dir: Path, now: int) -> list[dict]:
     return out
 
 
+def _own_label() -> str:
+    import service_control
+    return service_control.own_label()
+
+
+def _helper_findings(data_dir: Path, now: int) -> list[dict]:
+    try:
+        import source_update          # present only where updates run as launchd helper jobs
+    except ImportError:
+        return []
+    if not sys.platform.startswith("darwin"):
+        return []
+    out = []
+    for h in source_update.stale_helpers(Path(data_dir), _own_label(), now):
+        out.append({
+            "id": f"stale_update_helper:{h['label']}", "kind": "stale_update_helper",
+            "reason": f"Update helper {h['label']} is still registered with launchd {h['age_hours']} hours after it started, and no update is running. It finished its work and was not cleaned up.",
+            "evidence": {"label": h["label"], "pid": h["pid"], "age_hours": h["age_hours"]},
+            "action": "Unload the helper job. Nothing else changes."})
+    return out
+
+
 def scan(s, data_dir: Path, now: int | None = None) -> list[dict]:
     now = int(now if now is not None else time.time())
-    return _stale_findings(s, now) + _backup_findings(Path(data_dir), now)
+    return _helper_findings(Path(data_dir), now) + _stale_findings(s, now) + _backup_findings(Path(data_dir), now)
 
 
 # ---------------------------------------------------------------------------- apply
@@ -154,6 +181,11 @@ def apply(s, data_dir: Path, finding_ids: list[str], actor: str, now: int | None
         found = current.get(finding_id)
         if found is None:
             outcomes.append({"id": finding_id, "status": "skipped", "reason": "No longer a finding: it changed since it was listed."})
+            continue
+        if found["kind"] == "stale_update_helper":
+            import service_control
+            code, _ = service_control.run_with_fallback("remove", found["evidence"]["label"], service_control.default_run)
+            outcomes.append({"id": finding_id, "status": "applied" if code == 0 else "skipped", **({} if code == 0 else {"reason": "launchd would not unload it."})})
             continue
         if found["kind"] == "stale_approval_wait":
             run_id, later = found["evidence"]["run_id"], found["evidence"]["completed_by_run"]
@@ -230,3 +262,56 @@ def decide(s, data_dir: Path, proposal_id: int, approve: bool, actor: str, now: 
         row.status, row.decided_at, row.decided_by, row.result = "failed", now, actor, json.dumps([{"status": "error", "reason": type(exc).__name__}])
     s.commit()
     return row
+
+
+# ----------------------------------------------------------------------------------------------------- after hours
+def _auto_path(data_dir: Path) -> Path:
+    return Path(data_dir) / "maintenance" / AUTO_STATE
+
+
+def auto_classes(settings) -> list[str]:
+    """The finding kinds the operator allowed to be cleaned up automatically after hours (default: none)."""
+    wanted = [c.strip() for c in str(getattr(settings, "housekeeping_auto", "") or "").split(",") if c.strip()]
+    return [c for c in KINDS if c in wanted]
+
+
+def auto_status(settings, now: int | None = None) -> dict:
+    now = int(now if now is not None else time.time())
+    try:
+        last = json.loads(_auto_path(settings.data_dir).read_text())
+    except (OSError, ValueError):
+        last = {}
+    classes = auto_classes(settings)
+    return {"enabled": bool(classes), "classes": classes, "window": f"{settings.housekeeping_window_start_hour:02d}:00 to {settings.housekeeping_window_end_hour:02d}:00",
+            "last_run": last.get("last_run"), "last_applied": last.get("applied", 0), "last_summary": last.get("summary"), "in_window": _in_window(settings, now)}
+
+
+def _in_window(settings, now: int) -> bool:
+    hour = time.localtime(now).tm_hour
+    start, end = settings.housekeeping_window_start_hour, settings.housekeeping_window_end_hour
+    return start <= hour < end if start < end else (hour >= start or hour < end)
+
+
+def auto_tick(sessions, settings, now: int | None = None) -> dict | None:
+    """What the collector calls every half hour: once a day, inside the after-hours window, clean up the finding kinds the operator allowed.
+    It applies only fixed actions on current findings (each re-verified by `apply`), never while an update is running, and records what it did."""
+    now = int(now if now is not None else time.time())
+    classes = auto_classes(settings)
+    if not classes or not _in_window(settings, now):
+        return None
+    path = _auto_path(settings.data_dir)
+    day = time.strftime("%Y-%m-%d", time.localtime(now))
+    try:
+        if json.loads(path.read_text()).get("day") == day:
+            return None
+    except (OSError, ValueError):
+        pass
+    with sessions() as s:
+        ids = [f["id"] for f in scan(s, settings.data_dir, now) if f["kind"] in classes][:MAX_IDS]
+        outcomes = apply(s, settings.data_dir, ids, "after-hours", now) if ids else []
+    applied = sum(1 for o in outcomes if o["status"] == "applied")
+    summary = f"{applied} cleaned up, {len(outcomes) - applied} skipped" if ids else "nothing to clean up"
+    path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    path.write_text(json.dumps({"day": day, "last_run": now, "applied": applied, "summary": summary, "classes": classes}))
+    path.chmod(0o600)
+    return {"applied": applied, "skipped": len(outcomes) - applied, "summary": summary}

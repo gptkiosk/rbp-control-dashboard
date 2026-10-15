@@ -7,7 +7,8 @@ import { ApiError, getJson, postJson } from '@/lib/api'
 interface Finding { id: string; kind: string; reason: string; action: string; evidence: Record<string, unknown> }
 interface Outcome { id: string; status: string; reason?: string }
 interface Proposal { id: number; created_by: string; summary: string; finding_ids: string[]; status: string; decided_by: string | null; result: Outcome[] | null }
-interface Overview { findings: Finding[]; proposals: Proposal[]; retention: { keep_newest_backups: number; backup_min_age_days: number } }
+interface AutoStatus { enabled: boolean; classes: string[]; window: string; last_run: number | null; last_applied: number; last_summary: string | null; in_window: boolean }
+interface Overview { findings: Finding[]; proposals: Proposal[]; retention: { keep_newest_backups: number; backup_min_age_days: number }; auto?: AutoStatus }
 
 const data = ref<Overview | null>(null)
 const selected = ref<string[]>([]), confirmed = ref(false), busy = ref(false)
@@ -15,7 +16,8 @@ const error = ref(''), notice = ref('')
 
 const pending = computed(() => (data.value?.proposals ?? []).filter(p => p.status === 'pending'))
 const decided = computed(() => (data.value?.proposals ?? []).filter(p => p.status !== 'pending').slice(0, 5))
-const KIND: Record<string, string> = { stale_approval_wait: 'Stale approval wait', old_update_backup: 'Old update backup' }
+const KIND: Record<string, string> = { stale_approval_wait: 'Stale approval wait', old_update_backup: 'Old update backup', stale_update_helper: 'Finished update helper still loaded' }
+const when = (ts: number | null) => (ts ? new Date(ts * 1000).toLocaleString() : 'never')
 
 function message(e: unknown, fallback: string) {
   if (e instanceof ApiError && (e.status === 401 || e.status === 403)) return 'Operator sign-in is required.'
@@ -48,6 +50,11 @@ onMounted(load)
 <template>
   <section id="housekeeping" class="card housekeeping" aria-labelledby="housekeeping-title">
     <h2 id="housekeeping-title" class="section-title">Housekeeping</h2>
+    <p v-if="data?.auto" class="small" data-testid="after-hours">
+      <strong>After hours:</strong>
+      <template v-if="data.auto.enabled">cleans up {{ data.auto.classes.map(c => KIND[c] ?? c).join(', ') }} between {{ data.auto.window }}, once a day. Last run: {{ when(data.auto.last_run) }}{{ data.auto.last_summary ? ` (${data.auto.last_summary})` : '' }}.</template>
+      <template v-else>off. To have the safe kinds cleaned up for you overnight, set <code>MAC_CONTROL_HOUSEKEEPING_AUTO</code> (for example <code>stale_update_helper</code>). Finished update helpers are also unloaded automatically a few minutes after an update.</template>
+    </p>
     <p class="muted lead">Leftovers the server finds by fixed rules, with no model involved. Nothing changes until you approve it. Hermes can read this list and propose a fix for you to decide, but it cannot change anything itself.</p>
     <p v-if="error" class="notice-warn" role="alert">{{ error }}</p>
     <p v-if="notice" class="note" role="status">{{ notice }}</p>
