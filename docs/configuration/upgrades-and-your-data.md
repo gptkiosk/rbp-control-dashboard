@@ -25,6 +25,7 @@ after an update.
 | Your own starter standards | `<data>/standards/starter.md` | **Keeps it, and it wins** over the shipped starter. |
 | A project's repository standards | in that project's own repository | **Never touched.** They change by a normal change in that repository. |
 | What your agents know (Hermes, Claude, Codex, Grok and OpenClaw memory, notes and projects) | each agent's own home | **Never read or changed by an update.** The only thing RCD writes there is the managed guidance block. |
+| The last read of the public model list, and your model notes | `<data>/models/` | **Keeps them.** |
 | Run logs, reports, project outputs, workspaces, alert rules | the data folder | **Keeps them.** Old runs are pruned only by the retention setting (90 days by default). |
 
 ## Your agents' own settings

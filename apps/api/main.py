@@ -27,6 +27,7 @@ from routes import limits as limit_routes
 from routes import failures as failure_routes
 from routes import maintenance as maintenance_routes
 from routes import standards as standards_routes
+from routes import models as models_routes
 from routes import telemetry as telemetry_routes
 from alerts import AlertMonitor, HermesSender
 from agent_access import AgentAccessService
@@ -225,6 +226,7 @@ def create_app() -> FastAPI:
     app.include_router(failure_routes.router)
     app.include_router(maintenance_routes.router)
     app.include_router(standards_routes.router)
+    app.include_router(models_routes.router)
     app.include_router(telemetry_routes.router)
     app.include_router(profile_routes.router)
     app.include_router(project_bridge.router)

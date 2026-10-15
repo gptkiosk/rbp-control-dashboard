@@ -62,6 +62,7 @@ The profile UI is separate from the host environment table; it does not expose o
 | `MAC_CONTROL_DEFAULT_TIMEOUT_S` | `1800` | `int` (`30`–`21600`) | Default execution timeout (30 min). | No |
 | `MAC_CONTROL_DEFAULT_BUDGET_USD` | `1.0` | `float` (`0.01`–`50.0`) | API-dollar budget used by the Claude adapter when applicable. Not a universal provider hard cap; subscription project runs omit this API-equivalent budget. | No |
 | `MAC_CONTROL_RUN_RETENTION_DAYS` | `90` | `int` (`≥1`) | Days to retain completed run records. | No |
+| `MAC_CONTROL_MODEL_REFRESH_ENABLED` | `true` | `bool` | Lets the operator read OpenRouter's public model list from the Models section. `false` refuses the refresh and fetches nothing. | No |
 | `MAC_CONTROL_WORKDIR_ROOTS` | `(~/Projects, ~/.rcd-control/workspaces)` | `tuple[Path, ...]` | Allowed working directories for agent runs (e.g. `~/Projects`, `~/.rcd-control/workspaces`). A card’s working directory must be inside one of these. | No |
 | `MAC_CONTROL_CLAUDE_PATH` | first `claude` found (see below) | `str` | Path to Claude CLI binary. Optional. | No |
 | `MAC_CONTROL_CODEX_PATH` | first `codex` found (see below) | `str` | Path to Codex CLI binary. Optional. | No |
