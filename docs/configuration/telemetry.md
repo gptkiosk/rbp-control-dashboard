@@ -15,7 +15,7 @@ Open **Telemetry** in the sidebar. Everything is read-only and computed from the
 there is nothing extra to maintain.
 
 - **At a glance:** the page leads with the tiles, then charts: donuts for workload by status and by route, stacked bars for work by assignee, by job, by model and by kind, plus completed per week and median time per kind. Hover a bar or a legend row for the numbers behind it. The full tables (jobs, agents and models, kinds of work) are folded away; open one when you want to drill in.
-- **Period and filters** (job, kind, risk, size, route, assigned to, agent, model) narrow every number and chart on the page at once.
+- **Period and filters** (job, property, kind, risk, size, route, assigned to, agent, model) narrow every number and chart on the page at once.
 - **Tiles:** unassigned (open work nobody has), in progress (queued or running), waiting for you (needs a decision), completed in the
   period, estimates missing (open work without one) and failed.
 - **Workload by status, work by assignee, completed per week, median time per kind.** Assignee is a person for a human task and an

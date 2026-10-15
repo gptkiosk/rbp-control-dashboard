@@ -12,8 +12,8 @@ import { FILTERS, minutes, money, percent, seconds, type FilterKey, type Telemet
 const data = ref<Telemetry | null>(null)
 const error = ref(''), loading = ref(false)
 const days = ref('30')
-const filters = ref<Record<FilterKey, string>>({ job: '', kind: '', risk: '', size: '', tier: '', assignee: '', agent: '', model: '' })
-const LABELS: Record<FilterKey, string> = { job: 'Job', kind: 'Kind', risk: 'Risk', size: 'Size', tier: 'Route', assignee: 'Assigned to', agent: 'Agent', model: 'Model' }
+const filters = ref<Record<FilterKey, string>>({ job: '', property: '', kind: '', risk: '', size: '', tier: '', assignee: '', agent: '', model: '' })
+const LABELS: Record<FilterKey, string> = { job: 'Job', property: 'Property', kind: 'Kind', risk: 'Risk', size: 'Size', tier: 'Route', assignee: 'Assigned to', agent: 'Agent', model: 'Model' }
 
 async function load() {
   loading.value = true; error.value = ''
@@ -61,6 +61,7 @@ onMounted(load)
       <div class="grid">
         <DonutChart title="Workload by status" :slices="data.by_status.map(s => ({ label: s.column, value: s.count, color: STATUS_COLOR[s.column] }))" />
         <DonutChart title="Work by route" :slices="data.by_tier.map(x => ({ label: x.tier, value: x.count }))" />
+        <StackedBars title="Work by property" :parts="OUTCOME" :rows="data.by_property.map(p => ({ label: p.property, values: { open: p.open, done: p.done, failed: p.failed }, hint: `first pass ${percent(p.first_pass_rate)}, median ${minutes(p.median_minutes)}` }))" empty="No work yet." />
         <StackedBars title="Work by assignee" :parts="OUTCOME" :rows="data.by_assignee.map(a => ({ label: `${a.name} (${a.type})`, values: { open: a.open, done: a.done, failed: a.failed } }))" />
         <StackedBars title="Jobs" :parts="OUTCOME" :rows="data.jobs.map(j => ({ label: `${j.job} ${j.title}`, values: { open: j.open, done: j.done, failed: j.failed }, hint: `${j.job}: estimate ${minutes(j.estimate_minutes)}, actual ${minutes(j.actual_minutes)}, cost ${money(j.cost_usd)}` }))" empty="No approved plans yet. Stories made from a plan appear here, one row per plan revision." />
         <StackedBars title="Runs by model" :parts="RUNS" :rows="data.models.map(m => ({ label: `${m.agent} · ${m.model}`, values: { ok: m.succeeded, bad: m.runs - m.succeeded }, hint: `${percent(m.success_rate)} success, median ${seconds(m.median_seconds)}, cost ${money(m.cost_usd)}, API-equivalent ${money(m.api_equivalent_usd)}` }))" empty="No runs in this period." />

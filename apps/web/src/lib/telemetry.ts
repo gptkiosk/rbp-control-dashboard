@@ -8,6 +8,7 @@ export interface JobRow {
   job: string; project_id: number; title: string; stories: number; done: number; failed: number; open: number
   estimate_minutes: number; actual_minutes: number; cost_usd: number; api_equivalent_usd: number; last_activity: number
 }
+export interface PropertyRow { property: string; stories: number; open: number; done: number; failed: number; first_pass_rate: number | null; median_minutes: number | null }
 export interface KindRow { kind: string; stories: number; done: number; median_minutes: number | null; first_pass_rate: number | null; median_actual_over_estimate: number | null }
 export interface ModelRow {
   agent: string; model: string; tier: string; runs: number; succeeded: number; success_rate: number; median_seconds: number | null
@@ -16,12 +17,12 @@ export interface ModelRow {
 export interface ActivityRow { at: number; card_id: number; title: string; outcome: string; assignee: string; agent: string; model: string | null; job: string | null }
 export interface Telemetry {
   generated_at: number; days: number; filters: Record<string, string>; options: Record<string, string[]>
-  tiles: TelemetryTiles; by_status: { column: string; count: number }[]; by_tier: { tier: string; count: number }[]; by_assignee: AssigneeRow[]; velocity: { week: string; done: number }[]
+  tiles: TelemetryTiles; by_status: { column: string; count: number }[]; by_property: PropertyRow[]; by_tier: { tier: string; count: number }[]; by_assignee: AssigneeRow[]; velocity: { week: string; done: number }[]
   jobs: JobRow[]; by_kind: KindRow[]; models: ModelRow[]; activity: ActivityRow[]
   totals: { cost_usd: number; api_equivalent_usd: number; unpriced_runs: number; tokens: number; cards: number }
   note: string
 }
-export const FILTERS = ['job', 'kind', 'risk', 'size', 'tier', 'assignee', 'agent', 'model'] as const
+export const FILTERS = ['job', 'property', 'kind', 'risk', 'size', 'tier', 'assignee', 'agent', 'model'] as const
 export type FilterKey = (typeof FILTERS)[number]
 
 export function money(value: number): string {

@@ -140,3 +140,23 @@ def test_cards_made_before_the_envelope_still_show_their_route_tier(sessions):
         s.commit()
         out = tm.overview(s, NOW, 30)
     assert {m["tier"] for m in out["models"]} == {"subscription", "free"} and "untagged" not in {m["tier"] for m in out["models"]}
+
+
+def test_work_is_cut_by_the_property_the_plan_was_approved_under(sessions):
+    with sessions() as s:
+        a = card(s, "A"); run(s, a)
+        b = card(s, "B"); run(s, b)
+        c = card(s, "C", "running")                                   # not in any project
+        job(s, [a], title="Money work")
+        p2 = Project(document=json.dumps({"title": "Docs"}), state="active", created_by="op", created_at=0, updated_at=0,
+                     approved_manifest=json.dumps({"standards": {"state": "ok", "property": "upubhub", "sha256": "x" * 64, "areas": 3, "checks": 2}}))
+        s.add(p2)
+        s.flush()
+        s.add(ProjectTask(card_id=b.id, project_id=p2.id, revision=1, node_key="n0", role="story"))
+        s.commit()
+        everything = tm.overview(s, NOW, 30)
+        only = tm.overview(s, NOW, 30, {"property": "upubhub"})
+    rows = {r["property"]: r for r in everything["by_property"]}
+    assert rows["upubhub"]["stories"] == 1 and rows["upubhub"]["done"] == 1 and rows["none"]["stories"] == 2
+    assert "upubhub" in everything["options"]["property"]
+    assert only["tiles"]["completed"] == 1 and only["totals"]["cards"] == 1
