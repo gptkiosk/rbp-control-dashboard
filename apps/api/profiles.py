@@ -43,6 +43,7 @@ class Preferences(BaseModel):
     allow_discord_planning: bool = False
     allow_discord_control: bool = False
     allow_discord_diagnostics: bool = False
+    allow_discord_standards: bool = False     # Hermes may propose additions to a repository's standards; only the operator's approval acts
     allow_discord_maintenance: bool = False   # Hermes may read housekeeping findings and propose fixes; only the operator's approval acts
     github: GithubPreferences = Field(default_factory=GithubPreferences)
     setup: SetupProgress = Field(default_factory=SetupProgress)

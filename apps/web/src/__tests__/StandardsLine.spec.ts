@@ -53,3 +53,43 @@ it('says plainly when the starter standards are in use, which copy, and why the 
   expect(text).toContain('No docs/development/standards.md')
   w.unmount()
 })
+
+const proposal = (over: Record<string, unknown> = {}) => ({
+  id: 4, created_at: 1, created_by: 'hermes:op', project_id: 7, summary: 'Email sending is high risk.', section: 'risk',
+  patch: '--- a\n+++ b\n+| Email sending | high |', status: 'pending', decided_by: null, result: null, ...over,
+})
+
+it('shows a proposed addition with its exact diff and lets the operator approve it, then shows the branch', async () => {
+  let current = proposal()
+  const f = stubFetch((url, init) => {
+    if (url === '/api/projects/7/standards') return { body: ok() }
+    if (url === '/api/standards/proposals?project_id=7') return { body: { proposals: [current] } }
+    if (url === '/api/standards/proposals/4/approve' && init?.method === 'POST') {
+      current = proposal({ status: 'applied', result: { branch: 'standards/4-risk', note: 'Committed on a new branch. Nothing was pushed.' } })
+      return { body: current }
+    }
+    return undefined
+  })
+  const w = mount(StandardsLine, { props: { projectId: 7 } }); await flushPromises()
+  const card = w.get('[data-testid="proposal-4"]')
+  expect(card.text()).toContain('Waiting for you:')
+  expect(card.get('pre.patch').text()).toContain('+| Email sending | high |')
+  await card.findAll('button').find(b => b.text().startsWith('Approve'))!.trigger('click'); await flushPromises()
+  expect(calls(f, 'POST', '/api/standards/proposals/4/approve')).toHaveLength(1)
+  expect(w.get('[data-testid="proposal-4"]').text()).toContain('standards/4-risk')
+  expect(w.find('[data-testid="proposal-4"] button').exists()).toBe(false)
+  w.unmount()
+})
+
+it('shows a refusal in words and offers reject', async () => {
+  stubFetch((url, init) => {
+    if (url === '/api/projects/7/standards') return { body: ok() }
+    if (url === '/api/standards/proposals?project_id=7') return { body: { proposals: [proposal()] } }
+    if (url === '/api/standards/proposals/4/reject' && init?.method === 'POST') return { status: 409, body: { detail: 'That proposal is not waiting for a decision.' } }
+    return undefined
+  })
+  const w = mount(StandardsLine, { props: { projectId: 7 } }); await flushPromises()
+  await w.findAll('button').find(b => b.text() === 'Reject')!.trigger('click'); await flushPromises()
+  expect(w.get('[role="alert"]').text()).toContain('not waiting for a decision')
+  w.unmount()
+})
