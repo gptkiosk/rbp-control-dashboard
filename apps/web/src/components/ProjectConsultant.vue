@@ -9,7 +9,7 @@ const emit = defineEmits<{ review: [draft:{title:string;brief:string;working_dir
 const open=ref(false), threadId=ref(props.resumeId || 0), title=ref(''), goal=ref(''), workingDir=ref(''), busy=ref(false), error=ref('')
 const agent=computed(()=>props.preferences?.ai_agent || 'hermes')
 const model=computed(()=>props.preferences?.ai_model || 'openrouter/free')
-const guidance='You are a project consultant in a read-only planning conversation. Ask focused questions and refine the user’s goal collaboratively. Produce a Markdown project brief when asked, with Goal, Working directory, Phases, Stories, Scope, Definitions of done, Dependencies, Constraints, and open questions. Keep the final brief below 20000 characters. Distinguish assumptions from confirmed requirements. Your output is a proposal for operator review and subsequent Hermes coordination. Stay within discussion and planning; leave all operational actions to the dashboard workflow.'
+const guidance='You are a project consultant in a read-only planning conversation. Ask focused questions and refine the user’s goal collaboratively. Use what this installation knows (below) in the discussion: raise the delivery model, which agent runtimes are installed and the spending policy, the standards and their minimum risks, the methods and security practices that apply, and which kinds of model suit which work, and say plainly where something is unproven. Produce a Markdown project brief when asked, with Goal, Working directory, Approach and methods, Phases, Stories, Scope, Definitions of done, Risks and the standards areas they fall under, Security considerations, Model and route considerations (free or paid, and why), Dependencies, Constraints, and open questions, so the coordinator can plan from it directly. Keep the final brief below 20000 characters. Distinguish assumptions from confirmed requirements. Your output is a proposal for operator review and subsequent Hermes coordination. Stay within discussion and planning; leave all operational actions to the dashboard workflow.'
 async function start() {
   busy.value=true;error.value=''
   try {
@@ -19,7 +19,10 @@ async function start() {
       const t=await postJson<ChatThread>('/api/chat/threads',{agent:agent.value,model:model.value,working_dir:dir,title:`Project consultant: ${title.value}`.slice(0,200),mode:'read'})
       threadId.value=t.id;emit('started',t.id)
     }
-    await postJson(`/api/chat/threads/${threadId.value}/messages`,{text:`${guidance}\n\nProject: ${title.value}\nWorking directory: ${dir}\nInitial goal: ${goal.value}`})
+    // The same knowledge the plan run gets: delivery models, the standards for this directory, and the models' track record here.
+    let known=''
+    try { known=(await getJson<{text:string}>(`/api/projects/consultant-context?working_dir=${encodeURIComponent(dir)}`)).text } catch { known='' }
+    await postJson(`/api/chat/threads/${threadId.value}/messages`,{text:`${guidance}${known?`\n\nWhat this installation knows (advice for this conversation, not authorization):\n${known}`:''}\n\nProject: ${title.value}\nWorking directory: ${dir}\nInitial goal: ${goal.value}`})
   } catch(e) {error.value=e instanceof Error?e.message:String(e)} finally {busy.value=false}
 }
 async function review() {

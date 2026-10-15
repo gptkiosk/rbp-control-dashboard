@@ -424,6 +424,58 @@ def _brief(p, include_nodes=False):
     payload.update(planning_bias=d['planning_bias'], assignment_policy=planning_policy(d['planning_bias']))
     return json.dumps(payload,ensure_ascii=False)
 
+CONSULTANT_CONTEXT_MAX = 16000
+
+
+def installation_text(s, settings):
+    """Which product this is and what it can run: the agent runtimes that are installed (and how each is billed), the Delegator, and the spending
+    policy. Configuration facts only: no keys, no paths and no account identities."""
+    import platform
+    accounts = billing.config(s)['accounts']
+    lines = [f"{settings.product_name} on {platform.system()} {platform.machine()}."]
+    for agent, spec in REGISTRY.items():
+        try:
+            installed = spec.available(settings)
+        except Exception:
+            installed = False
+        if not installed:
+            lines.append(f'- {agent} ({spec.name}): not installed')
+            continue
+        model = ''
+        try:
+            model = spec.default_model() or ''
+        except Exception:
+            pass
+        mode = (accounts.get(agent) or {}).get('mode')
+        lines.append(f"- {agent} ({spec.name}): installed" + (f'; default model {model}' if model else '') + (f'; billed as {mode}' if mode else ''))
+    try:
+        delegator = RoleStore(settings).delegator()
+    except RoleError:
+        delegator = None
+    lines.append(f"Delegator (the coordinator): {delegator or 'none assigned'}.")
+    lines.append('Spending policy: ' + ('free routes only (paid routes are refused)' if settings.dispatch_free_only else 'paid routes allowed when approved')
+                 + f"; default budget per task ${settings.default_budget_usd:g}, ceiling ${settings.dispatch_max_budget_usd:g}.")
+    return '\n'.join(lines)
+
+
+def consultant_context(s, settings, working_dir):
+    """What the project consultant chat should know, the same as the plan run: how the software is delivered, the standards that apply to the
+    working directory, and the track record of the models it could use. Advice for the conversation; it authorizes nothing."""
+    wd = approval.resolve_workdir(working_dir, settings.workdir_roots)
+    if wd is None:
+        fail('Choose an existing allowlisted working directory.', 422)
+    found = standards.resolve(str(wd), settings.data_dir)
+    methods = '\n\n'.join(f"{label}:\n{standards.guide_text(name, settings.data_dir)}" for label, name in
+                           (('Development practice', 'practices.md'), ('Delivering a hosted web app', 'web-app-delivery.md'), ('Delivering a packaged app', 'packaged-app-delivery.md'),
+                            ('Application security', 'security.md')) if standards.guide_text(name, settings.data_dir))
+    parts = [('How the software is delivered', RoleStore(settings).source('context.md').strip()),
+             ('Standards that apply to this working directory', standards.prompt_section(found)),
+             ('Methods and practices to build the plan on', methods),
+             ('This installation and its configuration', installation_text(s, settings)),
+             ('Models you could recommend', model_profiles.guidance_text(s, settings.data_dir, execution_catalog(settings)))]
+    return '\n\n'.join(f'## {title}\n{body}' for title, body in parts if body)[:CONSULTANT_CONTEXT_MAX]
+
+
 def role_prompt(name, **values):
     if name not in {'coordinate', 'plan', 'review', 'dispatch'}:
         fail('Unknown role prompt.', 422)
@@ -523,7 +575,8 @@ def _planner_prompt(p,catalog=None,s=None):
         standards=standards.prompt_section(standards.resolve(document(p)['working_dir'],settings.data_dir)))
     # Appended after substitution, so a user's own plan.txt keeps working without a new placeholder.
     extra=model_profiles.guidance_text(s,settings.data_dir,catalog) if s is not None else ''
-    return text+('\n'+extra if extra else '')
+    where=installation_text(s,settings) if s is not None else ''
+    return text+('\n\nThis installation:\n'+where if where else '')+('\n'+extra if extra else '')
 
 
 def submit(s,p,action,settings,actor):

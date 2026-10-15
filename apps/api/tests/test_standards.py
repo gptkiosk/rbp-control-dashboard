@@ -349,3 +349,53 @@ def test_the_package_ships_the_starter_standards():
     from pathlib import Path
     product = json.loads((Path(__file__).resolve().parents[3] / 'packaging' / 'product.json').read_text())
     assert 'packs/standards/*' in json.dumps(product), 'an install without these files would have no starter standards at all'
+
+
+def test_the_consultant_chat_gets_delivery_standards_and_model_knowledge(app):  # noqa: F811
+    c, s, wd, settings = app
+    write(wd)
+    text = c.get('/api/projects/consultant-context', params={'working_dir': str(wd)}).json()['text']
+    assert 'packaged app runs on users' in text                       # delivery models (the Delegator context text)
+    assert 'area money: minimum risk high' in text                      # the standards for this directory
+    assert len(text) <= 16000
+    for heading in ('## How the software is delivered', '## Standards that apply to this working directory', '## Methods and practices to build the plan on'):
+        assert heading in text
+    assert 'Development practice:' in text and 'Application security:' in text and 'Delivering a packaged app:' in text and 'Delivering a hosted web app:' in text
+    assert 'Test behavior and rules' in text
+    assert c.get('/api/projects/consultant-context', params={'working_dir': '/nowhere/not/allowed'}).status_code == 422
+
+
+def test_the_consultant_context_falls_back_to_the_starter_standards(app):  # noqa: F811
+    c, s, wd, settings = app
+    text = c.get('/api/projects/consultant-context', params={'working_dir': str(wd)}).json()['text']
+    assert 'Starter standards apply' in text and 'authentication-and-sessions' in text
+
+
+def test_a_users_own_copy_of_a_guide_is_what_the_consultant_reads(tmp_path):
+    folder = tmp_path / 'standards'
+    folder.mkdir()
+    (folder / 'practices.md').write_text('# mine\n\n## My method\n\n- Always pair on migrations.\n')
+    assert 'Always pair on migrations.' in standards.guide_text('practices.md', tmp_path)
+    assert 'Test behavior and rules' in standards.guide_text('practices.md')               # no data folder: the shipped guide
+    assert standards.guide_text('../secrets.md', tmp_path) == '' and standards.guide_text('starter.md', tmp_path) == ''   # only the named guides
+    (folder / 'practices.md').write_text('x' * (standards.MAX_BYTES + 1))
+    assert 'Test behavior and rules' in standards.guide_text('practices.md', tmp_path)      # an unusable copy falls back to the shipped guide
+
+
+def test_the_consultant_and_the_planner_know_what_is_installed_and_the_spending_policy(app, monkeypatch):  # noqa: F811
+    import projects
+    from agents import AgentSpec
+    c, s, wd, settings = app
+    monkeypatch.setattr(AgentSpec, 'available', lambda self, st: self.id in ('claude', 'hermes'))
+    monkeypatch.setattr(settings, 'dispatch_free_only', True)
+    text = c.get('/api/projects/consultant-context', params={'working_dir': str(wd)}).json()['text']
+    assert '## This installation and its configuration' in text and 'Mac Control Dashboard on' in text
+    assert '- claude (' in text and ': installed' in text.split('- claude (')[1].split('\n')[0]
+    assert 'not installed' in text.split('- codex (')[1].split('\n')[0]
+    assert 'free routes only (paid routes are refused)' in text and 'Delegator (the coordinator):' in text
+    for private in (str(wd), '/Users/', 'sk-', '@'):
+        assert private not in text.split('## This installation and its configuration')[1].split('## Models')[0], private
+    p = new(app, [])
+    with s() as db:
+        prompt = projects._planner_prompt(projects.get(db, p['id']), [], db)
+    assert 'This installation:' in prompt and 'free routes only' in prompt
