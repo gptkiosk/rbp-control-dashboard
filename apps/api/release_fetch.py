@@ -642,11 +642,18 @@ def fetch_and_stage(hcfg: ue.HelperConfig, channel: str, version: str, manifest_
     copy is removed whatever the outcome; what matters afterwards is the sealed version directory.
     """
     cfg = fetch_config(hcfg, channel, **overrides)
-    candidate = query_release(cfg, opener)
-    if candidate is None:
-        raise FetchError("no newer release is available on this channel")
-    if candidate.version != version:
-        raise FetchError(f"the newest release is now {candidate.version}, not {version}; check again and confirm")
+    op = ue.OperationLog.begin(hcfg, version)
+    op.step("fetch", "running", f"reading the release list and downloading {version} from GitHub")
+    try:
+        candidate = query_release(cfg, opener)
+        if candidate is None:
+            raise FetchError("no newer release is available on this channel")
+        if candidate.version != version:
+            raise FetchError(f"the newest release is now {candidate.version}, not {version}; check again and confirm")
+    except FetchError as exc:
+        op.step("fetch", "failed", "; ".join(exc.problems)[:280])
+        op.finish("failed", "Nothing was installed. " + "; ".join(exc.problems)[:250])
+        raise
     names = asset_names(cfg.product, version, cfg.platform)
     package = StagedPackage(candidate.name, cfg.inbox / names["manifest"], cfg.inbox / names["archive"],
                             cfg.inbox / names["signature"])
@@ -662,9 +669,15 @@ def fetch_and_stage(hcfg: ue.HelperConfig, channel: str, version: str, manifest_
             except FetchError:
                 discard(package)
                 present = []
-        if not present:
-            package = download_assets(cfg, candidate, opener)
-            verify_staged(cfg, candidate, package, manifest_sha256)
+        try:
+            if not present:
+                package = download_assets(cfg, candidate, opener)
+                verify_staged(cfg, candidate, package, manifest_sha256)
+            op.step("fetch", "ok", "downloaded the manifest, signature and package; checksums match what GitHub published")
+        except FetchError as exc:
+            op.step("fetch", "failed", "; ".join(exc.problems)[:280])
+            op.finish("failed", "Nothing was installed. " + "; ".join(exc.problems)[:250])
+            raise
         try:
             staged = ue.stage(hcfg, candidate.name, manifest_sha256, builder)
         except ue.UpdateError as exc:

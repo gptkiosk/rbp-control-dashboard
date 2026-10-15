@@ -410,6 +410,15 @@ export interface Card {
   due_date: string | null
   estimate_minutes: Num
   tags: string[]
+  /** Standard job envelope (null on cards made by hand). route_tier is derived by the server. */
+  /** A human task's assignee (an approved user's email or short name); null = unassigned. Agent tasks use agent and model. */
+  assignee_user?: string | null
+  kind?: string | null
+  size?: string | null
+  risk?: string | null
+  area?: string | null
+  route_tier?: string | null
+  route_reason?: string | null
   /** Definition of done. */
   acceptance: string | null
   depends_on: number[]

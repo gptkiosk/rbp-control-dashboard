@@ -20,6 +20,7 @@ from project_schemas import Document, Node, Accept, DEFAULT_PLANNING_BIAS
 import approval
 import billing
 import cards
+import job_envelope
 import project_workspaces as workspaces
 import provider_limits
 from agents import REGISTRY, SUBSCRIPTION_AGENTS
@@ -543,6 +544,8 @@ def submit(s,p,action,settings,actor):
                 fail('Automatic API handoffs are limited to the reviewed free / capped Google routes.',422)
     base_commit=workspaces.snapshot(d['working_dir']) if d['dispatch_mode']=='parallel' else None
     # Validate every story before dispatch; no partial materialization on error.
+    gaps=job_envelope.story_problems(d['nodes'])
+    if gaps: fail('Every story needs a work kind, size, risk, estimate and route reason before approval. Missing: '+'; '.join(gaps[:8])+('; and more' if len(gaps)>8 else ''),422)
     for n in d['nodes']:
         if n['kind']=='story':
             probe=cards.create(s,_story_data(p,d,n),settings,'hermes'); s.delete(probe); s.flush()
@@ -560,7 +563,12 @@ def submit(s,p,action,settings,actor):
 def _story_data(p,d,n):
     return {'title':n['title'],'body':n['description'],'assignee_type':'human' if n['assignee']=='human' else 'agent',
         'agent':None if n['assignee']=='human' else n['assignee'],'model':n['model'] or None,'agent_target':n['agent_target'] or None,
-        'mode':n['mode'],'working_dir':d['working_dir'],'acceptance':n['acceptance'], 'tags':[f'project {p.id}','project story']}
+        'mode':n['mode'],'working_dir':d['working_dir'],'acceptance':n['acceptance'],
+        'assignee_user':(n.get('assignee_user') or None) if n['assignee']=='human' else None,
+        'kind':n.get('work_kind'),'size':n.get('size'),'risk':n.get('risk'),'area':n.get('area') or None,
+        'estimate_minutes':n.get('estimate_minutes'),'route_reason':n.get('route_reason') or None,
+        'tags':[f'project {p.id}','project story',*job_envelope.standard_tags(f'p{p.id}r{p.revision}',n.get('work_kind'),n.get('size'),n.get('risk'),
+            job_envelope.tier_for('human' if n['assignee']=='human' else 'agent',None if n['assignee']=='human' else n['assignee'],n['model'] or None),n.get('area') or None)]}
 
 def _materialize(s,p,order,settings):
     m=json.loads(p.approved_manifest); d=m['document']; nodes={n['key']:n for n in d['nodes'] if n['kind']=='story'}

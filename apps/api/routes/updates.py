@@ -73,6 +73,16 @@ def update_status(request: Request):
     return body
 
 
+@router.get("/operation")
+def operation(request: Request):
+    """The latest update operation: ordered steps, their state and a log tail. Read-only; survives the service restart."""
+    operator(request)
+    cfg, problems = _helper(get_settings().update_root)    # not _managed(): that refuses while an update runs, which is when this is needed
+    if cfg is None:
+        return {"operation": None, "active": False, "log": [], "problems": problems}
+    return ue.operation_status(cfg)
+
+
 @router.get("/check")
 def check(request: Request, channel: str = "stable"):
     """Read-only look at the public Releases API. Nothing is downloaded or changed."""

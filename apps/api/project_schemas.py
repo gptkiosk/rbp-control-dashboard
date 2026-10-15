@@ -25,6 +25,15 @@ class Node(Strict):
     rationale: str = Field(default='', max_length=2000)
     fallbacks: list[Literal['claude','codex','grok']] = Field(default_factory=list, max_length=3)
     routes: list[Route] = Field(default_factory=list, max_length=6)
+    # Standard job envelope for stories (see job_envelope.py). `work_kind` is the kind of work; `kind` above is phase|story.
+    # A plan is refused at approval when a story lacks work_kind, size, risk, estimate_minutes or route_reason.
+    work_kind: Literal['research', 'plan', 'implement', 'review', 'test', 'docs', 'ops', 'triage'] | None = None
+    size: Literal['xs', 's', 'm', 'l', 'xl'] | None = None
+    risk: Literal['low', 'medium', 'high'] | None = None
+    area: str = Field(default='', max_length=40, pattern=r'^([a-z0-9][a-z0-9._-]{0,39})?$')
+    estimate_minutes: int | None = Field(default=None, ge=1, le=100000)
+    route_reason: str = Field(default='', max_length=300)
+    assignee_user: str = Field(default='', max_length=120, pattern=r'^([A-Za-z0-9][A-Za-z0-9._@+-]{0,119})?$')  # for human stories: who they are for
 
     @field_validator('parent', mode='before')
     @classmethod

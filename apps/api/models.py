@@ -135,6 +135,15 @@ class Card(Base):
     estimate_minutes: Mapped[int | None] = mapped_column(Integer)
     tags: Mapped[str | None] = mapped_column(Text)  # JSON list of lowercase tags
     acceptance: Mapped[str | None] = mapped_column(Text)  # definition of done
+    # Standard job envelope (see job_envelope.py): filterable, aggregatable columns, all optional so older cards stay valid.
+    # Who a human task is assigned to (an approved user: an email or short name). None = unassigned. Agent tasks use `agent`/`model`.
+    assignee_user: Mapped[str | None] = mapped_column(String(255), index=True)
+    kind: Mapped[str | None] = mapped_column(String(16), index=True)  # research|plan|implement|review|test|docs|ops|triage
+    size: Mapped[str | None] = mapped_column(String(4))  # xs|s|m|l|xl
+    risk: Mapped[str | None] = mapped_column(String(8))  # low|medium|high
+    area: Mapped[str | None] = mapped_column(String(40))
+    route_tier: Mapped[str | None] = mapped_column(String(16))  # free|subscription|api|human, derived from the route
+    route_reason: Mapped[str | None] = mapped_column(String(300))
     column: Mapped[str] = mapped_column(String(20), default="backlog", index=True)
     position: Mapped[float] = mapped_column(Float, default=0.0)
     timeout_s: Mapped[int] = mapped_column(Integer)
@@ -460,3 +469,18 @@ class ProviderLimit(Base):
     handoffs: Mapped[int] = mapped_column(Integer, default=0)
     rerouted: Mapped[int] = mapped_column(Integer, default=0)
     resolved_at: Mapped[int | None] = mapped_column(Integer)
+
+
+class MaintenanceProposal(Base):
+    """A housekeeping action the coordinator proposed. It carries only finding ids frozen at proposal time; the operator's approval
+    makes the app (never a model) re-verify and apply them. ``status``: pending, applied, rejected, failed."""
+    __tablename__ = "maintenance_proposal"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    created_at: Mapped[int] = mapped_column(Integer)
+    created_by: Mapped[str] = mapped_column(String(255))
+    summary: Mapped[str] = mapped_column(String(500))
+    finding_ids: Mapped[str] = mapped_column(Text)  # JSON list
+    status: Mapped[str] = mapped_column(String(16), index=True, default="pending")
+    decided_at: Mapped[int | None] = mapped_column(Integer)
+    decided_by: Mapped[str | None] = mapped_column(String(255))
+    result: Mapped[str | None] = mapped_column(Text)  # JSON per-finding outcome

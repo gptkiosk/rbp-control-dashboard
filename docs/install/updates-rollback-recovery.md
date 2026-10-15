@@ -51,6 +51,25 @@ helper and return `202`. Poll `GET /api/updates` for progress.
   automatic rollback as the command line. No digest is typed. If work is running the install is refused and the verified
   package stays staged until you install it.
 
+### What the Updates panel shows while it works
+
+Every update, whether started from the panel or the command line, is recorded as numbered steps with their state, in
+`<root>/state/operation.json` and a plain log `<root>/state/operation.log` (both mode 600, newest update only): download the release,
+verify its signature, prepare it on this host, safety checks, back up your data, switch versions, restart and check health, finish.
+The panel shows them as they happen, how the update ended (succeeded, rolled back or refused, with the reason), and the log. A page
+reloaded or reopened during an update shows the same thing. If the helper stops without finishing, the panel says so after a few
+seconds instead of spinning.
+
+The record is written by the pinned helper. A host installed before the record existed keeps the older helper (updates never replace
+it), so it shows the single status line until you refresh it, once, from the current version:
+
+```sh
+python3 -I <root>/current/apps/api/update_helper.py --config <root>/helper/helper.json refresh-helper
+```
+
+`refresh-helper` copies the five helper files from the current, sealed version into `<root>/helper`, keeps the old copies in
+`<root>/helper/previous`, and refuses while an update is in progress.
+
 ### Switch a host to release-signature trust
 
 A host installed by the current `bootstrap-rcd.sh` is switched automatically when the package ships the release key and

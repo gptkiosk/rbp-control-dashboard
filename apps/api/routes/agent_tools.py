@@ -30,6 +30,12 @@ class DraftPatch(BaseModel):
     due_date: str | None = None
     estimate_minutes: int | None = None
     tags: list[str] | None = Field(default=None, max_length=20)
+    assignee_user: str | None = Field(default=None, max_length=120)
+    kind: str | None = Field(default=None, max_length=16)
+    size: str | None = Field(default=None, max_length=4)
+    risk: str | None = Field(default=None, max_length=8)
+    area: str | None = Field(default=None, max_length=40)
+    route_reason: str | None = Field(default=None, max_length=300)
 
 def operator(request):
     user = getattr(request.state, "user", None)

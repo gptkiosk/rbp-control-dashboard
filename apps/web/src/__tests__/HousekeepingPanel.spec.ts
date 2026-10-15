@@ -1,0 +1,63 @@
+import { afterEach, expect, it, vi } from 'vitest'
+import { mount, flushPromises } from '@vue/test-utils'
+import HousekeepingPanel from '@/components/HousekeepingPanel.vue'
+import { stubFetch, calls } from './helpers'
+
+afterEach(() => { vi.unstubAllGlobals() })
+
+const finding = (id: string, kind = 'stale_approval_wait') => ({ id, kind, reason: `Run ${id} was left waiting. There is nothing left to decide.`, action: 'Mark the run cancelled (superseded).', evidence: {} })
+const overview = (over: Record<string, unknown> = {}) => ({ findings: [], proposals: [], retention: { keep_newest_backups: 3, backup_min_age_days: 30 }, ...over })
+const button = (w: ReturnType<typeof mount>, text: string) => w.findAll('button').find(b => b.text() === text)
+
+it('says there is nothing to tidy and states the retention rule', async () => {
+  stubFetch(url => url === '/api/maintenance' ? { body: overview() } : undefined)
+  const w = mount(HousekeepingPanel); await flushPromises()
+  expect(w.text()).toContain('Nothing to tidy')
+  expect(w.text()).toContain('newest 3')
+  expect(w.text()).toContain('cannot change anything itself')
+  w.unmount()
+})
+
+it('needs a selection and a confirmation, then sends exactly the selected ids', async () => {
+  let applied = false
+  const f = stubFetch((url, init) => {
+    if (url === '/api/maintenance' && !init?.method) return { body: applied ? overview() : overview({ findings: [finding('stale_approval_wait:7'), finding('stale_approval_wait:81')] }) }
+    if (url === '/api/maintenance/apply' && init?.method === 'POST') { applied = true; return { body: { outcomes: [{ id: 'stale_approval_wait:7', status: 'applied' }] } } }
+    return undefined
+  })
+  const w = mount(HousekeepingPanel); await flushPromises()
+  const go = button(w, 'Resolve selected')!
+  expect(go.attributes('disabled')).toBeDefined()
+  await w.get('[data-testid="finding-stale_approval_wait:7"]').setValue(true)
+  expect(button(w, 'Resolve selected')!.attributes('disabled')).toBeDefined()        // still needs the confirmation
+  await w.findAll('input[type="checkbox"]').at(-1)!.setValue(true)
+  await button(w, 'Resolve selected')!.trigger('click'); await flushPromises()
+  const post = calls(f, 'POST', '/api/maintenance/apply')
+  expect(post).toHaveLength(1)
+  expect(JSON.parse(String(post[0]![1]!.body))).toEqual({ finding_ids: ['stale_approval_wait:7'], confirm: true })
+  expect(w.text()).toContain('1 resolved')
+  w.unmount()
+})
+
+it('shows what Hermes proposed and acts only on the operator’s click', async () => {
+  const proposal = { id: 3, created_by: 'hermes:op', summary: 'Three stale approval waits from 10-12 Oct.', finding_ids: ['stale_approval_wait:7'], status: 'pending', decided_by: null, result: null }
+  const f = stubFetch((url, init) => {
+    if (url === '/api/maintenance' && !init?.method) return { body: overview({ proposals: [proposal] }) }
+    if (url === '/api/maintenance/proposals/3/reject' && init?.method === 'POST') return { body: { ...proposal, status: 'rejected' } }
+    return undefined
+  })
+  const w = mount(HousekeepingPanel); await flushPromises()
+  expect(w.text()).toContain('Three stale approval waits from 10-12 Oct.')
+  expect(calls(f, 'POST', '/api/maintenance')).toHaveLength(0)                      // reading it changed nothing
+  await button(w, 'Reject')!.trigger('click'); await flushPromises()
+  expect(calls(f, 'POST', '/api/maintenance/proposals/3/reject')).toHaveLength(1)
+  expect(w.text()).toContain('Nothing was changed')
+  w.unmount()
+})
+
+it('reports a refused read without breaking the page', async () => {
+  stubFetch(() => ({ status: 403, body: { detail: 'forbidden' } }))
+  const w = mount(HousekeepingPanel); await flushPromises()
+  expect(w.get('[role="alert"]').text()).toContain('Operator sign-in is required')
+  w.unmount()
+})

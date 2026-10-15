@@ -50,6 +50,12 @@ class CardIn(BaseModel):
     max_attempts: int | None = Field(default=None, ge=1, le=10)
     retry_backoff_s: int | None = Field(default=None, ge=0, le=3600)
     budget_usd: float | None = Field(default=None, ge=0.01, le=50.0)
+    assignee_user: str | None = Field(default=None, max_length=120)
+    kind: str | None = Field(default=None, max_length=16)
+    size: str | None = Field(default=None, max_length=4)
+    risk: str | None = Field(default=None, max_length=8)
+    area: str | None = Field(default=None, max_length=40)
+    route_reason: str | None = Field(default=None, max_length=300)
 
 
 class CardPatch(BaseModel):
@@ -61,6 +67,12 @@ class CardPatch(BaseModel):
     estimate_minutes: int | None = None
     tags: list[str] | None = Field(default=None, max_length=20)
     acceptance: str | None = Field(default=None, max_length=20_000)
+    assignee_user: str | None = Field(default=None, max_length=120)
+    kind: str | None = Field(default=None, max_length=16)
+    size: str | None = Field(default=None, max_length=4)
+    risk: str | None = Field(default=None, max_length=8)
+    area: str | None = Field(default=None, max_length=40)
+    route_reason: str | None = Field(default=None, max_length=300)
     agent: str | None = None
     working_dir: str | None = None
     mode: str | None = None
@@ -130,6 +142,7 @@ def _card_dict(c: Card, last_run: Run | None = None, deps: tuple[dict, dict, dic
         "assignee_type": c.assignee_type, "priority": c.priority, "due_date": c.due_date,
         "estimate_minutes": c.estimate_minutes, "tags": json.loads(c.tags) if c.tags else [],
         "acceptance": c.acceptance,
+        "assignee_user": c.assignee_user, "kind": c.kind, "size": c.size, "risk": c.risk, "area": c.area, "route_tier": c.route_tier, "route_reason": c.route_reason,
         "depends_on": sorted(depends_on.get(c.id, [])), "blocked_by": sorted(blocked_by.get(c.id, [])),
         "dependents": sorted(dependents.get(c.id, [])),
         "agent_target": c.agent_target, "model": c.model, "mode": c.mode,

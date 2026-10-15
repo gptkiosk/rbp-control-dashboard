@@ -42,7 +42,7 @@ it('says what is available on an unmanaged host and offers no GitHub check, down
 it('does not contact GitHub on mount: only the local status is read', async () => {
   const f = stubFetch(url => url === '/api/app-updates' ? { body: managed() } : undefined)
   const w = mount(UpdatePanel); await flushPromises()
-  expect(f.mock.calls.map(([url, init]) => `${init?.method ?? 'GET'} ${url}`)).toEqual(['GET /api/app-updates'])
+  expect(f.mock.calls.map(([url, init]) => `${init?.method ?? 'GET'} ${url}`)).toEqual(['GET /api/app-updates', 'GET /api/app-updates/operation'])   // both local; nothing contacts GitHub
   expect(w.text()).not.toContain('Checked GitHub')
   w.unmount()
 })
@@ -376,5 +376,57 @@ it('says why when staging fails on the host instead of waiting out the clock', a
   await tick(2000); await flushPromises()
   expect(w.get('[role="alert"]').text()).toContain('Staging reported: staging failed: byte compilation failed')
   expect(sessionStorage.getItem('rcd-update-intent')).toBeNull()
+  w.unmount()
+})
+
+const operationBody = (state: string, over: Record<string, unknown> = {}) => ({
+  operation: { id: 'abcd1234', state, version: '1.1', message: state === 'succeeded' ? 'version 1.1 healthy' : 'Updating.', steps: [
+    { name: 'fetch', state: 'ok', detail: 'downloaded the manifest, signature and package' },
+    { name: 'verify', state: 'ok', detail: 'ssh-signature (dashboard-release)' },
+    { name: 'stage', state: 'ok', detail: 'prepared' },
+    { name: 'safety', state: 'ok', detail: 'nothing running or waiting' },
+    { name: 'snapshot', state: 'ok', detail: 'saved data-abc.db' },
+    { name: 'switch', state: 'ok', detail: 'the new version is in place' },
+    { name: 'health', state: state === 'succeeded' ? 'ok' : 'running', detail: 'waiting for healthy' }], ...over },
+  active: state === 'running', log: ['10:00:01  fetch: ok', '10:00:09  stage: ok', '10:01:00  result: succeeded - version 1.1 healthy'],
+})
+
+it('shows each step of the update, what it is doing, how it ended and the log, like the checkout updater', async () => {
+  stubFetch(url => {
+    if (url === '/api/app-updates') return { body: signed() }
+    if (url === '/api/app-updates/operation') return { body: operationBody('succeeded') }
+    return undefined
+  })
+  const w = mount(UpdatePanel); await flushPromises()
+  const block = w.get('[aria-label="Update progress"]')
+  expect(block.get('h4').text()).toBe('Update to v1.1: succeeded')
+  expect(block.findAll('ol.steps li').map(li => li.find('strong').text())).toEqual([
+    'Download the release from GitHub', 'Verify the release signature', 'Prepare it on this host', 'Safety checks', 'Back up your data', 'Switch versions', 'Restart and check health'])
+  expect(block.text()).toContain('ssh-signature (dashboard-release)')
+  expect(block.text()).toContain('version 1.1 healthy')
+  expect(block.get('details summary').text()).toBe('Log')
+  expect(block.get('details pre').text()).toContain('result: succeeded')
+  w.unmount()
+})
+
+it('shows a rollback and a refused update as problems with their reason, not as success', async () => {
+  stubFetch(url => {
+    if (url === '/api/app-updates') return { body: signed() }
+    if (url === '/api/app-updates/operation') return { body: operationBody('rolled_back', { message: 'The new version did not pass its health check and the previous version was restored.', steps: [{ name: 'health', state: 'failed', detail: 'health reports version 1.0' }] }) }
+    return undefined
+  })
+  const w = mount(UpdatePanel); await flushPromises()
+  const block = w.get('[aria-label="Update progress"]')
+  expect(block.get('h4').text()).toBe('Update to v1.1: rolled back')
+  expect(block.get('[role="alert"]').text()).toContain('previous version was restored')
+  expect(block.get('li[data-state="failed"]').text()).toContain('health reports version 1.0')
+  w.unmount()
+})
+
+it('works with an older helper that keeps no operation record', async () => {
+  stubFetch(url => url === '/api/app-updates' ? { body: signed() } : undefined)   // the operation route answers 404
+  const w = mount(UpdatePanel); await flushPromises()
+  expect(w.find('[aria-label="Update progress"]').exists()).toBe(false)
+  expect(w.text()).toContain('Running 1.0')
   w.unmount()
 })
