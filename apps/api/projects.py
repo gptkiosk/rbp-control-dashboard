@@ -453,6 +453,12 @@ def installation_text(s, settings):
         delegator = RoleStore(settings).delegator()
     except RoleError:
         delegator = None
+    try:
+        from github_config import GithubConfigStore
+        github = GithubConfigStore(settings.data_dir).config()
+        lines.append('GitHub: ' + (f"{len(github.repos)} repositor{'y' if len(github.repos) == 1 else 'ies'} on this install's list; writes are {'enabled' if settings.github_writes_enabled else 'disabled'}; new repositories are always private and need the operator's approval." if github else 'not configured.'))
+    except Exception:   # noqa: BLE001 - an unreadable GitHub config just leaves the line out
+        pass
     lines.append(f"Delegator (the coordinator): {delegator or 'none assigned'}.")
     lines.append('Spending policy: ' + ('free routes only (paid routes are refused)' if settings.dispatch_free_only else 'paid routes allowed when approved')
                  + f"; default budget per task ${settings.default_budget_usd:g}, ceiling ${settings.dispatch_max_budget_usd:g}.")

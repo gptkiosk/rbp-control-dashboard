@@ -18,6 +18,7 @@ The public RCD repository currently contains documentation, license and communit
 | How well the coordinator plans: scores, edits and outcomes | [Coordinator scorecard](configuration/coordinator-scorecard.md) |
 | Why a service is flagged, and run, restart or stop it | [Service actions](configuration/service-actions.md) |
 | Reporting a bug from the header, GitHub moderation and tasks | [Bug reports](configuration/bug-reports.md) |
+| From no repository to one set up for the project | [Repository bootstrap](configuration/repository-bootstrap.md) |
 
 The [MCD docs](https://github.com/gptkiosk/mac-control-dashboard/tree/main/docs) explain the shared Mac reference workflows. Mac LaunchAgents, Mac health probes and subscription apps are not Raspberry Pi deployment instructions. RCD's wiki indexes these versioned pages; repository docs are authoritative.
 

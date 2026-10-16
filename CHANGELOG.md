@@ -22,6 +22,11 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 - Bug intake (off by default, `MAC_CONTROL_BUG_INTAKE_ENABLED`). Issues a maintainer has labelled `bug-report` and `accepted` become one
   read-only triage task each, tagged `release-blocker` (label `break-fix`) or `release-queued`, with the report quoted as untrusted
   evidence. A Profile panel lists new tasks and the reports still waiting for a maintainer's label.
+- Repository bootstrap. Hermes can propose a new private GitHub repository for a project (`propose_repository`, behind a new Profile switch), which
+  waits in Profile under "GitHub actions waiting for you" with its exact request. Approving creates it under your account, always private, with an
+  initial README commit, and adds it to the install's GitHub list. A project's "Repository access for agents" form grants agents one branch,
+  `project-<id>/<name>`, never main. The planner starts a plan with the approval and setup steps when a repository is missing (role pack version 5).
+  See `docs/configuration/repository-bootstrap.md`.
 - A "Delivering a containerized web app, local first" guide and a paragraph in the coordinator context (role pack version 4): a private
   repository created first, a pipeline on Linux runners that builds and tests the image, a local run on Colima, and repository setup
   planned as the first step with the repository creation, first push and secrets left to a person.

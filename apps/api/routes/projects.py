@@ -2,12 +2,14 @@
 import json
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import PlainTextResponse
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 from deps import get_session
 from settings import get_settings
 from models import Project, ProjectTask, Card, CardDependency, Run
 from project_schemas import Close, Document, Save, Action, Retry, GoFree, ContinueOutput, Note, Accept, HandoffPolicy, Retier, RepairExecution, ModelLock
+import agent_git
 import projects
 import standards
 
@@ -29,6 +31,31 @@ def list_projects(request: Request,s: Session=Depends(get_session)):
 def create_project(body: Document,request: Request,s: Session=Depends(get_session)):
     identity=actor(request);write(s)
     p=projects.create(s,body.model_dump(),get_settings(),identity);s.commit();return projects.detail(s,p)
+
+class GitGrantIn(BaseModel):
+    model_config=ConfigDict(extra='forbid')
+    repo:str=Field(max_length=140)
+    dir:str=Field(max_length=82)
+    slug:str=Field(default='setup',max_length=41)
+    confirm:bool=False
+
+@router.get('/{project_id}/git-grant')
+def git_grant(project_id:int,request:Request,s:Session=Depends(get_session)):
+    actor(request);projects.get(s,project_id)
+    grant=agent_git.load(get_settings().agent_git_grants_file).get(project_id)
+    return {'clones':[{'dir':c.dir,'repo':c.repo,'branch':c.branch} for c in grant.clones] if grant else []}
+
+@router.post('/{project_id}/git-grant',status_code=201)
+def add_git_grant(project_id:int,body:GitGrantIn,request:Request,s:Session=Depends(get_session)):
+    """Let agents commit and push ONE branch (project-<id>/<slug>) of ONE allowlisted repository for this project. Operator only, never from agent output."""
+    who=actor(request);projects.get(s,project_id)
+    if not body.confirm:raise HTTPException(422,'Confirm the exact repository, folder and branch first.')
+    config=request.app.state.github.config()
+    if config is None or body.repo.lower() not in {r.lower() for r in config.repos}:raise HTTPException(422,'That repository is not on this install\'s GitHub list.')
+    try:grant=agent_git.add_clone(get_settings().agent_git_grants_file,project_id,body.repo,body.dir,body.slug)
+    except agent_git.GrantError as exc:raise HTTPException(422,str(exc)) from None
+    projects.memory(s,projects.get(s,project_id),'decision',f'Operator granted agents branch access: {body.repo} in folder {body.dir} on project-{project_id}/{body.slug}.',who);s.commit()
+    return {'clones':[{'dir':c.dir,'repo':c.repo,'branch':c.branch} for c in grant.clones]}
 
 @router.get('/consultant-context')
 def consultant_context(working_dir:str,request:Request,s:Session=Depends(get_session)):
