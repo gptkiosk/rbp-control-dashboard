@@ -580,7 +580,8 @@ def plan(s,p,action,settings,actor,subagents=None):
     prompt = role_prompt('coordinate', candidates=json.dumps(choices), project=_brief(p))
     c=_queue(s,p,'coordinate',delegate['agent'],delegate['model'],prompt,settings)
     p.state='planning'; p.error=None; p.pipeline=json.dumps({'step':'coordinate','delegator':delegate,'card_id':c.id,'choices':choices,'fresh':bool(action.fresh),'revision':p.revision,'execution_catalog':execution_catalog(settings,subagents,d['planning_bias'])})
-    memory(s,p,'decision',f'Operator approved planning revision {p.revision}: Delegator {delegate["agent"]} · {delegate["model"]}; candidates {json.dumps(choices)}; API planner approval={action.approve_api_planning}; planning {'from scratch, current stories not shown to the planner' if action.fresh else 'from the current map'}. Provider limits apply; budget is not a universal hard cap.',actor)
+    planning_mode='from scratch, current stories not shown to the planner' if action.fresh else 'from the current map'
+    memory(s,p,'decision',f'Operator approved planning revision {p.revision}: Delegator {delegate["agent"]} · {delegate["model"]}; candidates {json.dumps(choices)}; API planner approval={action.approve_api_planning}; planning {planning_mode}. Provider limits apply; budget is not a universal hard cap.',actor)
 
 def _json_result(raw):
     value=(raw or '').strip()
