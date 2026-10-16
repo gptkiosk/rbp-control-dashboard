@@ -37,7 +37,7 @@ watch(() => [props.projectId, props.revision], load, { immediate: true })
       <p v-if="error" class="notice-warn" role="alert">{{ error }}</p>
       <article v-for="p in proposals" :key="p.id" :data-testid="`proposal-${p.id}`">
         <p><strong>{{ p.status === 'pending' ? 'Waiting for you:' : p.status }}</strong> {{ p.summary }} <span class="muted">({{ p.section }}, proposed by {{ p.created_by }})</span></p>
-        <details :open="p.status === 'pending'"><summary>The exact change</summary><pre class="patch">{{ p.patch }}</pre></details>
+        <details :open="p.status === 'pending'"><summary>The exact change</summary><pre class="patch log-window code">{{ p.patch }}</pre></details>
         <p v-if="p.result?.branch" class="muted">Committed on branch <code>{{ p.result.branch }}</code>. {{ p.result.note }}</p>
         <p v-else-if="p.result?.reason" class="notice-warn" role="status">{{ p.result.reason }}</p>
         <p v-if="p.status === 'pending'" class="actions">
@@ -53,7 +53,6 @@ watch(() => [props.projectId, props.revision], load, { immediate: true })
 .standards { display: grid; gap: var(--gap-xs); }
 .small { font-size: var(--font-size-sm); margin: 0; }
 .proposals { display: grid; gap: var(--gap-sm); }
-.patch { overflow-x: auto; font-size: var(--font-size-sm); background: var(--accent-soft); padding: var(--gap-sm); border-radius: var(--radius); white-space: pre; }
 .actions { display: flex; flex-direction: row; gap: var(--gap-sm); margin: 0; }
 ul { margin: var(--gap-xs) 0 0; padding-left: 1.2rem; }
 </style>

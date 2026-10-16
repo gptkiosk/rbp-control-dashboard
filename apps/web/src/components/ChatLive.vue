@@ -38,7 +38,7 @@ watch(done, (d) => {
         {{ stopping ? 'Stopping…' : 'Stop' }}
       </button>
     </header>
-    <pre ref="scroller" class="log mono" tabindex="0" aria-label="Live output" data-testid="chat-live-log">{{ text }}</pre>
+    <pre ref="scroller" class="log log-window" tabindex="0" aria-label="Live output" data-testid="chat-live-log">{{ text }}</pre>
     <p v-if="!text && !done && !error" class="muted small note">Waiting for output…</p>
     <p v-if="error" class="error-text small note" role="alert">Live output unavailable: {{ error }}</p>
   </section>
@@ -90,19 +90,7 @@ watch(done, (d) => {
 }
 
 .log {
-  margin: 0;
   max-height: var(--chat-log-height);
-  padding: var(--gap-sm);
-  overflow: auto;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  background: var(--bg);
-  border: 1px solid var(--panel-border);
-  border-radius: var(--radius);
-}
-
-.log:empty {
-  display: none;
 }
 
 .note {

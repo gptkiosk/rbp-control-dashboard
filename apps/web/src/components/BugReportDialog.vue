@@ -91,7 +91,7 @@ function reset() { form.value = { title: '', what: '', expected: '', steps: '', 
         <section v-if="preview" class="preview" aria-label="What will be sent">
           <h3 class="preview-title">This is what will be sent</h3>
           <p class="mono small">{{ preview.title }}</p>
-          <pre class="body" data-testid="bug-preview-body">{{ preview.body }}</pre>
+          <pre class="log-window" data-testid="bug-preview-body">{{ preview.body }}</pre>
           <p v-if="preview.scrubbed.length" class="muted small" data-testid="bug-scrubbed">Removed before sending: {{ preview.scrubbed.join('; ') }}.</p>
           <p v-if="preview.truncated" class="muted small">The text was shortened to fit a link; you can add the rest on GitHub.</p>
           <label v-if="preview.mode === 'direct'" class="check"><input v-model="confirmed" type="checkbox" /><span>I have read this and want it filed on GitHub as my signed-in account.</span></label>
@@ -125,7 +125,6 @@ p { margin: 0; }
 .check input { margin-top: 0.2rem; flex-shrink: 0; }
 .preview { display: flex; flex-direction: column; gap: var(--gap-sm); padding: var(--gap); border: 1px solid var(--select-border); border-radius: var(--radius); background: var(--glass-bg); }
 .preview-title { margin: 0; font-size: var(--font-size); font-weight: var(--font-weight-strong); }
-.body { white-space: pre-wrap; max-height: 16rem; overflow: auto; margin: 0; padding: var(--gap-sm) var(--gap); border-radius: var(--radius); background: var(--bg); font-size: var(--font-size-sm); }
 .actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: var(--gap-sm); padding-top: var(--gap-lg); border-top: 1px solid var(--glass-border); }
 .actions .btn { min-height: var(--select-height); text-decoration: none; }
 @media (max-width: 600px) {

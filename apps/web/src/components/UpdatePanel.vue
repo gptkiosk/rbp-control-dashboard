@@ -365,18 +365,22 @@ onBeforeUnmount(() => { alive = false; if (timer) clearTimeout(timer) })
             <dt>Authenticity</dt><dd>{{ candidate.authenticity }}</dd>
           </dl>
           <h4>Release notes (plain text)</h4>
-          <pre class="notes">{{ candidate.notes || 'This release has no notes.' }}</pre>
-          <a v-if="releaseLink" :href="releaseLink" target="_blank" rel="noopener noreferrer">View this release on GitHub</a>
+          <pre class="notes log-window">{{ candidate.notes || 'This release has no notes.' }}</pre>
           <p v-if="refused" class="notice-warn" role="alert">{{ refused }}</p>
-          <button v-else-if="signed" class="btn primary" :disabled="!canChange" @click="askUpdate">Update to {{ candidate.version }}</button>
-          <button v-else class="btn primary" :disabled="!canChange" @click="askDownload">Download and verify {{ candidate.version }}</button>
+          <div class="actions">
+            <a v-if="releaseLink" class="release-link" :href="releaseLink" target="_blank" rel="noopener noreferrer">View this release on GitHub</a>
+            <template v-if="!refused">
+              <button v-if="signed" class="btn primary" :disabled="!canChange" @click="askUpdate">Update to {{ candidate.version }}</button>
+              <button v-else class="btn primary" :disabled="!canChange" @click="askDownload">Download and verify {{ candidate.version }}</button>
+            </template>
+          </div>
         </article>
 
         <section v-if="updateAsk && candidate && signed" class="confirm" aria-labelledby="update-title">
           <h3 id="update-title">Update to {{ candidate.version }}</h3>
           <p>Downloads the release from {{ candidate.repository }}, verifies its signature against the release key pinned on this host, then installs it. The service restarts for a short time; a data snapshot is taken first, and if the new version does not pass its health check the previous one is put back automatically.</p>
           <h4>What changed in {{ candidate.version }} (plain text)</h4>
-          <pre class="notes">{{ candidate.notes || 'This release has no notes.' }}</pre>
+          <pre class="notes log-window">{{ candidate.notes || 'This release has no notes.' }}</pre>
           <ul class="preflight">
             <li>Nothing may be running, queued, waiting for approval or dispatching: the server checks before it stops anything.</li>
             <li>Running or waiting work: {{ blockers.length ? blockers.join('; ') : 'none found' }}.</li>
@@ -403,7 +407,7 @@ onBeforeUnmount(() => { alive = false; if (timer) clearTimeout(timer) })
         <UpdateProgress v-if="opStatus?.operation" :operation="opStatus.operation" :log="opStatus.log" />
         <p v-if="downloading" class="status" role="status">{{ signed ? `Downloading, verifying the signature and preparing it on this host${install?.tx ? ` (${PHASES[install.tx.phase] ?? 'working'})` : ''}. Nothing is installed until this finishes. On a Raspberry Pi this can take several minutes: you can leave or reload this page and it will carry on with the update you confirmed.` : 'Downloading and verifying. Nothing is installed yet.' }}</p>
 
-        <p>Installed <strong>{{ label(install?.current) }}</strong> · Previous: {{ install?.previous ? label(install.previous) : 'none kept' }}</p>
+        <p class="installed">Installed <strong>{{ label(install?.current) }}</strong> <span class="sep" aria-hidden="true">·</span> Previous: {{ install?.previous ? label(install.previous) : 'none kept' }}</p>
         <ul v-if="blockers.length" class="updates" aria-label="Work that must finish first">
           <li v-for="b in blockers" :key="b">{{ b }}</li>
         </ul>
@@ -411,7 +415,8 @@ onBeforeUnmount(() => { alive = false; if (timer) clearTimeout(timer) })
         <p v-if="blockers.some(b => b.includes('waiting on a human decision'))" class="muted small">If an approval wait is an old run that is already finished, <a href="#housekeeping">Housekeeping</a> below can resolve it.</p>
         <p v-if="install?.needs_recovery && !helperBusy" class="notice-warn" role="alert">An earlier update was interrupted. Run recovery on the host before changing versions.</p>
 
-        <h3>Available</h3>
+        <section class="block" aria-labelledby="available-title">
+        <h3 id="available-title" class="block-title">Available</h3>
         <ul v-if="installable.length" class="updates">
           <li v-for="v in installable" :key="v.id" class="release">
             <strong>{{ v.version }}</strong> · {{ v.channel }} · {{ v.change ?? 'change unknown' }} · staged {{ when(v.staged_at) }}
@@ -431,11 +436,14 @@ onBeforeUnmount(() => { alive = false; if (timer) clearTimeout(timer) })
         <ul v-if="notOffered.length" class="updates" aria-label="Staged but not offered">
           <li v-for="v in notOffered" :key="v.id">{{ v.version ?? v.id }}: {{ unavailable(v) }}</li>
         </ul>
+        </section>
 
-        <h3>Rollback</h3>
+        <section class="block" aria-labelledby="rollback-title">
+        <h3 id="rollback-title" class="block-title">Rollback</h3>
         <p v-if="previous?.complete">Roll back to <strong>{{ previous.version }}</strong>, the version before the current one.</p>
         <p v-else class="muted">No previous version is kept, so there is nothing to roll back to.</p>
-        <button v-if="previous?.complete" class="btn" :disabled="!canRollback" @click="ask('rollback', previous)">Roll back to {{ previous.version }}</button>
+        <div v-if="previous?.complete" class="actions"><button class="btn" :disabled="!canRollback" @click="ask('rollback', previous)">Roll back to {{ previous.version }}</button></div>
+        </section>
 
         <section v-if="pending" class="confirm" aria-labelledby="confirm-title">
           <h3 id="confirm-title">{{ pending.kind === 'install' ? `Install ${pending.version.version}` : `Roll back to ${pending.version.version}` }}</h3>
@@ -462,24 +470,39 @@ onBeforeUnmount(() => { alive = false; if (timer) clearTimeout(timer) })
   </section>
 </template>
 <style scoped>
-.update-panel { margin: var(--gap-lg) 0; display: grid; gap: var(--gap); }
+.update-panel { margin: var(--gap-lg) 0; display: grid; gap: var(--gap-lg); padding: var(--gap-lg); }
 .lead { max-width: 72ch; line-height: var(--line-height); margin: 0; }
 .trust { max-width: 72ch; line-height: var(--line-height); }
-.older summary { cursor: pointer; padding: var(--gap-xs) 0; }
+.older summary { cursor: pointer; padding: var(--gap-sm) 0; }
 .update-panel > .btn { justify-self: start; }
 h2, h3, h4 { margin: 0; }
+h3 { font-size: var(--font-size); font-weight: var(--font-weight-strong); }
+h4 { font-size: var(--font-size-sm); font-weight: var(--font-weight-strong); color: var(--text-muted); }
 .status { font-weight: 600; margin: 0; }
+.installed { margin: 0; padding: var(--gap) 0; border-top: 1px solid var(--glass-border); border-bottom: 1px solid var(--glass-border); }
+.sep { margin: 0 var(--gap-xs); color: var(--text-muted); }
 .small { font-size: var(--font-size-xs); margin: 0; }
-.actions { display: flex; gap: var(--gap); flex-wrap: wrap; align-items: center; }
+.actions { display: flex; gap: var(--gap-sm); flex-wrap: wrap; align-items: center; }
 .actions label { display: flex; gap: var(--gap-sm); align-items: center; margin: 0; }
-.updates { display: grid; gap: var(--gap-sm); padding-left: 1.5rem; line-height: var(--line-height); }
-.release, .confirm { display: grid; gap: var(--gap-sm); border: 1px solid var(--surface-border); border-radius: var(--radius); padding: var(--gap); justify-items: start; }
+.actions .btn { min-height: var(--select-height); }
+.release-link { margin-right: auto; color: var(--accent); }
+.block { display: grid; gap: var(--gap); }
+.block-title { padding-bottom: var(--gap-xs); }
+.updates { display: grid; gap: var(--gap-sm); margin: 0; padding-left: 1.5rem; line-height: var(--line-height); }
+.release, .confirm { display: grid; gap: var(--gap); border: 1px solid var(--surface-border); border-radius: var(--radius); padding: var(--gap-lg); background: var(--glass-bg); justify-items: stretch; }
+.release p, .confirm p { margin: 0; line-height: var(--line-height); }
+.release .actions, .confirm .actions { justify-content: flex-end; padding-top: var(--gap); border-top: 1px solid var(--glass-border); }
 .facts { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: var(--gap-xs) var(--gap); margin: 0; font-size: var(--font-size-sm); }
 .facts dt { color: var(--text-muted); }
 .facts dd { margin: 0; overflow-wrap: anywhere; }
 .mono { font-family: var(--font-mono, ui-monospace, monospace); font-size: var(--font-size-xs); }
-.notes { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 16rem; overflow: auto; margin: 0; width: 100%; box-sizing: border-box; padding: var(--gap-sm); border: 1px solid var(--surface-border); border-radius: var(--radius); }
-.preflight { margin: 0; padding-left: 1.5rem; list-style: disc; line-height: var(--line-height); display: grid; gap: var(--gap-xs); }
-.check { display: flex; align-items: flex-start; gap: var(--gap-sm); }
-.check input { flex: none; margin-top: var(--gap-xs); accent-color: var(--accent); }
+.preflight { margin: 0; padding-left: 1.5rem; list-style: disc; line-height: var(--line-height); display: grid; gap: var(--gap-sm); }
+.check { display: flex; align-items: flex-start; gap: var(--gap-sm); line-height: var(--line-height); padding: var(--gap-xs) 0; }
+.check input { flex: none; margin-top: 0.3rem; accent-color: var(--accent); }
+@media (max-width: 600px) {
+  .update-panel { padding: var(--gap); }
+  .release, .confirm { padding: var(--gap); }
+  .release .actions, .confirm .actions { justify-content: stretch; }
+  .release .actions .btn, .confirm .actions .btn { flex: 1 1 100%; }
+}
 </style>

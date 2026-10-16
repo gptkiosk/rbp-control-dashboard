@@ -79,7 +79,7 @@ function refreshAll() { refresh(); health.value?.refresh(); if (selected.value) 
             <p><button class="btn" @click="planProject">Plan project from this report</button></p>
           </template>
           <div v-if="content?.format === 'markdown'" class="markdown-report" v-html="html" />
-          <pre v-else-if="content" class="text-report">{{ content.content }}</pre>
+          <pre v-else-if="content" class="log-window tall">{{ content.content }}</pre>
         </article>
       </div>
     </template>
@@ -102,7 +102,6 @@ label { display: grid; gap: var(--gap-sm); color: var(--text-muted); }
 h2 { font-size: var(--font-size-lg); margin-top: 0; }
 header { border-bottom: 1px solid var(--surface-border); margin-bottom: 0; }
 header p { font-size: var(--font-size-xs); }
-.text-report { white-space: pre-wrap; overflow-wrap: anywhere; }
 .markdown-report { line-height: 1.7; }
 .markdown-report :deep(> :first-child) { margin-top: 0; }
 .markdown-report :deep(p) { margin: .8em 0; }

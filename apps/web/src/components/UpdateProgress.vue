@@ -30,7 +30,7 @@ const messageClass = computed(() => props.operation.state === 'succeeded' ? 'sta
     </ol>
     <details v-if="log.length">
       <summary>Log</summary>
-      <pre class="notes">{{ log.join('\n') }}</pre>
+      <pre class="notes log-window">{{ log.join('\n') }}</pre>
     </details>
   </section>
 </template>
@@ -39,13 +39,16 @@ h4, p { margin: 0; }
 h4 { font-size: var(--font-size); font-weight: var(--font-weight-strong); }
 .status { font-weight: 600; }
 .small { font-size: var(--font-size-sm); }
-.block { display: grid; gap: var(--gap); padding: var(--gap); border: 1px solid var(--surface-border); border-radius: var(--radius); background: var(--accent-soft); justify-items: start; }
+.block { display: grid; gap: var(--gap); padding: var(--gap-lg); border: 1px solid var(--surface-border); border-radius: var(--radius); background: var(--accent-soft); justify-items: start; }
 .block > * { min-width: 0; max-width: 100%; }
 .block p { max-width: 72ch; line-height: var(--line-height); }
-.steps { list-style: decimal; display: grid; gap: var(--gap-sm); margin: 0; padding-left: 1.25rem; line-height: var(--line-height); }
-.steps .state { margin-left: var(--gap-xs); }
-.steps .detail { display: block; }
+.steps { list-style: decimal; display: grid; gap: var(--gap); margin: 0; padding-left: 1.5rem; line-height: var(--line-height); }
+.steps li::marker { color: var(--text-muted); font-weight: var(--font-weight-strong); }
+.steps .state { margin-left: var(--gap-sm); padding: 0.05rem var(--gap-sm); border-radius: var(--radius-pill); border: 1px solid var(--glass-border); font-size: var(--font-size-xs); color: var(--text-muted); text-transform: lowercase; }
+.steps li[data-state='ok'] .state { color: var(--accent); border-color: var(--accent); }
+.steps li[data-state='running'] .state { color: var(--text); border-color: var(--text-muted); }
+.steps .detail { display: block; margin-top: var(--gap-xs); }
 .steps li[data-state='failed'] { color: var(--danger, #ef4f4f); }
-.notes { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 14rem; overflow: auto; margin: 0 0 var(--gap-sm); width: 100%; box-sizing: border-box; padding: var(--gap-sm) var(--gap); border: 1px solid var(--surface-border); border-radius: var(--radius); font-family: var(--font-mono, ui-monospace, monospace); font-size: var(--font-size-sm); line-height: var(--line-height); background: var(--panel); }
-summary { cursor: pointer; padding: var(--gap-xs) 0; }
+summary { cursor: pointer; padding: var(--gap-sm) 0; }
+details { width: 100%; }
 </style>
