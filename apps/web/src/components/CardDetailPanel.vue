@@ -408,7 +408,7 @@ async function save(): Promise<void> {
             </h3>
             <button type="button" class="btn" :disabled="locked || busy" @click="startEdit">Edit</button>
           </div>
-          <pre class="prompt">{{ card.body }}</pre>
+          <pre class="log-window">{{ card.body }}</pre>
           <dl v-if="!human" class="facts">
             <div>
               <dt>Model</dt>
@@ -461,7 +461,7 @@ async function save(): Promise<void> {
             <TagPill v-for="tag in card.tags" :key="tag" :tag="tag" />
           </div>
           <h3 class="sub-title">Definition of done</h3>
-          <pre v-if="card.acceptance" class="prompt">{{ card.acceptance }}</pre>
+          <pre v-if="card.acceptance" class="log-window">{{ card.acceptance }}</pre>
           <p v-else class="muted small">No definition of done yet.</p>
         </section>
 
@@ -755,7 +755,7 @@ async function save(): Promise<void> {
 
           <section class="block" aria-labelledby="result-h">
             <h3 id="result-h" class="sub-title">Result</h3>
-            <pre v-if="selectedRun.result_text" class="prompt" data-testid="run-result">{{
+            <pre v-if="selectedRun.result_text" class="log-window tall" data-testid="run-result">{{
               selectedRun.result_text
             }}</pre>
             <p v-else class="muted small">
@@ -868,17 +868,6 @@ async function save(): Promise<void> {
 .message[data-tone='danger'] {
   background: var(--danger-soft);
   border-color: var(--danger);
-}
-
-.prompt {
-  margin: 0;
-  padding: var(--gap-sm);
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  font: inherit;
-  background: var(--bg);
-  border: 1px solid var(--panel-border);
-  border-radius: var(--radius);
 }
 
 .facts,

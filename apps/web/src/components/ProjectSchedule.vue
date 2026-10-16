@@ -25,6 +25,8 @@ const limited = computed(() => !!props.schedule && props.schedule.width > props.
 </template>
 
 <style scoped>
-.schedule { display: flex; flex-direction: column; gap: var(--gap-sm); }
+.schedule { display: flex; flex-direction: column; gap: var(--gap-sm); margin-bottom: var(--gap); }
+.schedule h3 { margin: 0; font-size: var(--font-size); font-weight: var(--font-weight-strong); }
+.schedule p { margin: 0; }
 .problems { margin: 0; padding-left: 1.2rem; }
 </style>

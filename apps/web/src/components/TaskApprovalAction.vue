@@ -86,7 +86,7 @@ async function approve(reject = false) {
         <h2 :id="`decision-title-${card.id}`">{{ kind === 'gate' ? 'Run needs your decision' : 'Record operator decision' }}</h2>
         <p><strong>{{ card.title }}</strong></p>
         <p class="instructions">{{ kind === 'gate' ? gate?.question : card.body }}</p>
-        <pre v-if="kind === 'gate' && gate?.proposed_output?.preview" class="instructions">{{ gate.proposed_output.preview }}</pre>
+        <pre v-if="kind === 'gate' && gate?.proposed_output?.preview" class="log-window">{{ gate.proposed_output.preview }}</pre>
         <label v-if="kind === 'gate' && gate?.options?.length">Choose an option<select v-model="option" class="input"><option value="">Select…</option><option v-for="o in gate.options" :key="o.id" :value="o.id">{{ o.label }}</option></select></label>
         <p v-if="card.acceptance" class="instructions muted">Definition of done: {{ card.acceptance }}</p>
         <label :for="`decision-${card.id}`">Your decision</label>
@@ -106,7 +106,6 @@ async function approve(reject = false) {
 .decision-form { display:grid; gap:var(--gap); }
 .decision-form h2,.decision-form p { margin:0; }
 .decision-form h2 { font-size:var(--font-size-xl); font-weight:var(--font-weight-strong); }
-.instructions { white-space:pre-wrap; overflow-wrap:anywhere; line-height:var(--line-height); }
 .decision-actions { display:flex; justify-content:flex-end; gap:var(--gap-sm); flex-wrap:wrap; margin-top:var(--gap); }
 @media (max-width:600px) { .decision-dialog :deep(.modal-panel) { padding:var(--gap); } }
 </style>

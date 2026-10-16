@@ -90,7 +90,7 @@ async function submit(): Promise<void> {
       <p class="muted small">{{ finding.id }} · {{ evidenceLabel }}</p>
       <p class="muted small">Report <code>{{ reportId }}</code></p>
       <p><strong>{{ finding.reason }}</strong></p>
-      <pre class="evidence" data-testid="finding-evidence">{{ finding.evidence || 'No evidence text in this section.' }}</pre>
+      <pre class="log-window" data-testid="finding-evidence">{{ finding.evidence || 'No evidence text in this section.' }}</pre>
       <p class="muted small">The task is created in Backlog. Nothing is queued or run until you start it.</p>
 
       <p v-if="loading" class="muted" role="status">Loading agents…</p>
@@ -159,5 +159,4 @@ async function submit(): Promise<void> {
 .head, .actions { display: flex; align-items: center; justify-content: space-between; }
 .actions { justify-content: flex-end; gap: var(--gap-sm); }
 .row { display: grid; grid-template-columns: repeat(auto-fit, minmax(var(--tile-min-width), 1fr)); gap: var(--gap); }
-.evidence { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 16rem; overflow-y: auto; padding: var(--gap); background: var(--bg); border: 1px solid var(--surface-border); border-radius: var(--radius-sm); font-size: var(--font-size-xs); }
 </style>

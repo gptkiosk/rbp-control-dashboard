@@ -35,7 +35,7 @@ watch(text, async () => {
   <div class="run-log">
     <pre
       ref="scroller"
-      class="log mono"
+      class="log log-window"
       tabindex="0"
       aria-label="Run log"
       data-testid="run-log"
@@ -61,15 +61,7 @@ watch(text, async () => {
 }
 
 .log {
-  width: 100%;
   height: var(--log-height);
-  margin: 0;
-  padding: var(--gap-sm);
-  overflow: auto;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  background: var(--bg);
-  border: 1px solid var(--panel-border);
-  border-radius: var(--radius);
+  max-height: none;
 }
 </style>

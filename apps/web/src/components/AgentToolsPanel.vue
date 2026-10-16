@@ -192,7 +192,7 @@ onBeforeUnmount(() => { disposed = true; if (timer) clearTimeout(timer) })
             <p v-if="working && progressTool === t.id" class="status" role="status" data-test="progress">{{ progress }}</p>
             <details v-if="status.log.length && showToolLog(t.id)" :open="working && progressTool === t.id">
               <summary>{{ t.name }} helper log (last {{ status.log.length }} lines)</summary>
-              <pre class="log">{{ status.log.join('\n') }}</pre>
+              <pre class="log log-window">{{ status.log.join('\n') }}</pre>
             </details>
           </div>
           <ul v-if="reasons(t).length" class="why" aria-label="Why a button is off"><li v-for="x in reasons(t)" :key="x.r" class="muted small">{{ VERB[x.a] }}: {{ x.r }}</li></ul>
@@ -262,7 +262,6 @@ code, .mono { font-family: var(--font-mono, ui-monospace, monospace); font-size:
 .runtime { display: block; }
 .commands { margin: 0; padding-left: var(--gap); display: grid; gap: var(--gap-xs); }
 .warn { margin: 0; padding: 0; list-style: none; display: grid; gap: var(--gap-xs); }
-.log { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 14rem; overflow: auto; margin: 0; padding: var(--gap-sm); border: 1px solid var(--surface-border); border-radius: var(--radius); font-size: var(--font-size-xs); }
 .check { display: flex; align-items: flex-start; gap: var(--gap-sm); }
 .check input { flex: none; margin-top: var(--gap-xs); accent-color: var(--accent); }
 .login { display: grid; gap: var(--gap-xs); }

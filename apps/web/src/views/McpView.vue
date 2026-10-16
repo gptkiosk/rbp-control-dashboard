@@ -318,7 +318,7 @@ async function reject(c: McpChange): Promise<void> {
 
           <details v-if="c.output" class="output" :open="c.status === 'failed'">
             <summary class="small">Output</summary>
-            <pre class="mono out" data-testid="change-output">{{ c.output }}</pre>
+            <pre class="log-window" data-testid="change-output">{{ c.output }}</pre>
           </details>
         </li>
       </ul>
@@ -547,15 +547,4 @@ async function reject(c: McpChange): Promise<void> {
   gap: var(--gap-sm);
 }
 
-.out {
-  max-height: var(--output-max-height);
-  margin: var(--gap-sm) 0 0;
-  padding: var(--gap-sm);
-  overflow: auto;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  background: var(--panel);
-  border: 1px solid var(--panel-border);
-  border-radius: var(--radius);
-}
 </style>

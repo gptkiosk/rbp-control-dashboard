@@ -39,6 +39,10 @@ _PATTERNS: tuple[tuple[str, re.Pattern[str], str], ...] = (
 )
 
 
+_SINGULAR = {"tokens": "token", "emails": "email", "home paths": "home path", "host names": "host name", "addresses": "address",
+             "long secrets": "long secret", "credentials in links": "credentials in a link"}
+
+
 def scrub(text: str) -> tuple[str, list[str]]:
     """The text with anything that identifies a person, a machine or a credential replaced, and a short list of what was replaced."""
     found: dict[str, int] = {}
@@ -47,7 +51,7 @@ def scrub(text: str) -> tuple[str, list[str]]:
         out, n = pattern.subn(repl, out)
         if n:
             found[name] = found.get(name, 0) + n
-    return out, [f"{count} {name}" for name, count in found.items()]
+    return out, [f"{count} {name if count != 1 else _SINGULAR.get(name, name)}" for name, count in found.items()]
 
 
 def _clean(value: object, limit: int) -> str:
