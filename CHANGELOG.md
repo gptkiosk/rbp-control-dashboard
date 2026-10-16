@@ -10,6 +10,44 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-10-16
+
+New in 0.6.0: a bug icon in the header, repository bootstrap for projects that need a new private GitHub repository, and an opt-in parallel build. Bug
+intake, Hermes repository proposals and the parallel auto-accept gate are all off until you turn them on, and a project builds serially unless you switch parallel on.
+
+### Added
+
+- A Discord alert when a project's planning or story hand-out stops after its run succeeded, for example when the plan is refused for a
+  missing field or a bad dependency. Until now only failed runs alerted, so a plan that came back and then failed validation was
+  silent. One alert per project, revision and reason; turn it off with `[projects] enabled = false` in `alerts.toml`.
+- A bug icon in the header. It opens a short form, shows the exact issue that would be sent (with paths, emails, addresses and
+  key-shaped text removed and listed), and then either files it on the product's official GitHub repository as your signed-in account
+  (through the same guarded GitHub action as other writes, after you confirm) or opens a prefilled GitHub page for you to submit under
+  your own account. No token, relay or hosted service is involved. See `docs/configuration/bug-reports.md`.
+- Bug intake (off by default, `MAC_CONTROL_BUG_INTAKE_ENABLED`). Issues a maintainer has labelled `bug-report` and `accepted` become one
+  read-only triage task each, tagged `release-blocker` (label `break-fix`) or `release-queued`, with the report quoted as untrusted
+  evidence. A Profile panel lists new tasks and the reports still waiting for a maintainer's label.
+- Build in parallel, a switch chosen when a project is created (off by default; off builds one story at a time in dependency order). On, the planner is told to
+  plan branches that change different files, with a `touches` list per editing story and integration stories where branches join (role pack version 6).
+  Submission refuses two stories that can run together but overlap, a longest-chain-first build order, a schedule readout (longest chain, best-case
+  speed-up, width, and the real overlap once runs finish), integration-story instructions, and an optional lighter gate
+  (`MAC_CONTROL_PROJECT_AUTO_ACCEPT_LOW`, off by default) that accepts low-risk stories whose changes stay inside their declared files. See `docs/PROJECTS.md`.
+- Repository bootstrap. Hermes can propose a new private GitHub repository for a project (`propose_repository`, behind a new Profile switch), which
+  waits in Profile under "GitHub actions waiting for you" with its exact request. Approving creates it under your account, always private, with an
+  initial README commit, and adds it to the install's GitHub list. A project's "Repository access for agents" form grants agents one branch,
+  `project-<id>/<name>`, never main. The planner starts a plan with the approval and setup steps when a repository is missing (role pack version 5).
+  See `docs/configuration/repository-bootstrap.md`.
+- A "Delivering a containerized web app, local first" guide and a paragraph in the coordinator context (role pack version 4): a private
+  repository created first, a pipeline on Linux runners that builds and tests the image, a local run on Colima, and repository setup
+  planned as the first step with the repository creation, first push and secrets left to a person.
+
+### Fixed
+
+- The Updates page no longer calls a normal update interrupted. While the helper is staging or removing a version (minutes on a Raspberry
+  Pi) the page used to warn "An earlier update was interrupted" and list the folder being built or removed as "only partly staged".
+  Both are shown only when no helper is working, so a real interruption still says so. After a successful update the release you just
+  installed is no longer offered again under "Update to ...".
+
 ## [0.5.5] - 2026-10-16
 
 ### Fixed
@@ -267,7 +305,8 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 - Claude Code stories may use web search and fetch without any shell, credential or publish permission.
 
 [0.3.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.0
-[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.5.5...HEAD
+[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.0
 [0.5.5]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.5.5
 [0.5.4]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.5.4
 [0.5.3]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.5.3

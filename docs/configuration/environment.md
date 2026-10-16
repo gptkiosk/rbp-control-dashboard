@@ -58,13 +58,16 @@ The profile UI is separate from the host environment table; it does not expose o
 | Key | Default | Type | Purpose | Secret? |
 |---|---|---|---|---|
 | `MAC_CONTROL_DISPATCHER_ENABLED` | `True` | `bool` | Enables agent/task dispatch. Disabled in tests. | No |
-| `MAC_CONTROL_MAX_CONCURRENT_RUNS` | `2` | `int` (`1`–`8`) | Maximum concurrent agent/task executions. | No |
+| `MAC_CONTROL_MAX_CONCURRENT_RUNS` | `2` | `int` (`1`–`8`) | Maximum concurrent agent/task executions. A parallel project can only use as much width as this allows. | No |
+| `MAC_CONTROL_PROJECT_AUTO_ACCEPT_LOW` | `false` | `bool` | Parallel builds only: accept a low-risk story on its own when its run succeeded without an incomplete report and every changed file is inside its declared files. See [Projects](../PROJECTS.md). | No |
 | `MAC_CONTROL_DEFAULT_TIMEOUT_S` | `1800` | `int` (`30`–`21600`) | Default execution timeout (30 min). | No |
 | `MAC_CONTROL_DEFAULT_BUDGET_USD` | `1.0` | `float` (`0.01`–`50.0`) | API-dollar budget used by the Claude adapter when applicable. Not a universal provider hard cap; subscription project runs omit this API-equivalent budget. | No |
 | `MAC_CONTROL_RUN_RETENTION_DAYS` | `90` | `int` (`≥1`) | Days to retain completed run records. | No |
 | `MAC_CONTROL_MODEL_REFRESH_ENABLED` | `true` | `bool` | Lets the operator read OpenRouter's public model list from the Models section. `false` refuses the refresh and fetches nothing. | No |
 | `MAC_CONTROL_MODEL_WATCH_ENABLED` | `false` | `bool` | Runs the weekly model watch: reads OpenRouter's public model list and leaves one Backlog card when a model needs a decision. | No |
 | `MAC_CONTROL_MODEL_WATCH_INTERVAL_DAYS` | `7` | `int` (`1`-`30`) | Days between model watch runs. | No |
+| `MAC_CONTROL_BUG_INTAKE_ENABLED` | `false` | `bool` | Reads maintainer-accepted bug reports (issues labelled `bug-report` and `accepted`) from the official repository and creates one Backlog task each. See [Bug reports](bug-reports.md). | No |
+| `MAC_CONTROL_BUG_INTAKE_POLL_SECONDS` | `900` | `int` | How often intake reads GitHub (120–86400). | No |
 | `MAC_CONTROL_HOUSEKEEPING_AUTO` | empty | `str` | Comma-separated housekeeping kinds cleaned up automatically after hours (`stale_approval_wait`, `old_update_backup`). Empty: nothing is automatic. | No |
 | `MAC_CONTROL_HOUSEKEEPING_WINDOW_START_HOUR` | `1` | `int` (`0`-`23`) | Local hour the after-hours window opens. | No |
 | `MAC_CONTROL_HOUSEKEEPING_WINDOW_END_HOUR` | `5` | `int` (`0`-`23`) | Local hour the after-hours window closes (a window may cross midnight). | No |

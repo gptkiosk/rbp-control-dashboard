@@ -51,7 +51,9 @@ const inProgress = computed(() => !!install.value?.tx || !!install.value?.needs_
 const canChange = computed(() => managed.value && !busy.value && !inProgress.value && blockers.value.length === 0)
 const previous = computed(() => find(install.value?.previous))
 const canRollback = computed(() => canChange.value && !!previous.value?.complete)
-const others = computed(() => (install.value?.versions ?? []).filter(v => v.id !== install.value?.current))
+// While a helper is staging or removing a version its folder is briefly incomplete; that is progress, not a fault, so it is not listed.
+const helperBusy = computed(() => !!opStatus.value?.active)
+const others = computed(() => (install.value?.versions ?? []).filter(v => v.id !== install.value?.current && !(helperBusy.value && !v.complete)))
 const currentVersion = computed(() => find(install.value?.current)?.version ?? null)
 // Only a newer package is an update. An older staged one is kept for rollback and is never offered as an install.
 const installable = computed(() => others.value.filter(v => !unavailable(v) && isNewer(v.version, currentVersion.value)))
@@ -352,7 +354,7 @@ onBeforeUnmount(() => { alive = false; if (timer) clearTimeout(timer) })
         </div>
         <p v-if="found" class="muted small">Installed version: {{ found.installed ?? 'none recorded' }}</p>
 
-        <article v-if="candidate" class="release">
+        <article v-if="candidate && candidate.version !== currentVersion" class="release">
           <h3>{{ candidate.change === 'upgrade' ? 'Update' : 'Install' }} available: {{ candidate.version }}</h3>
           <p class="muted small">{{ candidate.tag }} · {{ candidate.channel }} channel{{ candidate.prerelease ? ' (prerelease)' : '' }} · published {{ candidate.published_at ?? 'unknown' }}</p>
           <dl class="facts">
@@ -407,7 +409,7 @@ onBeforeUnmount(() => { alive = false; if (timer) clearTimeout(timer) })
         </ul>
         <p v-if="blockers.length" class="muted small">Drain first. Nothing is stopped or cancelled for you.</p>
         <p v-if="blockers.some(b => b.includes('waiting on a human decision'))" class="muted small">If an approval wait is an old run that is already finished, <a href="#housekeeping">Housekeeping</a> below can resolve it.</p>
-        <p v-if="install?.needs_recovery" class="notice-warn" role="alert">An earlier update was interrupted. Run recovery on the host before changing versions.</p>
+        <p v-if="install?.needs_recovery && !helperBusy" class="notice-warn" role="alert">An earlier update was interrupted. Run recovery on the host before changing versions.</p>
 
         <h3>Available</h3>
         <ul v-if="installable.length" class="updates">

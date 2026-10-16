@@ -23,6 +23,8 @@ from github_read import GithubReader
 from github_config import GithubConfigStore
 from github_actions import GithubActionGuard
 from routes import github_actions as github_action_routes
+from routes import bug_reports as bug_report_routes
+from bug_intake import BugIntakeService
 from routes import limits as limit_routes
 from routes import failures as failure_routes
 from routes import maintenance as maintenance_routes
@@ -78,6 +80,21 @@ def create_app() -> FastAPI:
             github_task = asyncio.create_task(app.state.github.poll(github_stop))
         app.state.github_poll_stop = github_stop
         app.state.github_poll_task = github_task
+        intake_stop = asyncio.Event()
+
+        async def intake_loop():
+            # Runs only when the operator turned intake on; a switch flipped later is picked up on the next pass.
+            while not intake_stop.is_set():
+                try:
+                    if app.state.bug_intake.enabled():
+                        await asyncio.to_thread(app.state.bug_intake.poll)
+                except Exception:   # noqa: BLE001 - a failed pass never stops the app
+                    pass
+                try:
+                    await asyncio.wait_for(intake_stop.wait(), timeout=get_settings().bug_intake_poll_seconds)
+                except asyncio.TimeoutError:
+                    pass
+        intake_task = asyncio.create_task(intake_loop()) if settings.collector_enabled else None
         collector = None
         if settings.collector_enabled:
             collector = Collector(
@@ -115,6 +132,9 @@ def create_app() -> FastAPI:
             app.state.github_poll_stop.set()
             if app.state.github_poll_task:
                 await app.state.github_poll_task
+            intake_stop.set()
+            if intake_task:
+                await intake_task
             await app.state.project_messenger.stop()
             await app.state.alerts.stop()
             if dispatcher:
@@ -133,6 +153,7 @@ def create_app() -> FastAPI:
     app.state.github_actions = GithubActionGuard(settings.data_dir, app.state.github, enabled=settings.github_writes_enabled)
     app.state.github_poll_stop = None
     app.state.github_poll_task = None
+    app.state.bug_intake = BugIntakeService(sessions, app.state.github, get_settings)
     app.state.reports = ReportStorage(settings)
     def _ops_root():
         reader = app.state.reports.reader()
@@ -222,6 +243,7 @@ def create_app() -> FastAPI:
     app.include_router(mcp_routes.router)
     app.include_router(operations.router)
     app.include_router(github_action_routes.router)
+    app.include_router(bug_report_routes.router)
     app.include_router(project_routes.router)
     app.include_router(limit_routes.router)
     app.include_router(failure_routes.router)

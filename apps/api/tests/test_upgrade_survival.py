@@ -8,6 +8,9 @@ import pytest
 
 import profiles
 import role_pack as rp
+from pathlib import Path
+
+SHIPPED_PACK_VERSION = (Path(__file__).resolve().parents[3] / 'packs' / 'roles' / 'delegator' / 'VERSION').read_text().strip()
 
 
 @pytest.fixture
@@ -118,8 +121,8 @@ def test_editing_still_rejects_unknown_keys():
 
 def test_the_coordinator_wording_has_a_version_label_and_a_hash_that_follow_what_is_in_effect(store):
     shipped = store.version()
-    assert shipped['shipped'] == '3' and shipped['label'] == 'v3' and shipped['custom'] == [] and len(shipped['sha']) == 12
+    assert shipped['shipped'] == SHIPPED_PACK_VERSION and shipped['label'] == f'v{SHIPPED_PACK_VERSION}' and shipped['custom'] == [] and len(shipped['sha']) == 12
     custom(store, 'plan.txt', (store.pack / 'plan.txt').read_text().replace('Read-only project planning.', 'MY WORDING.'))
     mine = store.version()
-    assert mine['label'] == 'v3+custom' and mine['custom'] == ['plan.txt'] and mine['sha'] != shipped['sha']
+    assert mine['label'] == f'v{SHIPPED_PACK_VERSION}+custom' and mine['custom'] == ['plan.txt'] and mine['sha'] != shipped['sha']
     assert 'VERSION' not in store.customized()['custom'] and 'VERSION' not in store.customized()['custom_ignored']

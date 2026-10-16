@@ -38,6 +38,39 @@ def draft(request: Request, body: DraftIn):
     return call(request, "draft", body.model_dump())
 
 
+class RunIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    fingerprint: str = Field(pattern=r"^[a-f0-9]{64}$")
+    confirm: bool = False
+
+
+@router.get("")
+def pending(request: Request):
+    """Drafts waiting for a decision, each with its exact preview."""
+    operator(request)
+    return {"actions": request.app.state.github_actions.pending(), "writes_enabled": request.app.state.github_actions.enabled}
+
+
+@router.post("/{action_id}/run")
+def run(request: Request, action_id: str, body: RunIn):
+    """Approve and execute one draft after the operator has read its exact preview and confirmed it. The fingerprint must match the preview shown,
+    so a draft that changed since is refused; the guard still records the approval by this operator and runs its own preflight."""
+    actor = operator(request)
+    if not body.confirm:
+        raise HTTPException(422, "Confirm the preview before running it.")
+    guard = request.app.state.github_actions
+    try:
+        current = guard.get(action_id)
+        if current["fingerprint"] != body.fingerprint:
+            raise ActionError("This action changed after you read it. Review it again.")
+        reviewed = guard.review(action_id, actor)
+        guard.approve(action_id, reviewed["fingerprint"], reviewed["nonce"], actor)
+        done = guard.execute(action_id, reviewed["fingerprint"], actor)
+    except ActionError as exc:
+        raise HTTPException(exc.status, exc.message) from None
+    return {"state": done["state"], "result": done.get("result") or {}, "action": {k: done[k] for k in ("id", "fingerprint", "preview", "state")}}
+
+
 @router.get("/{action_id}")
 def get(request: Request, action_id: str):
     operator(request)

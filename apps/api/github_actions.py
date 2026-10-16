@@ -14,10 +14,13 @@ import time
 from pathlib import Path
 from urllib.parse import quote
 
+from dataclasses import asdict
+
 from github_config import SLUG
 
 TTL = 900
 SHA = re.compile(r"[a-f0-9]{40}\Z")
+REPO_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,99}\Z")
 REF = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_./-]{0,199}\Z")
 
 
@@ -48,11 +51,17 @@ def plan(value):
         "pr": {"title", "body", "head", "base", "head_sha", "base_sha", "draft"},
         "merge": {"number", "head_sha", "method", "commit_title", "commit_message"},
         "publication": {"tag", "target_sha", "name", "body", "prerelease"},
+        "repository": {"name", "description"},
     }
-    if not isinstance(kind, str) or kind not in schemas or not isinstance(content, dict) or set(content) != schemas[kind]:
+    optional = {"issue": {"labels"}}.get(kind, set()) if isinstance(kind, str) else set()
+    if (not isinstance(kind, str) or kind not in schemas or not isinstance(content, dict)
+            or not schemas[kind] <= set(content) <= schemas[kind] | optional):
         raise ActionError("Unsupported action or content fields.", 422)
     for key, item in content.items():
-        if key in {"number"}:
+        if key == "labels":
+            valid = (isinstance(item, list) and 1 <= len(item) <= 5
+                     and all(isinstance(x, str) and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9 ._-]{0,49}", x) for x in item))
+        elif key in {"number"}:
             valid = type(item) is int and 1 <= item <= 2147483647
         elif key in {"draft", "prerelease"}:
             valid = type(item) is bool
@@ -68,12 +77,23 @@ def plan(value):
             valid = isinstance(item, str) and len(item.encode()) <= limit and "\x00" not in item
             if key in {"title", "name", "commit_title"}:
                 valid = valid and bool(item.strip()) and "\n" not in item and "\r" not in item
+            elif key == "description":
+                valid = valid and "\n" not in item and "\r" not in item
         if not valid:
             raise ActionError("Invalid action content.", 422)
+    if kind == "repository":
+        # The repository is created under the signed-in account, always private. The name must be the repository part of `repo`.
+        if repo.split("/")[1] != content["name"].lower() or not REPO_NAME.fullmatch(content["name"]) or content["name"].lower().endswith(".git"):
+            raise ActionError("Invalid repository name.", 422)
     root = f"repos/{repo}"
     if kind == "issue":
         method, endpoint, payload = "POST", root + "/issues", dict(content)
         destination = f"https://github.com/{repo}/issues"
+    elif kind == "repository":
+        # private and the initial commit are fixed here; the request cannot ask for anything else.
+        method, endpoint = "POST", "user/repos"
+        payload = {"name": content["name"], "description": content["description"], "private": True, "auto_init": True}
+        destination = f"https://github.com/{repo}"
     elif kind == "comment":
         method, endpoint, payload = "POST", root + f"/issues/{content['number']}/comments", {"body": content["body"]}
         destination = f"https://github.com/{repo}/issues/{content['number']}"
@@ -122,6 +142,12 @@ class GithubActionTransport:
         auth = self.reader.auth_status()
         if not auth["available"] or auth["account"].lower() != preview["account"].lower():
             raise ActionError("The reviewed GitHub account is no longer active.")
+        if preview["kind"] == "repository":
+            try:
+                self.request("GET", f"repos/{preview['repo']}")
+            except ActionError:
+                return      # not found: the name is free
+            raise ActionError("A repository with this name already exists.")
         repo = self.request("GET", f"repos/{preview['repo']}")
         if repo.get("full_name", "").lower() != preview["repo"].lower() or repo.get("archived") or repo.get("disabled"):
             raise ActionError("Repository identity or availability changed.")
@@ -145,11 +171,20 @@ class GithubActionTransport:
 
     def send(self, preview):
         value = self.request(preview["method"], preview["endpoint"], preview["payload"])
+        if preview["kind"] == "repository":
+            if (type(value.get("id")) is not int or str(value.get("full_name", "")).lower() != preview["repo"].lower()
+                    or value.get("private") is not True):
+                raise ActionError("GitHub did not confirm a private repository; check it on GitHub now.")
+            return {"acknowledged": True, "html_url": f"https://github.com/{preview['repo']}"}
         if preview["kind"] == "merge":
             if value.get("merged") is not True:
                 raise ActionError("GitHub did not confirm the merge; inspect the PR.")
         elif type(value.get("id")) is not int:
             raise ActionError("GitHub acknowledgement was invalid; inspect the destination.")
+        url = value.get("html_url")
+        # Only a link back to the exact repository is passed on, and only for an issue.
+        if preview["kind"] == "issue" and isinstance(url, str) and url.startswith(f"https://github.com/{preview['repo']}/issues/"):
+            return {"acknowledged": True, "html_url": url}
         return {"acknowledged": True}
 
 
@@ -195,6 +230,11 @@ class GithubActionGuard:
 
     def policy(self, preview):
         config = self.reader.config()
+        if config is not None and preview.get("kind") == "repository":
+            # A new repository cannot be on the allowlist yet. It must be under the configured account, and a public-only host never creates private ones.
+            if preview["repo"].split("/")[0].lower() != config.account.lower() or config.public_only:
+                raise ActionError("A new repository can only be created under the configured GitHub account on a host that allows private repositories.")
+            return config
         if config is None or preview["repo"] not in {r.lower() for r in config.repos}:
             raise ActionError("GitHub is disabled or repository is outside the host allowlist.")
         if preview.get("account", config.account) != config.account or preview.get("public_only", config.public_only) != config.public_only:
@@ -308,12 +348,56 @@ class GithubActionGuard:
             self.finish(action_id, "blocked", actor)
             raise ActionError("GitHub preflight refused or failed. No write was attempted; inspect the audit and destination.") from None
         try:
-            self.transport.send(preview)
+            result = self.transport.send(preview)
         except Exception:
             self.finish(action_id, "uncertain", actor)
             raise ActionError("Delivery is uncertain. Inspect the exact GitHub destination; this action will not be resent.") from None
         self.finish(action_id, "succeeded", actor)
-        return self.get(action_id)
+        if preview["kind"] == "repository":
+            self._allow(action_id, preview, actor)
+        return {**self.get(action_id), "result": result if isinstance(result, dict) else {}}
+
+    def _allow(self, action_id, preview, actor):
+        """Put the repository this approval created on the host allowlist, as the approved preview said it would. A failure here never undoes the creation."""
+        try:
+            store = getattr(self.reader, "config_store", None)
+            config = store.config() if store else None
+            if config is None or len(config.repos) >= 100:
+                raise ValueError()
+            value = {**asdict(config), "repos": [*config.repos, preview["repo"]]}
+            store.save(value)
+            event = "allowlisted"
+        except Exception:   # noqa: BLE001
+            event = "allowlist_failed"
+        with self.connect() as db:
+            self.event(db, action_id, event, actor)
+
+    def pending(self):
+        """Drafts waiting for a decision, newest first, with their exact previews."""
+        with self.connect() as db:
+            ids = [r["id"] for r in db.execute("SELECT id FROM actions WHERE state='draft' ORDER BY created DESC LIMIT 50")]
+        out = []
+        for action_id in ids:
+            try:
+                out.append(self.get(action_id))
+            except ActionError:
+                continue    # a tampered row is never shown as something to approve
+        return out
+
+    def recent(self, kind, limit=10):
+        with self.connect() as db:
+            ids = [r["id"] for r in db.execute("SELECT id FROM actions ORDER BY created DESC LIMIT 200")]
+        out = []
+        for action_id in ids:
+            try:
+                item = self.get(action_id)
+            except ActionError:
+                continue
+            if item["preview"].get("kind") == kind:
+                out.append(item)
+            if len(out) >= limit:
+                break
+        return out
 
     def finish(self, action_id, state, actor):
         with self.connect() as db:

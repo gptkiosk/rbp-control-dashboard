@@ -6,10 +6,12 @@ import BrandMark from '@/components/BrandMark.vue'
 import HealthBadge from './HealthBadge.vue'
 import { useAuthStore } from '@/stores/auth'
 import { useHelpStore } from '@/stores/help'
+import { useBugReportStore } from '@/stores/bugReport'
 import AppIcon from '@/components/AppIcon.vue'
 import ThemeToggle from '@/components/ThemeToggle.vue'
 const auth = useAuthStore()
 const help = useHelpStore()
+const bug = useBugReportStore()
 const route = useRoute(), accountOpen = ref(false), account = ref<HTMLElement | null>(null), accountButton = ref<HTMLButtonElement | null>(null)
 function closeAccount() { accountOpen.value = false }
 function escapeAccount() { closeAccount(); accountButton.value?.focus() }
@@ -46,6 +48,7 @@ const emit = defineEmits<{ toggleMenu: [] }>()
     <span class="spacer"></span>
     <HealthBadge class="topbar-health" />
     <ThemeToggle />
+    <button type="button" class="btn help-trigger bug-trigger" aria-label="Report a bug" title="Report a bug" @click="bug.show()"><AppIcon name="bug" /></button>
     <button type="button" class="btn help-trigger" aria-label="Open help chat" title="Help & how-tos" @click="help.show()"><AppIcon name="chat" /><span>Help</span></button>
     <div ref="account" class="account" @keydown.esc.stop.prevent="escapeAccount">
       <button ref="accountButton" type="button" class="btn account-trigger" aria-label="Account and settings" title="Account and settings" aria-controls="header-account-menu" :aria-expanded="accountOpen" @click="accountOpen = !accountOpen"><AppIcon name="user" /></button>

@@ -8,6 +8,7 @@ import { useHealthStore } from '@/stores/health'
 import { useAuthStore } from '@/stores/auth'
 import LoginGate from '@/components/LoginGate.vue'
 import HelpChat from '@/components/HelpChat.vue'
+import BugReportDialog from '@/components/BugReportDialog.vue'
 import SetupPrompt from '@/components/SetupPrompt.vue'
 import LimitBanner from '@/components/LimitBanner.vue'
 import { useThemeStore } from '@/stores/theme'
@@ -120,6 +121,7 @@ onBeforeUnmount(() => {
       </div>
     </div>
     <HelpChat />
+    <BugReportDialog />
   </div>
 </template>
 

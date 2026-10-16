@@ -23,6 +23,7 @@ export type IconName =
   | 'services'
   | 'mcp'
   | 'github'
+  | 'bug'
   | 'cpu'
   | 'gpu'
   | 'memory'
@@ -105,6 +106,12 @@ export const ICONS: Record<IconName, IconElement[]> = {
   ],
   activity: [polyline('1,8 4,8 6,3 8,13 10,6 12,8 15,8')],
   logs: [path('M3 2h10a1 1 0 011 1v10a1 1 0 01-1 1H3a1 1 0 01-1-1V3a1 1 0 011-1z'), path('M5 5h6M5 8h6M5 11h3')],
+  bug: [
+    path('M5.5 6.5a2.5 3.5 0 0 1 5 0v3a2.5 3.5 0 0 1-5 0z'),
+    path('M6.5 3.3L5.5 2M9.5 3.3L10.5 2'),
+    path('M5.5 7.5H3M5.5 10H3.5M10.5 7.5H13M10.5 10H12.5'),
+    path('M8 6.5v6'),
+  ],
 
   // ---- Drawn for this project ----
   // A single-board computer: board outline, SoC and a row of header pins.

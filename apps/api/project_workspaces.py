@@ -99,6 +99,14 @@ def inspection(path):
     return {'files':files,'diff':git(path,'diff','--no-ext-diff','--no-textconv','HEAD')[:60000],
             'head':git(path,'rev-parse','HEAD')}
 
+def changed_since(path, base):
+    """Every file this story changed relative to the reviewed base commit: committed, modified or new."""
+    files = sorted(set(git(path, 'diff', '--name-only', base, 'HEAD').splitlines() + inspection(path)['files']))
+    if len(files) > 500 or any('\n' in f or '\r' in f for f in files):
+        raise HTTPException(409, 'Too many or unsupported artifact paths; review the workspace outside MCD.')
+    return files
+
+
 def snapshot_reviewed(path, files):
     changed=inspection(path)['files']
     if not files or len(files)!=len(set(files)) or set(files)!=set(changed):

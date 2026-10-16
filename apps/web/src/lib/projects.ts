@@ -4,6 +4,7 @@ export interface ProjectNode {
   model: string; agent_target: string; mode: 'read' | 'edit'; rationale: string; x: number; y: number
   fallbacks: ('claude' | 'codex' | 'grok')[]
   routes: { agent: 'claude' | 'codex' | 'grok' | 'hermes' | 'openclaw'; model: string }[]
+  touches?: string[]; integration?: boolean
 }
 export interface ProjectDocument {
   title: string; brief: string; constraints: string; working_dir: string
@@ -16,6 +17,8 @@ export interface Project {
   handoff_approval?: { mode: 'manual' | 'automatic'; manifest_hash: string | null; eligible: {card_id:number;title:string;column:string}[]; excluded: {card_id:number;title:string;reason:string}[] }
   model_lock?: boolean
   can_resume_plan?: boolean
+  timing?: { runs: number; busy_minutes: number; elapsed_minutes: number; overlap: number } | null
+  schedule?: { stories: number; total_minutes: number; critical_minutes: number; speedup: number; width: number; critical_path: string[]; problems: string[]; max_concurrent_runs: number } | null
   pipeline: { step: string; card_id: number; delegator?: {agent:string;model:string} } | null; error: string | null; updated_at: number
   deliveries?: { kind: string; revision: number; status: string; error: string | null; message_id: string | null }[]
   tasks: ProjectTask[]; memory: Memory[]

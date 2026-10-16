@@ -5,6 +5,8 @@ import GithubSettingsPanel from '@/components/GithubSettingsPanel.vue'
 import UpdatePanel from '@/components/UpdatePanel.vue'
 import HousekeepingPanel from '@/components/HousekeepingPanel.vue'
 import AgentToolsPanel from '@/components/AgentToolsPanel.vue'
+import BugIntakePanel from '@/components/BugIntakePanel.vue'
+import GithubActionsPanel from '@/components/GithubActionsPanel.vue'
 import { onMounted, ref } from 'vue'
 import AppIcon from '@/components/AppIcon.vue'
 import AppSelect from '@/components/AppSelect.vue'
@@ -80,9 +82,11 @@ async function importPreferences(event: Event) { await action(async () => {
     <ReportStoragePanel />
     <UpdatePanel />
     <HousekeepingPanel />
+    <BugIntakePanel />
     <AgentToolsPanel />
     <RolesPanel />
     <GithubSettingsPanel id="github-settings" />
+    <GithubActionsPanel />
     <div v-if="profile && preferences" class="profile-grid">
       <form class="card preferences" @submit.prevent="save">
         <h2>Preferences</h2><p class="muted owner">{{ profile.owner }}</p>
@@ -102,6 +106,7 @@ async function importPreferences(event: Event) { await action(async () => {
           <label class="check"><input v-model="preferences.allow_discord_control" type="checkbox" />Allow my Discord requests to change how work is routed, such as sending waiting stories to the other subscription while a limit lasts. Approvals, dispatch, billing and credentials stay in RCD.</label>
           <label class="check"><input v-model="preferences.allow_discord_diagnostics" type="checkbox" />Allow Hermes to read failed runs for me in Discord: errors, short handoff excerpts and log tails, with credentials and addresses removed. Read only.</label>
           <label class="check"><input v-model="preferences.allow_discord_standards" type="checkbox" />Allow Hermes to read a project's standards in Discord and propose additions to the repository's standards file. It cannot change or remove anything: you approve on the project page, and approval only creates a new branch to review.</label>
+          <label class="check"><input v-model="preferences.allow_discord_repositories" type="checkbox" />Allow Hermes to propose a new private GitHub repository for a project in Discord. It cannot create anything: the proposal waits for your approval in Profile, and the repository is always private.</label>
           <label class="check"><input v-model="preferences.allow_discord_maintenance" type="checkbox" />Allow Hermes to read Housekeeping findings in Discord and propose fixes. It cannot change anything: you approve in Profile.</label>
           <p class="muted small">Hermes uses its configured OpenRouter route, including capped Google BYOK fallback. This permission covers planning when you ask. Paid API planners and story execution require separate review in RCD.</p>
           <div class="actions"><button class="btn" :disabled="busy" @click="save">Save connection</button><button class="btn primary" :disabled="busy || !preferences.discord_channel_id" @click="pair">{{ profile.discord_linked ? 'Pair again' : 'Get pairing code' }}</button><button class="btn" :disabled="busy" @click="refresh">Check pairing</button><button v-if="profile.discord_linked" class="btn" :disabled="busy" @click="unlink">Unlink Discord</button></div>

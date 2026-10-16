@@ -14,9 +14,10 @@ if str(API_DIR) not in sys.path:
 
 
 @pytest.fixture(autouse=True)
-def isolated_auth_default(monkeypatch):
-    """Live auth configuration must not change test defaults; secured fixtures opt in."""
+def isolated_auth_default(monkeypatch, tmp_path):
+    """Live auth configuration must not change test defaults; secured fixtures opt in. The operator's own agent git grants file must not leak in either."""
     monkeypatch.setenv("MAC_CONTROL_AUTH_ENABLED", "false")
+    monkeypatch.setenv("MAC_CONTROL_AGENT_GIT_GRANTS_FILE", str(tmp_path / "no-grants" / "grants.json"))
     from settings import get_settings
     get_settings.cache_clear()
     yield

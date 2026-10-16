@@ -1,6 +1,7 @@
 """Durable failure alerts through the existing Hermes send CLI; never an LLM turn."""
 from __future__ import annotations
 import asyncio
+import hashlib
 import json
 import math
 import os
@@ -16,7 +17,7 @@ import uuid
 from collections import defaultdict
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from sqlalchemy import select, exists, func, update, text
-from models import AlertEvent, AlertState, Run, ServiceSnapshot
+from models import AlertEvent, AlertState, Project, Run, ServiceSnapshot
 from settings import tool_search_dirs
 
 class RunRules(BaseModel):
@@ -38,6 +39,11 @@ class ServiceRules(BaseModel):
     sample_max_age_seconds: int = Field(default=180, ge=60, le=600)
     recovery_samples: int = Field(default=2, ge=2, le=10)
 
+class ProjectRules(BaseModel):
+    """A project whose planning or story hand-out stopped after its run succeeded (for example the plan failed validation) has no failed run to alert on."""
+    model_config = ConfigDict(extra="forbid", hide_input_in_errors=True, strict=True)
+    enabled: bool = True
+
 class AlertRules(BaseModel):
     model_config = ConfigDict(extra="forbid", hide_input_in_errors=True, strict=True)
     enabled: bool = False
@@ -48,6 +54,7 @@ class AlertRules(BaseModel):
     pending_max_age_seconds: int = Field(default=3600, ge=60, le=86400)
     runs: RunRules = Field(default_factory=RunRules)
     services: ServiceRules = Field(default_factory=ServiceRules)
+    projects: ProjectRules = Field(default_factory=ProjectRules)
     @model_validator(mode="after")
     def valid(self):
         if self.destination and not re.fullmatch(r"discord:[0-9]{16,22}", self.destination):
@@ -186,6 +193,18 @@ class AlertMonitor:
                     s.add(AlertEvent(id=uuid.uuid4().hex, source_key=f"run:{run.id}", run_id=run.id,
                         kind="run_failed", message=run_message(run), destination=rules.destination,
                         status="pending", created_at=now))
+            if rules.projects.enabled:
+                for project in s.scalars(select(Project).where(Project.state.in_(("planning_failed", "dispatch_failed")),
+                        Project.updated_at >= state["activated_at"], Project.updated_at <= now).limit(50)):
+                    key = f"project:{project.id}:{project.revision}:{project.state}:{hashlib.sha256(str(project.error).encode()).hexdigest()[:10]}"
+                    if s.scalar(select(AlertEvent.id).where(AlertEvent.source_key == key)):
+                        continue
+                    stage = "Planning" if project.state == "planning_failed" else "Story hand-out"
+                    why = re.sub(r"[^A-Za-z0-9 .,_:#()/+-]", "_", re.sub(r"(?i)\b(?:https?|file|media):", "_", str(project.error or ""))).strip()[:200]
+                    message = (f"[RCD] {stage} stopped for project #{project.id}\nWhy: {why or 'not reported'}\n"
+                               "Next: open Projects, fix the plan or retry. No stories started.")[:1000]
+                    s.add(AlertEvent(id=uuid.uuid4().hex, source_key=key, kind="project_failed", message=message,
+                        destination=rules.destination, status="pending", created_at=now))
             if rules.services.enabled:
                 since = max(state["activated_at"], now - rules.services.window_seconds)
                 snapshots = s.scalars(select(ServiceSnapshot).where(ServiceSnapshot.ts >= since, ServiceSnapshot.ts <= now)

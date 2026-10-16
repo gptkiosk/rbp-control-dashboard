@@ -430,3 +430,40 @@ it('works with an older helper that keeps no operation record', async () => {
   expect(w.text()).toContain('Running 1.0')
   w.unmount()
 })
+
+it('does not call an update in progress interrupted, and does not list the folder being built or removed as a broken version', async () => {
+  const tx = { id: 't', kind: 'stage', phase: 'staging', target: 'v4' }
+  stubFetch(url => {
+    if (url === '/api/app-updates') return { body: managed({}, { tx, needs_recovery: true }) }
+    if (url === '/api/app-updates/operation') return { body: { operation: { id: 'abcd1234', state: 'running', version: '1.3', message: 'Staging', steps: [{ name: 'stage', state: 'running', detail: 'building' }] }, active: true, log: [] } }
+    return undefined
+  })
+  const w = mount(UpdatePanel); await flushPromises()
+  expect(w.text()).not.toContain('An earlier update was interrupted')
+  expect(w.text()).not.toContain('partly staged')
+  w.unmount()
+  // the same state with no helper holding the lock is a real interruption and still says so, with the leftover listed
+  stubFetch(url => {
+    if (url === '/api/app-updates') return { body: managed({}, { tx, needs_recovery: true }) }
+    if (url === '/api/app-updates/operation') return { body: { operation: null, active: false, log: [] } }
+    return undefined
+  })
+  const v = mount(UpdatePanel); await flushPromises()
+  expect(v.text()).toContain('An earlier update was interrupted')
+  expect(v.text()).toContain('partly staged')
+  v.unmount()
+})
+
+it('stops offering the release once it is the installed version', async () => {
+  stubFetch(url => {
+    if (url === '/api/app-updates') return { body: managed() }
+    if (url === '/api/app-updates/operation') return { body: { operation: null, active: false, log: [] } }
+    if (url.startsWith('/api/app-updates/check')) return { body: { available: false, candidate: candidate({ version: '1.0', tag: 'v1.0' }), installed: '1.0' } }
+    return undefined
+  })
+  const w = mount(UpdatePanel); await flushPromises()
+  await button(w, 'Check for updates').trigger('click'); await flushPromises()
+  expect(w.find('article.release').exists()).toBe(false)
+  expect(w.text()).not.toContain('Update to 1.0')
+  w.unmount()
+})

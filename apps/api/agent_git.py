@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -104,6 +105,47 @@ def _entry(key: str, value: object) -> Grant | None:
             or not all(isinstance(c, str) and COMMAND_RE.fullmatch(c) for c in extra)):
         return None
     return Grant(pid, tuple(parsed), tuple(extra))
+
+
+class GrantError(ValueError):
+    pass
+
+
+SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9.-]{0,40}$")
+
+
+def add_clone(path: Path, project_id: int, repo: str, directory: str, slug: str) -> Grant:
+    """Add one clone and its project branch to the operator's grants file, validated by the same rules a hand-written entry must meet.
+    The branch is always `project-<id>/<slug>`, so a grant can never name `main`. Called only by an operator route, never from plan or agent output."""
+    branch = f"project-{int(project_id)}/{slug}"
+    if not REPO_RE.fullmatch(repo or "") or not DIR_RE.fullmatch(directory or "") or directory in {".", ".."} or not SLUG_RE.fullmatch(slug or "") or slug.endswith((".", ".lock")):
+        raise GrantError("The repository, folder or branch name is not valid.")
+    path = Path(path)
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+    except (OSError, ValueError):
+        raise GrantError("The grants file could not be read, so it was not changed.") from None
+    if not isinstance(raw, dict):
+        raise GrantError("The grants file is not in the expected form, so it was not changed.")
+    entry = raw.get(str(project_id)) if isinstance(raw.get(str(project_id)), dict) else {"clones": []}
+    clones = [c for c in entry.get("clones", []) if isinstance(c, dict)]
+    if any(c.get("dir") == directory for c in clones):
+        raise GrantError("That folder already has a branch grant for this project.")
+    clones.append({"dir": directory, "repo": repo, "branch": branch})
+    updated = {**entry, "clones": clones}
+    grant = _entry(str(project_id), updated)
+    if grant is None:
+        raise GrantError("That grant would not be valid.")
+    raw[str(project_id)] = updated
+    path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    temporary = path.with_name(path.name + ".tmp")
+    fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as out:
+        out.write(json.dumps(raw, indent=2, sort_keys=True) + "\n")
+        out.flush()
+        os.fsync(out.fileno())
+    os.replace(temporary, path)
+    return grant
 
 
 def load(path: Path) -> dict[int, Grant]:

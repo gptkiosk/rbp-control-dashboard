@@ -32,6 +32,7 @@ For the user: understand that only failed, timed-out, and interrupted runs gener
   - `destination` — explicit Discord channel reference (`discord:<CHANNEL_ID>`); required to enable delivery.
   - `poll_seconds`, `max_deliveries_per_tick`, `pending_max_age_seconds`.
   - `[runs]` section: `enabled`, `stages`.
+  - `[projects]` section: `enabled`.
   - `[services]` section: `enabled`, `window_seconds`, `excess_runs`, `calendar_allowance`, `sample_max_age_seconds`, `recovery_samples`.
 - File requirements: regular file (not symlink), owned by current user, mode `600` recommended. Symlinks or invalid TOML pause delivery; the monitor reloads the file each check.
 - Delivery mechanism: `~/.local/bin/hermes send --to discord:<CHANNEL_ID> --file - --json` with the exact message on stdin. Hermes reads its existing private bot configuration; no MCD tokens are copied, no new permission scope is requested.

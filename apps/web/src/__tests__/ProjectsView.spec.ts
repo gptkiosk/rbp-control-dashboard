@@ -67,10 +67,12 @@ it('submits a new brief to Hermes after coordination approval and displays hones
  await modal.get('input[data-autofocus]').setValue('Balanced project');await modal.get('textarea').setValue('A reviewed brief')
  const submit=modal.findAll('button').find(b=>b.text()==='Submit to Hermes')!
  expect(submit.attributes('disabled')).toBeDefined()
- await modal.get('input[type=checkbox]').setValue(true);await modal.get('form').trigger('submit');await flushPromises()
+ expect((modal.get('[data-testid=parallel-new]').element as HTMLInputElement).checked).toBe(false)         // parallel build is off unless chosen
+ await modal.get('input[type=checkbox]:not([data-testid])').setValue(true);await modal.get('form').trigger('submit');await flushPromises()
  const writes=f.mock.calls.filter(([,init])=>(init?.method??'GET')!=='GET')
  expect(writes.map(([url])=>url)).toEqual(['/api/projects','/api/projects/1/plan'])
  expect(JSON.parse(String(writes[0]![1]?.body)).planning_bias).toBe(50)
+ expect(JSON.parse(String(writes[0]![1]?.body)).dispatch_mode).toBe('sequential')
  expect(JSON.parse(String(writes[1]![1]?.body))).toEqual({revision:1,approve_coordination:true,delegator_revision:'a'.repeat(64)})
  expect(w.text()).toContain('Submitted to Hermes');expect(w.get('progress').attributes('value')).toBeUndefined()
  expect(w.text()).toContain('Link Discord in your profile');w.unmount()
@@ -327,4 +329,15 @@ it('opens the consultant proposal as an editable brief without starting project 
  expect(dialog.findAll('button').find(b=>b.text()==='Submit to Hermes')!.attributes('disabled')).toBeDefined()
  expect(f.mock.calls.filter(([,init])=>(init?.method??'GET')!=='GET')).toHaveLength(0)
  w.unmount()
+})
+
+it('builds in parallel only when the person turns it on when creating the project',async()=>{
+ const {w,f}=await setup()
+ await w.findAll('button').find(b=>b.text()==='+ New project')!.trigger('click')
+ const {DOMWrapper}=await import('@vue/test-utils');const modal=new DOMWrapper(document.querySelector('[role=dialog]')!)
+ await modal.get('input[data-autofocus]').setValue('Fast project');await modal.get('textarea').setValue('A reviewed brief')
+ await modal.get('[data-testid=parallel-new]').setValue(true)
+ await modal.get('input[type=checkbox]:not([data-testid])').setValue(true);await modal.get('form').trigger('submit');await flushPromises()
+ const created=f.mock.calls.find(([url,init])=>url==='/api/projects'&&init?.method==='POST')!
+ expect(JSON.parse(String(created[1]?.body)).dispatch_mode).toBe('parallel');w.unmount()
 })
