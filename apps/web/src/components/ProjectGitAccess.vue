@@ -39,6 +39,7 @@ watch(() => props.projectId, load)
 <template>
   <details class="card git-access" aria-labelledby="git-access-title">
     <summary id="git-access-title">Repository access for agents</summary>
+    <div class="inner">
     <p class="muted small">Setup and story work that commits code needs a grant from you: one repository, one folder under the project's working directory, one branch. The branch is always <code>project-{{ projectId }}/&lt;name&gt;</code>, so the main branch can never be named.</p>
     <p v-if="error" class="notice-warn" role="alert">{{ error }}</p>
     <p v-if="notice" class="note" role="status">{{ notice }}</p>
@@ -47,20 +48,27 @@ watch(() => props.projectId, load)
     </ul>
     <p v-else class="muted small">No branch access has been granted for this project.</p>
     <form class="grid" @submit.prevent="grant">
-      <label>Repository<select v-model="repo" class="input"><option v-for="r in repos" :key="r" :value="r">{{ r }}</option></select></label>
-      <label>Folder (a clone directly under the working directory)<input v-model="dir" class="input" maxlength="80" required /></label>
-      <label>Branch name<input v-model="slug" class="input" maxlength="40" required /></label>
+      <div class="field"><label for="git-repo">Repository</label><select id="git-repo" v-model="repo" class="input"><option v-for="r in repos" :key="r" :value="r">{{ r }}</option></select></div>
+      <div class="field"><label for="git-dir">Folder (a clone directly under the working directory)</label><input id="git-dir" v-model="dir" class="input" maxlength="80" required /></div>
+      <div class="field"><label for="git-slug">Branch name</label><input id="git-slug" v-model="slug" class="input" maxlength="40" required /></div>
       <p class="small" data-testid="git-branch">Agents may push only <span class="mono">{{ branch }}</span> of <span class="mono">{{ repo || 'the repository' }}</span>.</p>
-      <label class="check"><input v-model="confirmed" type="checkbox" />I have read this and want to give agents push access to exactly that branch.</label>
+      <label class="check"><input v-model="confirmed" type="checkbox" /><span>I have read this and want to give agents push access to exactly that branch.</span></label>
       <div class="actions"><button type="submit" class="btn" :disabled="!confirmed || busy || !repo || !dir">Grant branch access</button></div>
     </form>
+    </div>
   </details>
 </template>
 
 <style scoped>
+.git-access { margin-bottom: var(--gap); }
+.git-access summary { cursor: pointer; font-weight: var(--font-weight-strong); }
+.inner { display: flex; flex-direction: column; gap: var(--gap); padding-top: var(--gap); }
+.inner p { margin: 0; }
+.field { display: flex; flex-direction: column; gap: var(--gap-xs); min-width: 0; }
+.field > label { font-size: var(--font-size-sm); font-weight: var(--font-weight-strong); color: var(--text-muted); }
 .grid { display: flex; flex-direction: column; gap: var(--gap); }
-label { display: flex; flex-direction: column; gap: var(--gap-xs); }
-label.check { flex-direction: row; align-items: flex-start; gap: var(--gap-sm); }
+label.check { display: flex; flex-direction: row; align-items: flex-start; gap: var(--gap-sm); font-size: var(--font-size-sm); }
+label.check input { margin-top: 0.2rem; flex-shrink: 0; }
 .plain { margin: 0; padding-left: 1.2rem; }
-.actions { display: flex; gap: var(--gap); }
+.actions { display: flex; justify-content: flex-end; gap: var(--gap-sm); padding-top: var(--gap); border-top: 1px solid var(--glass-border); }
 </style>

@@ -49,7 +49,7 @@ onMounted(load)
       <p v-if="a.preview.kind === 'repository'" class="small">Creates a <strong>private</strong> repository with an initial README commit, and adds it to this install's GitHub list so it can be read and used. It is always private. Deleting a repository is never done from here.</p>
       <p class="muted small">Destination: <span class="mono">{{ a.preview.destination }}</span></p>
       <pre class="exact" :aria-label="`Exact request for ${a.id}`">{{ JSON.stringify(a.preview.payload, null, 2) }}</pre>
-      <label class="check"><input v-model="confirmed[a.id]" type="checkbox" :disabled="!writesEnabled" />I have read this exact request and want it run once.</label>
+      <label class="check"><input v-model="confirmed[a.id]" type="checkbox" :disabled="!writesEnabled" /><span>I have read this exact request and want it run once.</span></label>
       <div class="actions"><button type="button" class="btn primary" :disabled="!writesEnabled || !confirmed[a.id] || !!busy" @click="run(a)">Approve and run</button></div>
     </article>
   </section>
@@ -57,7 +57,10 @@ onMounted(load)
 
 <style scoped>
 .pending { border: 1px solid var(--surface-border); border-radius: var(--radius); padding: var(--gap); display: flex; flex-direction: column; gap: var(--gap); margin-top: var(--gap); }
-.exact { white-space: pre-wrap; max-height: 14rem; overflow: auto; margin: 0; font-size: 0.85rem; }
-.actions { display: flex; gap: var(--gap); flex-wrap: wrap; }
-label.check { display: flex; flex-direction: row; align-items: flex-start; gap: var(--gap-sm); }
+.pending h3 { margin: 0; font-size: var(--font-size); font-weight: var(--font-weight-strong); }
+.pending p { margin: 0; }
+.exact { white-space: pre-wrap; max-height: 14rem; overflow: auto; margin: 0; padding: var(--gap-sm) var(--gap); border-radius: var(--radius); background: var(--bg); font-size: var(--font-size-sm); }
+.actions { display: flex; justify-content: flex-end; gap: var(--gap-sm); flex-wrap: wrap; }
+label.check { display: flex; flex-direction: row; align-items: flex-start; gap: var(--gap-sm); font-size: var(--font-size-sm); }
+label.check input { margin-top: 0.2rem; flex-shrink: 0; }
 </style>

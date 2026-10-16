@@ -54,6 +54,8 @@ onMounted(load)
 </template>
 
 <style scoped>
+.bug-intake h3 { margin: 0; font-size: var(--font-size); font-weight: var(--font-weight-strong); }
+.bug-intake p { margin: 0; }
 .plain { margin: 0; padding-left: 1.2rem; display: flex; flex-direction: column; gap: var(--gap-xs); }
-.actions { display: flex; gap: var(--gap); flex-wrap: wrap; }
+.actions { display: flex; gap: var(--gap-sm); flex-wrap: wrap; }
 </style>

@@ -45,7 +45,8 @@ def test_scrub_removes_paths_emails_addresses_hosts_and_token_shapes():
         assert secret not in out, secret
     assert 'https://[credentials]@example.com/x' in out        # a link keeps its public host; only the credentials go
     assert '127.0.0.1' in out and '~/Projects/site' in out and '[email]' in out and '[host]' in out
-    assert any('home paths' in n for n in notes) and any('tokens' in n for n in notes) and any('emails' in n for n in notes)
+    assert any('home paths' in n for n in notes) and any('tokens' in n for n in notes) and any(n == '1 email' for n in notes)
+    assert bug_reports.scrub('mail a@b.example')[1] == ['1 email'] and bug_reports.scrub('a@b.example c@d.example')[1] == ['2 emails']
     assert bug_reports.scrub('Plain words about a button that does nothing.') == ('Plain words about a button that does nothing.', [])
 
 
