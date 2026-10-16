@@ -64,6 +64,28 @@ at its configured default. Every story remains individually editable before subm
 Approved projects keep their frozen assignments. Older documents default to 75 without
 rewriting their stored document or approved manifest.
 
+## Building in parallel (a switch, off by default)
+
+When you create a project, **Build in parallel** decides how it is built. **Off, the default**, builds one story at a time in dependency
+order. **On**, the planner is told to plan for width, and MCD checks and orders the plan to take advantage of it:
+
+- **The planner splits the work into branches** that change different files and can run at the same time, gives each editing story a
+  **files it changes** list (`touches`: relative folders or globs), and adds an **integration story** wherever branches come together. An
+  integration story depends on at least two stories; it receives their accepted commits and is told to run the combined checks and
+  fix only what the join broke.
+- **Submission refuses an overlap.** Two editing stories that can run at the same time must not share a file, and must each say what they change. The
+  Projects page lists any pair that clash, with the fix: make one depend on the other, split their files, or turn parallel build off.
+- **The longest chain starts first.** Stories are created so the chain that sets the finish time is never left waiting behind shorter ones.
+- **A schedule readout** on the map shows the longest chain against the total, the best-case speed-up, how many stories can run at once and, as work
+  finishes, how much the runs really overlapped. Overlap needs room: with `MAC_CONTROL_MAX_CONCURRENT_RUNS` at its default of 2, at most two stories run at
+  once however wide the plan is. Raise it (up to 8) on a machine and provider that can take it; free models may throttle.
+- **Optional lighter gate** (`MAC_CONTROL_PROJECT_AUTO_ACCEPT_LOW=true`, off by default). A low-risk story is accepted on its own only when its run
+  succeeded without an incomplete or blocked report, it is not an integration story, it changed at least one file, and every file it changed is inside
+  its declared files. Medium and high risk stories, integration stories and anything outside its files wait for you. The acceptance is recorded in the
+  project ledger as `auto-accept`. It is not independent verification.
+
+Nothing here merges or pushes your source branch; the rest of this section still applies.
+
 ## Sequential and parallel work
 
 Sequential mode uses the reviewed project workspace and adds a serial handoff link even

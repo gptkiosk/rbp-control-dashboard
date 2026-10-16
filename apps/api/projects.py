@@ -30,6 +30,7 @@ from agents import REGISTRY, SUBSCRIPTION_AGENTS
 import native_routes
 from role_pack import RoleStore, RoleError
 import project_outputs
+import project_schedule as schedule
 from settings import get_settings
 
 BUSY = {'planning', 'dispatching', 'active', 'paused', 'complete'}
@@ -209,7 +210,7 @@ def get(s, project_id):
 def check_revision(p, revision):
     if p.revision != revision: fail('Project changed. Reload and review the current revision.')
 
-def validate(doc, settings, executable=False):
+def validate(doc, settings, executable=False, overlaps=False):
     parsed = Document.model_validate(doc).model_dump()
     if len(json.dumps(parsed,ensure_ascii=False).encode()) > 150000: fail('Project exceeds 150 KiB. Split it into smaller projects.', 422)
     parsed['title'], parsed['brief'] = parsed['title'].strip(), parsed['brief'].strip()
@@ -238,6 +239,13 @@ def validate(doc, settings, executable=False):
             fail(f'Story "{n["title"]}" ({n["key"]}) needs '+', '.join(missing)+'.', 422)
     ordered(nodes)
     if executable and not any(n['kind']=='story' for n in nodes): fail('Add at least one story before submission.', 422)
+    if overlaps and parsed['dispatch_mode']=='parallel':
+        # Only a parallel build runs stories at the same time, so only then must the ones that can overlap keep to their own files.
+        for n in nodes:
+            if n['kind']=='story' and n['integration'] and len([d for d in n['depends_on'] if by_key[d]['kind']=='story'])<2:
+                fail(f'Story "{n["title"]}" ({n["key"]}) is marked as an integration story but depends on fewer than two stories to join.',422)
+        found = schedule.overlap_problems(nodes)
+        if found: fail('Parallel build: '+'; '.join(found)+'. Fix the plan or turn parallel build off for a serial build in dependency order.',422)
     return parsed
 
 def ordered(nodes):
@@ -360,6 +368,24 @@ def free_retry_routes(settings):
     models=[m for m in native['models'] if m.startswith('openrouter/') and m.endswith(':free')]
     return [{'agent':'openclaw','model':m,'agent_target':t['id']} for t in native['targets'] for m in models]
 
+def plan_timing(s,p):
+    """What actually happened: minutes of agent work against the minutes that passed from the first story run starting to the last one ending, so it is visible whether running
+    stories together paid off. Retries count as work. None until a story run has finished."""
+    rows=list(s.execute(select(Run.started_at,Run.ended_at).join(ProjectTask,ProjectTask.card_id==Run.card_id).where(
+        ProjectTask.project_id==p.id,ProjectTask.role=='story',Run.started_at.is_not(None),Run.ended_at.is_not(None))))
+    if not rows: return None
+    busy=sum(max(0,e-st) for st,e in rows);wall=max(e for _,e in rows)-min(st for st,_ in rows)
+    return {'runs':len(rows),'busy_minutes':round(busy/60,1),'elapsed_minutes':round(wall/60,1),'overlap':round(busy/wall,2) if wall>0 else 1.0}
+
+def plan_schedule(p):
+    """How the plan would run in parallel: the longest chain, the best-case speed-up and any overlap to fix. Shown only for a parallel project."""
+    d = document(p)
+    if d.get('dispatch_mode') != 'parallel' or not d.get('nodes'): return None
+    try:
+        return {**schedule.stats(d['nodes']), 'problems': schedule.overlap_problems(d['nodes']), 'max_concurrent_runs': get_settings().max_concurrent_runs}
+    except ValueError:
+        return None
+
 def detail(s, p):
     bindings = []
     free_routes=free_retry_routes(get_settings()) if p.state=='active' else []
@@ -386,6 +412,7 @@ def detail(s, p):
         'approved_revision':json.loads(p.approved_manifest)['revision'] if p.approved_manifest else None,
         'pipeline':json.loads(p.pipeline) if p.pipeline else None, 'error':p.error,
         'handoff_approval':handoff_approval(s,p), 'model_lock':model_locked(p),
+        'schedule':plan_schedule(p), 'timing':plan_timing(s,p),
         'workspaces':json.loads(p.approved_manifest).get('workspaces',{}) if p.approved_manifest else {},
         'artifacts':json.loads(p.approved_manifest).get('artifacts',{}) if p.approved_manifest else {},
         'created_by':p.created_by, 'created_at':p.created_at, 'updated_at':p.updated_at,
@@ -422,7 +449,7 @@ def _queue(s, p, role, agent, model, prompt, settings, node_key=''):
 def _brief(p, include_nodes=False):
     d=document(p)
     payload={k:d[k] for k in (('title','brief','constraints','nodes') if include_nodes else ('title','brief','constraints'))}
-    payload.update(planning_bias=d['planning_bias'], assignment_policy=planning_policy(d['planning_bias']))
+    payload.update(planning_bias=d['planning_bias'], assignment_policy=planning_policy(d['planning_bias']), dispatch_mode=d['dispatch_mode'])
     return json.dumps(payload,ensure_ascii=False)
 
 CONSULTANT_CONTEXT_MAX = 20000
@@ -600,7 +627,7 @@ def submit(s,p,action,settings,actor):
     check_revision(p,action.revision)
     if p.state in {'dispatching','active','paused','complete'}: return
     if p.state=='planning': fail('Wait for planning to finish.')
-    d=validate(document(p),settings,True)
+    d=validate(document(p),settings,True,overlaps=True)
     configured_targets = {row['id'] for row in native_routes.read(settings)['openclaw']['targets']}
     for n in d['nodes']:
         if n['kind']=='story' and n['assignee']=='openclaw' and n['agent_target'] and n['agent_target'] not in configured_targets:
@@ -660,6 +687,9 @@ def _materialize(s,p,order,settings):
     for key in order:
         if not set(nodes[key]['depends_on'])<=seen: fail('Hermes dispatch order violates a dependency.',422)
         seen.add(key)
+    if m['dispatch_mode']=='parallel':
+        # Hermes' order is checked above; a parallel build then starts the longest remaining chain first so the stories that set the finish time never wait.
+        order=schedule.critical_order(d['nodes'])
     if approval.current_branch(Path(d['working_dir']))!=m['branch']: fail('Working-directory branch changed since approval. Review a new project before dispatch.')
     if s.scalar(select(ProjectTask).where(ProjectTask.project_id==p.id,ProjectTask.role=='story')):
         fail('This project already has story cards; duplicate dispatch refused.')
@@ -693,6 +723,7 @@ def advance(s,settings):
             if run and run.stage=='succeeded' and not (grant and grant.get('run_id')==run.id) and project_outputs.incomplete_error(run):
                 on_finish(s,card,run,'succeeded')
         process_handoffs(s,active_project)
+        process_parallel_gates(s,active_project,settings)
     for p in s.scalars(select(Project).where(Project.state.in_(['planning','dispatching']))).all():
         pipeline=json.loads(p.pipeline)
         if 'execution_catalog' not in pipeline: pipeline['execution_catalog']=execution_catalog(settings,bias=document(p)['planning_bias'])
@@ -989,6 +1020,11 @@ def claim_context(s,card,run_id=None):
     card.project_origin={'project_id':p.id,'revision':m['revision'],'manifest_hash':m['hash'],
         'story_key':link.node_key,'card_id':card.id}
     prompt=context(s,p,payload=payload)+'\n\nYOUR STORY (do this now)\n'+card.body
+    if ws and node.get('integration'):
+        prompt+=('\n\nINTEGRATION STORY (parallel build): this story joins the branches of the stories it depends on ('+', '.join(node.get('depends_on',[]))+'). Their accepted commits are already in your '
+            'workspace; do not redo their work. Read the combined result, run the combined checks (the tests and the build for everything now together), and fix only what the join broke: '
+            'conflicting changes, duplicated files, mismatched names. Report what you ran and what you changed. If the combination cannot be made to pass, say so plainly and leave the '
+            'story incomplete; never delete another branch\'s work to make a check pass.')
     if is_free:
         prompt+='\n\nMCD GO FREE: The operator overrides this story’s original assignment for this retry: '+json.dumps(free['route'])+' target '+card.agent_target+'. Stay on the explicitly pinned OpenRouter :free model. No paid model, Google BYOK, delegation or native model switching is authorized. If unavailable, stop and report the blocker. Review partial work first; scope and acceptance are unchanged.'
     grant=m.get('output_continuations',{}).get(link.node_key)
@@ -1208,6 +1244,33 @@ def set_handoff_policy(s,p,data,actor):
     if data.mode=='batch':
         process_handoffs(s,p,actor=actor,card_ids=[t['card_id'] for t in review['eligible']])
     elif data.mode=='automatic' and p.state=='active': process_handoffs(s,p)
+
+def process_parallel_gates(s,p,settings=None):
+    """The lighter gate for a parallel build, off unless the operator turned `project_auto_accept_low` on. A story is accepted on its own only when all of
+    these hold: its run succeeded without an incomplete or blocked report, its plan risk is low, it is not an integration story, it changes at least one
+    file, and every file it changed (committed or not) is inside the files it declared in `touches`. Anything else stays in Review for a person.
+    The acceptance goes through the same `accept_story` a person uses and is recorded in the project ledger as `auto-accept`."""
+    settings=settings or get_settings()
+    if not settings.project_auto_accept_low or p.state!='active' or not p.approved_manifest: return
+    m=json.loads(p.approved_manifest)
+    if m.get('dispatch_mode')!='parallel': return
+    nodes={n['key']:n for n in m['document']['nodes'] if n['kind']=='story'}
+    for link in s.scalars(select(ProjectTask).where(ProjectTask.project_id==p.id,ProjectTask.role=='story',ProjectTask.revision==m['revision']).order_by(ProjectTask.card_id)):
+        n=nodes.get(link.node_key);ws=m.get('workspaces',{}).get(link.node_key);c=s.get(Card,link.card_id)
+        if not n or not ws or not c or c.column!='review' or c.assignee_type=='human' or n.get('integration') or n.get('risk')!='low' or not n.get('touches'): continue
+        run=s.scalar(select(Run).where(Run.card_id==c.id).order_by(Run.id.desc()).limit(1))
+        if not run or run.stage!='succeeded' or run.error or not (run.result_text or '').strip() or project_outputs.needs_approval(c,run) or project_outputs.incomplete_error(run): continue
+        if any(s.get(Card,d).column!='done' for d in cards.dependency_ids(s,c.id)): continue
+        try:
+            if approval.current_branch(Path(c.working_dir))!=ws['branch']: continue
+            changed=workspaces.changed_since(c.working_dir,m['base_commit'])
+            if not changed or not schedule.inside_touches(changed,n['touches']): continue
+            loose=workspaces.inspection(c.working_dir)['files']
+            accept_story(s,p,c.id,Accept(revision=p.revision,run_id=run.id,snapshot=bool(loose),files=loose,
+                summary=('Auto-accepted under the low-risk gate: the run succeeded without an incomplete report, the story is low risk and every changed file is inside its declared files ('
+                    +', '.join(n['touches'][:6])+'). Not independently verified.\n')+run.result_text[:11000]),'auto-accept')
+        except (HTTPException,OSError,ValueError):
+            continue    # a changed or missing workspace stays in Review; never fail the dispatcher tick
 
 def process_handoffs(s,p,actor=None,card_ids=None):
     if p.state not in {'active','paused'} or not p.approved_manifest: return

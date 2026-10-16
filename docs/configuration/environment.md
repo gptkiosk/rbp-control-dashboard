@@ -58,7 +58,8 @@ The profile UI is separate from the host environment table; it does not expose o
 | Key | Default | Type | Purpose | Secret? |
 |---|---|---|---|---|
 | `MAC_CONTROL_DISPATCHER_ENABLED` | `True` | `bool` | Enables agent/task dispatch. Disabled in tests. | No |
-| `MAC_CONTROL_MAX_CONCURRENT_RUNS` | `2` | `int` (`1`–`8`) | Maximum concurrent agent/task executions. | No |
+| `MAC_CONTROL_MAX_CONCURRENT_RUNS` | `2` | `int` (`1`–`8`) | Maximum concurrent agent/task executions. A parallel project can only use as much width as this allows. | No |
+| `MAC_CONTROL_PROJECT_AUTO_ACCEPT_LOW` | `false` | `bool` | Parallel builds only: accept a low-risk story on its own when its run succeeded without an incomplete report and every changed file is inside its declared files. See [Projects](../PROJECTS.md). | No |
 | `MAC_CONTROL_DEFAULT_TIMEOUT_S` | `1800` | `int` (`30`–`21600`) | Default execution timeout (30 min). | No |
 | `MAC_CONTROL_DEFAULT_BUDGET_USD` | `1.0` | `float` (`0.01`–`50.0`) | API-dollar budget used by the Claude adapter when applicable. Not a universal provider hard cap; subscription project runs omit this API-equivalent budget. | No |
 | `MAC_CONTROL_RUN_RETENTION_DAYS` | `90` | `int` (`≥1`) | Days to retain completed run records. | No |

@@ -22,6 +22,11 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 - Bug intake (off by default, `MAC_CONTROL_BUG_INTAKE_ENABLED`). Issues a maintainer has labelled `bug-report` and `accepted` become one
   read-only triage task each, tagged `release-blocker` (label `break-fix`) or `release-queued`, with the report quoted as untrusted
   evidence. A Profile panel lists new tasks and the reports still waiting for a maintainer's label.
+- Build in parallel, a switch chosen when a project is created (off by default; off builds one story at a time in dependency order). On, the planner is told to
+  plan branches that change different files, with a `touches` list per editing story and integration stories where branches join (role pack version 6).
+  Submission refuses two stories that can run together but overlap, a longest-chain-first build order, a schedule readout (longest chain, best-case
+  speed-up, width, and the real overlap once runs finish), integration-story instructions, and an optional lighter gate
+  (`MAC_CONTROL_PROJECT_AUTO_ACCEPT_LOW`, off by default) that accepts low-risk stories whose changes stay inside their declared files. See `docs/PROJECTS.md`.
 - Repository bootstrap. Hermes can propose a new private GitHub repository for a project (`propose_repository`, behind a new Profile switch), which
   waits in Profile under "GitHub actions waiting for you" with its exact request. Approving creates it under your account, always private, with an
   initial README commit, and adds it to the install's GitHub list. A project's "Repository access for agents" form grants agents one branch,

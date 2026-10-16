@@ -93,6 +93,7 @@ class Settings(BaseSettings):
     # --- Phase 3: task board and agent dispatch ----------------------------
     dispatcher_enabled: bool = Field(default=True, description="Off in tests.")
     max_concurrent_runs: int = Field(default=2, ge=1, le=8)
+    project_auto_accept_low: bool = Field(default=False, description="Parallel builds only: accept a low-risk story handoff on its own when its run succeeded without an incomplete report and every file it changed is inside the files it declared. Off by default.")
     default_timeout_s: int = Field(default=1800, ge=30, le=6 * 3600)
     run_quiet_after_s: int = Field(default=600, ge=30, le=6 * 3600,
                                    description="A live runner silent this long is shown as quiet, not as working.")
