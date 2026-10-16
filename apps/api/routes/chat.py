@@ -68,14 +68,40 @@ def _dispatcher(request: Request):
     return d
 
 
+FREE_ALIASES = {"openrouter/free", "openrouter/openrouter/free"}
+
+
+def _gate_settings(request: Request):
+    d = getattr(request.app.state, "dispatcher", None)
+    return d.settings if d is not None else get_settings()    # the settings the gate itself will read
+
+
+def resolve_model(s: Session, request: Request, agent: str, agent_target: str | None, model: str | None) -> str | None:
+    """The model a new chat will really use.
+
+    "openrouter/free" is the dashboard's generic default. Hermes and OpenClaw only run models their own config lists, so the alias is replaced by
+    the free model the agent is set up with (its default), when that route is reviewed as free. A model chosen by name is never replaced."""
+    if agent not in ("hermes", "openclaw") or (model and model not in FREE_ALIASES):
+        return model
+    settings = _gate_settings(request)
+    if model and reviewed_route_class(s, settings, SimpleNamespace(agent=agent, agent_target=agent_target, id=None), model) == "free":
+        return model
+    from native_routes import read
+    native = read(settings).get(agent, {})
+    target = next((t for t in native.get("targets", ()) if t.get("id") == agent_target), None) if agent_target else None
+    default = (target or {}).get("model") or native.get("default")
+    if default and reviewed_route_class(s, settings, SimpleNamespace(agent=agent, agent_target=agent_target, id=None), default) == "free":
+        return default
+    return model
+
+
 def route_problem(s: Session, request: Request, agent: str, agent_target: str | None, model: str | None) -> str | None:
     """Why the dispatch gate would refuse this route, in words the operator can act on, or None when it can start.
 
     The gate refuses a route nobody has reviewed (PRICE_UNKNOWN) only after the message was accepted, so the chat looked sent and then failed
     with a code. Asking first keeps the refusal at the moment the operator can still pick another model."""
     spec = REGISTRY.get(agent)
-    d = getattr(request.app.state, "dispatcher", None)
-    settings = d.settings if d is not None else get_settings()    # the settings the gate itself will read
+    settings = _gate_settings(request)
     chosen = model or (spec.default_model() if spec else None)
     if spec is None or not chosen:
         return None
@@ -145,13 +171,14 @@ def create_thread(body: ThreadIn, request: Request, s: Session = Depends(get_ses
     if real is None:
         raise HTTPException(status_code=422, detail="Working directory must be an existing folder inside "
                             + ", ".join(str(r) for r in roots))
-    problem = route_problem(s, request, body.agent, body.agent_target, body.model)
+    model = resolve_model(s, request, body.agent, body.agent_target, body.model)
+    problem = route_problem(s, request, body.agent, body.agent_target, model)
     if problem:
         raise HTTPException(status_code=409, detail=problem)
     now = _now()
     t = ChatThread(
         agent=body.agent, agent_target=body.agent_target, title=(body.title or f"Chat with {spec.name}").strip(),
-        model=body.model or None, mode=body.mode, working_dir=str(real),
+        model=model or None, mode=body.mode, working_dir=str(real),
         session_id=str(uuid.uuid4()) if spec.preassigned_session else None,
         created_at=now, last_activity_at=now,
     )
@@ -189,6 +216,10 @@ async def send_message(thread_id: int, body: MessageIn, request: Request, s: Ses
     t = _thread(s, thread_id)
     if d.thread_busy(t.id):
         raise HTTPException(status_code=409, detail="The agent is still answering. Wait or stop it first.")
+    resolved = resolve_model(s, request, t.agent, t.agent_target, t.model)
+    if resolved != t.model and t.session_id is None:       # a chat made before the alias was resolved; nothing has run, so the model can still be fixed
+        t.model = resolved
+        s.commit()
     problem = route_problem(s, request, t.agent, t.agent_target, t.model)
     if problem:
         raise HTTPException(status_code=409, detail=problem)

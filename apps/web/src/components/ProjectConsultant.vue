@@ -64,7 +64,7 @@ async function review() {
     <section v-if="open" class="consultant-glass" aria-labelledby="consultant-title">
       <h3 id="consultant-title">Project consultant</h3>
       <p>Describe what you want to build. The consultant answers, asks what it needs to know, and keeps going until you say that is enough. Then it writes up the plan for you to review and send to the coordinator, which creates the stories.</p>
-      <p class="muted">New conversations use {{agent}} · {{model}}. Free OpenRouter is the default and can throttle or time out. Membership routes use your native CLI account; API routes can incur charges. <RouterLink to="/profile#ai-settings">Configure AI defaults</RouterLink> · <RouterLink to="/help?topic=project-consultant">Consultant help</RouterLink></p>
+      <p class="muted">New conversations use {{agent}} · {{model}}. Free OpenRouter is the default (for Hermes and OpenClaw it means the free model they are set up with) and can throttle or time out. Membership routes use your native CLI account; API routes can incur charges. <RouterLink to="/profile#ai-settings">Configure AI defaults</RouterLink> · <RouterLink to="/help?topic=project-consultant">Consultant help</RouterLink></p>
       <p v-if="!available && !threadId" role="status">The configured consultant runtime is unavailable. <RouterLink to="/profile#agent-tools">Install an agent runtime</RouterLink> or change AI defaults.</p>
       <p v-if="error" role="alert">{{error}}</p>
       <p v-if="busy && threadId" role="status" class="muted">Sending your goal to the consultant…</p>
