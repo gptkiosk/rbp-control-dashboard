@@ -10,6 +10,11 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-10-16
+
+New in 0.6.0: a bug icon in the header, repository bootstrap for projects that need a new private GitHub repository, and an opt-in parallel build. Bug
+intake, Hermes repository proposals and the parallel auto-accept gate are all off until you turn them on, and a project builds serially unless you switch parallel on.
+
 ### Added
 
 - A Discord alert when a project's planning or story hand-out stops after its run succeeded, for example when the plan is refused for a
@@ -300,7 +305,8 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 - Claude Code stories may use web search and fetch without any shell, credential or publish permission.
 
 [0.3.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.0
-[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.5.5...HEAD
+[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.0
 [0.5.5]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.5.5
 [0.5.4]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.5.4
 [0.5.3]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.5.3

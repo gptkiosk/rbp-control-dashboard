@@ -36,11 +36,11 @@ def test_scrub_removes_paths_emails_addresses_hosts_and_token_shapes():
     key = fake('sk-', 'a1b2c3d4e5f6g7h8i9j0k1l2')
     pat = fake('ghp_', 'A' * 36)
     jwt = fake('eyJ', 'hbGciOiJIUzI1NiJ9', '.', 'eyJzdWIiOiIxMjM0NTY', '.', 'abcdefghijklmnop')
-    text = (f'It broke in /Users/alice/Projects/site and /home/pi/.rcd. Mail alice@example.com. Host miniblaster.tail8043b6.ts.net, '
-            f'mac masters-mac-mini.local, ip 100.69.79.112 and 192.168.1.20 but not 127.0.0.1. Key {key}, {pat}, Bearer {fake("abcDEF123456", "ghiJKL")}, '
+    text = (f'It broke in /Users/alice/Projects/site and /home/pi/.rcd. Mail alice@example.com. Host example-pi.tailnet-name.ts.net, '
+            f'mac example-mac.local, ip 100.64.1.5 and 192.168.1.20 but not 127.0.0.1. Key {key}, {pat}, Bearer {fake("abcDEF123456", "ghiJKL")}, '
             f'password=hunter2hunter2, {jwt}, https://user:secretpw@example.com/x, hash {"a" * 64}')
     out, notes = bug_reports.scrub(text)
-    for secret in ('alice', '/home/pi', 'alice@', 'tail8043b6', 'masters-mac-mini', '100.69.79.112', '192.168.1.20', key, pat,
+    for secret in ('alice', '/home/pi', 'alice@', 'tailnet-name', 'example-mac', '100.64.1.5', '192.168.1.20', key, pat,
                    'abcDEF123456', 'hunter2hunter2', jwt, 'secretpw', 'a' * 64):
         assert secret not in out, secret
     assert 'https://[credentials]@example.com/x' in out        # a link keeps its public host; only the credentials go

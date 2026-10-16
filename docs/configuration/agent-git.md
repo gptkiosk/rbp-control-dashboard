@@ -50,7 +50,7 @@ clone. It pushes nothing.
 
 ```sh
 scripts/agent-git/setup-clone.sh --repo gptkiosk/rbp-control-dashboard \
-  --dest ~/Bamcio-Workspace/work/rbp-control-dashboard --project 5 --slug installable-releases \
+  --dest ~/work/rbp-control-dashboard --project 5 --slug installable-releases \
   --pre-push-cmd 'cd apps/api && .venv/bin/python -m pytest -q'
 ```
 
