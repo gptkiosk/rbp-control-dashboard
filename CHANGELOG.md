@@ -10,6 +10,13 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+### Changed
+
+- The planner is told what a sandboxed coding agent cannot run. A Codex story cannot reach the local container engine, so the plan no longer asks an edit story to
+  build an image or run a container. Container and pipeline files are planned as an edit story that ends with the files committed and the static checks passing, and
+  the build and smoke run are planned as a later verification story for a person or a read-only agent. Prompt pack version 7. A planner prompt you edited under
+  `roles/custom` in the data folder is used as you wrote it, so add the same rule to your copy.
+
 ## [0.6.5] - 2026-10-16
 
 ### Fixed
