@@ -172,8 +172,8 @@ def test_the_planner_is_told_the_areas_and_their_minimums_and_that_repository_te
     ('read-only-triage', 'low', 'hermes', None),                      # free is fine where the standard says low
     ('panels-docs', 'low', 'codex', 'below the standards minimum medium'),
     ('money', 'high', 'hermes', 'must not use a free-only route'),   # high risk never on a free route
-    ('nonsense', 'high', 'codex', "area 'nonsense' is not one of"),
-    ('', 'low', 'codex', "area '' is not one of"),
+    ('nonsense', 'high', 'codex', "area 'nonsense' is not one of this repository's areas"),
+    ('', 'low', 'codex', "area '' is not one of this repository's areas"),
 ])
 def test_floor_problems(tmp_path, area, risk, assignee, expect):
     write(tmp_path)

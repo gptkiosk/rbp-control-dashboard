@@ -78,6 +78,8 @@ class Action(Strict):
     delegator_revision: str | None = Field(default=None, pattern=r'^[a-f0-9]{64}$')
     approve_api_planning: bool = False
     approve_api_work: bool = False
+    # Plan again from the brief alone: the planner is not shown the stories the project has now (it tends to repeat them).
+    fresh: bool = False
 
 class Close(Strict):
     revision: int = Field(ge=1)
