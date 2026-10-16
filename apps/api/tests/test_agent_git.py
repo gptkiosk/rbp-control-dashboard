@@ -1,7 +1,9 @@
 """Branch-scoped git grants: validation, agent command lines, context text, hooks and helper."""
 import json
 import os
+import shutil
 import subprocess
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -119,6 +121,9 @@ def test_codex_with_grant_uses_the_permission_profile(tmp_path):
     assert 'default_permissions="agentgit"' in argv and 'permissions.agentgit.extends=":workspace"' in argv
     net = next(a for a in argv if a.startswith("permissions.agentgit.network="))
     assert '"github.com"="allow"' in net and "example.com" not in net and '"*"' not in net
+    fs = next(a for a in argv if a.startswith("permissions.agentgit.filesystem="))
+    # .git is writable so a story can cut its branch and commit; hooks and config stay read-only
+    assert '".git"="write"' in fs and '".git/hooks"="read"' in fs and '".git/config"="read"' in fs and '"/"' not in fs
     resumed = build_codex(card("codex", agent_git_grant=grant(tmp_path)), "p", "m", 1.0, "codex", session_id="s1")
     assert 'default_permissions="agentgit"' in resumed and not any(a.startswith("sandbox_mode") for a in resumed)
 
@@ -383,3 +388,17 @@ def test_setup_clone_can_cut_the_project_branch_from_a_baseline(tmp_path):
     assert r.returncode == 0, r.stderr
     assert (dest / "b.txt").exists() and git(dest, "branch", "--show-current").stdout.strip() == "project-7/demo"
     assert git(dest, "rev-parse", "project-7-base^{commit}").stdout == git(dest, "rev-parse", "origin/baseline/x").stdout
+
+
+@pytest.mark.skipif(sys.platform != "darwin" or not shutil.which("codex"), reason="needs the Codex seatbelt sandbox")
+def test_real_codex_sandbox_lets_a_story_cut_its_branch_but_not_touch_hooks(tmp_path):
+    """Drift guard: Codex changed what `:workspace` protects once and stories could no longer create their branch."""
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+    probe = ("import os,sys\n"
+             "for p in ('.git/refs/heads/x','.git/hooks/x','.git/config'):\n"
+             "    try: open(p,'a').close(); print('ok',p)\n"
+             "    except OSError: print('denied',p)\n"
+             "os.remove('.git/refs/heads/x')\n")
+    argv = ["codex", "sandbox", *[a for o in agent_git.codex_overrides() for a in ("-c", o)], "--", sys.executable, "-c", probe]
+    out = subprocess.run(argv, cwd=tmp_path, capture_output=True, text=True, timeout=60).stdout
+    assert "ok .git/refs/heads/x" in out and "denied .git/hooks/x" in out and "denied .git/config" in out, out

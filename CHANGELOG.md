@@ -10,6 +10,16 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.6.4] - 2026-10-16
+
+### Fixed
+
+- A Codex story with a git grant can create its project branch and commit again. The permission profile that replaces Codex's plain workspace sandbox left `.git`
+  read-only in current Codex builds, so a story stopped with "could not create its ref under `.git/refs/heads`" before doing any work. The profile now makes `.git`
+  writable while the repository's hooks folder and config stay read-only, so an agent can still not rewrite the operator's hooks or credential helper. A test runs
+  the real Codex sandbox (when Codex is installed on a Mac) so a future Codex change shows up here and not in the middle of a project. A story stopped this way can
+  be retried with **Rerun task**.
+
 ## [0.6.3] - 2026-10-16
 
 ### Fixed
@@ -343,7 +353,8 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 - Claude Code stories may use web search and fetch without any shell, credential or publish permission.
 
 [0.3.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.0
-[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.3...HEAD
+[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.4...HEAD
+[0.6.4]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.4
 [0.6.3]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.3
 [0.6.2]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.2
 [0.6.1]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.1

@@ -203,13 +203,17 @@ def claude_denied(grant: Grant) -> list[str]:
 
 def codex_overrides() -> list[str]:
     """`-c` overrides that replace the plain workspace-write sandbox: .git is writable and the
-    network is limited to GitHub and the package indexes. Verified with `codex sandbox`."""
+    network is limited to GitHub and the package indexes. Hooks and the repository config stay read-only,
+    so an agent can commit and cut its branch but cannot rewrite the operator's hooks or credential
+    helper. `:workspace` alone leaves .git read-only in current Codex builds (a story could not create
+    its branch, 2026-10-16); the filesystem rule below was verified with `codex sandbox`."""
     domains = ",".join(f'"{d}"="allow"' for d in CODEX_DOMAINS)
     return [
         'default_permissions="agentgit"',
         'permissions.agentgit.extends=":workspace"',
         "features.network_proxy={enabled=true}",
         f'permissions.agentgit.network={{enabled=true,mode="full",domains={{{domains}}}}}',
+        'permissions.agentgit.filesystem={":project_roots"={".git"="write",".git/hooks"="read",".git/config"="read"}}',
     ]
 
 
