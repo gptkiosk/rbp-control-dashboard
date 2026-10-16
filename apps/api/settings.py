@@ -146,6 +146,8 @@ class Settings(BaseSettings):
 
     # --- Phase 6: read-only operations panels ----------------------------
     github_writes_enabled: bool = False
+    bug_intake_enabled: bool = False
+    bug_intake_poll_seconds: int = Field(default=900, ge=120, le=86400)
     gh_path: str = Field(default_factory=lambda: find_tool("gh"))
     ops_reports_dir: Path | None = None
     hermes_reports_dir: Path | None = None

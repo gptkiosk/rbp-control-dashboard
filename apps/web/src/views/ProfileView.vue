@@ -5,6 +5,7 @@ import GithubSettingsPanel from '@/components/GithubSettingsPanel.vue'
 import UpdatePanel from '@/components/UpdatePanel.vue'
 import HousekeepingPanel from '@/components/HousekeepingPanel.vue'
 import AgentToolsPanel from '@/components/AgentToolsPanel.vue'
+import BugIntakePanel from '@/components/BugIntakePanel.vue'
 import { onMounted, ref } from 'vue'
 import AppIcon from '@/components/AppIcon.vue'
 import AppSelect from '@/components/AppSelect.vue'
@@ -80,6 +81,7 @@ async function importPreferences(event: Event) { await action(async () => {
     <ReportStoragePanel />
     <UpdatePanel />
     <HousekeepingPanel />
+    <BugIntakePanel />
     <AgentToolsPanel />
     <RolesPanel />
     <GithubSettingsPanel id="github-settings" />

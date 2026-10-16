@@ -425,7 +425,7 @@ def _brief(p, include_nodes=False):
     payload.update(planning_bias=d['planning_bias'], assignment_policy=planning_policy(d['planning_bias']))
     return json.dumps(payload,ensure_ascii=False)
 
-CONSULTANT_CONTEXT_MAX = 16000
+CONSULTANT_CONTEXT_MAX = 20000
 
 
 def installation_text(s, settings):
@@ -467,7 +467,7 @@ def consultant_context(s, settings, working_dir):
         fail('Choose an existing allowlisted working directory.', 422)
     found = standards.resolve(str(wd), settings.data_dir)
     methods = '\n\n'.join(f"{label}:\n{standards.guide_text(name, settings.data_dir)}" for label, name in
-                           (('Development practice', 'practices.md'), ('Delivering a hosted web app', 'web-app-delivery.md'), ('Delivering a packaged app', 'packaged-app-delivery.md'),
+                           (('Development practice', 'practices.md'), ('Delivering a hosted web app', 'web-app-delivery.md'), ('Delivering a packaged app', 'packaged-app-delivery.md'), ('Delivering a containerized web app, local first', 'container-app-delivery.md'),
                             ('Application security', 'security.md')) if standards.guide_text(name, settings.data_dir))
     parts = [('How the software is delivered', RoleStore(settings).source('context.md').strip()),
              ('Standards that apply to this working directory', standards.prompt_section(found)),

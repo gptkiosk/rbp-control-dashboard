@@ -65,6 +65,8 @@ The profile UI is separate from the host environment table; it does not expose o
 | `MAC_CONTROL_MODEL_REFRESH_ENABLED` | `true` | `bool` | Lets the operator read OpenRouter's public model list from the Models section. `false` refuses the refresh and fetches nothing. | No |
 | `MAC_CONTROL_MODEL_WATCH_ENABLED` | `false` | `bool` | Runs the weekly model watch: reads OpenRouter's public model list and leaves one Backlog card when a model needs a decision. | No |
 | `MAC_CONTROL_MODEL_WATCH_INTERVAL_DAYS` | `7` | `int` (`1`-`30`) | Days between model watch runs. | No |
+| `MAC_CONTROL_BUG_INTAKE_ENABLED` | `false` | `bool` | Reads maintainer-accepted bug reports (issues labelled `bug-report` and `accepted`) from the official repository and creates one Backlog task each. See [Bug reports](bug-reports.md). | No |
+| `MAC_CONTROL_BUG_INTAKE_POLL_SECONDS` | `900` | `int` | How often intake reads GitHub (120–86400). | No |
 | `MAC_CONTROL_HOUSEKEEPING_AUTO` | empty | `str` | Comma-separated housekeeping kinds cleaned up automatically after hours (`stale_approval_wait`, `old_update_backup`). Empty: nothing is automatic. | No |
 | `MAC_CONTROL_HOUSEKEEPING_WINDOW_START_HOUR` | `1` | `int` (`0`-`23`) | Local hour the after-hours window opens. | No |
 | `MAC_CONTROL_HOUSEKEEPING_WINDOW_END_HOUR` | `5` | `int` (`0`-`23`) | Local hour the after-hours window closes (a window may cross midnight). | No |

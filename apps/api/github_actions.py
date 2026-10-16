@@ -49,10 +49,15 @@ def plan(value):
         "merge": {"number", "head_sha", "method", "commit_title", "commit_message"},
         "publication": {"tag", "target_sha", "name", "body", "prerelease"},
     }
-    if not isinstance(kind, str) or kind not in schemas or not isinstance(content, dict) or set(content) != schemas[kind]:
+    optional = {"issue": {"labels"}}.get(kind, set()) if isinstance(kind, str) else set()
+    if (not isinstance(kind, str) or kind not in schemas or not isinstance(content, dict)
+            or not schemas[kind] <= set(content) <= schemas[kind] | optional):
         raise ActionError("Unsupported action or content fields.", 422)
     for key, item in content.items():
-        if key in {"number"}:
+        if key == "labels":
+            valid = (isinstance(item, list) and 1 <= len(item) <= 5
+                     and all(isinstance(x, str) and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9 ._-]{0,49}", x) for x in item))
+        elif key in {"number"}:
             valid = type(item) is int and 1 <= item <= 2147483647
         elif key in {"draft", "prerelease"}:
             valid = type(item) is bool
@@ -150,6 +155,10 @@ class GithubActionTransport:
                 raise ActionError("GitHub did not confirm the merge; inspect the PR.")
         elif type(value.get("id")) is not int:
             raise ActionError("GitHub acknowledgement was invalid; inspect the destination.")
+        url = value.get("html_url")
+        # Only a link back to the exact repository is passed on, and only for an issue.
+        if preview["kind"] == "issue" and isinstance(url, str) and url.startswith(f"https://github.com/{preview['repo']}/issues/"):
+            return {"acknowledged": True, "html_url": url}
         return {"acknowledged": True}
 
 
@@ -308,12 +317,12 @@ class GithubActionGuard:
             self.finish(action_id, "blocked", actor)
             raise ActionError("GitHub preflight refused or failed. No write was attempted; inspect the audit and destination.") from None
         try:
-            self.transport.send(preview)
+            result = self.transport.send(preview)
         except Exception:
             self.finish(action_id, "uncertain", actor)
             raise ActionError("Delivery is uncertain. Inspect the exact GitHub destination; this action will not be resent.") from None
         self.finish(action_id, "succeeded", actor)
-        return self.get(action_id)
+        return {**self.get(action_id), "result": result if isinstance(result, dict) else {}}
 
     def finish(self, action_id, state, actor):
         with self.connect() as db:

@@ -368,6 +368,18 @@ class AlertState(Base):
     value: Mapped[str] = mapped_column(Text)
 
 
+class BugIntake(Base):
+    """One accepted bug-report issue turned into one task, kept even if the task is later deleted so it is never created twice."""
+    __tablename__ = "bug_intake"
+    __table_args__ = (UniqueConstraint("repo", "number", name="uq_bug_intake_issue"),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    repo: Mapped[str] = mapped_column(String(140))
+    number: Mapped[int] = mapped_column(Integer)
+    urgency: Mapped[str] = mapped_column(String(12))
+    card_id: Mapped[int | None] = mapped_column(Integer)
+    created_at: Mapped[int] = mapped_column(Integer)
+
+
 class AgentAccess(Base):
     """Revocable, expiring Hermes capability; the secret is never returned by the API."""
     __tablename__ = "agent_access"

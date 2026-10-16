@@ -74,6 +74,11 @@ class GithubReader:
   except GithubUnavailable:return None
   matches=difflib.get_close_matches(name,[n for n in names if isinstance(n,str) and n not in configured],n=1,cutoff=0.8)
   return matches[0] if matches else None
+ def bug_issues(self,repo,label="bug-report"):
+  """Open, labelled issues (not pull requests), each body capped. The label query is a filter, never trust."""
+  if not SLUG.fullmatch(repo) or any(x in {".",".."} for x in repo.split("/")) or not re.fullmatch(r"[A-Za-z0-9 ._-]{1,50}",label):raise GithubUnavailable()
+  fields='[.[] | select(.pull_request == null) | {number: .number, title: .title, user: .user.login, body: ((.body // "") | .[0:6000]), labels: [.labels[].name], url: .html_url, updated_at: .updated_at}]'
+  return self.query(f"repos/{repo}/issues?state=open&labels={label}&per_page=30&sort=updated",fields)
  def missing(self,repos):
   """Names that GitHub says do not exist for this login, each with a hint. Other failures are not blockers."""
   found=[]
