@@ -22,6 +22,10 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
   does not change the plan), so it reaches the coordinator as work instead of a dangling question.
 - The planner is told that every story needs its instructions in the description field. A free planner returned a story with scope and
   acceptance but no description, and planning stopped with "needs instructions". (Coordinator role pack version 3.)
+- Planning no longer stops with "Dependencies must connect different stories in this project" when the planner orders phases against each
+  other or makes a story depend on its own phase. Those links are dropped from planner proposals (story order is kept; a dependency on a
+  key that does not exist is still refused, and your own edits are checked as written). Because the saved plan is read again by **Resume
+  saved plan**, a project that failed this way can continue from the saved proposal without another planning run.
 
 ## [0.5.4] - 2026-10-16
 

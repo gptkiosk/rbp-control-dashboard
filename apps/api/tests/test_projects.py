@@ -169,6 +169,21 @@ def test_agent_missing_scope_is_named_and_not_normalized(app):
         projects.proposal(new(app)['document'],[dict(node('missing'),scope='')],settings)
     assert 'missing' in error.value.detail
 
+def test_planner_dependencies_on_phases_are_dropped_but_unknown_keys_are_still_refused(app):
+    """A free planner ordered phases against each other and made a story depend on its phase; the plan was otherwise fine."""
+    from fastapi import HTTPException
+    c,s,wd,settings=app
+    phase=lambda k,deps=(): dict(key=k,kind='phase',title=k,description='A phase.',parent=None,depends_on=list(deps))
+    story=lambda k,parent,deps: dict(node(k),kind='story',parent=parent,depends_on=list(deps))
+    nodes=[phase('p1'),story('s1','p1',['p1']),phase('p2',['p1','s1']),story('s2','p2',['s1','p2'])]
+    out=projects.proposal(new(app)['document'],nodes,settings)
+    by={n['key']:n for n in out['nodes']}
+    assert by['s1']['depends_on']==[] and by['p2']['depends_on']==[] and by['s2']['depends_on']==['s1']   # story order survives
+    with pytest.raises(HTTPException,match='Dependencies must connect'):
+        projects.proposal(new(app)['document'],[phase('p1'),story('s1','p1',['nope'])],settings)
+    with pytest.raises(HTTPException,match='Dependencies must connect'):
+        projects.validate({**new(app)['document'],'nodes':[phase('p1'),story('s1','p1',['p1'])]},settings,True)       # an operator's edit is still strict
+
 def test_only_one_extra_closing_brace_after_complete_plan_is_tolerated():
     from fastapi import HTTPException
     assert projects._json_result('{"nodes": []}}') == {'nodes': []}
