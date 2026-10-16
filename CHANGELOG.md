@@ -16,6 +16,13 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
   missing field or a bad dependency. Until now only failed runs alerted, so a plan that came back and then failed validation was
   silent. One alert per project, revision and reason; turn it off with `[projects] enabled = false` in `alerts.toml`.
 
+### Fixed
+
+- The Updates page no longer calls a normal update interrupted. While the helper is staging or removing a version (minutes on a Raspberry
+  Pi) the page used to warn "An earlier update was interrupted" and list the folder being built or removed as "only partly staged".
+  Both are shown only when no helper is working, so a real interruption still says so. After a successful update the release you just
+  installed is no longer offered again under "Update to ...".
+
 ## [0.5.5] - 2026-10-16
 
 ### Fixed
