@@ -14,7 +14,7 @@ from pathlib import Path
 from string import Template
 from fastapi import HTTPException
 from pydantic import ValidationError
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, or_, select
 from models import Project, ProjectTask, ProjectMemory, ProjectDelivery, Card, Run, RunEvent
 from project_schemas import Document, Node, Accept, DEFAULT_PLANNING_BIAS
 import approval
@@ -730,14 +730,16 @@ def advance(s,settings):
 
 def binding(s,card_id): return s.get(ProjectTask,card_id)
 def superseded_by(s,card,link=None):
-    """The finished sibling card when this failed project card is an unneeded duplicate of it, else None.
-    Another card with the same project, revision, role and story key (a story, or a coordinate, plan,
-    return-plan or dispatch step) must already be Done or in Review, so unfinished work is never deletable."""
+    """The sibling card that carries this failed project card's work, else None.
+    Another card with the same project, revision, role and story key (a story, or a coordinate, plan, return-plan or dispatch step) must
+    already be Done or in Review, or be a NEWER card that is queued or running (the retry that replaced this one), so the only card
+    that holds a step's work is never deletable. If the retry fails too, it stays and this one is no longer needed anyway."""
     link=link or binding(s,card.id)
     if not link or card.column!='failed':return None
     return s.scalar(select(ProjectTask.card_id).join(Card,Card.id==ProjectTask.card_id).where(
         ProjectTask.project_id==link.project_id,ProjectTask.revision==link.revision,ProjectTask.role==link.role,
-        ProjectTask.node_key==link.node_key,ProjectTask.card_id!=card.id,Card.column.in_(('done','review'))).limit(1))
+        ProjectTask.node_key==link.node_key,ProjectTask.card_id!=card.id,
+        or_(Card.column.in_(('done','review')),and_(Card.column.in_(('queued','running')),ProjectTask.card_id>card.id))).order_by(ProjectTask.card_id.desc()).limit(1))
 
 def forget_duplicate(s,card,sibling):
     """Remove the binding of a superseded duplicate so the card can be deleted; the ledger keeps the record."""

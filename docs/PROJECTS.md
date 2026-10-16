@@ -233,5 +233,6 @@ history. The project becomes **Closed**, never Complete: Complete is for project
 - No new story starts, and a story that is running must be cancelled first.
 - The failed tasks of a Closed or Complete project can then be removed from the board, with a confirmation.
   The ledger keeps their handoff and incident entries; only their run history on the board is deleted.
-- A failed task that another task already carries (an unneeded duplicate) can be removed from any project.
+- A failed task that another task already carries (an unneeded duplicate) can be removed from any project. That includes the failed task a
+  project retry replaced while the retry is still queued or running; the retry itself stays protected.
 - Everything else on a project stays protected: only the Projects page changes a story.

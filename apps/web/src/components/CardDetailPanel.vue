@@ -218,7 +218,7 @@ async function cancelRun(): Promise<void> {
 
 async function remove(): Promise<void> {
   if (!card.value || running.value || busy.value) return
-  if (!window.confirm(card.value.closed_project ? `Delete this failed task? Its project is closed out. The run history of this task is removed; the project ledger keeps its handoff and incident entries.` : card.value.superseded_by ? `Delete this unneeded duplicate? Its story is carried by task #${card.value.superseded_by}. The run history of this card is removed; the project ledger keeps the record.` : `Delete "${card.value.title}" and its run history?`)) return
+  if (!window.confirm(card.value.closed_project ? `Delete this failed task? Its project is closed out. The run history of this task is removed; the project ledger keeps its handoff and incident entries.` : card.value.superseded_by ? `Delete this unneeded duplicate? Its work is carried by task #${card.value.superseded_by}. The run history of this card is removed; the project ledger keeps the record.` : `Delete "${card.value.title}" and its run history?`)) return
   busy.value = true
   message.value = null
   try {
@@ -627,7 +627,7 @@ async function save(): Promise<void> {
               <AppIcon name="stop" />
               Cancel run
             </button>
-            <button type="button" class="btn danger" :disabled="busy || (locked && !card.superseded_by && !card.closed_project)" :title="card.superseded_by ? `Unneeded duplicate: this story is carried by task #${card.superseded_by}` : card.closed_project ? 'This project is closed out, so this failed task can be removed' : undefined" @click="remove">
+            <button type="button" class="btn danger" :disabled="busy || (locked && !card.superseded_by && !card.closed_project)" :title="card.superseded_by ? `Unneeded duplicate: its work is carried by task #${card.superseded_by}` : card.closed_project ? 'This project is closed out, so this failed task can be removed' : undefined" @click="remove">
               <AppIcon name="trash" />
               Delete
             </button>
