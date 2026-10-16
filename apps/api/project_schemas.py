@@ -130,6 +130,22 @@ class GoFree(Strict):
     agent_target: str = Field(min_length=1, max_length=80)
 
 
+class PayRetry(Strict):
+    revision: int = Field(ge=1)
+    run_id: int = Field(ge=1)
+    model: str = Field(min_length=3, max_length=200)
+    agent_target: str = Field(min_length=1, max_length=80)
+    acknowledge: bool = False
+
+
+class LowCostRetry(Strict):
+    revision: int = Field(ge=1)
+    run_id: int = Field(ge=1)
+    agent: Literal['claude', 'codex']
+    edit_mode: bool = False
+    acknowledge: bool = False
+
+
 class ModelLock(Strict):
     revision: int = Field(ge=1)
     enabled: StrictBool

@@ -79,6 +79,56 @@ def subscription_model(agent, bias, *, planner=False):
         return 'claude-haiku-5-5' if agent == 'claude' else 'gpt-6-luna'
     return 'claude-opus-5-5' if agent == 'claude' else REGISTRY['codex'].default_model() or 'gpt-6.1-sol'
 
+LOW_COST_AGENTS = ('claude', 'codex')
+
+def low_cost_routes(s, settings):
+    """The cost-aware subscription routes (Haiku, Luna) this host can run: installed, and billed as a fixed-fee subscription."""
+    return [{'agent': a, 'model': subscription_model(a, 50)} for a in LOW_COST_AGENTS if REGISTRY[a].available(settings) and subscription(s, a)]
+
+def low_cost_retry(s, p, card_id, data, settings, actor):
+    """Retry one failed story on a low-cost subscription model (Claude Haiku or Codex Luna), optionally as an edit story.
+    The same scope, workspace, dependencies and acceptance apply; the route becomes an operator-approved amendment recorded in the manifest and ledger."""
+    check_revision(p, data.revision)
+    link = binding(s, card_id); card = s.get(Card, card_id)
+    run = s.scalar(select(Run).where(Run.card_id == card_id).order_by(Run.id.desc()).limit(1))
+    if (p.state != 'active' or not p.approved_manifest or not link or link.project_id != p.id or link.role != 'story' or link.revision != p.revision or
+            not card or card.assignee_type != 'agent' or card.column != 'failed' or not run or run.id != data.run_id or
+            run.stage not in {'failed', 'timeout', 'interrupted'}):
+        fail('A low-cost retry needs the current failed run of an agent story in an active project.')
+    route = next((r for r in low_cost_routes(s, settings) if r['agent'] == data.agent), None)
+    if not route: fail('That subscription agent is not installed or is not billed as a subscription.')
+    edit = card.mode == 'read' and data.edit_mode
+    if edit and not data.acknowledge: fail('Acknowledge the switch from read-only review to workspace execution.', 422)
+    if (card.agent, card.model or '') == (route['agent'], route['model']) and not edit:
+        fail('This story already ran on that model. Choose another route.', 422)
+    manifest = json.loads(p.approved_manifest)
+    previous = {'agent': card.agent, 'model': card.model, 'mode': card.mode, 'agent_target': card.agent_target, 'run_id': run.id}
+    manifest.setdefault('cost_retries', {})[link.node_key] = {'route': route, 'mode': 'edit' if edit else card.mode,
+        'source_run_id': run.id, 'approved_by': actor, 'approved_at': now()}
+    live = document(p)
+    if edit:
+        for nodes in (manifest.get('document', {}).get('nodes', []), live['nodes']):
+            for n in nodes:
+                if n['key'] == link.node_key: n['mode'] = 'edit'
+    grant = manifest.get('output_continuations', {}).get(link.node_key)
+    if grant: grant['state'] = 'superseded'
+    card.agent = route['agent']; card.model = route['model']; card.agent_target = None
+    if edit: card.mode = 'edit'
+    card.column = 'queued'; card.retry_attempts = 0; card.retry_after = None; card.updated_at = now()
+    amendment = {'kind': 'low_cost_retry', 'approved_by': actor, 'approved_at': now(), 'card_id': card.id, 'previous': previous,
+                 'route': {**route, 'mode': card.mode}}
+    manifest.setdefault('route_amendments', []).append(amendment)
+    old_hash = manifest.get('hash', '')
+    manifest['hash'] = hashlib.sha256((old_hash + json.dumps(amendment, sort_keys=True)).encode()).hexdigest()
+    policy = manifest.get('handoff_policy')
+    if policy and policy.get('mode') == 'automatic': policy['manifest_hash'] = manifest['hash']
+    p.document = json.dumps(live); p.approved_manifest = json.dumps(manifest); p.error = None
+    memory(s, p, 'decision',
+        f'Operator retried the SAME story #{card.id} on {route["agent"]} {route["model"]} (a low-cost subscription route) after run #{run.id} '
+        f'({previous["agent"]} {previous["model"] or "default"}) failed' + ('; it now runs in edit mode on this project\'s branch.' if edit else '.') +
+        ' Scope, workspace, dependencies, acceptance, security gates and publication gates are unchanged. No paid API or Google BYOK route is added.', actor, card.id, run.id)
+
+
 def retier_paused(s, p, data, actor):
     """Amend only unstarted native-subscription stories on an explicitly paused revision."""
     check_revision(p, data.revision)
@@ -289,6 +339,10 @@ def approved_story_routes(p, link):
     choices = node['routes'] + [{'agent':a, 'model':manifest['fallback_models'][a]} for a in node['fallbacks']]
     free = manifest.get('free_retries',{}).get(link.node_key)
     if free: choices += [free['route']]
+    cost = manifest.get('cost_retries',{}).get(link.node_key)
+    if cost: choices += [cost['route']]
+    paid = manifest.get('paid_retries',{}).get(link.node_key)
+    if paid: choices += [paid['route']]
     return [dict(agent=a, model=m) for a,m in dict.fromkeys((r['agent'],r['model']) for r in choices)]
 
 def prerequisite_reason(s, card_id):
@@ -360,6 +414,61 @@ def subscription_limit(card, run):
         re.search(r'session limit|usage limit|rate.?limit|quota|too many requests|limit reached|429',
                   (run.error or '')+'\n'+(run.result_text or ''), re.I))
 
+PROVIDER_FAILURE=re.compile(r'timed out|timeout|rate.?limit|quota|too many requests|overloaded|unavailable|temporarily|limit reached|\b(?:429|502|503|504)\b',re.I)
+
+def free_route_failure(card,run):
+    """An OpenClaw story that failed on its own free model for a provider reason (a timeout, a limit, an outage): another free model may succeed."""
+    return bool(card and card.assignee_type=='agent' and card.agent=='openclaw' and card.column=='failed' and run and
+        run.agent=='openclaw' and run.stage in {'failed','timeout'} and PROVIDER_FAILURE.search((run.error or '')+'\n'+(run.result_text or '')))
+
+def can_go_free(card,run):
+    return subscription_limit(card,run) or free_route_failure(card,run)
+
+def other_free_routes(routes,card):
+    """The configured free routes, without the one this story just failed on."""
+    return [r for r in routes if not (card and card.agent=='openclaw' and r['model']==card.model and (card.agent_target or r['agent_target'])==r['agent_target'])]
+
+def paid_retry_routes(settings):
+    """Configured OpenRouter models that are not free, on the configured OpenClaw targets. Choosing one is a per-task operator approval of API billing;
+    the price class, budget caps and free-only settings still apply when it dispatches."""
+    if not REGISTRY['openclaw'].available(settings): return []
+    native=native_routes.read(settings)['openclaw']
+    models=[m for m in native['models'] if m.startswith('openrouter/') and not m.endswith(':free')]
+    return [{'agent':'openclaw','model':m,'agent_target':t['id']} for t in native['targets'] for m in models]
+
+RETRYABLE_STAGES={'failed','timeout','interrupted'}
+
+def pay_retry(s,p,card_id,data,settings,actor):
+    """Retry one failed story on a paid OpenRouter model the operator chooses, for this story only."""
+    check_revision(p,data.revision)
+    link=binding(s,card_id);card=s.get(Card,card_id)
+    run=s.scalar(select(Run).where(Run.card_id==card_id).order_by(Run.id.desc()).limit(1))
+    if (p.state!='active' or not p.approved_manifest or not link or link.project_id!=p.id or link.role!='story' or link.revision!=p.revision or
+            not card or card.assignee_type!='agent' or card.column!='failed' or not run or run.id!=data.run_id or run.stage not in RETRYABLE_STAGES):
+        fail('A paid retry needs the current failed run of an agent story in an active project.')
+    if not data.acknowledge: fail('Acknowledge that this run uses API billing for this story only.',422)
+    chosen={'agent':'openclaw','model':data.model,'agent_target':data.agent_target}
+    if chosen not in paid_retry_routes(settings):
+        fail('Choose a configured OpenClaw target and an OpenRouter model that is not free. Google BYOK routes are not offered here.',422)
+    manifest=json.loads(p.approved_manifest)
+    previous={'agent':card.agent,'model':card.model,'agent_target':card.agent_target,'run_id':run.id}
+    manifest.setdefault('paid_retries',{})[link.node_key]={'route':{'agent':'openclaw','model':data.model},'agent_target':data.agent_target,
+        'source_run_id':run.id,'approved_by':actor,'approved_at':now()}
+    amendment={'kind':'paid_retry','approved_by':actor,'approved_at':now(),'card_id':card.id,'previous':previous,'route':{'agent':'openclaw','model':data.model}}
+    manifest.setdefault('route_amendments',[]).append(amendment)
+    old_hash=manifest.get('hash','')
+    manifest['hash']=hashlib.sha256((old_hash+json.dumps(amendment,sort_keys=True)).encode()).hexdigest()
+    policy=manifest.get('handoff_policy')
+    if policy and policy.get('mode')=='automatic': policy['manifest_hash']=manifest['hash']
+    grant=manifest.get('output_continuations',{}).get(link.node_key)
+    if grant: grant['state']='superseded'
+    card.agent='openclaw';card.model=data.model;card.agent_target=data.agent_target
+    card.column='queued';card.retry_attempts=0;card.retry_after=None;card.updated_at=now()
+    p.approved_manifest=json.dumps(manifest);p.error=None
+    memory(s,p,'decision',f'Operator chose a PAID retry of the SAME story #{card.id} on openclaw {data.model} ({data.agent_target}) after run #{run.id} '
+        f'({previous["agent"]} {previous["model"] or "default"}) failed. This approves API billing for this story only. Price class, budget caps and free-only settings still apply at dispatch; '
+        'scope, workspace, dependencies, acceptance and security gates are unchanged. No Google BYOK route is added.',actor,card.id,run.id)
+
 def free_retry_routes(settings):
     # Only OpenClaw's explicit per-run model override disables native fallbacks.
     # Hermes currently inherits its configured provider fallback chain.
@@ -411,6 +520,8 @@ def plan_schedule(p):
 def detail(s, p):
     bindings = []
     free_routes=free_retry_routes(get_settings()) if p.state=='active' else []
+    cheap_routes=low_cost_routes(s,get_settings()) if p.state=='active' else []
+    paid_routes=paid_retry_routes(get_settings()) if p.state=='active' else []
     dependency_cache={'reasons':{},'dependencies':{}}
     for link in s.scalars(select(ProjectTask).where(ProjectTask.project_id==p.id).order_by(ProjectTask.card_id)):
         c = s.get(Card, link.card_id)
@@ -421,7 +532,9 @@ def detail(s, p):
             'mode':c.mode if c else None, 'incomplete_reason':project_outputs.incomplete_error(r) if r else None,
             'revision':link.revision, 'column':c.column if c else 'missing', 'title':c.title if c else '',
             'run_id':r.id if r else None, 'run_stage':r.stage if r else None,
-            'free_retry_routes':free_routes if link.role=='story' and subscription_limit(c,r) else [],
+            'free_retry_routes':other_free_routes(free_routes,c) if link.role=='story' and can_go_free(c,r) else [],
+            'paid_retry_routes':[x for x in paid_routes if not (c and c.agent=='openclaw' and x['model']==c.model and (c.agent_target or x['agent_target'])==x['agent_target'])] if link.role=='story' and c and c.assignee_type=='agent' and c.column=='failed' and r and r.stage in RETRYABLE_STAGES else [],
+            'low_cost_routes':[x for x in cheap_routes if (x['agent'],x['model'])!=(c.agent,c.model or '') or c.mode=='read'] if link.role=='story' and c and c.assignee_type=='agent' and c.column=='failed' and r and r.stage in {'failed','timeout','interrupted'} else [],
             'blocked_by':[b['card_id'] for b in blocks if b['card_id'] is not None],
             'blocked_reasons':blocks,
             'retry_routes':[r for r in approved_story_routes(p,link) if (r['agent'],r['model']) != (c.agent,c.model or '')]

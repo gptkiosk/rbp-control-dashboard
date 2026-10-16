@@ -1269,3 +1269,69 @@ def test_a_phase_key_or_a_repeated_key_in_hermes_dispatch_order_is_ignored_and_a
     for bad in (['a','c'],['c','b','a'],'nonsense',None,['x','y']):
         got,note=projects.usable_dispatch_order(bad,stories,nodes)
         assert got==['a','b','c'] and 'could not be used' in note
+
+
+def test_a_failed_openclaw_story_gets_other_free_models_and_cannot_pick_the_one_that_just_failed(app):
+    n=dict(node('a'),assignee='openclaw',model='openrouter/example/code:free',agent_target='mm-developer')
+    p=active(app,[n]);c,s,wd,settings=app
+    cid=next(t['card_id'] for t in p['tasks'] if t['node_key']=='a')
+    route=free_config(settings)
+    settings.openclaw_config_path.write_text(json.dumps({'agents':{'defaults':{'models':{
+        'openrouter/example/code:free':{},'openrouter/other/model:free':{}}},'list':[{'id':'mm-developer'}]}}))
+    rid=finish(app,cid,'',stage='timeout',error='OpenClaw provider timed out: the gateway reported an LLM request timeout.')
+    task=next(t for t in c.get('/api/projects/1').json()['tasks'] if t['card_id']==cid)
+    assert [r['model'] for r in task['free_retry_routes']]==['openrouter/other/model:free']                 # not the model that just timed out
+    same=c.post(f'/api/projects/1/stories/{cid}/go-free',json={'revision':1,'run_id':rid,'model':route['model'],'agent_target':'mm-developer'})
+    assert same.status_code==422 and 'different free model' in same.json()['detail']
+    ok=c.post(f'/api/projects/1/stories/{cid}/go-free',json={'revision':1,'run_id':rid,'model':'openrouter/other/model:free','agent_target':'mm-developer'})
+    assert ok.status_code==200,ok.text
+    assert next(t for t in ok.json()['tasks'] if t['card_id']==cid)['model']=='openrouter/other/model:free'
+
+
+def test_a_failed_story_can_be_retried_on_a_low_cost_subscription_model_and_optionally_in_edit_mode(app):
+    n=dict(node('a'),assignee='openclaw',model='openrouter/example/code:free',agent_target='mm-developer',mode='read')
+    p=active(app,[n]);c,s,wd,settings=app
+    cid=next(t['card_id'] for t in p['tasks'] if t['node_key']=='a')
+    rid=finish(app,cid,'',stage='timeout',error='OpenClaw provider timed out')
+    task=next(t for t in c.get('/api/projects/1').json()['tasks'] if t['card_id']==cid)
+    assert {'agent':'claude','model':'claude-haiku-5-5'} in task['low_cost_routes'] and {'agent':'codex','model':'gpt-6-luna'} in task['low_cost_routes']
+    base={'revision':1,'run_id':rid,'agent':'codex'}
+    assert c.post(f'/api/projects/1/stories/{cid}/low-cost-retry',json={**base,'run_id':rid+99}).status_code==409                   # only the current failed run
+    assert c.post(f'/api/projects/1/stories/{cid}/low-cost-retry',json={**base,'edit_mode':True}).status_code==422                  # edit mode needs acknowledgement
+    ok=c.post(f'/api/projects/1/stories/{cid}/low-cost-retry',json={**base,'edit_mode':True,'acknowledge':True})
+    assert ok.status_code==200,ok.text
+    t=next(t for t in ok.json()['tasks'] if t['card_id']==cid)
+    assert (t['column'],t['agent'],t['model'],t['mode'])==('queued','codex','gpt-6-luna','edit')
+    with s() as db:
+        m=json.loads(db.get(Project,1).approved_manifest)
+        assert m['cost_retries']['a']['route']=={'agent':'codex','model':'gpt-6-luna'} and m['route_amendments'][-1]['kind']=='low_cost_retry'
+        assert next(x for x in m['document']['nodes'] if x['key']=='a')['mode']=='edit'
+        assert {'agent':'codex','model':'gpt-6-luna'} in projects.approved_story_routes(db.get(Project,1),projects.binding(db,cid))
+        from models import ProjectMemory
+        assert db.scalar(select(ProjectMemory).where(ProjectMemory.text.like('%low-cost subscription route%')))
+
+
+def test_a_failed_story_can_be_retried_on_a_paid_model_only_with_acknowledgement_and_for_that_story(app):
+    n=dict(node('a'),assignee='openclaw',model='openrouter/example/code:free',agent_target='mm-developer')
+    p=active(app,[n,node('b',depends_on=['a'])]);c,s,wd,settings=app
+    cid=next(t['card_id'] for t in p['tasks'] if t['node_key']=='a')
+    free_config(settings)
+    rid=finish(app,cid,'',stage='timeout',error='OpenClaw provider timed out')
+    task=next(t for t in c.get('/api/projects/1').json()['tasks'] if t['card_id']==cid)
+    paid='openrouter/google/gemini-2.5-flash'
+    assert [r['model'] for r in task['paid_retry_routes']]==[paid]                                          # configured, not free, not the Google BYOK list
+    base={'revision':1,'run_id':rid,'model':paid,'agent_target':'mm-developer'}
+    assert c.post(f'/api/projects/1/stories/{cid}/pay-retry',json=base).status_code==422                   # needs acknowledgement
+    assert c.post(f'/api/projects/1/stories/{cid}/pay-retry',json={**base,'acknowledge':True,'model':'openrouter/example/code:free'}).status_code==422   # a free model is not a paid one
+    assert c.post(f'/api/projects/1/stories/{cid}/pay-retry',json={**base,'acknowledge':True,'run_id':rid+9}).status_code==409
+    ok=c.post(f'/api/projects/1/stories/{cid}/pay-retry',json={**base,'acknowledge':True})
+    assert ok.status_code==200,ok.text
+    t=next(t for t in ok.json()['tasks'] if t['card_id']==cid)
+    assert (t['column'],t['agent'],t['model'])==('queued','openclaw',paid)
+    with s() as db:
+        from models import ProjectMemory
+        m=json.loads(db.get(Project,1).approved_manifest)
+        assert m['paid_retries']['a']['route']=={'agent':'openclaw','model':paid} and m['route_amendments'][-1]['kind']=='paid_retry'
+        assert {'agent':'openclaw','model':paid} in projects.approved_story_routes(db.get(Project,1),projects.binding(db,cid))
+        assert db.scalar(select(ProjectMemory).where(ProjectMemory.text.like('%PAID retry%')))
+        assert 'paid_retries' not in m or 'b' not in m['paid_retries']                                      # only this story
