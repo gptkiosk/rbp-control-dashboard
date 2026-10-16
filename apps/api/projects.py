@@ -368,6 +368,28 @@ def free_retry_routes(settings):
     models=[m for m in native['models'] if m.startswith('openrouter/') and m.endswith(':free')]
     return [{'agent':'openclaw','model':m,'agent_target':t['id']} for t in native['targets'] for m in models]
 
+def _tier_of(n):
+    return job_envelope.tier_for('human' if n['assignee']=='human' else 'agent',None if n['assignee']=='human' else n['assignee'],n['model'] or None)
+
+def standards_message(std,broken):
+    """One readable message: what the plan breaks, one line per story, and the areas the standards list (once, not after every story)."""
+    head='This plan breaks the '+('starter' if std.get('source')=='starter' else 'repository')+' standards'+(' ('+std['property']+')' if std.get('property') else '')+':'
+    lines=['- '+b for b in broken[:12]]+(['- and '+str(len(broken)-12)+' more'] if len(broken)>12 else [])
+    areas=sorted(a['slug'] for a in std.get('areas',[]))
+    tail=["Areas these standards list: "+', '.join(areas)+'.'] if areas and any("this repository's areas" in b for b in broken) else []
+    return '\n'.join([head,*lines,*tail])
+
+def standards_check(p,settings=None):
+    """The standards check a submission would run, for the Projects page: what the plan breaks right now. None when there is nothing to check."""
+    d=document(p)
+    if not d.get('nodes'): return None
+    try:
+        std=standards.resolve(d['working_dir'],(settings or get_settings()).data_dir)
+        broken=standards.floor_problems(std,d['nodes'],_tier_of)
+    except Exception:
+        return None
+    return {'source':std.get('source'),'property':std.get('property'),'problems':broken,'areas':sorted(a['slug'] for a in std.get('areas',[]))}
+
 def plan_timing(s,p):
     """What actually happened: minutes of agent work against the minutes that passed from the first story run starting to the last one ending, so it is visible whether running
     stories together paid off. Retries count as work. None until a story run has finished."""
@@ -412,7 +434,7 @@ def detail(s, p):
         'approved_revision':json.loads(p.approved_manifest)['revision'] if p.approved_manifest else None,
         'pipeline':json.loads(p.pipeline) if p.pipeline else None, 'error':p.error,
         'handoff_approval':handoff_approval(s,p), 'model_lock':model_locked(p),
-        'schedule':plan_schedule(p), 'timing':plan_timing(s,p),
+        'schedule':plan_schedule(p), 'timing':plan_timing(s,p), 'standards_check':standards_check(p),
         'workspaces':json.loads(p.approved_manifest).get('workspaces',{}) if p.approved_manifest else {},
         'artifacts':json.loads(p.approved_manifest).get('artifacts',{}) if p.approved_manifest else {},
         'created_by':p.created_by, 'created_at':p.created_at, 'updated_at':p.updated_at,
@@ -557,8 +579,8 @@ def plan(s,p,action,settings,actor,subagents=None):
         fail('This planner uses API billing. Separate paid-planning approval is required.',422)
     prompt = role_prompt('coordinate', candidates=json.dumps(choices), project=_brief(p))
     c=_queue(s,p,'coordinate',delegate['agent'],delegate['model'],prompt,settings)
-    p.state='planning'; p.error=None; p.pipeline=json.dumps({'step':'coordinate','delegator':delegate,'card_id':c.id,'choices':choices,'revision':p.revision,'execution_catalog':execution_catalog(settings,subagents,d['planning_bias'])})
-    memory(s,p,'decision',f'Operator approved planning revision {p.revision}: Delegator {delegate["agent"]} · {delegate["model"]}; candidates {json.dumps(choices)}; API planner approval={action.approve_api_planning}. Provider limits apply; budget is not a universal hard cap.',actor)
+    p.state='planning'; p.error=None; p.pipeline=json.dumps({'step':'coordinate','delegator':delegate,'card_id':c.id,'choices':choices,'fresh':bool(action.fresh),'revision':p.revision,'execution_catalog':execution_catalog(settings,subagents,d['planning_bias'])})
+    memory(s,p,'decision',f'Operator approved planning revision {p.revision}: Delegator {delegate["agent"]} · {delegate["model"]}; candidates {json.dumps(choices)}; API planner approval={action.approve_api_planning}; planning {'from scratch, current stories not shown to the planner' if action.fresh else 'from the current map'}. Provider limits apply; budget is not a universal hard cap.',actor)
 
 def _json_result(raw):
     value=(raw or '').strip()
@@ -613,9 +635,9 @@ def proposal(doc, nodes, settings):
         normalized.append(row)
     return validate({**doc, 'nodes': normalized}, settings, True)
 
-def _planner_prompt(p,catalog=None,s=None):
+def _planner_prompt(p,catalog=None,s=None,fresh=False):
     settings=get_settings()
-    text=role_prompt('plan', schema=json.dumps(Node.model_json_schema()), catalog=json.dumps(catalog or []), project=_brief(p, True),
+    text=role_prompt('plan', schema=json.dumps(Node.model_json_schema()), catalog=json.dumps(catalog or []), project=_brief(p, not fresh),
         standards=standards.prompt_section(standards.resolve(document(p)['working_dir'],settings.data_dir)))
     # Appended after substitution, so a user's own plan.txt keeps working without a new placeholder.
     extra=model_profiles.guidance_text(s,settings.data_dir,catalog) if s is not None else ''
@@ -651,8 +673,8 @@ def submit(s,p,action,settings,actor):
     gaps=job_envelope.story_problems(d['nodes'])
     if gaps: fail('Every story needs a work kind, size, risk, estimate and route reason before approval. Missing: '+'; '.join(gaps[:8])+('; and more' if len(gaps)>8 else ''),422)
     std=standards.resolve(d['working_dir'],settings.data_dir)
-    broken=standards.floor_problems(std,d['nodes'],lambda n:job_envelope.tier_for('human' if n['assignee']=='human' else 'agent',None if n['assignee']=='human' else n['assignee'],n['model'] or None))
-    if broken: fail('This plan breaks the '+('starter' if std.get('source')=='starter' else 'repository')+' standards'+(' ('+std['property']+')' if std.get('property') else '')+'. '+'; '.join(broken[:8])+('; and more' if len(broken)>8 else ''),422)
+    broken=standards.floor_problems(std,d['nodes'],_tier_of)
+    if broken: fail(standards_message(std,broken),422)
     for n in d['nodes']:
         if n['kind']=='story':
             probe=cards.create(s,_story_data(p,d,n),settings,'hermes'); s.delete(probe); s.flush()
@@ -735,7 +757,7 @@ def advance(s,settings):
             alternative=next((v for v in pipeline['choices'] if (v['agent'],v['model']) not in attempted),None)
             memory(s,p,'checkpoint','Planner stopped on a reported quota/limit. No implementation started.\n'+(r.error or '')+'\n'+(r.result_text or ''),r.agent,c.id,r.id)
             if alternative:
-                c=_queue(s,p,'plan',alternative['agent'],alternative['model'],_planner_prompt(p,pipeline.get('execution_catalog'),s),settings)
+                c=_queue(s,p,'plan',alternative['agent'],alternative['model'],_planner_prompt(p,pipeline.get('execution_catalog'),s,pipeline.get('fresh',False)),settings)
                 p.pipeline=json.dumps({**pipeline,'card_id':c.id,'chosen':alternative});continue
         if not c or not r or r.stage!='succeeded':
             p.state='planning_failed' if p.state=='planning' else 'dispatch_failed';p.error='Planning/dispatch task stopped or failed. Inspect its board run and explicitly retry.';continue
@@ -746,7 +768,7 @@ def advance(s,settings):
                 if step=='coordinate':
                     chosen=next((v for v in pipeline['choices'] if v['agent']==data.get('agent') and v['model']==data.get('model')),None)
                     if not chosen: fail('Delegator selected an unapproved planner/model. No fallback was run.',422)
-                    c=_queue(s,p,'plan',chosen['agent'],chosen['model'],_planner_prompt(p,pipeline.get('execution_catalog'),s),settings)
+                    c=_queue(s,p,'plan',chosen['agent'],chosen['model'],_planner_prompt(p,pipeline.get('execution_catalog'),s,pipeline.get('fresh',False)),settings)
                     p.pipeline=json.dumps({**pipeline,'step':'plan','card_id':c.id,'chosen':chosen})
                     memory(s,p,'proposal','Planner choice: '+json.dumps(data),r.agent,r.card_id,r.id)
                 elif step=='plan':

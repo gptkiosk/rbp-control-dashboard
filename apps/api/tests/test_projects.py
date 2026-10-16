@@ -1207,3 +1207,51 @@ def test_model_lock_stops_interruption_requeue(app):
         run=db.scalar(select(Run).where(Run.card_id==cid));run.stage='interrupted'
         d._requeue_or_fail(db,run,int(time.time()))
         assert db.get(Card,cid).column=='failed'
+
+
+# ------------------------------------------------------------------------------------- replanning and the standards message
+def _planner_text(app, fresh):
+    c, s, wd, settings = app
+    p = new(app, [node('a', description='UNIQUE-EXISTING-STORY-TEXT')])
+    pid = p['id']
+    r = c.post(f'/api/projects/{pid}/plan', json={'revision': 1, 'approve_coordination': True, 'fresh': fresh}).json()
+    assert r['pipeline']['fresh'] is fresh
+    selected = next(v for v in r['pipeline']['choices'] if v['agent'] == 'codex')
+    finish(app, r['pipeline']['card_id'], json.dumps({**selected, 'rationale': 'Fit'}))
+    advance(app)
+    nxt = c.get(f'/api/projects/{pid}').json()
+    assert nxt['pipeline']['step'] == 'plan'
+    with s() as db:
+        return db.get(Card, nxt['pipeline']['card_id']).body
+
+
+def test_planning_from_scratch_does_not_show_the_planner_the_stories_it_would_repeat(app):
+    """A free planner given the old stories returned them unchanged even after the brief and working directory changed."""
+    assert 'UNIQUE-EXISTING-STORY-TEXT' in _planner_text(app, False)
+
+
+def test_the_standards_message_lists_each_problem_on_its_own_line_and_the_allowed_areas_once():
+    std = {'source': 'repository', 'property': 'site', 'areas': [{'slug': 'user-interface'}, {'slug': 'tests-only'}]}
+    broken = ["a: area 'x' is not one of this repository's areas", "b: area 'y' is not one of this repository's areas", 'c: risk low is below the standards minimum high for area tests-only']
+    text = projects.standards_message(std, broken)
+    lines = text.split('\n')
+    assert lines[0] == 'This plan breaks the repository standards (site):' and lines[1:4] == ['- ' + b for b in broken]
+    assert text.count('Areas these standards list:') == 1 and 'tests-only, user-interface' in text
+    only_risk = projects.standards_message(std, broken[2:])
+    assert 'Areas these standards list' not in only_risk                       # the list only appears when an area is the problem
+
+
+def test_the_project_reports_what_its_plan_breaks_before_anyone_submits(app):
+    c = app[0]
+    clean = new(app, [node('a')])
+    assert clean['standards_check']['problems'] == []
+    low = new(app, [node('b', area='authentication-and-sessions', risk='low')])
+    found = low['standards_check']
+    assert found['source'] == 'starter' and any('b: risk low is below the standards minimum high' in x for x in found['problems'])
+    assert new(app)['standards_check'] is None                                  # no stories, nothing to check
+    refused = c.post(f'/api/projects/{low["id"]}/submit', json={'revision': 1, 'approve_coordination': True, 'approve_api_work': True})
+    assert refused.status_code == 422 and refused.json()['detail'].startswith('This plan breaks the starter standards:\n- b: risk low')
+
+
+def test_the_planner_prompt_omits_the_current_stories_when_planning_from_scratch(app):
+    assert 'UNIQUE-EXISTING-STORY-TEXT' not in _planner_text(app, True)

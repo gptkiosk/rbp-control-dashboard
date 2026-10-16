@@ -303,4 +303,4 @@ textarea.input {
 }
 
 /* Shared status for read-only panels retaining their last successful result. */
-.notice-warn { padding: var(--gap); border: 1px solid var(--surface-border); border-left: 3px solid var(--warn); border-radius: var(--radius-sm); background: var(--accent-soft); overflow-wrap: anywhere; }
+.notice-warn { white-space: pre-line; padding: var(--gap); border: 1px solid var(--surface-border); border-left: 3px solid var(--warn); border-radius: var(--radius-sm); background: var(--accent-soft); overflow-wrap: anywhere; }

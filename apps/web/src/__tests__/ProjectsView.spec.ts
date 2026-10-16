@@ -143,7 +143,7 @@ it('changing a mapped preference leaves existing routes intact and sets new stor
  expect(doc.nodes[1].assignee).toBe('codex');expect(doc.nodes[1].routes[0].model).toBe('claude-sonnet-5-5')
  expect(doc.nodes[2].assignee).toBe('openclaw');expect(doc.nodes[2].model).toBe('')
  await w.findAll('button').find(b=>b.text()==='Review & submit')!.trigger('click');await flushPromises()
- expect(document.body.textContent).toContain('Story preference: Economy · OpenClaw first');w.unmount()
+ expect(document.body.textContent).toContain('Story preference');expect(document.body.textContent).toContain('Economy · OpenClaw first');w.unmount()
 })
 
 it('retries a failed story only through an explicitly selected reviewed route',async()=>{

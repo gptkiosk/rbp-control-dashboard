@@ -17,6 +17,7 @@ export interface Project {
   handoff_approval?: { mode: 'manual' | 'automatic'; manifest_hash: string | null; eligible: {card_id:number;title:string;column:string}[]; excluded: {card_id:number;title:string;reason:string}[] }
   model_lock?: boolean
   can_resume_plan?: boolean
+  standards_check?: { source?: string | null; property?: string | null; problems: string[]; areas: string[] } | null
   timing?: { runs: number; busy_minutes: number; elapsed_minutes: number; overlap: number } | null
   schedule?: { stories: number; total_minutes: number; critical_minutes: number; speedup: number; width: number; critical_path: string[]; problems: string[]; max_concurrent_runs: number } | null
   pipeline: { step: string; card_id: number; delegator?: {agent:string;model:string} } | null; error: string | null; updated_at: number

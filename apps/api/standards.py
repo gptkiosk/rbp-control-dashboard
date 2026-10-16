@@ -289,7 +289,7 @@ def floor_problems(found: dict, nodes: list[dict], tier_of) -> list[str]:
             if risk in RANK and RANK[risk] < RANK[floors[area]]:
                 out.append(f"{key}: risk {risk} is below the standards minimum {floors[area]} for area {area}")
         elif not unknown_ok:
-            out.append(f"{key}: area '{area}' is not one of {', '.join(sorted(floors))}")
+            out.append(f"{key}: area '{area}' is not one of this repository's areas")
             continue
         if risk == 'high' and not free_high_ok and tier_of(node) == 'free':
             out.append(f"{key}: a high-risk story must not use a free-only route; choose a subscription route or a human review")

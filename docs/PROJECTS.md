@@ -13,13 +13,21 @@ uses no model tokens. Live work starts only from a reviewed planning/submission 
    subscription candidate (Claude Opus or the configured Codex model), MCD invokes that
    CLI, and Hermes reviews its returned JSON plan. Explicit Hermes API planning needs its
    own approval. Planner output must satisfy the bounded node schema; malformed or
-   unapproved selections stop without implementing anything.
+   unapproved selections stop without implementing anything. If you changed the brief or the
+   working directory since the last plan, tick **Plan from scratch** in the request: the planner
+   is then not shown the stories already on the map. Without it the planner sees them and a
+   free model tends to hand them straight back unchanged. (It is ticked for you when the
+   current plan already fails the standards.)
 3. Edit the returned visual map. Add phases and child stories, drag nodes, use Arrange or
    Fit map, and choose each story's instructions, scope, definition of done, agent, model,
    Read/Edit mode, OpenClaw target and prerequisites. Circular links are refused.
 4. Add ordered **Model route** alternatives where appropriate. They are part of the
    reviewed revision, never generated dynamically from a failure. Choose execution mode.
-5. **Review & submit** freezes this revision, working branch, assignments and routes.
+5. **Review & submit** first shows the standards check for this plan: what it breaks (an area the
+   repository's standards do not list, a risk below an area's minimum, a high-risk story on a
+   free-only route), one line per story, with the areas the standards do list shown once. A plan
+   that fails it cannot be submitted until you fix the stories or plan again from scratch.
+   It then freezes this revision, working branch, assignments and routes.
    Hermes returns a dependency-respecting order. MCD creates those board stories once.
    Board edits/dependency changes/deletion cannot bypass the project approval.
 6. **Stories & runs** links to actual task evidence. Successful runs stop in Review.
