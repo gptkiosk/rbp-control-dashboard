@@ -9,7 +9,7 @@ from deps import get_session
 from dispatcher import remove_run_logs
 from settings import get_settings
 from models import Project, ProjectTask, Card, CardDependency, Run
-from project_schemas import Close, Document, Save, Action, Retry, GoFree, ContinueOutput, Note, Accept, HandoffPolicy, Retier, RepairExecution, ModelLock
+from project_schemas import Close, Document, Save, Action, Retry, GoFree, ContinueOutput, Note, Accept, HandoffPolicy, Retier, RepairExecution, ModelLock, LowCostRetry, PayRetry
 import agent_git
 import projects
 import standards
@@ -123,12 +123,14 @@ def retry(project_id:int,card_id:int,body:Retry,request:Request,s:Session=Depend
             raise HTTPException(422,'The chosen agent is not installed.')
         manifest=json.loads(p.approved_manifest)
         node=next(n for n in manifest['document']['nodes'] if n['key']==link.node_key)
-        if not projects.subscription(s,chosen['agent']):
+        paid=manifest.get('paid_retries',{}).get(link.node_key)
+        paid_choice=bool(paid and chosen==paid['route'])
+        if not projects.subscription(s,chosen['agent']) and not paid_choice:
             if not manifest.get('api_work_approved') or chosen not in node['routes']:
                 raise HTTPException(422,'This route now uses API billing without the required story approval. Review a new project plan.')
         target=None
         if chosen['agent']=='openclaw':
-            target=node.get('agent_target') or None
+            target=paid['agent_target'] if paid_choice else node.get('agent_target') or None
             configured=projects.native_routes.read(get_settings())['openclaw']['targets']
             if target and target not in {a['id'] for a in configured}:
                 raise HTTPException(422,'The approved OpenClaw target is no longer configured. Review a new project plan.')
@@ -241,24 +243,39 @@ def repair_execution(project_id:int,card_id:int,body:RepairExecution,request:Req
     projects.repair_incomplete_execution(s,p,card_id,body,get_settings(),identity)
     s.commit();return projects.detail(s,p)
 
+@router.post('/{project_id}/stories/{card_id}/pay-retry')
+def pay_retry(project_id:int,card_id:int,body:PayRetry,request:Request,s:Session=Depends(get_session)):
+    identity=actor(request);write(s);p=projects.get(s,project_id)
+    projects.pay_retry(s,p,card_id,body,get_settings(),identity)
+    s.commit();return projects.detail(s,p)
+
+@router.post('/{project_id}/stories/{card_id}/low-cost-retry')
+def low_cost_retry(project_id:int,card_id:int,body:LowCostRetry,request:Request,s:Session=Depends(get_session)):
+    identity=actor(request);write(s);p=projects.get(s,project_id)
+    projects.low_cost_retry(s,p,card_id,body,get_settings(),identity)
+    s.commit();return projects.detail(s,p)
+
 @router.post('/{project_id}/stories/{card_id}/go-free')
 def go_free(project_id:int,card_id:int,body:GoFree,request:Request,s:Session=Depends(get_session)):
     identity=actor(request);write(s);p=projects.get(s,project_id);projects.check_revision(p,body.revision)
     link=projects.binding(s,card_id);c=s.get(Card,card_id)
     latest=s.scalar(select(Run).where(Run.card_id==card_id).order_by(Run.id.desc()).limit(1))
     if (not link or link.project_id!=p.id or link.role!='story' or link.revision!=p.revision or
-        p.state!='active' or not projects.subscription_limit(c,latest) or latest.id!=body.run_id):
-        raise HTTPException(409,'Go Free requires the current failed subscription-limit run in an active project.')
+        p.state!='active' or not projects.can_go_free(c,latest) or latest.id!=body.run_id):
+        raise HTTPException(409,'Go Free requires the current failed run of a story that hit a subscription limit, or a provider timeout or limit on its OpenClaw free model, in an active project.')
     chosen={'agent':'openclaw','model':body.model,'agent_target':body.agent_target}
     if chosen not in projects.free_retry_routes(get_settings()):
         raise HTTPException(422,'Choose a configured OpenClaw target and OpenRouter :free model. Paid and Google BYOK routes are excluded.')
+    if c.agent=='openclaw' and chosen not in projects.other_free_routes([chosen],c):
+        raise HTTPException(422,'Choose a different free model: this one just failed for this story.')
+    why='a subscription limit' if projects.subscription_limit(c,latest) else 'a provider timeout or limit on its free model'
     manifest=json.loads(p.approved_manifest)
     manifest.setdefault('free_retries',{})[link.node_key]={'route':{'agent':'openclaw','model':body.model},
         'agent_target':body.agent_target,'source_run_id':latest.id,'approved_by':identity,'approved_at':projects.now()}
     p.approved_manifest=json.dumps(manifest)
     projects.retry_output(s,p,link,latest)
     c.agent='openclaw';c.model=body.model;c.agent_target=body.agent_target;c.column='queued'
-    projects.memory(s,p,'checkpoint',f'Go Free after subscription limit on run #{latest.id}. Partial work is unverified. Read the workspace diff and previous run evidence before continuing the SAME story.\n'+(latest.result_text or ''),identity,card_id,latest.id)
+    projects.memory(s,p,'checkpoint',f'Go Free after {why} on run #{latest.id}. Partial work is unverified. Read the workspace diff and previous run evidence before continuing the SAME story.\n'+(latest.result_text or ''),identity,card_id,latest.id)
     projects.memory(s,p,'decision',f'Operator initiated Go Free for SAME story #{card_id}: {chosen}. Only this pinned free model is authorized; no paid/Google BYOK or automatic route switching. Scope, workspace, dependencies and acceptance remain unchanged.',identity,card_id,latest.id)
     s.commit();return projects.detail(s,p)
 

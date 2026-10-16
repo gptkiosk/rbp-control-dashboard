@@ -70,6 +70,20 @@ it('shows the confirmation with versions, sources, commands, disk, memory and wh
   w.unmount()
 })
 
+it('brings the confirmation into view when an Upgrade or Install button is clicked, so the click is never silent', async () => {
+  const scrolled: string[] = []
+  Element.prototype.scrollIntoView = function (this: Element) { scrolled.push(this.getAttribute('data-test') || this.tagName) }
+  stubFetch((url, init) => {
+    if (url === '/api/agent-installs') return { body: status() }
+    if (url === '/api/agent-installs/plan' && init?.method === 'POST') return { body: plan() }
+    return undefined
+  })
+  const w = mount(AgentToolsPanel, { ...stubs, attachTo: document.body }); await flushPromises()
+  await w.get('[data-tool="codex"] [data-action="install"]').trigger('click'); await flushPromises()
+  expect(scrolled).toContain('confirm')
+  w.unmount()
+})
+
 it('runs only the plan that was shown, after the checkbox, and reports the outcome', async () => {
   vi.useFakeTimers()
   let phase = 0

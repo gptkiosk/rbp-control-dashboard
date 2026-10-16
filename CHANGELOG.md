@@ -10,6 +10,21 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.6.7] - 2026-10-16
+
+### Added
+
+- A failed free-model task has a way out through the project API: another configured `:free` model on the same OpenClaw agent (`go-free` now also accepts a
+  provider timeout or limit on an OpenClaw story), the low-cost subscription models Claude Haiku or Codex Luna (`low-cost-retry`, optionally switching a read-only
+  task to edit mode with an acknowledgement), and a paid OpenRouter model for that task only (`pay-retry`). Each choice is an operator-approved amendment recorded
+  in the manifest and the ledger; the price check, budget caps and free-only setting still apply, and no Google BYOK route is added. RCD's task panel does not have
+  the retry buttons yet; MCD's does.
+
+### Fixed
+
+- The Agent tools panel brings its confirmation into view when you click Upgrade or Install. The confirmation used to appear far below the list of tools, so the
+  click seemed to do nothing, and the same applies to its notice and error lines.
+
 ## [0.6.6] - 2026-10-16
 
 ### Fixed
@@ -378,7 +393,8 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 - Claude Code stories may use web search and fetch without any shell, credential or publish permission.
 
 [0.3.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.0
-[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.6...HEAD
+[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.7...HEAD
+[0.6.7]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.7
 [0.6.6]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.6
 [0.6.5]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.5
 [0.6.4]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.4

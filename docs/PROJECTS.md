@@ -162,6 +162,22 @@ decision in shared memory. The API rejects unapproved routes, stale revisions, d
 retries, retired OpenClaw targets and newly unapproved API billing. A timeout never selects
 one of these routes automatically. A successful retry still waits for handoff review.
 
+### A way out when a free model is throttled or failing
+
+A free model can time out, be rate limited or be unavailable. A failed task keeps these ways out, and a rerun never costs more than you chose. MCD's task panel shows them as buttons; in RCD they are
+API routes (`go-free`, `low-cost-retry`, `pay-retry`) because RCD's task panel does not have the retry component yet:
+
+- **Rerun task** (free): try the same route again later. Free routes recover on their own, so waiting is often enough.
+- **Try another free model** (free): for an OpenClaw task, another configured `:free` model on the same OpenClaw agent. The model that just failed is not offered.
+- **Use Claude Haiku or Codex Luna** (your subscription, no per-token charge): the cost-aware Balanced models. For a read-only task you can also tick
+  **edit mode**, which switches that one task to workspace execution on the project branch and needs a separate acknowledgement.
+- **Pay for this task** (API billing, this task only): a configured OpenRouter model that is not free, on a configured OpenClaw agent. It needs an
+  acknowledgement, no Google BYOK route is added, and the price check, budget caps and free-only setting still apply when it starts, so it can stop
+  there with the reason.
+
+Each choice keeps the story's scope, workspace, dependencies and acceptance, supersedes any pending output continuation, and records an operator decision in
+the project ledger and a route amendment in the approved manifest. Only the current failed run can be retried, and only in an active project.
+
 ## Native configuration and assigned models
 
 MCD reads the current native Hermes model/fallback fields and OpenClaw agent names,

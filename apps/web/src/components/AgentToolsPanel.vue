@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import RecommendedAgentMix from '@/components/RecommendedAgentMix.vue'
 import MembershipPrerequisites from './MembershipPrerequisites.vue'
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { ApiError, getJson, postJson } from '@/lib/api'
 
 type Action = 'install' | 'update' | 'remove' | 'rollback'
@@ -38,6 +38,7 @@ interface Plan {
 const VERB: Record<Action, string> = { install: 'Install', update: 'Upgrade', remove: 'Remove', rollback: 'Roll back' }
 const status = ref<Status | null>(null), plan = ref<Plan | null>(null)
 const confirmed = ref(false), busy = ref(false), copied = ref('')
+const confirmEl = ref<HTMLElement | null>(null), noticeEl = ref<HTMLElement | null>(null), errorEl = ref<HTMLElement | null>(null)
 const error = ref(''), notice = ref('')
 const watching = ref<{ tool: string; action: Action; beforeTx: string | null; sawTx: boolean; polls: number } | null>(null)
 let timer: ReturnType<typeof setTimeout> | undefined
@@ -107,6 +108,14 @@ async function ask(tool: Tool, action: Action) {
   } catch (e) { error.value = refusal(e, 'The plan could not be made.') } finally { busy.value = false }
 }
 function cancel() { plan.value = null; confirmed.value = false }
+// The confirmation, notice and error sit below or above a long list of tools. Bring whichever just appeared into view, or the click seems to do nothing.
+function reveal(el: HTMLElement | null, block: ScrollLogicalPosition) {
+  el?.scrollIntoView?.({ block, behavior: 'smooth' })
+  el?.focus?.({ preventScroll: true })
+}
+watch(plan, async (p) => { if (!p) return; await nextTick(); reveal(confirmEl.value, 'start') })
+watch(error, async (e) => { if (!e) return; await nextTick(); reveal(errorEl.value, 'center') })
+watch(notice, async (n) => { if (!n) return; await nextTick(); reveal(noticeEl.value, 'center') })
 
 async function submit() {
   const p = plan.value
@@ -170,8 +179,8 @@ onBeforeUnmount(() => { disposed = true; if (timer) clearTimeout(timer) })
     <p class="muted">Install Claude Code, Codex CLI, Grok Build, OpenClaw and Hermes on this host, for this user only. Every version is pinned and hash-checked in this release. Nothing needs sudo, nothing is installed without your confirmation, and nothing here signs in to a tool or touches a key.</p>
     <RecommendedAgentMix platform="pi" />
     <MembershipPrerequisites />
-    <p v-if="error" class="notice-warn" role="alert">{{ error }}</p>
-    <p v-if="notice" role="status">{{ notice }}</p>
+    <p v-if="error" ref="errorEl" tabindex="-1" class="notice-warn" role="alert">{{ error }}</p>
+    <p v-if="notice" ref="noticeEl" tabindex="-1" role="status">{{ notice }}</p>
     <template v-if="status">
       <p class="muted small" data-test="host">{{ hostLine }} · installs under {{ status.root }}</p>
       <p v-if="updatedAt" class="muted small" role="status">Last checked {{ updatedAt }} · {{ working ? 'refreshing every 3 seconds' : 'refreshing every 15 seconds' }}</p>
@@ -211,7 +220,7 @@ onBeforeUnmount(() => { disposed = true; if (timer) clearTimeout(timer) })
         <ul class="muted small"><li v-for="(why, name) in status.system_packages.details" :key="name"><strong>{{ name }}</strong>: {{ why }}</li></ul>
       </section>
 
-      <section v-if="plan" class="confirm" aria-labelledby="agent-confirm-title" data-test="confirm">
+      <section v-if="plan" ref="confirmEl" tabindex="-1" class="confirm" aria-labelledby="agent-confirm-title" data-test="confirm">
         <h3 id="agent-confirm-title">{{ confirmTitle }}</h3>
         <dl class="facts">
           <dt>Version</dt><dd>{{ plan.from ?? 'not installed' }} → {{ plan.to ?? 'removed' }}</dd>
