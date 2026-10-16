@@ -7,7 +7,7 @@ import subprocess
 from functools import lru_cache
 from pathlib import Path
 
-__version__ = "0.6.0"
+__version__ = "0.6.1"
 
 
 def _build_info(repo: Path) -> dict:

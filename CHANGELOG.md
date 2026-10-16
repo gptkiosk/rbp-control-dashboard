@@ -10,6 +10,20 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-10-16
+
+### Fixed
+
+- Look and feel. The bug report dialog now uses the app's standard padded dialog layout (header with an icon and close button, labelled fields, a bordered
+  action row) instead of bare text and stacked buttons, and the preview block and the sent-or-open-GitHub buttons are laid out properly.
+- The Updates panels are roomier and clearer: titled Available and Rollback blocks with dividers, padded release and confirmation cards, proper spacing for
+  checkboxes and text, bordered action rows with the primary button on the right, and an update progress card with state chips. This covers the packaged
+  update panel on both products and the checkout update panel on MCD.
+- Every log, command output and exact-text window (update logs, release notes, run and chat live output, agent tool logs, service logs, patches, evidence,
+  GitHub request previews and reports) now shares one style: the same padding, border, monospace font, line height and scroll height.
+- The new project panels (Repository access for agents, Parallel build) have the same vertical spacing as the others, and the bug report preview says
+  "1 email" instead of "1 emails". Housekeeping no longer runs "After hours:" into the next word.
+
 ## [0.6.0] - 2026-10-16
 
 New in 0.6.0: a bug icon in the header, repository bootstrap for projects that need a new private GitHub repository, and an opt-in parallel build. Bug
@@ -305,7 +319,8 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 - Claude Code stories may use web search and fetch without any shell, credential or publish permission.
 
 [0.3.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.0
-[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.1...HEAD
+[0.6.1]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.1
 [0.6.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.0
 [0.5.5]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.5.5
 [0.5.4]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.5.4
