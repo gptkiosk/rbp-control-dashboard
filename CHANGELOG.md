@@ -10,6 +10,12 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+### Added
+
+- A Discord alert when a project's planning or story hand-out stops after its run succeeded, for example when the plan is refused for a
+  missing field or a bad dependency. Until now only failed runs alerted, so a plan that came back and then failed validation was
+  silent. One alert per project, revision and reason; turn it off with `[projects] enabled = false` in `alerts.toml`.
+
 ## [0.5.5] - 2026-10-16
 
 ### Fixed

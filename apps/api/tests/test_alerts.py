@@ -158,3 +158,23 @@ def test_run_already_running_at_activation_is_not_lost(sessions,tmp_path):
     with sessions.begin() as s:
         r=s.get(Run,run_id); r.stage='failed'; r.ended_at=1000; r.exit_code=1
     m.tick(); assert len(sent)==1
+
+
+def test_a_project_whose_plan_failed_validation_is_alerted_once_even_though_its_run_succeeded(sessions,tmp_path):
+    """The planner run succeeds, then the plan is refused (a dependency or missing field): no failed run exists, so the project state is the signal."""
+    from models import Project
+    now=[1000]
+    m,sent=monitor(sessions,tmp_path,now); m.tick()
+    with sessions.begin() as s:
+        s.add(Project(id=5,state='planning_failed',revision=1,error='Dependencies must connect different stories in this project.',
+                      created_by='owner',created_at=900,updated_at=999,document='{"title": "Site"}'))
+    m.tick(); assert not sent                                                       # stopped before the monitor was active: history, not news
+    now[0]=1001
+    with sessions.begin() as s:
+        p=s.get(Project,5); p.error='Story "S1" (s1) needs instructions.'; p.updated_at=1001
+    m.tick(); m.tick()
+    assert len(sent)==1 and 'project #5' in sent[0][1] and 'needs instructions' in sent[0][1] and sent[0][0]==TARGET
+    now[0]=1002
+    with sessions.begin() as s:
+        p=s.get(Project,5); p.error='Dependencies must connect different stories in this project.'; p.updated_at=1002   # a different failure is news again
+    m.tick(); assert len(sent)==2 and 'Dependencies must connect' in sent[1][1]

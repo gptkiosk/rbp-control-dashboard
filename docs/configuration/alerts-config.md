@@ -32,6 +32,10 @@ TOML booleans and numbers must be native values: `true`, `false`, `30`, not quot
 | `enabled` | `true` | boolean | Run detection, subject to the root switch. |
 | `stages` | `["failed", "timeout", "interrupted"]` | array of 1–3 strings from this set | Run stages to notify. The stage name is `timeout`, not `timed_out`. |
 
+| `[projects]` key | Default | Type | Effect |
+|---|---|---|---|
+| `enabled` | `true` | boolean | Alerts when a project's planning or story hand-out stops after its run succeeded (for example the plan is refused for a missing field or a bad dependency). One alert per project, revision and reason; stops that happened before the monitor was activated are history. Subject to the root switch. |
+
 | `[services]` key | Default | Type / allowed range | Effect |
 |---|---|---|---|
 | `enabled` | `true` | boolean | Service detection, subject to the root switch. |
