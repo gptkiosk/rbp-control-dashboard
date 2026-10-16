@@ -60,4 +60,4 @@ open issues labelled `bug-report` (every 15 minutes, or **Check GitHub now** in 
 - **The dialog says it will open GitHub instead of filing.** Writes are off or the official repository is not on the GitHub
   repositories list. Add it in Profile → GitHub and set `MAC_CONTROL_GITHUB_WRITES_ENABLED=true`.
 - **"GitHub could not be read" under Bug reports.** The `gh` login is missing or expired. Nothing was changed.
-- **An accepted issue made no task.** Check the labels are exactly `bug-report` and `accepted`, and that intake is on.
+- **An accepted issue made no task.** Check the labels are exactly `bug-report` and `accepted`, and that intake is on. GitHub's label filter can lag by a minute after an issue is labelled, so a very fresh issue appears on the next check.
