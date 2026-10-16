@@ -10,6 +10,23 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.5.5] - 2026-10-16
+
+### Fixed
+
+- A failed project task can be deleted as soon as its retry is queued or running. Retrying from Projects creates a new task, and the old
+  failed one used to stay greyed out until the retry finished, which looked like a duplicate you could not remove. The retry itself stays
+  protected, a lone failed task is still kept (it holds the only record), and the project ledger notes the deletion.
+- The consultant no longer ends every reply with another question. Once you say you are done it confirms and waits, and the brief it
+  writes has no closing question: anything still undecided becomes a stated assumption or a human decision story (or is dropped if it
+  does not change the plan), so it reaches the coordinator as work instead of a dangling question.
+- The planner is told that every story needs its instructions in the description field. A free planner returned a story with scope and
+  acceptance but no description, and planning stopped with "needs instructions". (Coordinator role pack version 3.)
+- Planning no longer stops with "Dependencies must connect different stories in this project" when the planner orders phases against each
+  other or makes a story depend on its own phase. Those links are dropped from planner proposals (story order is kept; a dependency on a
+  key that does not exist is still refused, and your own edits are checked as written). Because the saved plan is read again by **Resume
+  saved plan**, a project that failed this way can continue from the saved proposal without another planning run.
+
 ## [0.5.4] - 2026-10-16
 
 ### Fixed
@@ -250,7 +267,8 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 - Claude Code stories may use web search and fetch without any shell, credential or publish permission.
 
 [0.3.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.0
-[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.5.4...HEAD
+[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.5.5...HEAD
+[0.5.5]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.5.5
 [0.5.4]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.5.4
 [0.5.3]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.5.3
 [0.5.2]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.5.2

@@ -53,6 +53,22 @@ def test_a_sibling_in_review_also_counts(app):
     assert c.delete(f"/api/cards/{dup}").status_code == 204
 
 
+def test_a_failed_card_is_removable_while_its_retry_is_still_running(app):
+    """A project retry makes a new card; the failed one it replaces should not be stuck until the retry finishes."""
+    c, s, wd, settings = app
+    failed = story(active(app, [node("a")]))
+    set_column(app, failed, "failed")
+    assert c.delete(f"/api/cards/{failed}").status_code == 409                  # alone, it holds the story's only record
+    retry = duplicate_of(app, failed, "running")
+    assert c.get(f"/api/cards/{failed}").json()["superseded_by"] == retry
+    assert c.get(f"/api/cards/{retry}").json()["superseded_by"] is None
+    assert c.delete(f"/api/cards/{retry}").status_code == 409                   # the running retry is protected
+    assert c.delete(f"/api/cards/{failed}").status_code == 204
+    set_column(app, retry, "queued")
+    newer_failed = duplicate_of(app, retry, "failed")                           # a failed card NEWER than the queued one is not replaced by it
+    assert c.get(f"/api/cards/{newer_failed}").json()["superseded_by"] is None
+
+
 def test_real_stories_stay_protected(app):
     c, s, wd, settings = app
     keep = story(active(app, [node("a")]))

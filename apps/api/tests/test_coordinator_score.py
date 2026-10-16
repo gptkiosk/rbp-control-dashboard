@@ -135,7 +135,7 @@ def test_the_approved_plan_records_its_score_the_persons_edits_and_the_wording_i
         m = json.loads(db.get(Project, p["id"]).approved_manifest)["scorecard"]
     assert m["planner"] == "claude · claude-opus-5-5" and m["delegator"] == "hermes · openrouter/free"
     assert m["edits"]["changed"] == 1 and m["edits"]["added"] == 0 and m["edits"]["total"] == 1
-    assert m["wording"]["label"] == "v2" and len(m["wording"]["sha"]) == 12
+    assert m["wording"]["label"] == "v3" and len(m["wording"]["sha"]) == 12
     assert 0 <= m["approved"]["score"] <= 1 and m["returned"]["total"] == m["approved"]["total"]
 
 
