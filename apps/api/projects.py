@@ -702,14 +702,26 @@ def _story_data(p,d,n,std=None):
         'tags':[f'project {p.id}','project story',*job_envelope.standard_tags(f'p{p.id}r{p.revision}',n.get('work_kind'),n.get('size'),n.get('risk'),
             job_envelope.tier_for('human' if n['assignee']=='human' else 'agent',None if n['assignee']=='human' else n['assignee'],n['model'] or None),n.get('area') or None)]}
 
+def usable_dispatch_order(order,nodes,all_nodes):
+    """The order stories are created in, and a note when Hermes' answer was not used as given.
+    Hermes' order only chooses between orders the approved dependencies already allow, so it is advice: a phase key or a repeated key in it is ignored, and an answer that
+    leaves a story out or breaks a dependency is replaced by the plan's own dependency order. Nothing about a story, route or scope changes either way."""
+    given=order if isinstance(order,list) else []
+    listed=[k for k in dict.fromkeys(given) if isinstance(k,str) and k in nodes]
+    ignored=[k for k in given if not (isinstance(k,str) and k in nodes)]
+    repeated=len(given)-len(ignored)-len(listed)
+    valid=set(listed)==set(nodes) and all(set(nodes[k]['depends_on'])<=set(listed[:i]) for i,k in enumerate(listed))
+    if valid:
+        extra=[]
+        if ignored: extra.append('ignored keys that are not stories: '+', '.join(str(k)[:40] for k in ignored[:5]))
+        if repeated: extra.append(f'ignored {repeated} repeated key(s)')
+        return listed,('Hermes dispatch order accepted; '+'; '.join(extra)+'.' if extra else None)
+    return ordered(all_nodes),"Hermes returned a dispatch order that could not be used (it left a story out or broke a dependency). MCD used the approved plan's own dependency order instead. No story, route or scope changed."
+
 def _materialize(s,p,order,settings):
     m=json.loads(p.approved_manifest); d=m['document']; nodes={n['key']:n for n in d['nodes'] if n['kind']=='story'}
-    if not isinstance(order,list) or len(order)!=len(nodes) or len(set(order))!=len(nodes) or set(order)!=set(nodes):
-        fail('Hermes dispatch order does not exactly match the approved stories.',422)
-    seen=set()
-    for key in order:
-        if not set(nodes[key]['depends_on'])<=seen: fail('Hermes dispatch order violates a dependency.',422)
-        seen.add(key)
+    order,note=usable_dispatch_order(order,nodes,d['nodes'])
+    if note: memory(s,p,'checkpoint',note,'mcd')
     if m['dispatch_mode']=='parallel':
         # Hermes' order is checked above; a parallel build then starts the longest remaining chain first so the stories that set the finish time never wait.
         order=schedule.critical_order(d['nodes'])

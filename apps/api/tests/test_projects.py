@@ -204,7 +204,10 @@ def test_unapproved_model_choice_and_dispatch_order_stop(app):
     p=new(app,[node('a'),node('b',depends_on=['a'])])
     p=c.post('/api/projects/2/submit',json={'revision':1,'approve_coordination':True}).json()
     finish(app,p['pipeline']['card_id'],json.dumps({'order':['b','a']}));advance(app)
-    p=c.get('/api/projects/2').json();assert p['state']=='dispatch_failed' and not any(t['role']=='story' for t in p['tasks'])
+    p=c.get('/api/projects/2').json()
+    # an order that breaks a dependency is no longer a failure: MCD uses the plan's own dependency order and says so
+    assert p['state']=='active' and [t['node_key'] for t in sorted((t for t in p['tasks'] if t['role']=='story'),key=lambda t:t['card_id'])]==['a','b']
+    assert any(m['kind']=='checkpoint' and 'could not be used' in m['text'] for m in p['memory'])
 
 def test_story_context_review_acceptance_and_board_protection(app):
     p=active(app,[node('a'),node('b',depends_on=['a'])]);c,s,wd,settings=app
@@ -1255,3 +1258,14 @@ def test_the_project_reports_what_its_plan_breaks_before_anyone_submits(app):
 
 def test_the_planner_prompt_omits_the_current_stories_when_planning_from_scratch(app):
     assert 'UNIQUE-EXISTING-STORY-TEXT' not in _planner_text(app, True)
+
+
+def test_a_phase_key_or_a_repeated_key_in_hermes_dispatch_order_is_ignored_and_a_real_problem_falls_back():
+    stories={k:{'depends_on':d} for k,d in (('a',[]),('b',['a']),('c',['b']))}
+    nodes=[{'key':'ph','kind':'phase','depends_on':[]},*({'key':k,'kind':'story','depends_on':v['depends_on']} for k,v in stories.items())]
+    got,note=projects.usable_dispatch_order(['ph','a','b','b','c'],stories,nodes)
+    assert got==['a','b','c'] and 'ignored keys that are not stories: ph' in note and 'repeated' in note             # the 2026-10-16 failure: a phase listed among the stories
+    assert projects.usable_dispatch_order(['a','b','c'],stories,nodes)==(['a','b','c'],None)
+    for bad in (['a','c'],['c','b','a'],'nonsense',None,['x','y']):
+        got,note=projects.usable_dispatch_order(bad,stories,nodes)
+        assert got==['a','b','c'] and 'could not be used' in note
