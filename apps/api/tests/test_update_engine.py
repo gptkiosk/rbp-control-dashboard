@@ -776,3 +776,26 @@ def test_queued_stories_of_a_paused_project_do_not_block_an_update_but_running_o
     blockers = " | ".join(ue.drain_blockers(db_path))
     assert "2 task(s) queued or running" in blockers                                           # a plain queued card and a running story still block
     engine.dispose()
+
+
+def test_queued_stories_of_a_closed_or_completed_project_do_not_block_an_update(tmp_path):
+    from db import make_engine, make_session_factory
+    from migrate import upgrade_to_head
+    from models import Card, Project, ProjectTask
+
+    db_path = tmp_path / "data.db"
+    engine = make_engine(db_path)
+    upgrade_to_head(engine)
+    sessions = make_session_factory(engine)
+    with sessions() as s:
+        for state in ("closed", "complete"):
+            project = Project(document="{}", state=state, created_by="op", created_at=0, updated_at=0)
+            s.add(project)
+            s.flush()
+            card = Card(title=state, body="b", column="queued", timeout_s=60, created_at=0, updated_at=0)
+            s.add(card)
+            s.flush()
+            s.add(ProjectTask(card_id=card.id, project_id=project.id, revision=1, node_key="a", role="story"))
+        s.commit()
+    assert not any("queued or running" in b for b in ue.drain_blockers(db_path))
+    engine.dispose()

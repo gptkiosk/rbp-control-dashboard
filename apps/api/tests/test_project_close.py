@@ -44,10 +44,10 @@ def test_a_failed_story_of_a_closed_project_can_be_removed_but_other_cards_canno
     assert c.post(f"/api/projects/{p['id']}/close", json={"revision": p["revision"], "reason": "abandoned"}).status_code == 200
     assert c.get(f"/api/cards/{a}").json()["closed_project"] is True
     assert c.delete(f"/api/cards/{a}").status_code == 204 and c.get(f"/api/cards/{a}").status_code == 404
-    assert c.get(f"/api/cards/{b}").json()["closed_project"] is False                       # not failed: stays
-    assert c.delete(f"/api/cards/{b}").status_code == 409
+    assert c.get(f"/api/cards/{b}").json()["closed_project"] is True                        # queued behind it: nothing will ever start it, so it can go too
+    assert c.delete(f"/api/cards/{b}").status_code == 204
     with s() as d:
-        assert d.get(ProjectTask, a) is None and d.get(ProjectTask, b) is not None
+        assert d.get(ProjectTask, a) is None and d.get(ProjectTask, b) is None
         assert d.scalar(select(ProjectMemory).where(ProjectMemory.text.like("Deleted failed card%")))
 
 
@@ -66,3 +66,35 @@ def test_refuses_while_a_story_is_running_a_short_reason_a_stale_revision_and_a_
         d.get(Project, pid).state = "complete"
     done = c.post(f"/api/projects/{pid}/close", json={"revision": p["revision"], "reason": "already finished"})
     assert done.status_code == 409 and state(app, pid) == "complete"                         # a finished project is never relabelled
+
+
+def test_closing_with_remove_tasks_takes_every_task_off_the_board_and_keeps_the_ledger(app):
+    c, s, wd, settings = app
+    p = active(app, [node("a"), node("b", depends_on=["a"]), node("c")])
+    a, b, cc = stories(p)
+    set_column(app, a, "done"); set_column(app, b, "failed")
+    r = c.post(f"/api/projects/{p['id']}/close", json={"revision": p["revision"], "reason": "replanned as a new project", "remove_tasks": True})
+    assert r.status_code == 200 and r.json()["state"] == "closed"
+    for card_id in (a, b, cc):
+        assert c.get(f"/api/cards/{card_id}").status_code == 404
+    with s() as d:
+        assert not d.scalars(select(ProjectTask).where(ProjectTask.project_id == p["id"])).all()
+        assert d.scalar(select(ProjectMemory).where(ProjectMemory.text.like("Project closed without finishing%")))
+        assert d.scalar(select(ProjectMemory).where(ProjectMemory.text.like("Removed % task(s) of this closed project%")))
+
+
+def test_a_closed_projects_tasks_can_be_removed_later_but_not_while_a_story_runs_or_while_the_project_is_open(app):
+    c, s, wd, settings = app
+    p = active(app, [node("a"), node("b")])
+    a, b = stories(p)
+    assert c.post(f"/api/projects/{p['id']}/remove-tasks", json={"revision": p["revision"]}).status_code == 409      # still open
+    set_column(app, a, "running")
+    assert c.post(f"/api/projects/{p['id']}/close", json={"revision": p["revision"], "reason": "stop", "remove_tasks": True}).status_code == 409
+    set_column(app, a, "queued")
+    closed = c.post(f"/api/projects/{p['id']}/close", json={"revision": p["revision"], "reason": "abandoned"}).json()
+    assert c.get(f"/api/cards/{b}").status_code == 200                                                                 # closing alone leaves them
+    set_column(app, a, "running")
+    assert c.post(f"/api/projects/{p['id']}/remove-tasks", json={"revision": closed["revision"]}).status_code == 409
+    set_column(app, a, "queued")
+    assert c.post(f"/api/projects/{p['id']}/remove-tasks", json={"revision": closed["revision"]}).status_code == 200
+    assert c.get(f"/api/cards/{a}").status_code == 404 and c.get(f"/api/cards/{b}").status_code == 404

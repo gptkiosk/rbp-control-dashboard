@@ -6,6 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 from deps import get_session
+from dispatcher import remove_run_logs
 from settings import get_settings
 from models import Project, ProjectTask, Card, CardDependency, Run
 from project_schemas import Close, Document, Save, Action, Retry, GoFree, ContinueOutput, Note, Accept, HandoffPolicy, Retier, RepairExecution, ModelLock
@@ -161,7 +162,15 @@ def close(project_id:int,body:Close,request:Request,s:Session=Depends(get_sessio
     if projects.running_stories(s,p): raise HTTPException(409,'Cancel the story that is running first, then close the project.')
     p.state='closed';p.pipeline=None;p.error=None
     projects.memory(s,p,'decision',f'Project closed without finishing all stories. Reason: {body.reason.strip()}',identity)
-    s.commit();return projects.detail(s,p)
+    paths=projects.remove_tasks(s,p,identity) if body.remove_tasks else []
+    s.commit();remove_run_logs(paths);return projects.detail(s,p)
+
+@router.post('/{project_id}/remove-tasks')
+def remove_tasks(project_id:int,body:Action,request:Request,s:Session=Depends(get_session)):
+    """Take a closed project's tasks off the board. The project and its ledger stay."""
+    identity=actor(request);write(s);p=projects.get(s,project_id);projects.check_revision(p,body.revision)
+    paths=projects.remove_tasks(s,p,identity)
+    s.commit();remove_run_logs(paths);return projects.detail(s,p)
 
 @router.post('/{project_id}/pause')
 def pause(project_id:int,body:Action,request:Request,s:Session=Depends(get_session)):

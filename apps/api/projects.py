@@ -830,17 +830,36 @@ def running_stories(s,p):
     return list(s.scalars(select(ProjectTask.card_id).join(Card,Card.id==ProjectTask.card_id).where(ProjectTask.project_id==p.id,Card.column=='running')))
 
 def closed_project(s,card,link=None):
-    """The project id when this failed card belongs to a project that was closed out (state complete or closed), else None.
-    Nothing more can happen on such a card, and its handoff and incident entries stay in the project ledger."""
+    """The project id when this card belongs to a project that was closed out and can be deleted, else None: any card that is not
+    running or done on a closed project, or a failed card on a completed one. Nothing more can happen on such a card, and its
+    handoff and incident entries stay in the project ledger."""
     link=link or binding(s,card.id)
-    if not link or card.column!='failed':return None
+    if not link or card.column=='running':return None
     p=s.get(Project,link.project_id)
-    return p.id if p and p.state in ('complete','closed') else None
+    if not p: return None
+    if p.state=='closed': return None if card.column=='done' else p.id     # an abandoned project: nothing unfinished needs to stay on the board
+    return p.id if p.state=='complete' and card.column=='failed' else None
 
 def forget_closed(s,card):
     link=binding(s,card.id)
-    memory(s,get(s,link.project_id),'decision',f'Deleted failed card #{card.id} ({card.title}) after project {link.project_id} was closed out; its handoff and incident entries remain in this ledger.','operator',card.id)
+    memory(s,get(s,link.project_id),'decision',f'Deleted {card.column} card #{card.id} ({card.title}) after project {link.project_id} was closed out; its handoff and incident entries remain in this ledger.','operator',card.id)
     s.delete(link);s.flush()
+
+def remove_tasks(s,p,actor):
+    """Take every task of a closed project off the board, finished ones included. The project, its brief, plan and whole ledger stay:
+    the handoff, incident and decision entries are the record. Returns the run log paths to delete once the transaction commits."""
+    if p.state!='closed': fail('Only a closed project\'s tasks can be removed from the board.')
+    links=s.scalars(select(ProjectTask).where(ProjectTask.project_id==p.id)).all()
+    held=[s.get(Card,l.card_id) for l in links]
+    if any(c.column=='running' for c in held if c): fail('Cancel the story that is running first, then remove the project\'s tasks.')
+    paths=[]
+    for l,c in zip(links,held):
+        s.delete(l);s.flush()
+        if c is None: continue
+        paths+=s.execute(select(Run.log_path).where(Run.card_id==c.id)).scalars().all()
+        s.delete(c)
+    memory(s,p,'decision',f'Removed {len(links)} task(s) of this closed project from the board. The run history of those tasks is deleted; this ledger keeps their handoff, incident and decision entries.',actor)
+    return paths
 
 def protect(s,card):
     if binding(s,card.id): fail('This task belongs to an approved project. Use Projects for handoff acceptance/retry; its scope and dependencies cannot be changed on the board.')
