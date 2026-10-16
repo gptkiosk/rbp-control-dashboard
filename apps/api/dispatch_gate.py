@@ -144,3 +144,27 @@ def reviewed_route_class(s, settings, source, model: str | None) -> str | None:
                 and approved.get("agent_target") == (target or "")):
             return "free"
     return None
+
+
+FREE_ALIASES = {"openrouter/free", "openrouter/openrouter/free"}
+
+
+def resolve_free_alias(s, settings, agent, agent_target, model):
+    """The model a new task or chat will really use.
+
+    "openrouter/free" is the dashboard's generic default, not a model Hermes or OpenClaw list in their own config, so the gate has no reviewed
+    pricing for it and refuses the run (PRICE_UNKNOWN). The alias is replaced by the free model the agent is set up with (its default, or the
+    default of the chosen OpenClaw target), and only when that exact route is reviewed as free. A model chosen by name is never replaced and a
+    paid default is never chosen for the operator."""
+    from types import SimpleNamespace
+    if agent not in ("hermes", "openclaw") or (model and model not in FREE_ALIASES):
+        return model
+    def route(m):
+        return reviewed_route_class(s, settings, SimpleNamespace(agent=agent, agent_target=agent_target, id=None), m)
+    if model and route(model) == "free":
+        return model
+    from native_routes import read
+    native = read(settings).get(agent, {})
+    target = next((t for t in native.get("targets", ()) if t.get("id") == agent_target), None) if agent_target else None
+    default = (target or {}).get("model") or native.get("default")
+    return default if default and route(default) == "free" else model

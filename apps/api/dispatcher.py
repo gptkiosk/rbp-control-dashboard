@@ -48,7 +48,7 @@ import projects
 from idempotency import refuse_timeout_retry
 import approval
 import provider_limits
-from dispatch_gate import (DispatchDenied, admit as admit_dispatch,
+from dispatch_gate import (DispatchDenied, admit as admit_dispatch, resolve_free_alias,
                            snapshot as dispatch_snapshot, reviewed_route_class as _reviewed_route_class)
 import pi_routing
 from usage import put_provider_receipt
@@ -304,6 +304,9 @@ class Dispatcher:
                     continue
                 pi_runtime = getattr(self.adapters.get(card.agent), "name", None) in {"picoclaw", "zeroclaw"}
                 model_requested = (card.model or "") if pi_runtime else (card.model or spec.default_model())
+                resolved = resolve_free_alias(s, self.settings, card.agent, card.agent_target, model_requested)
+                if resolved != model_requested:   # a task saved with the generic free default before it was resolved: run it on the agent's own free model
+                    card.model = model_requested = resolved
                 # Branch-scoped git access is an operator grant per approved project, never plan output.
                 grant = agent_git.grant_for(self.settings, link.project_id, card) if link and link.role == 'story' else None
                 card.agent_git_grant = grant

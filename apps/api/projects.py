@@ -497,6 +497,9 @@ def delegator_route(settings, action=None):
     return {'agent': agent, 'model': model}
 
 
+from dispatch_gate import resolve_free_alias
+
+
 def reviewed_free_planner(s, settings, choice):
     from dispatch_gate import reviewed_route_class
     from types import SimpleNamespace
@@ -513,6 +516,7 @@ def plan(s,p,action,settings,actor,subagents=None):
     agent=d['planner_agent']
     choices = [{'agent':a,'model':subscription_model(a,d['planning_bias'],planner=True)}
         for a in ('claude','codex') if subscription(s,a) and REGISTRY[a].available(settings)] if agent=='auto' else [{'agent':agent,'model':d['planner_model'] or (subscription_model(agent,d['planning_bias'],planner=True) if agent in {'claude','codex'} else REGISTRY[agent].default_model() or '')}]
+    choices = [{**c, 'model': resolve_free_alias(s, settings, c['agent'], None, c['model'])} for c in choices]    # the generic free default becomes the agent's own free model
     if not choices and (subscription(s, delegate['agent']) or reviewed_free_planner(s, settings, delegate)):
         choices = [delegate.copy()]
     if not choices: fail('No installed subscription or reviewed free planner is available. Configure a planner explicitly.',422)

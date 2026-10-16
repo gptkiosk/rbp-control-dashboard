@@ -19,7 +19,7 @@ from sqlalchemy.orm import Session
 import approval
 from agents import REGISTRY
 from deps import get_session
-from dispatch_gate import reviewed_route_class
+from dispatch_gate import resolve_free_alias, reviewed_route_class
 from dispatcher import remove_run_logs
 from models import ChatMessage, ChatThread, Run
 from settings import get_settings
@@ -68,31 +68,13 @@ def _dispatcher(request: Request):
     return d
 
 
-FREE_ALIASES = {"openrouter/free", "openrouter/openrouter/free"}
-
-
 def _gate_settings(request: Request):
     d = getattr(request.app.state, "dispatcher", None)
     return d.settings if d is not None else get_settings()    # the settings the gate itself will read
 
 
 def resolve_model(s: Session, request: Request, agent: str, agent_target: str | None, model: str | None) -> str | None:
-    """The model a new chat will really use.
-
-    "openrouter/free" is the dashboard's generic default. Hermes and OpenClaw only run models their own config lists, so the alias is replaced by
-    the free model the agent is set up with (its default), when that route is reviewed as free. A model chosen by name is never replaced."""
-    if agent not in ("hermes", "openclaw") or (model and model not in FREE_ALIASES):
-        return model
-    settings = _gate_settings(request)
-    if model and reviewed_route_class(s, settings, SimpleNamespace(agent=agent, agent_target=agent_target, id=None), model) == "free":
-        return model
-    from native_routes import read
-    native = read(settings).get(agent, {})
-    target = next((t for t in native.get("targets", ()) if t.get("id") == agent_target), None) if agent_target else None
-    default = (target or {}).get("model") or native.get("default")
-    if default and reviewed_route_class(s, settings, SimpleNamespace(agent=agent, agent_target=agent_target, id=None), default) == "free":
-        return default
-    return model
+    return resolve_free_alias(s, _gate_settings(request), agent, agent_target, model)
 
 
 def route_problem(s: Session, request: Request, agent: str, agent_target: str | None, model: str | None) -> str | None:

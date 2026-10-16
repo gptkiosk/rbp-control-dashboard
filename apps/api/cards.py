@@ -25,6 +25,7 @@ from sqlalchemy.orm import Session
 import approval
 import job_envelope
 from agents import REGISTRY
+from dispatch_gate import resolve_free_alias
 from models import COLUMNS, Card, CardDependency
 
 APPROVAL_FIELDS = {"body", "mode", "working_dir", "agent", "model", "agent_target", "assignee_type"}
@@ -117,6 +118,7 @@ def validate_fields(data: dict) -> None:
 
 def create(s: Session, data: dict, settings, created_by: str = "operator") -> Card:
     validate_fields(data)
+    data = {**data, "model": resolve_free_alias(s, settings, data.get("agent"), data.get("agent_target"), data.get("model"))}
     now = _now()
     card = Card(
         title=data["title"].strip(), body=data.get("body") or "",
@@ -164,6 +166,8 @@ def edit(s: Session, card: Card, data: dict, settings) -> Card:
         setattr(card, key, value)
     if card.assignee_user and card.assignee_type != "human":
         raise HTTPException(status_code=422, detail="Only a human task is assigned to a person; an agent task is assigned through its agent and model.")
+    if changed & {"model", "agent", "agent_target"} and card.model:
+        card.model = resolve_free_alias(s, settings, card.agent, card.agent_target, card.model)
     if changed & APPROVAL_FIELDS:
         _apply_rules(card, settings.workdir_roots)
         if card.column in ("queued", "review"):

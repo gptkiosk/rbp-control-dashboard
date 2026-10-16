@@ -190,3 +190,23 @@ def test_delete_thread_removes_logs(tc, tmp_path):
     assert log.exists()
     assert tc.delete(f"/api/chat/threads/{t['id']}").status_code == 204
     assert not log.exists() and not os.path.exists(str(log).replace(".log", ".raw.log"))
+
+
+def test_a_task_or_planner_on_the_free_default_is_resolved_where_it_is_created_and_where_it_starts(tc, tmp_path):
+    """The plan run for a project failed with PRICE_UNKNOWN because its card carried openrouter/free, not a model Hermes lists."""
+    import cards
+    from dispatch_gate import resolve_free_alias
+    cfg = tmp_path / "hermes.yaml"
+    cfg.write_text("model:\n  default: thinkingmachines/inkling:free\n")
+    st = tc.app.state.dispatcher.settings
+    st.environment, st.hermes_config_path, st.openclaw_config_path = "prod", str(cfg), None
+    st.dispatch_route_classes = {}
+    st.workdir_roots, st.default_timeout_s = (tmp_path / "ws",), 600
+    with tc.app.state.sessions.begin() as s:
+        card = cards.create(s, {"title": "plan", "body": "Plan it.", "agent": "hermes", "model": "openrouter/free", "working_dir": str(tmp_path / "ws" / "proj")}, st)
+        assert card.model == "thinkingmachines/inkling:free" and card.route_tier == "free"
+        named = cards.create(s, {"title": "named", "body": "Do it.", "agent": "hermes", "model": "google/gemini-2.5-flash", "working_dir": str(tmp_path / "ws" / "proj")}, st)
+        assert named.model == "google/gemini-2.5-flash"
+        cards.edit(s, named, {"model": "openrouter/free"}, st)
+        assert named.model == "thinkingmachines/inkling:free"
+        assert resolve_free_alias(s, st, "claude", None, "openrouter/free") == "openrouter/free"
