@@ -739,3 +739,40 @@ def test_systemd_start_clears_a_used_up_restart_limit_first(monkeypatch):
     monkeypatch.setattr(ue, "_run", failing_reset)
     service.start()   # a unit that was not failed has nothing to reset, and must still start
     assert calls == [["start", "rcd-api.service"]]
+
+
+def test_queued_stories_of_a_paused_project_do_not_block_an_update_but_running_ones_and_plain_cards_do(tmp_path):
+    """2026-10-16: a failed story left seven queued stories behind, projects cannot be moved to Backlog by hand, and pausing did not unblock the update."""
+    from db import make_engine, make_session_factory
+    from migrate import upgrade_to_head
+    from models import Card, Project, ProjectTask
+
+    db_path = tmp_path / "data.db"
+    engine = make_engine(db_path)
+    upgrade_to_head(engine)
+    sessions = make_session_factory(engine)
+    with sessions() as s:
+        project = Project(document="{}", state="active", created_by="op", created_at=0, updated_at=0)
+        s.add(project)
+        s.flush()
+        cards = []
+        for n in range(3):
+            card = Card(title=f"s{n}", body="b", column="queued", timeout_s=60, created_at=0, updated_at=0)
+            s.add(card)
+            s.flush()
+            s.add(ProjectTask(card_id=card.id, project_id=project.id, revision=1, node_key=f"s{n}", role="story"))
+            cards.append(card.id)
+        s.commit()
+        pid = project.id
+    assert any("3 task(s) queued or running" in b for b in ue.drain_blockers(db_path))         # an active project's queue still blocks
+    with sessions() as s:
+        s.get(Project, pid).state = "paused"
+        s.commit()
+    assert not any("queued or running" in b for b in ue.drain_blockers(db_path))                # paused: nothing can start, nothing to interrupt
+    with sessions() as s:
+        s.add(Card(title="board", body="b", column="queued", timeout_s=60, created_at=0, updated_at=0))
+        s.get(Card, cards[0]).column = "running"
+        s.commit()
+    blockers = " | ".join(ue.drain_blockers(db_path))
+    assert "2 task(s) queued or running" in blockers                                           # a plain queued card and a running story still block
+    engine.dispose()

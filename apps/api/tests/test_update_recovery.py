@@ -32,7 +32,8 @@ def db_schema(cfg):
     con.executescript(
         'CREATE TABLE run (id INTEGER PRIMARY KEY, card_id INTEGER, ended_at INTEGER, stage TEXT);'
         'CREATE TABLE card (id INTEGER PRIMARY KEY, "column" TEXT, approved_at INTEGER, approval_grant TEXT);'
-        'CREATE TABLE project (id INTEGER PRIMARY KEY, state TEXT);')
+        'CREATE TABLE project (id INTEGER PRIMARY KEY, state TEXT);'
+        'CREATE TABLE project_task (card_id INTEGER PRIMARY KEY, project_id INTEGER);')
     con.commit()
     con.close()
 

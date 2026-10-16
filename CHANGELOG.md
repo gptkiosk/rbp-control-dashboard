@@ -10,6 +10,15 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.6.5] - 2026-10-16
+
+### Fixed
+
+- An update is no longer blocked by the queued stories of a paused project. A failed story leaves the stories after it queued, project stories cannot be moved
+  to Backlog by hand, and pausing the project did not change the count, so the update check stayed blocked until the project finished or was closed. Queued stories
+  of a paused project cannot start and are no longer counted. Running tasks, plain queued tasks on the board and the stories of an active project still block, and
+  the message now says to pause the project.
+
 ## [0.6.4] - 2026-10-16
 
 ### Fixed
@@ -353,7 +362,8 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 - Claude Code stories may use web search and fetch without any shell, credential or publish permission.
 
 [0.3.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.0
-[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.4...HEAD
+[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.5...HEAD
+[0.6.5]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.5
 [0.6.4]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.4
 [0.6.3]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.3
 [0.6.2]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.2

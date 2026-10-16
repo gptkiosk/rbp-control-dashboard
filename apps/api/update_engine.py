@@ -667,10 +667,14 @@ DRAIN_COUNTS = (
     ("SELECT count(*) FROM run r LEFT JOIN card c ON c.id = r.card_id WHERE r.stage = 'awaiting_approval' "
      "AND (c.id IS NULL OR c.\"column\" NOT IN ('done', 'failed'))", "approval waits",
      "{n} run(s) waiting on a human decision: decide or reject them first"),
-    ("SELECT count(*) FROM card WHERE \"column\" IN ('queued', 'running')", "queued tasks",
-     "{n} task(s) queued or running: let them finish or move them to Backlog"),
+    # A queued story of a paused project cannot start (nothing is handed out while a project is paused), so it is not work an
+    # update would interrupt. Project stories cannot be moved to Backlog by hand, so counting them would block every update
+    # until the project finished or was closed.
+    ("SELECT count(*) FROM card c WHERE c.\"column\" IN ('queued', 'running') AND NOT (c.\"column\" = 'queued' AND EXISTS "
+     "(SELECT 1 FROM project_task t JOIN project p ON p.id = t.project_id WHERE t.card_id = c.id AND p.state = 'paused'))",
+     "queued tasks", "{n} task(s) queued or running: let them finish or move them to Backlog"),
     ("SELECT count(*) FROM project WHERE state IN ('dispatching', 'active')", "projects",
-     "{n} project(s) still dispatching: pause them first"),
+     "{n} project(s) still dispatching: pause them first (queued stories of a paused project do not block an update)"),
 )
 
 
