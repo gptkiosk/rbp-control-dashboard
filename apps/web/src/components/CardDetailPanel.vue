@@ -218,7 +218,7 @@ async function cancelRun(): Promise<void> {
 
 async function remove(): Promise<void> {
   if (!card.value || running.value || busy.value) return
-  if (!window.confirm(card.value.closed_project ? `Delete this failed task? Its project is closed out. The run history of this task is removed; the project ledger keeps its handoff and incident entries.` : card.value.superseded_by ? `Delete this unneeded duplicate? Its work is carried by task #${card.value.superseded_by}. The run history of this card is removed; the project ledger keeps the record.` : `Delete "${card.value.title}" and its run history?`)) return
+  if (!window.confirm(card.value.closed_project ? `Delete this task? Its project is closed out. The run history of this task is removed; the project ledger keeps its handoff and incident entries.` : card.value.superseded_by ? `Delete this unneeded duplicate? Its work is carried by task #${card.value.superseded_by}. The run history of this card is removed; the project ledger keeps the record.` : `Delete "${card.value.title}" and its run history?`)) return
   busy.value = true
   message.value = null
   try {

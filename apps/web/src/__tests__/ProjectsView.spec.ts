@@ -282,6 +282,7 @@ it('reruns an unaccepted successful story without accepting its old handoff',asy
 
 it('closes an unfinished project only with a reason and shows it as Closed, never Complete',async()=>{
  const prompt=vi.spyOn(window,'prompt').mockReturnValueOnce('').mockReturnValueOnce('Superseded by the RCD project')
+ vi.spyOn(window,'confirm').mockReturnValue(false)
  const {w,f}=await setup('active')
  const closeButton=()=>w.findAll('button').find(b=>b.text()==='Close project…')!
  await closeButton().trigger('click');await flushPromises()
@@ -291,6 +292,16 @@ it('closes an unfinished project only with a reason and shows it as Closed, neve
  expect(JSON.parse(String(write[1]?.body))).toEqual({revision:1,reason:'Superseded by the RCD project'})
  expect(prompt).toHaveBeenCalledTimes(2);expect(w.text()).toContain('Closed');expect(w.text()).not.toContain('Complete')
  expect(w.findAll('button').some(b=>b.text()==='Close project…')).toBe(false);w.unmount()
+})
+
+it('can close a project and remove its tasks in one step',async()=>{
+ vi.spyOn(window,'prompt').mockReturnValue('Replanned as a new project')
+ const confirm=vi.spyOn(window,'confirm').mockReturnValue(true);confirm.mockClear()
+ const {w,f}=await setup('active')
+ await w.findAll('button').find(b=>b.text()==='Close project…')!.trigger('click');await flushPromises()
+ const write=f.mock.calls.find(([url])=>url==='/api/projects/1/close')!
+ expect(JSON.parse(String(write[1]?.body))).toEqual({revision:1,reason:'Replanned as a new project',remove_tasks:true})
+ expect(confirm).toHaveBeenCalledTimes(1);w.unmount()
 })
 
 it('offers no close action for a completed or planning project',async()=>{

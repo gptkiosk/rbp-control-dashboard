@@ -261,8 +261,13 @@ one replaced by a newer plan. It needs a reason, which is kept in the project le
 history. The project becomes **Closed**, never Complete: Complete is for projects whose stories finished.
 
 - No new story starts, and a story that is running must be cancelled first.
-- The failed tasks of a Closed or Complete project can then be removed from the board, with a confirmation.
-  The ledger keeps their handoff and incident entries; only their run history on the board is deleted.
+- Closing offers to **remove the project's tasks from the board** in the same step. If you decline, a Closed project shows
+  **Remove tasks from the board**, which takes every one of its tasks off the board, finished ones included, after a confirmation.
+- Each task of a Closed project that is not running or done (queued, in Backlog, in Review or failed) can also be deleted on its own,
+  and a failed task of a Complete project can be removed. Finished tasks of a Closed project stay until you use the bulk action.
+- The ledger keeps the handoff, incident and decision entries; only the tasks' run history on the board is deleted. The project, its plan
+  and its brief stay.
+- Queued tasks of a paused, Closed or Complete project do not block an in-app update, because nothing can start them.
 - A failed task that another task already carries (an unneeded duplicate) can be removed from any project. That includes the failed task a
   project retry replaced while the retry is still queued or running; the retry itself stays protected.
 - Everything else on a project stays protected: only the Projects page changes a story.

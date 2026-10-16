@@ -10,6 +10,22 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.6.6] - 2026-10-16
+
+### Fixed
+
+- Closing a project no longer leaves its tasks behind on the board. Closing offers to remove the project's tasks in the same step, a Closed project has
+  **Remove tasks from the board** for later, and each queued, Backlog, Review or failed task of a Closed project can be deleted on its own (before, only failed
+  ones could). The ledger keeps the handoff, incident and decision entries; the tasks' run history is deleted.
+- Leftover queued tasks of a Closed or Complete project no longer block an in-app update.
+
+### Changed
+
+- The planner is told what a sandboxed coding agent cannot run. A Codex story cannot reach the local container engine, so the plan no longer asks an edit story to
+  build an image or run a container. Container and pipeline files are planned as an edit story that ends with the files committed and the static checks passing, and
+  the build and smoke run are planned as a later verification story for a person or a read-only agent. Prompt pack version 7. A planner prompt you edited under
+  `roles/custom` in the data folder is used as you wrote it, so add the same rule to your copy.
+
 ## [0.6.5] - 2026-10-16
 
 ### Fixed
@@ -362,7 +378,8 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 - Claude Code stories may use web search and fetch without any shell, credential or publish permission.
 
 [0.3.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.0
-[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.5...HEAD
+[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.6...HEAD
+[0.6.6]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.6
 [0.6.5]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.5
 [0.6.4]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.4
 [0.6.3]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.3

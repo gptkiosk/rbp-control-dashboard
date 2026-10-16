@@ -234,6 +234,15 @@ def test_the_planner_is_told_to_start_with_repository_approval_and_setup_when_a_
     assert 'Never plan work that creates a repository, pushes to the main branch, or handles secrets' in text
 
 
+def test_the_planner_is_told_what_a_sandboxed_coding_agent_cannot_run():
+    from pathlib import Path
+    pack = Path(__file__).resolve().parents[3] / 'packs' / 'roles' / 'delegator'
+    text = (pack / 'plan.txt').read_text()
+    assert 'cannot reach the local container engine' in text and 'never assign a story to codex' in text
+    assert 'verification story' in text and 'a human or to a read-only agent' in text
+    assert (pack / 'VERSION').read_text().strip() == '7'
+
+
 def test_the_installation_summary_says_whether_github_writes_are_on_without_naming_repositories(make_client):
     import projects
     import settings as S

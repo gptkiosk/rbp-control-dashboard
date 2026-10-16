@@ -84,6 +84,7 @@ class Action(Strict):
 class Close(Strict):
     revision: int = Field(ge=1)
     reason: str = Field(min_length=3, max_length=300)
+    remove_tasks: bool = False
 
 class Retry(Action):
     route: Route | None = None
