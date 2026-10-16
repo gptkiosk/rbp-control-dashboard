@@ -132,6 +132,27 @@ def test_a_route_nobody_reviewed_is_refused_up_front_with_a_way_forward(tc, tmp_
     assert tc.get(f"/api/chat/threads/{t['id']}").json()["messages"] == []
 
 
+def test_the_generic_free_alias_becomes_the_model_the_agent_is_set_up_with(tc, tmp_path):
+    """Hermes lists thinkingmachines/inkling:free, not openrouter/free. The dashboard default used to be refused with PRICE_UNKNOWN."""
+    cfg = tmp_path / "hermes.yaml"
+    cfg.write_text("model:\n  default: thinkingmachines/inkling:free\nfallback_providers:\n  - model: google/gemini-2.5-flash\n")
+    st = tc.app.state.dispatcher.settings
+    st.environment, st.hermes_config_path, st.openclaw_config_path = "prod", str(cfg), None
+    st.dispatch_route_classes = {}
+    import routes.chat as chat
+    from types import SimpleNamespace
+    req = SimpleNamespace(app=tc.app)
+    with tc.app.state.sessions() as s:
+        assert chat.resolve_model(s, req, "hermes", None, "openrouter/free") == "thinkingmachines/inkling:free"
+        assert chat.resolve_model(s, req, "hermes", None, None) == "thinkingmachines/inkling:free"
+        assert chat.resolve_model(s, req, "hermes", None, "google/gemini-2.5-flash") == "google/gemini-2.5-flash"   # a named model is never swapped
+        assert chat.resolve_model(s, req, "claude", None, "openrouter/free") == "openrouter/free"                    # only hermes and openclaw
+        assert chat.route_problem(s, req, "hermes", None, "thinkingmachines/inkling:free") is None
+        assert "not been reviewed" in chat.route_problem(s, req, "hermes", None, "openrouter/free")
+        cfg.write_text("model:\n  default: google/gemini-2.5-flash\n")                                              # a paid default is never chosen for you
+        assert chat.resolve_model(s, req, "hermes", None, "openrouter/free") == "openrouter/free"
+
+
 def test_reject_pending_message(tc, tmp_path):
     t = _thread(tc, tmp_path)
     m = tc.post(f"/api/chat/threads/{t['id']}/messages", json={"text": "deploy it"}).json()
