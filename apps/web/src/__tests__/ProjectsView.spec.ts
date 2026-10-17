@@ -41,7 +41,7 @@ async function setup(state='draft', tasks: import('@/lib/projects').ProjectTask[
 it('resumes a saved failed proposal without requesting a new subscription plan',async()=>{
  const {w,f}=await setup('planning_failed')
  await w.findAll('button').find(b=>b.text()==='Resume saved plan')!.trigger('click');await flushPromises()
- const writes=f.mock.calls.filter(([,init])=>(init?.method??'GET')!=='GET')
+ const writes=f.mock.calls.filter(([u,init])=>(init?.method??'GET')!=='GET'&&u!=='/api/keys/check')
  expect(writes.map(([url])=>url)).toEqual(['/api/projects/1/resume-plan'])
  expect(JSON.parse(String(writes[0]![1]?.body))).toEqual({revision:1})
  expect(w.text()).toContain('Submitted to Hermes');w.unmount()
@@ -55,10 +55,33 @@ it('edits the visual map without starting a model; saved revisions retain assign
  expect(w.text()).toContain('Unsaved edits')
  expect(w.findAll('button').find(b=>b.text()==='Plan with Hermes')?.attributes('disabled')).toBeDefined()
  await w.findAll('button').find(b=>b.text()==='Save revision')!.trigger('click');await flushPromises()
- const writes=f.mock.calls.filter(([,init])=>(init?.method??'GET')!=='GET')
+ const writes=f.mock.calls.filter(([u,init])=>(init?.method??'GET')!=='GET'&&u!=='/api/keys/check')
  expect(writes.map(([url])=>url)).toEqual(['/api/projects/1'])
  expect(JSON.parse(String(writes[0]![1]?.body)).document.nodes[1].routes[0].model).toBe('claude-sonnet-5-5')
  expect(w.text()).toContain('REVISION 2');w.unmount()
+})
+it('asks for a missing key before creating the project, then creates it after the key is saved or skipped',async()=>{
+ const {w,f}=await setup()
+ const inner=globalThis.fetch
+ let keySaved=false
+ vi.stubGlobal('fetch',(url:string,init?:RequestInit)=>{
+  const json=(b:unknown)=>Promise.resolve(new Response(JSON.stringify(b),{status:200,headers:{'content-type':'application/json'}}))
+  if(url==='/api/keys/check') return json(keySaved?{ready:true,missing:[]}:{ready:false,missing:[{id:'video',label:'fal.ai key',provider:'fal',providers:['fal'],blocking:false,why:'This project mentions generated video.',obtain:'https://fal.ai/dashboard/keys',scope:'API preset.'}]})
+  if(url==='/api/profile/credentials/fal'&&init?.method==='PUT'){keySaved=true;return json({credentials:[{provider:'fal',hint:'abcd'}]})}
+  return inner(url as never,init)
+ })
+ await w.findAll('button').find(b=>b.text()==='+ New project')!.trigger('click')
+ const {DOMWrapper}=await import('@vue/test-utils');const modal=new DOMWrapper(document.querySelector('[role=dialog]')!)
+ await modal.get('input[data-autofocus]').setValue('Media site');await modal.get('textarea').setValue('A site with an AI-generated video background')
+ await modal.get('input[type=checkbox]:not([data-testid])').setValue(true);await modal.get('form').trigger('submit');await flushPromises()
+ const gate=document.querySelector('[data-gate=video]')!
+ expect(gate.textContent).toContain('This project mentions generated video.')
+ expect(f.mock.calls.some(([u,i])=>u==='/api/projects'&&i?.method==='POST')).toBe(false)      // nothing is created before the key is dealt with
+ const field=new DOMWrapper(gate.querySelector('input[type=password]')!);await field.setValue('fal-test-'+'k'.repeat(30))
+ await new DOMWrapper(gate.querySelector('button')!).trigger('click');await flushPromises()
+ expect(keySaved).toBe(true)
+ expect(document.querySelector('[data-gate=video]')).toBeNull()                                 // the check ran again and found nothing missing
+ w.unmount()
 })
 it('submits a new brief to Hermes after coordination approval and displays honest progress',async()=>{
  const {w,f}=await setup()
@@ -69,7 +92,7 @@ it('submits a new brief to Hermes after coordination approval and displays hones
  expect(submit.attributes('disabled')).toBeDefined()
  expect((modal.get('[data-testid=parallel-new]').element as HTMLInputElement).checked).toBe(false)         // parallel build is off unless chosen
  await modal.get('input[type=checkbox]:not([data-testid])').setValue(true);await modal.get('form').trigger('submit');await flushPromises()
- const writes=f.mock.calls.filter(([,init])=>(init?.method??'GET')!=='GET')
+ const writes=f.mock.calls.filter(([u,init])=>(init?.method??'GET')!=='GET'&&u!=='/api/keys/check')
  expect(writes.map(([url])=>url)).toEqual(['/api/projects','/api/projects/1/plan'])
  expect(JSON.parse(String(writes[0]![1]?.body)).planning_bias).toBe(50)
  expect(JSON.parse(String(writes[0]![1]?.body)).dispatch_mode).toBe('sequential')
@@ -83,7 +106,7 @@ it('submission opens a concrete review and requires coordination acknowledgment 
  expect(w.text()).toContain('Review project submission');expect(w.text()).toContain('claude-sonnet-5-5')
  const submit=w.findAll('button').find(b=>b.text()==='Submit approved revision')!
  expect(submit.attributes('disabled')).toBeDefined()
- expect(f.mock.calls.filter(([,init])=>(init?.method??'GET')!=='GET')).toHaveLength(0);w.unmount()
+ expect(f.mock.calls.filter(([u,init])=>(init?.method??'GET')!=='GET'&&u!=='/api/keys/check')).toHaveLength(0);w.unmount()
 })
 it('locks an approved map but retains the pause and context controls',async()=>{
  const {w}=await setup('active')
@@ -127,7 +150,7 @@ it('saves a new project preference without starting models',async()=>{
  const slider=modal.get('input[type=range]');expect((slider.element as HTMLInputElement).value).toBe('50')
  await slider.setValue('0');expect(slider.attributes('aria-valuetext')).toBe('Economy · OpenClaw first')
  await modal.findAll('button').find(b=>b.text()==='Save draft')!.trigger('click');await flushPromises()
- const writes=f.mock.calls.filter(([,init])=>(init?.method??'GET')!=='GET')
+ const writes=f.mock.calls.filter(([u,init])=>(init?.method??'GET')!=='GET'&&u!=='/api/keys/check')
  expect(writes).toHaveLength(1);expect(writes[0]![0]).toBe('/api/projects')
  expect(JSON.parse(String(writes[0]![1]?.body)).planning_bias).toBe(0);w.unmount()
 })
@@ -151,9 +174,9 @@ it('retries a failed story only through an explicitly selected reviewed route',a
  const {w,f}=await setup('active',[{card_id:5,node_key:'a',role:'story',revision:1,column:'failed',title:'Inventory',agent:'openclaw',model:'openrouter/thinkingmachines/inkling:free',run_id:6,run_stage:'timeout',retry_routes:[choice]}])
  await w.findAll('button').find(b=>b.text()==='Stories & runs')!.trigger('click');await flushPromises()
  expect(w.text()).toContain('Run #6 · Timed out')
- expect(f.mock.calls.filter(([,init])=>(init?.method??'GET')!=='GET')).toHaveLength(0)
+ expect(f.mock.calls.filter(([u,init])=>(init?.method??'GET')!=='GET'&&u!=='/api/keys/check')).toHaveLength(0)
  await w.findAll('button').find(b=>b.text()==='Retry with Claude · claude-haiku-5-5')!.trigger('click');await flushPromises()
- const writes=f.mock.calls.filter(([,init])=>(init?.method??'GET')!=='GET')
+ const writes=f.mock.calls.filter(([u,init])=>(init?.method??'GET')!=='GET'&&u!=='/api/keys/check')
  expect(writes.map(([url])=>url)).toEqual(['/api/projects/1/stories/5/retry'])
  expect(JSON.parse(String(writes[0]![1]?.body))).toEqual({revision:1,route:choice})
  w.unmount()
@@ -170,10 +193,10 @@ it('requires explicit output approval and never offers handoff acceptance for an
  expect(modal.text()).toContain('/private/project-outputs/inventory.md')
  expect(modal.text()).toContain('agent remains read-only')
  expect(modal.findAll('button').find(b=>b.text()==='Approve & continue')!.attributes('disabled')).toBeDefined()
- expect(f.mock.calls.filter(([,init])=>(init?.method??'GET')!=='GET')).toHaveLength(0)
+ expect(f.mock.calls.filter(([u,init])=>(init?.method??'GET')!=='GET'&&u!=='/api/keys/check')).toHaveLength(0)
  await modal.get('input[type=checkbox]').setValue(true)
  await modal.get('form').trigger('submit');await flushPromises()
- const writes=f.mock.calls.filter(([,init])=>(init?.method??'GET')!=='GET')
+ const writes=f.mock.calls.filter(([u,init])=>(init?.method??'GET')!=='GET'&&u!=='/api/keys/check')
  expect(writes.map(([url])=>url)).toEqual(['/api/projects/1/stories/5/continue-output'])
  expect(JSON.parse(String(writes[0]![1]?.body))).toEqual({revision:1,run_id:7,approve_output:true})
  w.unmount()
@@ -192,7 +215,7 @@ it('previews the saved output and requires document review before sending its ha
  expect(modal.findAll('button').find(b=>b.text()==='Accept handoff')!.attributes('disabled')).toBeDefined()
  await modal.get('input[type=checkbox]').setValue(true)
  await modal.get('form').trigger('submit');await flushPromises()
- const writes=f.mock.calls.filter(([,init])=>(init?.method??'GET')!=='GET')
+ const writes=f.mock.calls.filter(([u,init])=>(init?.method??'GET')!=='GET'&&u!=='/api/keys/check')
  expect(writes).toHaveLength(1)
  expect(JSON.parse(String(writes[0]![1]?.body)).output_sha256).toBe(output.sha256)
  expect(w.text()).toContain('STORY · Done');w.unmount()
@@ -204,7 +227,7 @@ it('opens the exact output review from the task board without submitting approva
  const dialog=document.querySelector('[role=dialog]')!
  expect(dialog.textContent).toContain('Approve output & continue')
  expect((dialog.querySelector('input[type=checkbox]') as HTMLInputElement).checked).toBe(false)
- expect(f.mock.calls.filter(([,init])=>(init?.method??'GET')!=='GET')).toHaveLength(0)
+ expect(f.mock.calls.filter(([u,init])=>(init?.method??'GET')!=='GET'&&u!=='/api/keys/check')).toHaveLength(0)
  w.unmount()
 })
 
@@ -216,7 +239,7 @@ it('never treats automatic display layout or opening a project as unsaved edits'
  expect(w.text()).toContain('View only')
  await w.get('.project-link').trigger('click');await flushPromises()
  expect(confirm).not.toHaveBeenCalled()
- expect(f.mock.calls.filter(([,init])=>(init?.method??'GET')!=='GET')).toHaveLength(0)
+ expect(f.mock.calls.filter(([u,init])=>(init?.method??'GET')!=='GET'&&u!=='/api/keys/check')).toHaveLength(0)
  w.unmount()
 })
 
@@ -239,7 +262,7 @@ it('updates live story, phase and project colors from polling without writing th
  await vi.advanceTimersByTimeAsync(3000);await flushPromises()
  expect(w.get('.map-node.phase').classes()).toContain('status-done')
  expect(w.text()).toContain('1 / 1 stories done')
- expect(f.mock.calls.filter(([,init])=>(init?.method??'GET')!=='GET')).toHaveLength(0);w.unmount()
+ expect(f.mock.calls.filter(([u,init])=>(init?.method??'GET')!=='GET'&&u!=='/api/keys/check')).toHaveLength(0);w.unmount()
 })
 
 it('shows the bulk scope and requires acknowledgment before enabling automatic handoffs',async()=>{
@@ -250,7 +273,7 @@ it('shows the bulk scope and requires acknowledgment before enabling automatic h
  expect(modal.text()).toContain('Requires human input or approval')
  expect(modal.text()).toContain('Human-required tasks remain excluded.')
  expect(modal.findAll('button').find(b=>b.text()==='Enable automatic handoffs')!.attributes('disabled')).toBeDefined()
- expect(f.mock.calls.filter(([,init])=>(init?.method??'GET')!=='GET')).toHaveLength(0)
+ expect(f.mock.calls.filter(([u,init])=>(init?.method??'GET')!=='GET'&&u!=='/api/keys/check')).toHaveLength(0)
  await modal.findAll('input[type=checkbox]')[1]!.setValue(true)
  await modal.get('form').trigger('submit');await flushPromises()
  const write=f.mock.calls.find(([url])=>url==='/api/projects/1/handoff-policy')!
@@ -274,7 +297,7 @@ it('reruns an unaccepted successful story without accepting its old handoff',asy
  const {w,f}=await setup('active',[{card_id:5,node_key:'a',role:'story',revision:1,column:'review',title:'Inventory',agent:'codex',model:'gpt-6.1-sol',run_id:6,run_stage:'succeeded'}])
  await w.findAll('button').find(b=>b.text()==='Stories & runs')!.trigger('click');await flushPromises()
  await w.findAll('button').find(b=>b.text()==='Rerun same story')!.trigger('click');await flushPromises()
- const writes=f.mock.calls.filter(([,init])=>init?.method==='POST')
+ const writes=f.mock.calls.filter(([u,init])=>init?.method==='POST'&&u!=='/api/keys/check')
  expect(writes.map(([url])=>url)).toEqual(['/api/projects/1/stories/5/retry'])
  expect(JSON.parse(String(writes[0]![1]?.body))).toEqual({revision:1})
  w.unmount()
@@ -338,7 +361,7 @@ it('opens the consultant proposal as an editable brief without starting project 
  expect((dialog.get('input[data-autofocus]').element as HTMLInputElement).value).toBe('Consulted goal')
  expect((dialog.get('textarea').element as HTMLTextAreaElement).value).toContain('definitions of done')
  expect(dialog.findAll('button').find(b=>b.text()==='Submit to Hermes')!.attributes('disabled')).toBeDefined()
- expect(f.mock.calls.filter(([,init])=>(init?.method??'GET')!=='GET')).toHaveLength(0)
+ expect(f.mock.calls.filter(([u,init])=>(init?.method??'GET')!=='GET'&&u!=='/api/keys/check')).toHaveLength(0)
  w.unmount()
 })
 

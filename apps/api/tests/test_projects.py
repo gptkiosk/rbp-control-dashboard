@@ -324,7 +324,8 @@ def test_unaccepted_review_rerun_preserves_scope_evidence_and_dependency_gate(ap
         assert db.get(Run,rid).stage=='succeeded'
     assert c.post(path,json={'revision':1}).status_code==409
     with s.begin() as db:db.get(Card,cid).column='done'
-    assert c.post(path,json={'revision':1}).status_code==409
+    assert c.post(path,json={'revision':1}).status_code==200   # b has not started, so reopening a invalidates no handoff
+    assert c.get(f'/api/cards/{cid}').json()['column']=='queued'
 
 
 def test_completed_project_can_reopen_only_accepted_final_agent_story(app):
@@ -346,6 +347,26 @@ def test_completed_project_can_reopen_only_accepted_final_agent_story(app):
     context=c.get('/api/projects/1/context').text
     assert 'Earlier accepted run' in context and 'new run requires review' in context
     assert c.post(f'/api/projects/1/stories/{ids["b"]}/retry',json={'revision':1}).status_code==409
+
+
+def test_accepted_story_can_be_reopened_until_a_dependent_starts(app):
+    p=active(app,[node('a'),node('b',depends_on=['a'])])
+    c,s,wd,settings=app
+    ids={t['node_key']:t['card_id'] for t in p['tasks'] if t['role']=='story'}
+    rid=finish(app,ids['a'],'Art said done but is wrong.')
+    assert c.post(f'/api/projects/1/stories/{ids["a"]}/accept',json={'run_id':rid,'summary':'Operator accepted.'}).status_code==200
+    assert c.get(f'/api/cards/{ids["a"]}').json()['column']=='done'
+    # b depends on a but has not run: reopening a invalidates no handoff
+    response=c.post(f'/api/projects/1/stories/{ids["a"]}/retry',json={'revision':1})
+    assert response.status_code==200,response.text
+    assert c.get(f'/api/cards/{ids["a"]}').json()['column']=='queued'
+    rid=finish(app,ids['a'],'Fixed.')
+    assert c.post(f'/api/projects/1/stories/{ids["a"]}/accept',json={'run_id':rid,'summary':'Operator accepted again.'}).status_code==200
+    # once b has a run, its handoff exists, so reopening a is refused
+    finish(app,ids['b'],'Built on the fixed art.')
+    response=c.post(f'/api/projects/1/stories/{ids["a"]}/retry',json={'revision':1})
+    assert response.status_code==409 and 'already started' in response.text
+    assert c.get(f'/api/cards/{ids["a"]}').json()['column']=='done'
 
 
 def test_review_rerun_does_not_skip_output_approval(app):

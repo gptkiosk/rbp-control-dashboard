@@ -126,6 +126,9 @@ class Settings(BaseSettings):
     )
     approval_ttl_s: int = Field(default=24 * 3600, ge=60, le=7 * 86400,
                                 description="An unused task approval expires after this many seconds.")
+    fal_queue_base: str = Field(default="https://queue.fal.run", description="fal.ai queue API used for media generation. Must be https (a loopback address is allowed for tests).")
+    fal_api_base: str = Field(default="https://api.fal.ai/v1", description="fal.ai platform API used to look up model prices.")
+    fal_poll_s: float = Field(default=5.0, ge=0.0, le=60.0, description="Seconds between fal job status checks.")
     workdir_roots: tuple[Path, ...] = Field(
         default=(Path.home() / "Projects", DEFAULT_DATA_DIR / "workspaces"),
         description="A card's working directory must be inside one of these.",

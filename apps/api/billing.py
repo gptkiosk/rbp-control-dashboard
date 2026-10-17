@@ -71,6 +71,7 @@ def config(s):
         "rates": {**DEFAULT_RATES, **saved.get("rates", {})},
         "timezone": "America/Los_Angeles",
         "limits": limits(s),
+        "media_rates": {k: float(v) for k, v in (saved.get("media_rates") or {}).items() if isinstance(v, (int, float)) and not isinstance(v, bool)},
     }
 
 

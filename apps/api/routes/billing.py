@@ -1,11 +1,12 @@
 from typing import Annotated, Literal
 import json
-from fastapi import APIRouter, Depends, Request, Query
+from fastapi import APIRouter, Depends, HTTPException, Request, Query
 from pydantic import BaseModel, Field, ConfigDict, StringConstraints
 from sqlalchemy.orm import Session
 from deps import get_session
 from models import BillingConfig
 import billing
+import media_catalog
 
 router = APIRouter(prefix="/api")
 
@@ -37,6 +38,8 @@ class LimitsPatch(BaseModel):
 class BillingPatch(BaseModel):
     model_config = ConfigDict(extra="forbid")
     limits: LimitsPatch | None = None
+    # Your own price for a media model (USD per image or per second); null clears it and the listed price applies again.
+    media_rates: dict[Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=160)], float | None] = Field(default_factory=dict, max_length=100)
     accounts: dict[Literal["openclaw", "hermes", "claude", "codex", "grok"], Account] = Field(
         default_factory=dict, max_length=5
     )
@@ -46,6 +49,15 @@ class BillingPatch(BaseModel):
         ],
         Rate,
     ] = Field(default_factory=dict, max_length=100)
+
+
+@router.get("/media/models")
+def media_models(s: Session = Depends(get_session)):
+    """The media-model catalog with the operator's own prices applied, and whether a fal key is saved (never the key)."""
+    from sqlalchemy import select
+    from models import UserCredential
+    saved = s.scalar(select(UserCredential.owner).where(UserCredential.provider == "fal").limit(1)) is not None
+    return {**media_catalog.catalog(s), "fal_key_saved": saved}
 
 
 @router.get("/billing")
@@ -71,6 +83,19 @@ def patch_billing(body: BillingPatch, s: Session = Depends(get_session)):
             cap = body.limits.per_run_cap_usd
             merged["per_run_cap_usd"] = cap if cap and cap > 0 else None
         old["limits"] = merged
+    if body.media_rates:
+        known = {m["id"] for m in media_catalog.MODELS}
+        mine = dict(old.get("media_rates") or {})
+        for model, price in body.media_rates.items():
+            if model not in known:
+                raise HTTPException(422, f"Unknown media model: {model}")
+            if price is None:
+                mine.pop(model, None)
+            elif price < 0 or price > 10000 or price != price:
+                raise HTTPException(422, "A media price must be between 0 and 10000 USD.")
+            else:
+                mine[model] = price
+        old["media_rates"] = mine
     old["rates"] = {
         **old.get("rates", {}),
         **{m: {**r.model_dump(), "source": "custom"} for m, r in body.rates.items()},

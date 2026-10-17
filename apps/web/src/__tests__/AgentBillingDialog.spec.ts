@@ -70,6 +70,33 @@ it('shows spending limits off by default and saves the ones you turn on', async 
   expect(body.limits).toEqual({ require_reviewed_pricing: true, per_run_cap_usd: 2.5, paid_needs_runtime_limit: false })
   w.unmount()
 })
+it('lists media models, shows unlisted prices as blank and saves only the prices you change', async () => {
+  const models = [
+    { id: 'fal-ai/nano-banana-2', label: 'Nano Banana 2', kind: 'image', mode: 'text-to-image', unit: 'image', price_usd: 0.08, listed_price_usd: 0.08, price_source: 'https://fal.ai/pricing', price_verified: '2026-10-17', tier: 'standard', note: '' },
+    { id: 'fal-ai/veo3.1/fast/image-to-video', label: 'Veo 3.1 Fast (image to video)', kind: 'video', mode: 'image-to-video', unit: 'second', price_usd: null, listed_price_usd: null, price_source: 'https://fal.ai/pricing', price_verified: '2026-10-17', tier: 'standard', note: 'Price not on fal pricing page.' },
+  ]
+  const f = stubFetch((u, init) => {
+    if (u === '/api/media/models')
+      return { body: { provider: 'fal', fal_key_saved: true, models, key_rules: { preset: 'API', note: '', allowed_models: ['fal-ai/veo3.1*'] } } }
+    if (u === '/api/billing')
+      return { body: init?.method === 'PATCH' ? {} : { accounts: { codex: { mode: 'api', monthly_usd: 0 } }, rates: {}, timezone: 'America/Los_Angeles' } }
+  })
+  const w = mount(AgentBillingDialog, { props: { agents: [agent({ id: 'codex', name: 'Codex' })], models: [] } })
+  await flushPromises()
+  const box = w.get('.media-models')
+  expect(box.text()).toContain('Nano Banana 2')
+  expect(box.text()).toContain('fal key: saved')
+  expect(box.text()).toContain('fal-ai/veo3.1*')
+  const veo = box.get('input[aria-label="Veo 3.1 Fast (image to video) price per second"]')
+  expect((veo.element as HTMLInputElement).placeholder).toBe('not listed')
+  expect((box.get('input[aria-label="Nano Banana 2 price per image"]').element as HTMLInputElement).value).toBe('')
+  await veo.setValue(0.15)
+  await w.get('form').trigger('submit')
+  await flushPromises()
+  const body = JSON.parse(String(calls(f, 'PATCH', '/api/billing')[0]![1]?.body))
+  expect(body.media_rates).toEqual({ 'fal-ai/veo3.1/fast/image-to-video': 0.15 })
+  w.unmount()
+})
 it('uses configured OpenClaw names and submits the selected ID', async () => {
   const f = stubFetch((u, init) => {
     if (u === '/api/agents')
