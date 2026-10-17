@@ -188,12 +188,20 @@ class DeleteIn(BaseModel):
 
 @router.post('/{project_id}/delete')
 def delete_project(project_id:int,body:DeleteIn,request:Request,s:Session=Depends(get_session)):
-    """Delete a project that is not live, with its tasks, ledger and saved records. The working folder and its files are kept."""
+    """Delete a closed or completed project, with its tasks, ledger and saved records. The working folder and its files are kept."""
     identity=actor(request);write(s);p=projects.get(s,project_id);projects.check_revision(p,body.revision)
     if not body.confirm: raise HTTPException(422,'Confirm the delete. It cannot be undone.')
     paths,pid,folder=projects.delete_project(s,p,get_settings())
     s.commit();remove_run_logs(paths);projects.forget_project_files(get_settings(),pid)
     return {'deleted':pid,'working_dir_kept':folder}
+
+@router.get('/{project_id}/checks')
+def plan_checks(project_id:int,request:Request,s:Session=Depends(get_session)):
+    """What the project's type expects of a plan and where this plan falls short. Warnings only; nothing here blocks a submit."""
+    actor(request);p=projects.get(s,project_id);doc=projects.document(p)
+    import project_types
+    kind=doc.get('project_type')
+    return {'project_type':kind,'findings':project_types.check(kind,doc.get('nodes',[]),get_settings()) if kind else []}
 
 @router.post('/{project_id}/pause')
 def pause(project_id:int,body:Action,request:Request,s:Session=Depends(get_session)):

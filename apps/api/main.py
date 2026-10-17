@@ -21,6 +21,7 @@ from auth import AuthService, PUBLIC
 from routes import authentication, operations, projects as project_routes, roles
 from routes import keys as key_routes
 from routes import media as media_routes
+from routes import project_types as project_type_routes
 from github_read import GithubReader
 from github_config import GithubConfigStore
 from github_actions import GithubActionGuard
@@ -243,6 +244,7 @@ def create_app() -> FastAPI:
     app.include_router(billing_routes.router)
     app.include_router(key_routes.router)
     app.include_router(media_routes.router)
+    app.include_router(project_type_routes.router)
     app.include_router(chat.router)
     app.include_router(mcp_routes.router)
     app.include_router(operations.router)
