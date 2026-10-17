@@ -138,7 +138,7 @@ def build_claude(card, prompt: str, model: str | None, budget: float, binary: st
         if mode != "plan":
             # An Edit story can run its tests, syntax checks and installs whether or not the project has a git grant; the operator can make this strict (settings.agent_permissions).
             argv += [c for c in getattr(card, "agent_commands", agent_git.CHECK_COMMANDS) if c not in argv]
-    if not getattr(card,"subscription_billing",False):
+    if not getattr(card,"subscription_billing",False) and budget and budget > 0:      # no cap unless one was chosen (a task budget, or Spending & limits)
         argv += ["--max-budget-usd", f"{budget:.2f}"]
     if model:
         argv += ["--model", model]

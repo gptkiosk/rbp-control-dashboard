@@ -48,6 +48,7 @@ import projects
 from idempotency import refuse_timeout_retry
 import approval
 import provider_limits
+from billing import limits as billing_limits
 from dispatch_gate import (DispatchDenied, admit as admit_dispatch, resolve_free_alias,
                            snapshot as dispatch_snapshot, reviewed_route_class as _reviewed_route_class)
 import pi_routing
@@ -316,7 +317,9 @@ class Dispatcher:
                 if grant:
                     prompt = agent_git.apply_context(prompt, grant, card.id, card.agent, model_requested)
                 card.subscription_billing=_reviewed_route_class(s, self.settings, card, model_requested) == "subscription"
-                args=(card,prompt,model_requested,card.budget_usd if card.budget_usd is not None else self.settings.default_budget_usd,spec.binary(self.settings))
+                # No dollar cap unless one was chosen: the task's own budget, else the per-run cap saved in Spending & limits (or the older env default).
+                run_budget=card.budget_usd if card.budget_usd is not None else (self.settings.default_budget_usd or billing_limits(s, self.settings)["per_run_cap_usd"] or 0.0)
+                args=(card,prompt,model_requested,run_budget,spec.binary(self.settings))
                 resume=getattr(card,'resume_session',None)
                 argv=spec.build(*args, session_id=str(uuid.uuid5(uuid.NAMESPACE_URL,f'mcd:story:{card.id}'))) if link and spec.preassigned_session else spec.build(*args,session_id=resume) if resume else spec.build(*args)
                 # An interruption requeue keeps the card's key; any other claim starts a new execution.
@@ -347,7 +350,7 @@ class Dispatcher:
                                    text=approval.consume(card, run.id, now, card.idempotency_key)))
                 card.column, card.updated_at = "running", now
                 adapter_spec=claimed_spec(run, card, prompt,
-                    card.budget_usd if card.budget_usd is not None else self.settings.default_budget_usd)
+                    run_budget)
                 if link and link.role=='story':
                     run.checkpoint=json.dumps({**json.loads(run.checkpoint),
                         'project_origin':adapter_spec['origin'],'project_context':adapter_spec['context']})
@@ -467,7 +470,8 @@ class Dispatcher:
             try:
                 source = db.get(Card, row.card_id) if row.card_id else db.get(ChatThread, row.thread_id)
                 current_class = _reviewed_route_class(db, self.settings, source, row.model_requested) if source else None
-                evidence = admit_dispatch(self.settings, row, argv, default_free_only=True, current_price_class=current_class)
+                evidence = admit_dispatch(self.settings, row, argv, default_free_only=True, current_price_class=current_class,
+                                          limits=billing_limits(db, self.settings))
             except DispatchDenied as exc:
                 db.add(RunEvent(run_id=run_id, ts=_now(), kind="note", text=f"dispatch denied: {exc}"))
                 problem = str(exc)
@@ -759,13 +763,14 @@ class Dispatcher:
             ctx = SimpleNamespace(mode=thread.mode, working_dir=thread.working_dir,
                                   agent_target=thread.agent_target, timeout_s=CHAT_TIMEOUT_S,
                                   subscription_billing=_reviewed_route_class(s, self.settings, thread, thread.model or spec.default_model()) == "subscription")
-            argv = spec.build(ctx, msg.text, thread.model or spec.default_model(), self.settings.default_budget_usd,
+            chat_budget = self.settings.default_budget_usd or billing_limits(s, self.settings)["per_run_cap_usd"] or 0.0
+            argv = spec.build(ctx, msg.text, thread.model or spec.default_model(), chat_budget,
                               spec.binary(self.settings), session_id=thread.session_id)
             run = Run(thread_id=thread.id, agent=thread.agent,
                       model_requested=thread.model or spec.default_model(), stage="running",
                       started_at=now, working_dir=thread.working_dir,
                       command=json.dumps(redact(argv, msg.text)), log_path="",
-                      checkpoint=json.dumps({"dispatch_policy": dispatch_snapshot(thread, self.settings.default_budget_usd, _reviewed_route_class(s, self.settings, thread, thread.model or spec.default_model()))}))
+                      checkpoint=json.dumps({"dispatch_policy": dispatch_snapshot(thread, chat_budget, _reviewed_route_class(s, self.settings, thread, thread.model or spec.default_model()))}))
             s.add(run)
             s.flush()
             run.log_path = str(self.runs_dir / f"run-{run.id}.log")
@@ -775,7 +780,7 @@ class Dispatcher:
             return ({"thread_id": thread.id, "message_id": msg.id, "agent": thread.agent,
                      "working_dir": thread.working_dir, "argv": argv,
                      "adapter_spec": claimed_spec(run, ctx, msg.text,
-                         self.settings.default_budget_usd, thread.session_id, msg.id)}, run.id)
+                         chat_budget, thread.session_id, msg.id)}, run.id)
 
     async def start_turn(self, message_id: int) -> int | None:
         """Run an approved user message. Returns the run id, or None if it may not run."""

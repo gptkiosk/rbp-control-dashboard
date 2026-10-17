@@ -10,6 +10,25 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.6.14] - 2026-10-17
+
+RCD catches up with MCD 0.6.11 to 0.6.14 in one release.
+
+### Changed
+
+- Spending limits are off by default. The default run budget and host cap are gone, a run no longer needs a reviewed price, and paid routes on Codex, Hermes and OpenClaw can start once free-only is switched off. RCD still starts free-only. Paid and unpriced runs record a plain
+  disclaimer that RCD does not limit spending and that you should set a credit limit with your provider.
+- A Done story can be rerun (**Rerun same story**) while nothing that depends on it has started, so a story that was accepted wrongly, such as art that never got embedded, no longer forces a new project revision. Once a dependent has run, reopening is refused as before because its handoff would be invalidated.
+- The coordinator's planning prompt now treats anything judged by looking (pages, art, themes, layout) as needing proof: a file-level verification story, then a localhost preview checkpoint with a clickable URL per page and state, then the human decision. The plan reviewer asks for these steps when a plan lacks them. Prompt pack version 9.
+
+### Added
+
+- **Spending & limits** in Agents, Billing & rates: one place, stored in the app, to turn on a reviewed-price requirement, a per-run dollar cap, or the Claude-only rule for paid runs. See `docs/configuration/dispatch-policy.md`.
+- **Keys and access** guide at the top of Profile, Private credentials: every key with its level (required for basic use, recommended, optional), what it is for, whether it is in place and where to get it. Basic use needs only an agent signed in.
+- A **key check before a project is created**: if the project's name or brief suggests a key that is not saved (generated video or images), a dialog says what, why and where to get it, lets you paste the key there, and lets you continue without it. Only having no agent at all blocks. `GET /api/keys` and `POST /api/keys/check`. See `docs/configuration/keys-and-access.md`.
+- **Media models (fal.ai)** in Agents, Billing & rates: a catalog of the image and video models used for site art and motion, with endpoint id, billing unit, quality tier (draft, standard, premium), notes and fal's listed price where it has one. You can enter your own price per model. A **fal.ai key** can be saved in Profile, Private credentials (encrypted, write-only, never given to agents).
+- **Generate media from RCD**: pick a project folder with `media/slots.json`, a tier and a count, acknowledge the spend, and RCD calls fal.ai with your saved key and saves the results as candidates in the folder. The key never leaves RCD and no code from the project folder is run; every run is recorded in a ledger with its estimate. Needs `ffmpeg` on the host for the best results. See `docs/configuration/media-models.md`.
+
 ## [0.6.10] - 2026-10-16
 
 ### Added
@@ -439,7 +458,8 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 - Claude Code stories may use web search and fetch without any shell, credential or publish permission.
 
 [0.3.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.0
-[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.10...HEAD
+[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.14...HEAD
+[0.6.14]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.14
 [0.6.10]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.10
 [0.6.9]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.9
 [0.6.8]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.8

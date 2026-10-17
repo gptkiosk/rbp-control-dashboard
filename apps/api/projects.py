@@ -678,8 +678,10 @@ def installation_text(s, settings):
     except Exception:   # noqa: BLE001 - an unreadable GitHub config just leaves the line out
         pass
     lines.append(f"Delegator (the coordinator): {delegator or 'none assigned'}.")
+    cap = billing.limits(s, settings)
     lines.append('Spending policy: ' + ('free routes only (paid routes are refused)' if settings.dispatch_free_only else 'paid routes allowed when approved')
-                 + f"; default budget per task ${settings.default_budget_usd:g}, ceiling ${settings.dispatch_max_budget_usd:g}.")
+                 + ('; per-run cap $' + format(cap['per_run_cap_usd'], 'g') if cap['per_run_cap_usd'] else '; no per-run dollar cap (set limits in Agents, Billing & rates)')
+                 + ('; a reviewed price is required before a run starts' if cap['require_reviewed_pricing'] else '') + '.')
     return '\n'.join(lines)
 
 

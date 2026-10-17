@@ -98,7 +98,7 @@ class Settings(BaseSettings):
     default_timeout_s: int = Field(default=1800, ge=30, le=6 * 3600)
     run_quiet_after_s: int = Field(default=600, ge=30, le=6 * 3600,
                                    description="A live runner silent this long is shown as quiet, not as working.")
-    default_budget_usd: float = Field(default=0.0, ge=0.0, le=50.0)
+    default_budget_usd: float = Field(default=0.0, ge=0.0, le=50.0, description="Dollar cap passed to an API-billed Claude run that has no cap of its own. 0 (the default) means none; set limits in Agents, Billing & rates, Spending & limits.")
     dispatch_free_only: bool = Field(default=True)
     housekeeping_auto: str = Field(default="", description="Comma-separated housekeeping finding kinds cleaned up automatically after hours (stale_approval_wait, old_update_backup). Empty: nothing is automatic.")
     housekeeping_window_start_hour: int = Field(default=1, ge=0, le=23)
@@ -106,7 +106,7 @@ class Settings(BaseSettings):
     model_watch_enabled: bool = Field(default=False, description="Run the weekly model watch: read OpenRouter's public model list and leave a Backlog card when something needs a person. Off by default.")
     model_watch_interval_days: int = Field(default=7, ge=1, le=30)
     model_refresh_enabled: bool = Field(default=True, description="Allow the operator to read OpenRouter's public model list from the Models section. Off: nothing is fetched.")
-    dispatch_max_budget_usd: float = Field(default=0.0, ge=0.0, le=50.0)
+    dispatch_max_budget_usd: float = Field(default=0.0, ge=0.0, le=50.0, description="Older way to set a per-run ceiling. 0 (the default) means none. When set it is used as the per-run cap until you save one in Spending & limits.")
     agent_git_grants_file: Path = Field(
         default=DEFAULT_DATA_DIR / "agent-git" / "grants.json",
         description="Operator-owned branch-scoped git grants for project stories (see agent_git.py).",
@@ -126,6 +126,9 @@ class Settings(BaseSettings):
     )
     approval_ttl_s: int = Field(default=24 * 3600, ge=60, le=7 * 86400,
                                 description="An unused task approval expires after this many seconds.")
+    fal_queue_base: str = Field(default="https://queue.fal.run", description="fal.ai queue API used for media generation. Must be https (a loopback address is allowed for tests).")
+    fal_api_base: str = Field(default="https://api.fal.ai/v1", description="fal.ai platform API used to look up model prices.")
+    fal_poll_s: float = Field(default=5.0, ge=0.0, le=60.0, description="Seconds between fal job status checks.")
     workdir_roots: tuple[Path, ...] = Field(
         default=(Path.home() / "Projects", DEFAULT_DATA_DIR / "workspaces"),
         description="A card's working directory must be inside one of these.",

@@ -254,3 +254,15 @@ def test_the_installation_summary_says_whether_github_writes_are_on_without_nami
             text = projects.installation_text(s, settings)
     assert '2 repositories on this install' in text and 'always private' in text
     assert 'private-thing' not in text and 'acme-account' not in text                  # counts only: repository names are not sent to a model
+
+
+def test_the_planner_requires_verification_and_a_viewable_preview_before_a_visual_approval():
+    from pathlib import Path
+    pack = Path(__file__).resolve().parents[3] / 'packs' / 'roles' / 'delegator'
+    plan = (pack / 'plan.txt').read_text()
+    assert "never let the producing story's own report stand as proof" in plan
+    assert 'exists, is not empty' in plan and 'referenced by the page or stylesheet' in plan
+    assert 'clickable URL' in plan and '127.0.0.1' in plan and 'stops it' in plan
+    assert 'stopped, by its own process id and never by name, only when the operator records approval' in plan
+    assert 'preview checkpoint' in (pack / 'review.txt').read_text() or 'localhost preview checkpoint' in (pack / 'review.txt').read_text()
+    assert int((pack / 'VERSION').read_text().strip()) >= 9

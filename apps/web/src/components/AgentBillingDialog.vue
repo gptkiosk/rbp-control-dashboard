@@ -1,14 +1,19 @@
 <script setup lang="ts">
 import MembershipPrerequisites from '@/components/MembershipPrerequisites.vue'
 import AppSelect from '@/components/AppSelect.vue'
+import MediaGeneratePanel from '@/components/MediaGeneratePanel.vue'
 import { computed, onMounted, ref, watch } from 'vue'
 import ModalShell from '@/components/ModalShell.vue'
-import { getJson, patchJson, type Agent, type BillingSettings, type ModelRate } from '@/lib/api'
+import { getJson, patchJson, type Agent, type BillingSettings, type MediaCatalog, type ModelRate } from '@/lib/api'
 const props = defineProps<{ agents: Agent[]; models: string[] }>()
 const emit = defineEmits<{ close: []; saved: [] }>()
 const settings = ref<BillingSettings | null>(null)
 const error = ref('')
 const saving = ref(false)
+const media = ref<MediaCatalog | null>(null)
+const mediaPrices = ref<Record<string, number | ''>>({})
+const mediaSaved = ref<Record<string, number | ''>>({})
+const limits = ref({ require_reviewed_pricing: false, per_run_cap_usd: '' as number | '' | null, paid_needs_runtime_limit: false })
 const model = ref('')
 const custom = ref(false)
 const rate = ref<ModelRate>({ input: 0, output: 0, cached: 0, write: 0, write_1h: 0, max_input: null })
@@ -25,6 +30,21 @@ watch(model, () => {
 onMounted(async () => {
   try {
     settings.value = await getJson<BillingSettings>('/api/billing')
+    try {
+      media.value = await getJson<MediaCatalog>('/api/media/models')
+      const mine: Record<string, number | ''> = {}
+      for (const m of media.value.models) mine[m.id] = m.price_source === 'operator' && m.price_usd !== null ? m.price_usd : ''
+      mediaPrices.value = { ...mine }
+      mediaSaved.value = { ...mine }
+    } catch {
+      media.value = null
+    }
+    const l = settings.value.limits
+    limits.value = {
+      require_reviewed_pricing: !!l?.require_reviewed_pricing,
+      per_run_cap_usd: l?.per_run_cap_usd ?? '',
+      paid_needs_runtime_limit: !!l?.paid_needs_runtime_limit,
+    }
   } catch (e) {
     error.value = String(e)
   }
@@ -56,7 +76,26 @@ async function save() {
         max_input: rate.value.max_input || null,
       }
     }
-    await patchJson('/api/billing', { accounts: settings.value.accounts, rates })
+    const mediaRates: Record<string, number | null> = {}
+    for (const [id, value] of Object.entries(mediaPrices.value)) {
+      if (value === mediaSaved.value[id]) continue
+      if (value === '' || value === null) mediaRates[id] = null
+      else if (typeof value === 'number' && Number.isFinite(value) && value >= 0) mediaRates[id] = value
+      else throw new Error('A media price must be a number of dollars, or blank to use the listed price.')
+    }
+    const cap = limits.value.per_run_cap_usd
+    if (cap !== '' && cap !== null && !(typeof cap === 'number' && Number.isFinite(cap) && cap >= 0))
+      throw new Error('Cap per run must be a number of dollars, or blank for no cap.')
+    await patchJson('/api/billing', {
+      accounts: settings.value.accounts,
+      rates,
+      ...(Object.keys(mediaRates).length ? { media_rates: mediaRates } : {}),
+      limits: {
+        require_reviewed_pricing: limits.value.require_reviewed_pricing,
+        per_run_cap_usd: cap === '' || cap === null || cap === 0 ? null : cap,
+        paid_needs_runtime_limit: limits.value.paid_needs_runtime_limit,
+      },
+    })
     emit('saved')
     emit('close')
   } catch (e) {
@@ -112,6 +151,64 @@ async function save() {
           </p>
         </div>
       </div>
+      <fieldset v-if="settings" class="limits">
+        <legend>Spending &amp; limits</legend>
+        <p class="muted small">
+          Nothing here is on by default. Without a limit, a paid route spends against your own provider account or
+          key, so set a credit limit with your provider too (for example a key limit on your OpenRouter key). MCD
+          shows its cost estimates but does not stop a run on spend unless you turn a limit on.
+        </p>
+        <label class="check"
+          ><input v-model="limits.require_reviewed_pricing" type="checkbox" /> Require a reviewed price before a run
+          starts</label
+        >
+        <label
+          >Cap per run (USD, blank = no cap)<input
+            v-model.number="limits.per_run_cap_usd"
+            class="input"
+            type="number"
+            min="0"
+            max="100000"
+            step="0.01"
+            aria-label="Cap per run in USD"
+        /></label>
+        <label class="check"
+          ><input v-model="limits.paid_needs_runtime_limit" type="checkbox" /> Only start paid runs on agents with a
+          built-in dollar limit (Claude)</label
+        >
+      </fieldset>
+      <details v-if="media" class="media-models">
+        <summary>Media models (fal.ai) · image and video generation</summary>
+        <p class="muted small">
+          Listed prices are fal's published list prices from {{ media.models[0]?.price_verified }} and are approximate; resolution, duration and
+          audio change the final cost. A blank price means fal's pricing page did not list the model: run the media tool's <code>price</code>
+          command for the live figure, or enter your own. Prices you enter replace the listed ones for display. Nothing here limits spending.
+          fal key: <strong>{{ media.fal_key_saved ? 'saved (Profile, Private credentials)' : 'not saved' }}</strong>.
+        </p>
+        <div v-for="m in media.models" :key="m.id" class="media-row">
+          <div>
+            <strong>{{ m.label }}</strong>
+            <span class="muted small"> · {{ m.id }} · per {{ m.unit }}<template v-if="m.tier"> · {{ m.tier }} tier</template></span>
+            <p v-if="m.note" class="muted small">{{ m.note }}</p>
+          </div>
+          <label
+            >USD per {{ m.unit }}<input
+              v-model.number="mediaPrices[m.id]"
+              class="input"
+              type="number"
+              min="0"
+              max="10000"
+              step="any"
+              :placeholder="m.listed_price_usd === null ? 'not listed' : String(m.listed_price_usd)"
+              :aria-label="`${m.label} price per ${m.unit}`"
+          /></label>
+        </div>
+        <MediaGeneratePanel :key-saved="media.fal_key_saved" />
+        <p class="muted small">
+          Create the fal key with the <strong>{{ media.key_rules.preset }}</strong> preset and restrict its allowed models to:
+          <code>{{ media.key_rules.allowed_models.join('  ') }}</code>
+        </p>
+      </details>
       <details v-if="settings" class="rate-settings">
         <summary>Model rates · USD per million tokens</summary>
         <p class="muted small">
@@ -225,10 +322,30 @@ p {
   margin: 0;
 }
 .accounts,
-.rate-settings {
+.rate-settings,
+.limits {
   display: flex;
   flex-direction: column;
   gap: var(--gap);
+}
+.limits {
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius, 8px);
+  padding: var(--gap);
+  margin: 0;
+}
+.media-models {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+}
+.media-row {
+  display: grid;
+  grid-template-columns: 1fr 9rem;
+  align-items: end;
+  gap: var(--gap);
+  padding-bottom: var(--gap);
+  border-bottom: 1px solid var(--glass-border);
 }
 .grok-note {
   grid-column: 1 / -1;

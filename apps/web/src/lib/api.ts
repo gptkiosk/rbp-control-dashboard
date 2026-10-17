@@ -655,10 +655,36 @@ export interface ModelRate {
   source?: string
   verified?: string
 }
+export interface SpendingLimits {
+  require_reviewed_pricing: boolean
+  per_run_cap_usd: number | null
+  paid_needs_runtime_limit: boolean
+}
+export interface MediaModel {
+  id: string
+  label: string
+  kind: 'image' | 'video'
+  mode: string
+  unit: 'image' | 'second'
+  price_usd: number | null
+  listed_price_usd: number | null
+  price_source: string
+  price_verified: string
+  tier: 'draft' | 'standard' | 'premium' | null
+  note: string
+}
+export interface MediaCatalog {
+  provider: string
+  fal_key_saved: boolean
+  models: MediaModel[]
+  key_rules: { preset: string; note: string; allowed_models: string[] }
+}
 export interface BillingSettings {
   accounts: Record<AgentId, BillingAccount>
   rates: Record<string, ModelRate>
   timezone: string
+  limits?: SpendingLimits
+  media_rates?: Record<string, number>
 }
 export interface AgentUsage extends UsageSummary {
   agent: AgentId

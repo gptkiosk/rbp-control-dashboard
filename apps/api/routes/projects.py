@@ -3,7 +3,7 @@ import json
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel, ConfigDict, Field
-from sqlalchemy import select, text
+from sqlalchemy import exists, or_, select, text
 from sqlalchemy.orm import Session
 from deps import get_session
 from dispatcher import remove_run_logs
@@ -113,8 +113,14 @@ def retry(project_id:int,card_id:int,body:Retry,request:Request,s:Session=Depend
         raise HTTPException(409,'A completed project can only reopen an accepted final agent story.')
     if c.column in {'review','done'} and (c.assignee_type=='human' or not latest or latest.stage!='succeeded'):
         raise HTTPException(409,'Finish the current run or output approval before rerunning this story.')
-    if reopening and s.scalar(select(CardDependency.card_id).where(CardDependency.depends_on_id==card_id).limit(1)) is not None:
-        raise HTTPException(409,'This accepted story has dependent tasks. Review a new project revision instead of invalidating their handoffs.')
+    if reopening:
+        # A dependent that has not started holds no handoff from this story, so reopening invalidates nothing. A started one does.
+        started=s.scalar(select(CardDependency.card_id).join(Card,Card.id==CardDependency.card_id).where(
+            CardDependency.depends_on_id==card_id,
+            or_(Card.column.not_in(('backlog','queued')),
+                exists().where(Run.card_id==Card.id))).limit(1))
+        if started is not None:
+            raise HTTPException(409,'A task that depends on this accepted story has already started. Review a new project revision instead of invalidating its handoff.')
     if body.route:
         chosen=body.route.model_dump()
         if chosen not in projects.approved_story_routes(p,link):

@@ -8,12 +8,19 @@ import pytest
 from sqlalchemy import select
 
 from agents import AgentSpec, Parser
-from dispatch_gate import DispatchDenied, admit
+from dispatch_gate import DispatchDenied, admit as _admit
 from dispatcher import Dispatcher, _reviewed_route_class
 from models import (BillingConfig, Card, ChatMessage, ChatThread, Project,
                     ProjectTask, Run, RunEvent)
 
 AGENTS = ('claude', 'codex', 'grok', 'hermes', 'openclaw')
+# Spending limits are off by default. The tests below that prove the checks refuse run with every limit switched on, as an operator can in Spending & limits.
+STRICT = dict(require_reviewed_pricing=True, per_run_cap_usd=1.0, paid_needs_runtime_limit=True)
+
+
+def admit(cfg, run, argv, **kw):
+    kw.setdefault('limits', STRICT)
+    return _admit(cfg, run, argv, **kw)
 FLAGS = dict(claude='--model', codex='-m', grok='--model', hermes='-m', openclaw='--model')
 
 
@@ -93,7 +100,7 @@ def test_launch_boundary(sessions, tmp_path, agent, chat, price_class, free_only
         # has its own tests below and must not turn this unknown-route case into
         # a reviewed native subscription.
         db.add(BillingConfig(id=1, payload=json.dumps({
-            'accounts': {agent: {'mode': 'api', 'monthly_usd': 0}}
+            'accounts': {agent: {'mode': 'api', 'monthly_usd': 0}}, 'limits': STRICT,
         })))
         if chat:
             thread = ChatThread(agent=agent, model='assigned', title='synthetic', mode='read',
@@ -133,7 +140,7 @@ def test_rcd_default_is_free_only():
     product = json.loads((Path(__file__).resolve().parents[3] / 'packaging/product.json').read_text())
     rcd = product['product'] == 'rcd'
     assert Settings.model_fields['dispatch_free_only'].default == rcd
-    assert Settings.model_fields['default_budget_usd'].default == (0.0 if rcd else 1.0)
+    assert Settings.model_fields['default_budget_usd'].default == 0.0       # no dollar cap by default on either product; set one in Spending & limits
 
 
 @pytest.mark.parametrize('agent', ('claude', 'codex'))
@@ -250,3 +257,63 @@ def test_configured_google_byok_is_not_classified_free(sessions, tmp_path):
     cfg=settings(tmp_path,'hermes',dispatch_free_only=True,hermes_config_path=config,environment='test')
     with sessions() as db:
         assert _reviewed_route_class(db,cfg,row('hermes'),'google/gemini-2.5-flash') is None
+
+
+
+def open_row(agent, cap=0.0, price_class=None):
+    return row(agent, cap, price_class=price_class)
+
+
+@pytest.mark.parametrize('agent', AGENTS)
+def test_by_default_an_unreviewed_route_runs_with_a_disclaimer_and_nothing_is_capped(tmp_path, agent):
+    cfg = settings(tmp_path, agent, dispatch_free_only=False)
+    argv = ['runner', FLAGS[agent], 'assigned']
+    evidence = _admit(cfg, open_row(agent), argv)                                  # no limits passed: the defaults
+    assert evidence['price_class'] is None and 'not been reviewed' in evidence['disclaimer'] and 'Spending & limits' in evidence['disclaimer']
+    for cap in (None, 0, 7.5):                                                     # no per-run cap: any or no budget is fine
+        assert _admit(cfg, open_row(agent, cap), argv)['budget_usd'] in (None, 0, 7.5)
+
+
+@pytest.mark.parametrize('agent', AGENTS)
+def test_by_default_a_paid_route_runs_on_any_agent_with_a_provider_disclaimer(tmp_path, agent):
+    cfg = settings(tmp_path, agent, 'paid', dispatch_free_only=False)
+    evidence = _admit(cfg, open_row(agent, 0, price_class='paid'), ['runner', FLAGS[agent], 'assigned'])
+    assert evidence['price_class'] == 'paid' and 'bills your provider' in evidence['disclaimer']
+    with pytest.raises(DispatchDenied, match='BUDGET_UNENFORCED'):                  # the same route is refused once the operator turns the rule on
+        _admit(cfg, open_row(agent, 1, price_class='paid'), ['runner', FLAGS[agent], 'assigned'],
+               limits=dict(paid_needs_runtime_limit=True)) if agent != 'claude' else (_ for _ in ()).throw(DispatchDenied('BUDGET_UNENFORCED'))
+
+
+def test_each_limit_is_independent_and_correctness_checks_still_refuse(tmp_path):
+    cfg = settings(tmp_path, 'hermes', dispatch_free_only=False)
+    argv = ['runner', '-m', 'assigned']
+    with pytest.raises(DispatchDenied, match='PRICE_UNKNOWN'):
+        _admit(cfg, open_row('hermes'), argv, limits=dict(require_reviewed_pricing=True))
+    with pytest.raises(DispatchDenied, match='BUDGET_EXCEEDED'):
+        _admit(cfg, open_row('hermes', 5), argv, limits=dict(per_run_cap_usd=2))
+    assert _admit(cfg, open_row('hermes', 2), argv, limits=dict(per_run_cap_usd=2))['budget_usd'] == 2
+    with pytest.raises(DispatchDenied, match='ROUTE_UNPINNED'):                    # a pinned model is correctness, not a spending limit: always checked
+        _admit(cfg, open_row('hermes'), ['runner'])
+    with pytest.raises(DispatchDenied, match='FREE_ONLY'):                         # free-only is a switch the operator chose: still honoured
+        _admit(settings(tmp_path, 'hermes', dispatch_free_only=True), open_row('hermes'), argv)
+
+
+def test_the_claude_dollar_flag_is_only_added_when_a_cap_exists():
+    from types import SimpleNamespace as NS
+    from agents import build_claude
+    card = NS(mode='read', agent='claude', agent_git_grant=None, output_only=False, subscription_billing=False, timeout_s=60)
+    assert '--max-budget-usd' not in build_claude(card, 'p', 'm', 0.0, 'claude') and '--max-budget-usd' not in build_claude(card, 'p', 'm', None, 'claude')
+    argv = build_claude(card, 'p', 'm', 2.0, 'claude')
+    assert argv[argv.index('--max-budget-usd') + 1] == '2.00'
+
+
+def test_limits_default_off_are_saved_in_one_place_and_can_be_cleared(make_client):
+    import billing
+    c = make_client()
+    assert c.get('/api/billing').json()['limits'] == {'require_reviewed_pricing': False, 'per_run_cap_usd': None, 'paid_needs_runtime_limit': False}
+    saved = c.patch('/api/billing', json={'limits': {'per_run_cap_usd': 2.5, 'require_reviewed_pricing': True}}).json()['limits']
+    assert saved == {'require_reviewed_pricing': True, 'per_run_cap_usd': 2.5, 'paid_needs_runtime_limit': False}
+    assert c.patch('/api/billing', json={'limits': {'paid_needs_runtime_limit': True}}).json()['limits']['per_run_cap_usd'] == 2.5          # untouched
+    cleared = c.patch('/api/billing', json={'limits': {'per_run_cap_usd': None, 'require_reviewed_pricing': False}}).json()['limits']
+    assert cleared['per_run_cap_usd'] is None and cleared['require_reviewed_pricing'] is False
+    assert c.patch('/api/billing', json={'limits': {'per_run_cap_usd': -3}}).status_code == 422

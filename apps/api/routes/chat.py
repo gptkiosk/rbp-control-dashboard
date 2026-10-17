@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 import approval
 from agents import REGISTRY
 from deps import get_session
+import billing
 from dispatch_gate import resolve_free_alias, reviewed_route_class
 from dispatcher import remove_run_logs
 from models import ChatMessage, ChatThread, Run
@@ -88,7 +89,7 @@ def route_problem(s: Session, request: Request, agent: str, agent_target: str | 
     if spec is None or not chosen:
         return None
     price = reviewed_route_class(s, settings, SimpleNamespace(agent=agent, agent_target=agent_target, id=None), chosen)
-    if price is None:
+    if price is None and billing.limits(s, settings)["require_reviewed_pricing"]:
         hint = "Choose a model in Profile, AI defaults, or review the route in Billing & rates."
         if agent == "hermes":
             from native_routes import read

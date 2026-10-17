@@ -121,7 +121,11 @@ def test_background_sent_with_a_message_is_not_the_operators_words(tc, tmp_path)
 
 
 def test_a_route_nobody_reviewed_is_refused_up_front_with_a_way_forward(tc, tmp_path):
-    """A hermes chat on a model its config does not list used to be accepted and then fail with PRICE_UNKNOWN in the bubble."""
+    """With "Require a reviewed price" on in Spending & limits, a chat on a model nobody reviewed is refused up front. Off (the default) it is accepted."""
+    off = tc.post("/api/chat/threads", json={"agent": "fake", "model": "unreviewed-model", "working_dir": str(tmp_path / "ws" / "proj")})
+    assert off.status_code == 201                                                     # the default: no spending check, the chat starts
+    tc.delete(f"/api/chat/threads/{off.json()['id']}")
+    tc.patch("/api/billing", json={"limits": {"require_reviewed_pricing": True}})
     r = tc.post("/api/chat/threads", json={"agent": "fake", "model": "unreviewed-model", "working_dir": str(tmp_path / "ws" / "proj")})
     assert r.status_code == 409 and "not been reviewed for pricing" in r.json()["detail"] and "AI defaults" in r.json()["detail"]
     assert tc.get("/api/chat/threads").json()["threads"] == []                      # no empty thread is left behind
@@ -139,6 +143,7 @@ def test_the_generic_free_alias_becomes_the_model_the_agent_is_set_up_with(tc, t
     st = tc.app.state.dispatcher.settings
     st.environment, st.hermes_config_path, st.openclaw_config_path = "prod", str(cfg), None
     st.dispatch_route_classes = {}
+    tc.patch("/api/billing", json={"limits": {"require_reviewed_pricing": True}})
     import routes.chat as chat
     from types import SimpleNamespace
     req = SimpleNamespace(app=tc.app)
