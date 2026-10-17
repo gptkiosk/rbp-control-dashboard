@@ -25,7 +25,8 @@ def write(tmp_path, data):
 
 
 def card(agent="claude", mode="edit", **kw):
-    return SimpleNamespace(agent=agent, mode=mode, working_dir="/w", **kw)
+    kw.setdefault("working_dir", "/w")
+    return SimpleNamespace(agent=agent, mode=mode, **kw)
 
 
 # ------------------------------------------------------------------ grant file
@@ -68,13 +69,35 @@ def test_one_bad_entry_does_not_hide_a_good_one(tmp_path):
     assert set(agent_git.load(write(tmp_path, data))) == {5}
 
 
+def clone_in(tmp_path, name="mcd"):
+    (tmp_path / "work" / name / ".git").mkdir(parents=True)
+    return str(tmp_path / "work")
+
+
 def test_grant_for_skips_read_mode_and_managers(tmp_path):
     s = SimpleNamespace(agent_git_grants_file=write(tmp_path, GOOD))
-    assert agent_git.grant_for(s, 5, card("claude", "edit")) is not None
-    assert agent_git.grant_for(s, 5, card("claude", "read")) is None
-    assert agent_git.grant_for(s, 5, card("hermes", "edit")) is None
-    assert agent_git.grant_for(s, 6, card("claude", "edit")) is None
+    root = clone_in(tmp_path)
+    assert agent_git.grant_for(s, 5, card("claude", "edit", working_dir=root)) is not None
+    assert agent_git.grant_for(s, 5, card("claude", "read", working_dir=root)) is None
+    assert agent_git.grant_for(s, 5, card("hermes", "edit", working_dir=root)) is None
+    assert agent_git.grant_for(s, 6, card("claude", "edit", working_dir=root)) is None
     assert agent_git.grant_for(SimpleNamespace(), 5, card()) is None
+
+
+def test_a_grant_means_nothing_where_its_clone_does_not_exist(tmp_path):
+    """A project in a plain scratch folder with a leftover grant must not be told that a story is finished only when its work is committed."""
+    s = SimpleNamespace(agent_git_grants_file=write(tmp_path, GOOD))
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    assert agent_git.grant_for(s, 5, card("claude", "edit", working_dir=str(scratch))) is None          # no clone folder at all
+    (scratch / "mcd").mkdir()
+    assert agent_git.grant_for(s, 5, card("claude", "edit", working_dir=str(scratch))) is None          # a folder, but not a git working copy
+    (scratch / "mcd" / ".git").mkdir()
+    assert agent_git.grant_for(s, 5, card("claude", "edit", working_dir=str(scratch))) is not None
+    two = write(tmp_path, {"5": {"clones": [{"dir": "mcd", "repo": "gptkiosk/mac-control-dashboard", "branch": "project-5/a"},
+                                            {"dir": "gone", "repo": "gptkiosk/other", "branch": "project-5/b"}]}})
+    only = agent_git.grant_for(SimpleNamespace(agent_git_grants_file=two), 5, card("claude", "edit", working_dir=str(scratch)))
+    assert [c.dir for c in only.clones] == ["mcd"]                                                       # only the clone that exists keeps its access
 
 
 # ------------------------------------------------------------------ agent command lines
@@ -325,6 +348,7 @@ def claim_edit_story(app, nodes, grants=None, tmp_path=None):
         data = {str(p["id"]): {"clones": [{"dir": "mcd", "repo": "gptkiosk/mac-control-dashboard",
                                           "branch": f"project-{p['id']}/installable-releases"}]}}
         settings.agent_git_grants_file = write(tmp_path, data)
+        (wd / "mcd" / ".git").mkdir(parents=True, exist_ok=True)                  # the clone the grant is for
     cid = story_id(p)
     with s.begin() as db:
         db.get(Card, cid).mode = "edit"
@@ -350,6 +374,21 @@ def test_dispatcher_claude_story_gets_exact_git_allows(app, tmp_path):
         app, [dict(node("a"), assignee="claude", model="claude-haiku-5-5")], grants=True, tmp_path=tmp_path)
     assert f"Bash(git -C mcd push origin project-{pid}/installable-releases)" in cmd
     assert "Bash(git push:*)" not in cmd and "Bash(git merge:*)" in cmd
+
+
+def test_a_leftover_grant_in_a_scratch_folder_is_ignored_and_the_story_keeps_the_no_push_rule(app, tmp_path):
+    c, s, wd, settings = app
+    p = active(app, [node("a")])
+    settings.agent_git_grants_file = write(tmp_path, {str(p["id"]): {"clones": [{"dir": "site", "repo": "gptkiosk/site", "branch": f"project-{p['id']}/site"}]}})
+    cid = story_id(p)
+    with s.begin() as db:
+        db.get(Card, cid).mode = "edit"
+    assert len(Dispatcher(s, settings)._claim(1)) == 1                          # no clone exists under the working directory
+    with s() as db:
+        run = db.scalar(select(Run).where(Run.card_id == cid).order_by(Run.id.desc()))
+        ctx = db.scalar(select(ProjectMemory).where(ProjectMemory.card_id == cid, ProjectMemory.kind == "context")).text
+        assert "agent_git" not in json.loads(run.checkpoint)
+    assert "GIT ACCESS FOR THIS PROJECT" not in ctx and "committed on the branch" not in ctx
 
 
 def test_dispatcher_without_a_grant_keeps_the_no_push_rule(app):
@@ -450,3 +489,12 @@ def test_hermes_edit_stories_are_told_the_task_folder_because_its_terminal_start
     read = SimpleNamespace(agent="hermes", mode="read", working_dir="/work/scratch-demo", timeout_s=60)
     assert build_hermes(read, "plan it", "m", 1.0, "hermes")[3] == "plan it"
     assert "echo" in " ".join(agent_git.CHECK_COMMANDS)
+
+
+def test_the_plain_forms_of_the_project_test_commands_are_allowed_without_approval():
+    """An unattended run cannot ask for approval; a plan that says `python3 -m unittest` or `python3 tests/check.py` must be able to run it."""
+    allowed = set(agent_git.CHECK_COMMANDS)
+    for rule in ("Bash(python3 -m unittest:*)", "Bash(python3 -m py_compile:*)", "Bash(python3 -m json.tool:*)", "Bash(python3 tests/:*)", "Bash(xmllint:*)",
+                 "Bash(python3 -I -m unittest:*)", "Bash(node --check:*)"):
+        assert rule in allowed, rule
+    assert not any(r in allowed for r in ("Bash(python3:*)", "Bash(sh:*)", "Bash(bash:*)", "Bash(curl:*)", "Bash(git push:*)"))      # not a general shell

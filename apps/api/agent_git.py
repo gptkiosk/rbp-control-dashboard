@@ -31,7 +31,7 @@ import json
 import logging
 import os
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 logger = logging.getLogger("mac_control.agent_git")
@@ -67,6 +67,9 @@ CHECK_COMMANDS = DEFAULT_COMMANDS + (
     "Bash(python3 -I -m unittest:*)",
     "Bash(python3 -I -m py_compile:*)",
     "Bash(python3 -I -m json.tool:*)",
+    # The same checks written the way plans and projects usually write them. Running a project's own tests is no riskier than the isolated form
+    # above, and an unattended run cannot ask for approval, so leaving these out made every story that said `python3 -m unittest` report itself unfinished.
+    "Bash(python3 -m unittest:*)", "Bash(python3 -m py_compile:*)", "Bash(python3 -m json.tool:*)", "Bash(python3 tests/:*)", "Bash(xmllint:*)",
     # Harmless helpers. A compound command (a && b; echo $?) is refused as a whole when any part needs approval, and these are the parts models add.
     "Bash(echo:*)", "Bash(printf:*)", "Bash(pwd)", "Bash(ls:*)", "Bash(cat:*)", "Bash(wc:*)", "Bash(head:*)", "Bash(tail:*)",
     "Bash(diff:*)", "Bash(sort:*)", "Bash(test:*)", "Bash(true)", "Bash(node --version)", "Bash(python3 --version)",
@@ -205,7 +208,19 @@ def grant_for(settings, project_id: int, card) -> Grant | None:
     path = getattr(settings, "agent_git_grants_file", None)
     if path is None:
         return None
-    return load(path).get(int(project_id))
+    grant = load(path).get(int(project_id))
+    if grant is None:
+        return None
+    # A grant only means something where its clone exists. In a plain scratch folder there is no repository to commit to, and telling an agent
+    # "a story is finished only when its work is committed" there makes every story report itself unfinished. Keep only clones that are really
+    # git working copies under this story's working directory; none left means no git context and no git permissions.
+    root = getattr(card, "working_dir", None)
+    if not root:
+        return grant
+    present = tuple(c for c in grant.clones if (Path(root) / c.dir / ".git").exists())
+    if not present:
+        return None
+    return grant if len(present) == len(grant.clones) else replace(grant, clones=present)
 
 
 def claude_allowed(grant: Grant) -> list[str]:

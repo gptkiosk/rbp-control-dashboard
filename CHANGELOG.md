@@ -12,6 +12,11 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [0.6.17] - 2026-10-17
 
+### Fixed
+
+- A branch grant no longer reaches a story where its clone does not exist. A project in a plain scratch folder that still had a grant was told "a story is finished only when its work is committed on the branch", so a story that did all its work reported itself unfinished and failed. A grant now applies only to clones that are real git working copies under the story's working directory; with none, the story gets no git context and the normal no-push rule.
+- Claude stories can run the usual project checks without approval in an unattended run: `python3 -m unittest`, `python3 -m py_compile`, `python3 -m json.tool`, `python3 tests/...` and `xmllint`, in addition to the isolated forms that were already allowed. Plans and projects naturally write the plain forms, which previously needed an approval nobody could give. This is not a general shell.
+
 ### Added
 
 - A **Media** button on the Agents page opens Billing & rates straight to the Media models section, expanded, so the fal models, prices and Generate panel are one click away. Billing & rates still opens with that section collapsed.
