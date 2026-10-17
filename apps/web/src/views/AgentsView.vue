@@ -25,6 +25,7 @@ const selectedId = ref<AgentId>(
 const target = ref(typeof route.query.target === 'string' ? route.query.target : '')
 const period = ref<'24h' | '7d' | 'month'>('month')
 const billingOpen = ref(false)
+const billingFocus = ref<'media' | null>(null)   // the Media button opens the same dialog with the media section expanded
 useGuideAction('billing', () => { billingOpen.value = true })
 const processId = ref('')
 const { data, error } = usePolledJson<AgentsPayload>('/api/agents', 5000)
@@ -124,7 +125,8 @@ function saved() {
           <option value="month">This month</option>
           <option value="24h">Last 24 hours</option>
           <option value="7d">Last 7 days</option></AppSelect
-        ><button class="btn" @click="billingOpen = true"><AppIcon name="cost" />Billing & rates</button>
+        ><button class="btn" @click="billingFocus = null; billingOpen = true"><AppIcon name="cost" />Billing & rates</button
+        ><button class="btn" data-testid="media-button" @click="billingFocus = 'media'; billingOpen = true"><AppIcon name="cost" />Media</button>
       </div>
     </header>
     <p v-if="error" class="error-text" role="alert">Could not load agents: {{ error }}</p>
@@ -477,6 +479,7 @@ function saved() {
       v-if="billingOpen && data"
       :agents="data.agents"
       :models="allModels"
+      :focus="billingFocus"
       @close="billingOpen = false"
       @saved="saved"
     />

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { getJson, postJson } from '@/lib/api'
 interface Plan { endpoint: string; estimate_usd: number | null }
 interface Slot { name: string; kind: 'image' | 'video'; world: string | null; purpose: string; prompt: string; published: boolean; candidates: string[]; waiting_for_stills: string[]; plans: Record<Tier, Plan> }
@@ -26,6 +26,29 @@ async function loadSlots() {
   } catch (e) { error.value = e instanceof Error ? e.message : String(e); slots.value = [] }
 }
 async function loadLedger() { try { ledger.value = await getJson('/api/media/ledger') } catch { ledger.value = null } }
+// One batch for everything still missing: slots with nothing published, no candidate yet and no approved still they wait for.
+const batchTier = ref<Tier>('standard')
+const eligible = computed(() => slots.value.filter(s => !s.published && s.candidates.length === 0 && s.waiting_for_stills.length === 0))
+const stillWaiting = computed(() => slots.value.filter(s => !s.published && s.candidates.length === 0 && s.waiting_for_stills.length > 0).length)
+const batch = computed(() => {
+  let total = 0, unknown = 0
+  for (const s of eligible.value) { const e = s.plans[batchTier.value].estimate_usd; if (e === null) unknown++; else total += e }
+  return { total, unknown }
+})
+async function generateAll() {
+  if (!confirm.value || busy.value || !eligible.value.length) return
+  const n = eligible.value.length, tierName = batchTier.value
+  const price = batch.value.unknown ? `about $${batch.value.total.toFixed(2)} plus ${batch.value.unknown} with no listed price` : `about $${batch.value.total.toFixed(2)}`
+  if (!window.confirm(`Generate ${n} item${n === 1 ? '' : 's'} at the ${tierName} tier? Estimated cost ${price}. This spends from your fal account and cannot be undone; fal's invoice is the truth.`)) return
+  busy.value = true; error.value = ''
+  try {
+    for (const s of eligible.value) {
+      const r = await postJson<{ jobs: string[] }>('/api/media/generate', { working_dir: folder.value, slot: s.name, tier: tierName, count: 1, confirm_spend: true })
+      for (const id of r.jobs) jobs.value.push({ id, state: 'queued', progress: '', slot: s.name, error: null, files: [] })
+    }
+    poll()
+  } catch (e) { error.value = e instanceof Error ? e.message : String(e); if (jobs.value.length) poll() } finally { busy.value = false }
+}
 function estimate(s: Slot) { const e = s.plans[tier.value[s.name] || 'standard'].estimate_usd; return e === null ? null : e * (count.value[s.name] || 1) }
 async function generate(s: Slot) {
   if (!confirm.value || busy.value) return
@@ -69,6 +92,16 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
     </label>
     <p v-if="folders.length === 0" class="muted small">No folder with <code>media/slots.json</code> was found in your allowed working directories.</p>
     <label class="check"><input v-model="confirm" type="checkbox" /> I understand each run spends from my fal account. Estimates are shown, but fal's invoice is the truth, and nothing here limits spending.</label>
+    <div v-if="slots.length" class="batch" data-testid="batch">
+      <strong>Generate everything still missing</strong>
+      <span class="muted small">{{ eligible.length }} ready<template v-if="stillWaiting">, {{ stillWaiting }} more need an approved still first</template>.</span>
+      <div class="controls">
+        <select v-model="batchTier" class="input" aria-label="Tier for all"><option value="draft">draft (cheapest)</option><option value="standard">standard</option><option value="premium">premium</option></select>
+        <span class="small">{{ eligible.length ? (batch.unknown ? `about $${batch.total.toFixed(2)} plus ${batch.unknown} with no listed price` : `about $${batch.total.toFixed(2)}`) : 'nothing to generate' }}</span>
+        <button type="button" class="btn primary" :disabled="!props.keySaved || !confirm || busy || !eligible.length" @click="generateAll">Generate all missing</button>
+      </div>
+      <p class="muted small">Stills usually deserve a look at the draft tier first; draft stills are too small to publish. Clips need their approved stills published, so run the stills, pick, ingest, then run this again for the rest.</p>
+    </div>
     <div v-for="s in slots" :key="s.name" class="slot" :data-slot="s.name">
       <div>
         <strong>{{ s.name }}</strong> <span class="muted small">· {{ s.kind }}<template v-if="s.world"> · {{ s.world }}</template> · {{ s.published ? 'published' : 'not published' }}</span>
@@ -95,6 +128,7 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
 </template>
 <style scoped>
 .media-gen { display: flex; flex-direction: column; gap: var(--gap); padding-top: var(--gap); border-top: 1px solid var(--glass-border); }
+.batch { display: flex; flex-direction: column; gap: var(--gap-xs); padding: var(--gap); border: 1px solid var(--glass-border); border-radius: var(--radius, 8px); }
 .slot { display: flex; flex-direction: column; gap: var(--gap-xs); padding-bottom: var(--gap); border-bottom: 1px solid var(--glass-border); }
 .controls { display: flex; flex-wrap: wrap; align-items: center; gap: var(--gap); }
 .controls input[type='number'] { width: 4rem; }
