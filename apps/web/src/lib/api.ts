@@ -655,10 +655,16 @@ export interface ModelRate {
   source?: string
   verified?: string
 }
+export interface SpendingLimits {
+  require_reviewed_pricing: boolean
+  per_run_cap_usd: number | null
+  paid_needs_runtime_limit: boolean
+}
 export interface BillingSettings {
   accounts: Record<AgentId, BillingAccount>
   rates: Record<string, ModelRate>
   timezone: string
+  limits?: SpendingLimits
 }
 export interface AgentUsage extends UsageSummary {
   agent: AgentId

@@ -9,6 +9,7 @@ const emit = defineEmits<{ close: []; saved: [] }>()
 const settings = ref<BillingSettings | null>(null)
 const error = ref('')
 const saving = ref(false)
+const limits = ref({ require_reviewed_pricing: false, per_run_cap_usd: '' as number | '' | null, paid_needs_runtime_limit: false })
 const model = ref('')
 const custom = ref(false)
 const rate = ref<ModelRate>({ input: 0, output: 0, cached: 0, write: 0, write_1h: 0, max_input: null })
@@ -25,6 +26,12 @@ watch(model, () => {
 onMounted(async () => {
   try {
     settings.value = await getJson<BillingSettings>('/api/billing')
+    const l = settings.value.limits
+    limits.value = {
+      require_reviewed_pricing: !!l?.require_reviewed_pricing,
+      per_run_cap_usd: l?.per_run_cap_usd ?? '',
+      paid_needs_runtime_limit: !!l?.paid_needs_runtime_limit,
+    }
   } catch (e) {
     error.value = String(e)
   }
@@ -56,7 +63,18 @@ async function save() {
         max_input: rate.value.max_input || null,
       }
     }
-    await patchJson('/api/billing', { accounts: settings.value.accounts, rates })
+    const cap = limits.value.per_run_cap_usd
+    if (cap !== '' && cap !== null && !(typeof cap === 'number' && Number.isFinite(cap) && cap >= 0))
+      throw new Error('Cap per run must be a number of dollars, or blank for no cap.')
+    await patchJson('/api/billing', {
+      accounts: settings.value.accounts,
+      rates,
+      limits: {
+        require_reviewed_pricing: limits.value.require_reviewed_pricing,
+        per_run_cap_usd: cap === '' || cap === null || cap === 0 ? null : cap,
+        paid_needs_runtime_limit: limits.value.paid_needs_runtime_limit,
+      },
+    })
     emit('saved')
     emit('close')
   } catch (e) {
@@ -112,6 +130,32 @@ async function save() {
           </p>
         </div>
       </div>
+      <fieldset v-if="settings" class="limits">
+        <legend>Spending &amp; limits</legend>
+        <p class="muted small">
+          Nothing here is on by default. Without a limit, a paid route spends against your own provider account or
+          key, so set a credit limit with your provider too (for example a key limit on your OpenRouter key). MCD
+          shows its cost estimates but does not stop a run on spend unless you turn a limit on.
+        </p>
+        <label class="check"
+          ><input v-model="limits.require_reviewed_pricing" type="checkbox" /> Require a reviewed price before a run
+          starts</label
+        >
+        <label
+          >Cap per run (USD, blank = no cap)<input
+            v-model.number="limits.per_run_cap_usd"
+            class="input"
+            type="number"
+            min="0"
+            max="100000"
+            step="0.01"
+            aria-label="Cap per run in USD"
+        /></label>
+        <label class="check"
+          ><input v-model="limits.paid_needs_runtime_limit" type="checkbox" /> Only start paid runs on agents with a
+          built-in dollar limit (Claude)</label
+        >
+      </fieldset>
       <details v-if="settings" class="rate-settings">
         <summary>Model rates · USD per million tokens</summary>
         <p class="muted small">
@@ -225,10 +269,17 @@ p {
   margin: 0;
 }
 .accounts,
-.rate-settings {
+.rate-settings,
+.limits {
   display: flex;
   flex-direction: column;
   gap: var(--gap);
+}
+.limits {
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius, 8px);
+  padding: var(--gap);
+  margin: 0;
 }
 .grok-note {
   grid-column: 1 / -1;

@@ -26,8 +26,17 @@ class Rate(BaseModel):
     max_input: int | None = Field(default=None, ge=1)
 
 
+class LimitsPatch(BaseModel):
+    """Spending limits: all off unless set here, the one place to set them."""
+    model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
+    require_reviewed_pricing: bool | None = None
+    per_run_cap_usd: float | None = Field(default=None, ge=0, le=100000)      # 0 or empty: no cap
+    paid_needs_runtime_limit: bool | None = None
+
+
 class BillingPatch(BaseModel):
     model_config = ConfigDict(extra="forbid")
+    limits: LimitsPatch | None = None
     accounts: dict[Literal["openclaw", "hermes", "claude", "codex", "grok"], Account] = Field(
         default_factory=dict, max_length=5
     )
@@ -52,6 +61,16 @@ def patch_billing(body: BillingPatch, s: Session = Depends(get_session)):
         **old.get("accounts", {}),
         **{a: c.model_dump() for a, c in body.accounts.items()},
     }
+    if body.limits is not None:
+        sent = body.limits.model_fields_set
+        merged = dict(old.get("limits") or {})
+        for key in ("require_reviewed_pricing", "paid_needs_runtime_limit"):
+            if key in sent and getattr(body.limits, key) is not None:
+                merged[key] = getattr(body.limits, key)
+        if "per_run_cap_usd" in sent:
+            cap = body.limits.per_run_cap_usd
+            merged["per_run_cap_usd"] = cap if cap and cap > 0 else None
+        old["limits"] = merged
     old["rates"] = {
         **old.get("rates", {}),
         **{m: {**r.model_dump(), "source": "custom"} for m, r in body.rates.items()},

@@ -10,6 +10,17 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.6.11] - 2026-10-16
+
+### Changed
+
+- Spending limits are off by default. The default run budget and host cap are gone, a run no longer needs a reviewed price, and paid routes on Codex, Hermes and OpenClaw can start once free-only is switched off. RCD still starts free-only. Paid and unpriced runs record a plain
+  disclaimer that RCD does not limit spending and that you should set a credit limit with your provider.
+
+### Added
+
+- **Spending & limits** in Agents, Billing & rates: one place, stored in the app, to turn on a reviewed-price requirement, a per-run dollar cap, or the Claude-only rule for paid runs. See `docs/configuration/dispatch-policy.md`.
+
 ## [0.6.10] - 2026-10-16
 
 ### Added
@@ -439,7 +450,8 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 - Claude Code stories may use web search and fetch without any shell, credential or publish permission.
 
 [0.3.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.0
-[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.10...HEAD
+[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.11...HEAD
+[0.6.11]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.11
 [0.6.10]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.10
 [0.6.9]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.9
 [0.6.8]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.8

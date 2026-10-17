@@ -28,7 +28,7 @@ it('saves subscription configuration with request guard and custom cache rates',
   await flushPromises()
   await w.get('input[aria-label="Codex monthly subscription"]').setValue(40)
   await w.get('input[aria-label="Model ID"]').setValue('new-model')
-  await w.get('input[type="checkbox"]').setValue(true)
+  await w.get('.rate-settings input[type="checkbox"]').setValue(true)
   await w.findAll('.rates input')[0]!.setValue(2)
   await w.findAll('.rates input')[1]!.setValue(10)
   await w.get('form').trigger('submit')
@@ -38,7 +38,36 @@ it('saves subscription configuration with request guard and custom cache rates',
   const body = JSON.parse(String(call[1]?.body))
   expect(body.accounts.codex.monthly_usd).toBe(40)
   expect(body.rates['new-model']).toMatchObject({ input: 2, output: 10, cached: 0, write: 0, write_1h: 0 })
+  expect(body.limits).toEqual({ require_reviewed_pricing: false, per_run_cap_usd: null, paid_needs_runtime_limit: false })
   expect(w.emitted('saved')).toHaveLength(1)
+  w.unmount()
+})
+it('shows spending limits off by default and saves the ones you turn on', async () => {
+  const f = stubFetch((u, init) =>
+    u === '/api/billing'
+      ? {
+          body:
+            init?.method === 'PATCH'
+              ? {}
+              : { accounts: { codex: { mode: 'api', monthly_usd: 0 } }, rates: {}, timezone: 'America/Los_Angeles' },
+        }
+      : undefined,
+  )
+  const w = mount(AgentBillingDialog, {
+    props: { agents: [agent({ id: 'codex', name: 'Codex' })], models: [] },
+  })
+  await flushPromises()
+  const box = w.get('.limits')
+  expect(box.text()).toContain('Spending & limits')
+  expect(box.text()).toContain('Nothing here is on by default')
+  const checks = box.findAll('input[type="checkbox"]')
+  expect(checks.map((c) => (c.element as HTMLInputElement).checked)).toEqual([false, false])
+  await checks[0]!.setValue(true)
+  await box.get('input[aria-label="Cap per run in USD"]').setValue(2.5)
+  await w.get('form').trigger('submit')
+  await flushPromises()
+  const body = JSON.parse(String(calls(f, 'PATCH', '/api/billing')[0]![1]?.body))
+  expect(body.limits).toEqual({ require_reviewed_pricing: true, per_run_cap_usd: 2.5, paid_needs_runtime_limit: false })
   w.unmount()
 })
 it('uses configured OpenClaw names and submits the selected ID', async () => {

@@ -37,12 +37,13 @@ def amount(value):
 _UNSET = object()
 
 
-def admit(settings, run, argv, *, default_free_only=True, current_price_class=_UNSET):
+def admit(settings, run, argv, *, default_free_only=True, current_price_class=_UNSET, limits=None):
     """Called immediately before spawn/start, for board tasks and chat alike.
 
-    Returns evidence to persist. A paid route needs a runtime dollar boundary;
-    currently only the Claude CLI provides one among the four legacy adapters.
+    Returns evidence to persist. Spending limits are off unless the operator turned them on (billing.limits): without them a run that can cost money is admitted with
+    a disclaimer, and only the checks below that are about correctness (a pinned model, a consistent snapshot, free-only when chosen) still refuse.
     """
+    limits = {**{"require_reviewed_pricing": False, "per_run_cap_usd": None, "paid_needs_runtime_limit": False}, **(limits or {})}
     try:
         policy = json.loads(run.checkpoint or "{}")["dispatch_policy"]
         if not isinstance(policy, dict):
@@ -58,14 +59,15 @@ def admit(settings, run, argv, *, default_free_only=True, current_price_class=_U
         current_price_class = getattr(settings, "dispatch_route_classes", {}).get(key)
     if price_class != current_price_class:
         raise DispatchDenied("PRICE_UNKNOWN: reviewed route changed or was revoked after claim")
-    if not isinstance(price_class, str) or price_class not in {"free", "subscription", "paid"}:
+    reviewed = isinstance(price_class, str) and price_class in {"free", "subscription", "paid"}
+    if not reviewed and limits["require_reviewed_pricing"]:
         raise DispatchDenied("PRICE_UNKNOWN: route has no reviewed pricing class")
     if getattr(settings, "dispatch_free_only", default_free_only) and price_class != "free":
         raise DispatchDenied("FREE_ONLY: only reviewed free routes may start")
     cap = amount(policy.get("budget_usd"))
-    host_cap = amount(getattr(settings, "dispatch_max_budget_usd", 1.0))
-    if cap is None or host_cap is None or cap > host_cap:
-        raise DispatchDenied("BUDGET_EXCEEDED: missing, invalid or above host run cap")
+    run_cap = amount(limits["per_run_cap_usd"])
+    if run_cap and (cap is None or cap > run_cap):     # a per-run cap the operator chose in Spending & limits: the run's budget must be valid and fit under it
+        raise DispatchDenied("BUDGET_EXCEEDED: this run's dollar budget is missing, invalid or above the per-run cap you set in Spending & limits")
     # Native default models must never drift after admission. Pi adapters pin the
     # assigned model in their RunSpec instead of argv; their separate scope gate
     # also requires a provider budget boundary.
@@ -74,20 +76,28 @@ def admit(settings, run, argv, *, default_free_only=True, current_price_class=_U
         flag = flags[run.agent]
         if argv.count(flag) != 1 or argv.index(flag) + 1 >= len(argv) or argv[argv.index(flag) + 1] != model:
             raise DispatchDenied("ROUTE_UNPINNED: command does not pin the admitted model")
-    if price_class == "paid":
-        if cap <= 0:
+    disclaimer = None
+    flag = "--max-budget-usd"
+    enforced = run.agent == "claude" and argv.count(flag) == 1
+    if price_class == "paid" and limits["paid_needs_runtime_limit"]:
+        if not cap or cap <= 0:
             raise DispatchDenied("BUDGET_EXCEEDED: paid route requires a positive cap")
-        flag = "--max-budget-usd"
-        if run.agent != "claude" or argv.count(flag) != 1:
+        if not enforced:
             raise DispatchDenied("BUDGET_UNENFORCED: runtime has no verified dollar boundary")
+    if enforced:
         try:
             runtime_cap = amount(float(argv[argv.index(flag) + 1]))
         except (ValueError, IndexError):
             runtime_cap = None
-        if runtime_cap is None or runtime_cap <= 0 or runtime_cap > cap:
+        if cap and (runtime_cap is None or runtime_cap <= 0 or runtime_cap > cap):
             raise DispatchDenied("BUDGET_UNENFORCED: runtime cap exceeds admitted budget")
+    if price_class == "paid" and not (enforced and cap):
+        disclaimer = ("This route is paid and MCD does not limit its spending: it bills your provider account or key. "
+                      "Set a credit limit with your provider (for OpenRouter, on the key). MCD limits are off unless you turn them on in Agents, Billing & rates, Spending & limits.")
+    elif not reviewed:
+        disclaimer = ("This route's price has not been reviewed, so it may cost money. MCD does not limit spending unless you turn a limit on in Agents, Billing & rates, Spending & limits.")
     return {"route": key, "price_class": price_class, "budget_usd": cap,
-            "free_only": getattr(settings, "dispatch_free_only", default_free_only)}
+            "free_only": getattr(settings, "dispatch_free_only", default_free_only), **({"disclaimer": disclaimer} if disclaimer else {})}
 
 
 def reviewed_route_class(s, settings, source, model: str | None) -> str | None:

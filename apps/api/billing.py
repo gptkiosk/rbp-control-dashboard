@@ -43,6 +43,26 @@ DEFAULT_ACCOUNTS = {
 }
 
 
+# Spending limits are off unless the operator turns them on, in one place: Agents, Billing & rates, Spending & limits. Without a limit MCD only discloses that a route can cost money.
+DEFAULT_LIMITS = {"require_reviewed_pricing": False, "per_run_cap_usd": None, "paid_needs_runtime_limit": False}
+
+
+def limits(s, settings=None):
+    """The effective spending limits. Defaults are all off. A saved value wins; an older explicit MAC_CONTROL_DISPATCH_MAX_BUDGET_USD is used as the per-run cap until one is saved."""
+    row = s.get(BillingConfig, 1)
+    saved = (json.loads(row.payload) if row else {}).get("limits") or {}
+    out = dict(DEFAULT_LIMITS)
+    if settings is not None and "dispatch_max_budget_usd" in getattr(settings, "model_fields_set", set()) and (settings.dispatch_max_budget_usd or 0) > 0:
+        out["per_run_cap_usd"] = float(settings.dispatch_max_budget_usd)
+    for key in ("require_reviewed_pricing", "paid_needs_runtime_limit"):
+        if isinstance(saved.get(key), bool):
+            out[key] = saved[key]
+    if "per_run_cap_usd" in saved:
+        cap = saved["per_run_cap_usd"]
+        out["per_run_cap_usd"] = float(cap) if isinstance(cap, (int, float)) and not isinstance(cap, bool) and cap > 0 else None
+    return out
+
+
 def config(s):
     row = s.get(BillingConfig, 1)
     saved = json.loads(row.payload) if row else {}
@@ -50,6 +70,7 @@ def config(s):
         "accounts": {**DEFAULT_ACCOUNTS, **saved.get("accounts", {})},
         "rates": {**DEFAULT_RATES, **saved.get("rates", {})},
         "timezone": "America/Los_Angeles",
+        "limits": limits(s),
     }
 
 

@@ -95,7 +95,7 @@ def test_grok_runs_on_a_subscription_and_is_refused_on_api_billing():
     assert admit(gate_settings("subscription"), row("grok", 1, "subscription"), argv)["price_class"] == "subscription"
     # The CLI has no dollar cap, so a paid route has no enforced boundary and does not start.
     with pytest.raises(DispatchDenied, match="BUDGET_UNENFORCED"):
-        admit(gate_settings("paid"), row("grok", 1, "paid"), argv)
+        admit(gate_settings("paid"), row("grok", 1, "paid"), argv, limits={"paid_needs_runtime_limit": True})
     with pytest.raises(DispatchDenied, match="ROUTE_UNPINNED"):
         admit(gate_settings("subscription"), row("grok", 1, "subscription"), ["grok"])
 
