@@ -10,6 +10,25 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.6.10] - 2026-10-16
+
+### Added
+
+- `scripts/probe-agent-capabilities.py` checks what each installed agent can really do in an Edit-mode scratch folder (write files, run a syntax check and a unit test, try git), using RCD's own launch
+  arguments, and cleans up after itself. Run it after upgrading an agent runtime or RCD.
+
+### Fixed
+
+- A Claude story in a scratch-folder project can run its own checks. In Edit mode Claude could write files but was allowed no shell commands unless the project had a repository grant, so a story
+  wrote its files and then could not run `node --check` or its tests, and reported itself unfinished (the first story of a scratch project did exactly this). An Edit-mode Claude story without a grant
+  can now run test and syntax runners (`pytest`, `unittest`, `py_compile`, `json.tool`, `node --check`, `npm run test/type-check/build`, `vitest`, `bash -n`, `shasum`); git, the network tools and
+  arbitrary shell stay denied, and a Read-mode story still gets no shell. The harmless helpers models add to compound commands (`echo`, `printf`, `ls`, `cat`, `wc`, `head`, `tail`, `diff`, `sort`, `test`)
+  are allowed too.
+- The defaults work and security is configured. `MAC_CONTROL_AGENT_PERMISSIONS` (default `working`) lets an Edit story run checks, harmless helpers and package installs and gives a Codex Edit story the
+  package indexes and GitHub in its sandbox even without a git grant. `strict` allows only the commands in `MAC_CONTROL_AGENT_EXTRA_COMMANDS` and gives Codex its plain sandbox;
+  `MAC_CONTROL_AGENT_EXTRA_NETWORK_DOMAINS` adds hosts Codex may reach. Git grants and the push and merge denials apply either way.
+- A Hermes Edit story is told its task folder first, because Hermes' terminal starts in the folder set in its own config.
+
 ## [0.6.9] - 2026-10-16
 
 ### Changed
@@ -420,7 +439,8 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 - Claude Code stories may use web search and fetch without any shell, credential or publish permission.
 
 [0.3.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.0
-[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.9...HEAD
+[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.10...HEAD
+[0.6.10]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.10
 [0.6.9]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.9
 [0.6.8]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.8
 [0.6.7]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.7

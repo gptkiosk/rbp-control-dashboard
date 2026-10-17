@@ -60,6 +60,19 @@ DEFAULT_COMMANDS = (
     "Bash(bash -n:*)",
     "Bash(shasum:*)",
 )
+# Local check commands an Edit-mode Claude story may run in a project that has no repository grant (a scratch folder). Without them the story can write its files but
+# cannot run its own checks, and honestly reports itself unfinished. Test and syntax runners only: no git, no network tools, no shell, no arbitrary interpreter.
+CHECK_COMMANDS = DEFAULT_COMMANDS + (
+    "Bash(node --check:*)",
+    "Bash(python3 -I -m unittest:*)",
+    "Bash(python3 -I -m py_compile:*)",
+    "Bash(python3 -I -m json.tool:*)",
+    # Harmless helpers. A compound command (a && b; echo $?) is refused as a whole when any part needs approval, and these are the parts models add.
+    "Bash(echo:*)", "Bash(printf:*)", "Bash(pwd)", "Bash(ls:*)", "Bash(cat:*)", "Bash(wc:*)", "Bash(head:*)", "Bash(tail:*)",
+    "Bash(diff:*)", "Bash(sort:*)", "Bash(test:*)", "Bash(true)", "Bash(node --version)", "Bash(python3 --version)",
+)
+INSTALL_COMMANDS = ("Bash(npm ci:*)", "Bash(npm install:*)", "Bash(python3 -I -m pip install:*)")
+DOMAIN_RE = re.compile(r"^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$")
 CODEX_DOMAINS = ("github.com", "api.github.com", "codeload.github.com", "objects.githubusercontent.com",
                  "pypi.org", "files.pythonhosted.org", "registry.npmjs.org")
 
@@ -201,13 +214,37 @@ def claude_denied(grant: Grant) -> list[str]:
     return rules
 
 
-def codex_overrides() -> list[str]:
+def allowed_commands(settings) -> tuple[str, ...]:
+    """The command rules an Edit-mode Claude story gets: the working defaults (checks, helpers, package installs) unless the operator chose strict, plus the operator's own list."""
+    extra = [c for c in getattr(settings, "agent_extra_commands", ()) if isinstance(c, str) and COMMAND_RE.fullmatch(c)][:MAX_COMMANDS]
+    if getattr(settings, "agent_permissions", "working") == "strict":
+        return tuple(extra)
+    return tuple(dict.fromkeys((*CHECK_COMMANDS, *INSTALL_COMMANDS, *extra)))
+
+
+def network_domains(settings) -> tuple[str, ...]:
+    extra = [d.lower() for d in getattr(settings, "agent_extra_network_domains", ()) if isinstance(d, str) and DOMAIN_RE.fullmatch(d.lower())][:20]
+    return tuple(dict.fromkeys((*CODEX_DOMAINS, *extra)))
+
+
+def codex_work_overrides(domains: tuple[str, ...] = CODEX_DOMAINS) -> list[str]:
+    """The working default for a Codex Edit story with no git grant: the workspace sandbox plus the package indexes and GitHub (verified with `codex sandbox`)."""
+    listed = ",".join(f'"{d}"="allow"' for d in domains)
+    return [
+        'default_permissions="agentwork"',
+        'permissions.agentwork.extends=":workspace"',
+        "features.network_proxy={enabled=true}",
+        f'permissions.agentwork.network={{enabled=true,mode="full",domains={{{listed}}}}}',
+    ]
+
+
+def codex_overrides(domains: tuple[str, ...] = CODEX_DOMAINS) -> list[str]:
     """`-c` overrides that replace the plain workspace-write sandbox: .git is writable and the
     network is limited to GitHub and the package indexes. Hooks and the repository config stay read-only,
     so an agent can commit and cut its branch but cannot rewrite the operator's hooks or credential
     helper. `:workspace` alone leaves .git read-only in current Codex builds (a story could not create
     its branch, 2026-10-16); the filesystem rule below was verified with `codex sandbox`."""
-    domains = ",".join(f'"{d}"="allow"' for d in CODEX_DOMAINS)
+    domains = ",".join(f'"{d}"="allow"' for d in domains)
     return [
         'default_permissions="agentgit"',
         'permissions.agentgit.extends=":workspace"',

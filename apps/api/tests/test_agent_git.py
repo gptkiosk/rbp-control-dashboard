@@ -354,8 +354,34 @@ def test_dispatcher_claude_story_gets_exact_git_allows(app, tmp_path):
 
 def test_dispatcher_without_a_grant_keeps_the_no_push_rule(app):
     pid, cid, cmd, checkpoint, ctx = claim_edit_story(app, [node("a")])
-    assert "agent_git" not in checkpoint and not any("agentgit" in a for a in cmd) and "workspace-write" in cmd
+    assert "agent_git" not in checkpoint and not any("agentgit" in a for a in cmd)
+    assert 'default_permissions="agentwork"' in cmd and "-s" not in cmd              # the working default: workspace sandbox plus the package indexes and GitHub
+    assert not any("filesystem" in a for a in cmd)                                      # no .git rule without a grant
     assert agent_git.NO_PUSH_SENTENCE in ctx and "GIT ACCESS FOR THIS PROJECT" not in ctx
+
+
+def test_strict_permissions_give_codex_its_plain_sandbox_and_claude_only_the_operators_commands(app, monkeypatch):
+    c, s, wd, settings = app
+    monkeypatch.setattr(settings, "agent_permissions", "strict")
+    pid, cid, cmd, checkpoint, ctx = claim_edit_story(app, [node("a")])
+    assert "workspace-write" in cmd and not any("agentwork" in a or "agentgit" in a for a in cmd)
+
+
+def test_strict_permissions_give_claude_only_the_operators_own_commands(app, monkeypatch):
+    c, s, wd, settings = app
+    monkeypatch.setattr(settings, "agent_permissions", "strict")
+    pid, cid, cmd, checkpoint, ctx = claim_edit_story(app, [dict(node("b"), assignee="claude", model="claude-haiku-5-5")])
+    assert not any(a.startswith("Bash(node") or a.startswith("Bash(python3") or a.startswith("Bash(npm") for a in cmd) and "Bash(git push:*)" in cmd
+
+
+def test_operator_extra_commands_and_domains_are_validated_and_added(app, monkeypatch):
+    c, s, wd, settings = app
+    monkeypatch.setattr(settings, "agent_extra_commands", ("Bash(make test:*)", "rm -rf /", "Bash(curl $(x))"))
+    monkeypatch.setattr(settings, "agent_extra_network_domains", ("cdn.example.org", "bad domain", "localhost"))
+    assert "Bash(make test:*)" in agent_git.allowed_commands(settings) and not any("rm -rf" in x or "curl" in x for x in agent_git.allowed_commands(settings))
+    assert "cdn.example.org" in agent_git.network_domains(settings) and "bad domain" not in agent_git.network_domains(settings) and "localhost" not in agent_git.network_domains(settings)
+    pid, cid, cmd, checkpoint, ctx = claim_edit_story(app, [dict(node("a"), assignee="claude", model="claude-haiku-5-5")])
+    assert "Bash(make test:*)" in cmd and "Bash(npm ci:*)" in cmd and "Bash(git push:*)" in cmd      # extras and installs added, push still denied
 
 
 def test_dispatcher_ignores_a_grant_for_another_project(app, tmp_path):
@@ -402,3 +428,25 @@ def test_real_codex_sandbox_lets_a_story_cut_its_branch_but_not_touch_hooks(tmp_
     argv = ["codex", "sandbox", *[a for o in agent_git.codex_overrides() for a in ("-c", o)], "--", sys.executable, "-c", probe]
     out = subprocess.run(argv, cwd=tmp_path, capture_output=True, text=True, timeout=60).stdout
     assert "ok .git/refs/heads/x" in out and "denied .git/hooks/x" in out and "denied .git/config" in out, out
+
+
+def test_an_edit_claude_story_without_a_grant_can_run_checks_but_never_git_and_a_read_story_gets_no_shell():
+    plain = SimpleNamespace(mode="edit", agent="claude", agent_git_grant=None, output_only=False, subscription_billing=True, timeout_s=60)
+    argv = build_claude(plain, "p", "claude-haiku-5-5", 1.0, "claude")
+    allowed = argv[argv.index("--allowedTools") + 1:]
+    assert "Bash(node --check:*)" in allowed and "Bash(python3 -I -m pytest:*)" in allowed and "Bash(python3 -I -m unittest:*)" in allowed
+    assert not any(a.startswith("Bash(git") or "curl" in a or a in ("Bash", "Bash(*)") for a in allowed) and "Bash(git push:*)" in argv   # git stays denied
+    read = SimpleNamespace(mode="read", agent="claude", agent_git_grant=None, output_only=False, subscription_billing=True, timeout_s=60)
+    assert not any(a.startswith("Bash(") for a in build_claude(read, "p", "m", 1.0, "claude")[build_claude(read, "p", "m", 1.0, "claude").index("--allowedTools"):])
+    out = SimpleNamespace(mode="read", agent="claude", agent_git_grant=None, output_only=True, subscription_billing=True, timeout_s=60)
+    assert "--allowedTools" not in build_claude(out, "p", "m", 1.0, "claude")
+
+
+def test_hermes_edit_stories_are_told_the_task_folder_because_its_terminal_starts_elsewhere():
+    from agents import build_hermes
+    edit = SimpleNamespace(agent="hermes", mode="edit", working_dir="/work/scratch-demo", timeout_s=60)
+    prompt = build_hermes(edit, "do the story", "m", 1.0, "hermes")[3]
+    assert prompt.startswith("Task folder: /work/scratch-demo") and "cd /work/scratch-demo &&" in prompt and prompt.endswith("do the story")
+    read = SimpleNamespace(agent="hermes", mode="read", working_dir="/work/scratch-demo", timeout_s=60)
+    assert build_hermes(read, "plan it", "m", 1.0, "hermes")[3] == "plan it"
+    assert "echo" in " ".join(agent_git.CHECK_COMMANDS)

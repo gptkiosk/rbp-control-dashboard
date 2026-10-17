@@ -169,6 +169,26 @@ that one folder in order, and there is no branch, branch grant, hook or commit r
 button push: name, brief, create. The planner, preference, build mode and working directory are under **Choices (the defaults work)**; the consultant chat uses the same default. Use a git repository as the working directory when the work must be
 committed on a branch; then the project needs a branch grant (`project-<id>/<slug>`) before agents can commit, and the checkout must stay on the approved branch.
 
+An Edit-mode Claude story in a scratch folder can run test and syntax runners (`pytest`, `unittest`, `py_compile`, `json.tool`, `node --check`, `npm run test`/`type-check`/`build`, `vitest`, `bash -n`, `shasum`) so it can verify its own work; git, network tools and arbitrary shell stay denied, and a Read-mode story gets no shell.
+
+### What each agent can do in a project folder
+
+MCD grants these in its own launch arguments, not in an agent's own configuration, so installing or upgrading an agent does not remove them. Verified with `scripts/probe-agent-capabilities.py`:
+
+| Agent | In an Edit story, in a scratch folder |
+|---|---|
+| Claude | writes files; runs test and syntax runners and harmless helpers (see above); git is read-only and `git push`/merge stay denied |
+| Codex | writes files in its workspace sandbox and runs `node`, `python3` and tests there; no network except the package indexes and GitHub; no container engine |
+| Hermes | writes files and runs shell commands; told its task folder first because its terminal starts in its own configured folder |
+| OpenClaw | writes files and runs `node` and `python3` through the configured developer agent |
+
+**Defaults work; security is configured.** The default (`MAC_CONTROL_AGENT_PERMISSIONS=working`) lets an Edit story run test and syntax runners, harmless helpers and package installs
+(`npm ci`, `npm install`, `pip install`), and gives Codex the package indexes and GitHub in its sandbox, so a project can finish out of the box. Set `MAC_CONTROL_AGENT_PERMISSIONS=strict` to allow only
+the commands you list in `MAC_CONTROL_AGENT_EXTRA_COMMANDS` (for example `["Bash(make test:*)"]`) and give Codex its plain workspace sandbox. `MAC_CONTROL_AGENT_EXTRA_NETWORK_DOMAINS`
+(for example `["cdn.example.org"]`) adds hosts Codex may reach. Git grants, `git push` and merge denials, and the branch rules apply in either mode. Restart MCD after changing them.
+
+After upgrading an agent runtime, run `python3 scripts/probe-agent-capabilities.py claude codex hermes openclaw`. It uses a few model requests and removes its throwaway folders.
+
 ### Retrying after a timeout
 
 After a run times out MCD cannot tell what the attempt changed or whether the provider is still working on it, so the dispatcher refuses every new attempt on that
