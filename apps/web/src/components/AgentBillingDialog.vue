@@ -2,15 +2,16 @@
 import MembershipPrerequisites from '@/components/MembershipPrerequisites.vue'
 import AppSelect from '@/components/AppSelect.vue'
 import MediaGeneratePanel from '@/components/MediaGeneratePanel.vue'
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import ModalShell from '@/components/ModalShell.vue'
 import { getJson, patchJson, type Agent, type BillingSettings, type MediaCatalog, type ModelRate } from '@/lib/api'
-const props = defineProps<{ agents: Agent[]; models: string[] }>()
+const props = defineProps<{ agents: Agent[]; models: string[]; focus?: 'media' | null }>()
 const emit = defineEmits<{ close: []; saved: [] }>()
 const settings = ref<BillingSettings | null>(null)
 const error = ref('')
 const saving = ref(false)
 const media = ref<MediaCatalog | null>(null)
+const mediaSection = ref<HTMLElement | null>(null)
 const mediaPrices = ref<Record<string, number | ''>>({})
 const mediaSaved = ref<Record<string, number | ''>>({})
 const limits = ref({ require_reviewed_pricing: false, per_run_cap_usd: '' as number | '' | null, paid_needs_runtime_limit: false })
@@ -39,6 +40,7 @@ onMounted(async () => {
     } catch {
       media.value = null
     }
+    if (props.focus === 'media') { await nextTick(); mediaSection.value?.scrollIntoView?.({ block: 'start' }) }
     const l = settings.value.limits
     limits.value = {
       require_reviewed_pricing: !!l?.require_reviewed_pricing,
@@ -177,7 +179,7 @@ async function save() {
           built-in dollar limit (Claude)</label
         >
       </fieldset>
-      <details v-if="media" class="media-models">
+      <details v-if="media" ref="mediaSection" class="media-models" :open="props.focus === 'media'">
         <summary>Media models (fal.ai) · image and video generation</summary>
         <p class="muted small">
           Listed prices are fal's published list prices from {{ media.models[0]?.price_verified }} and are approximate; resolution, duration and

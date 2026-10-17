@@ -10,6 +10,13 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.6.17] - 2026-10-17
+
+### Added
+
+- A **Media** button on the Agents page opens Billing & rates straight to the Media models section, expanded, so the fal models, prices and Generate panel are one click away. Billing & rates still opens with that section collapsed.
+- **Generate all missing** in the media panel: one tier, one price total (models with no listed price are called out) and one confirmation, then one request per slot that still has nothing published, no candidate and no approved still to wait for. Clips whose stills are not published yet are counted as waiting, so run the stills, pick and ingest, then run it again for the rest.
+
 ## [0.6.16] - 2026-10-17
 
 ### Added
@@ -482,7 +489,8 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 - Claude Code stories may use web search and fetch without any shell, credential or publish permission.
 
 [0.3.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.0
-[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.16...HEAD
+[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.17...HEAD
+[0.6.17]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.17
 [0.6.16]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.16
 [0.6.15]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.15
 [0.6.14]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.14

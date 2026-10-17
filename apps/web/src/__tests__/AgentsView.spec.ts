@@ -92,6 +92,29 @@ describe('Agents explorer', () => {
     expect(w.get('.savings').text()).toContain('-')
     w.unmount()
   })
+  it('opens Billing & rates collapsed, and the Media button opens it on the media section', async () => {
+    const media = { provider: 'fal', fal_key_saved: true, models: [{ id: 'fal-ai/nano-banana-2', label: 'Nano Banana 2', kind: 'image', mode: 'text-to-image', unit: 'image', price_usd: 0.08, listed_price_usd: 0.08, price_source: 'https://fal.ai/pricing', price_verified: '2026-10-17', tier: 'standard', note: '' }], key_rules: { preset: 'API', note: '', allowed_models: ['fal-ai/veo3.1*'] } }
+    stubFetch((url) =>
+      url === '/api/agents' ? { body: { agents } }
+        : url.startsWith('/api/agents/usage') ? { body: payload() }
+          : url === '/api/billing' ? { body: { accounts: { openclaw: { mode: 'api', monthly_usd: 0 }, hermes: { mode: 'api', monthly_usd: 0 }, codex: { mode: 'api', monthly_usd: 0 } }, rates: {}, timezone: 'America/Los_Angeles' } }
+            : url === '/api/media/models' ? { body: media }
+              : undefined,
+    )
+    const router = createAppRouter(createMemoryHistory())
+    await router.push('/agents')
+    await router.isReady()
+    const w = mount(AgentsView, { global: { plugins: [router] }, attachTo: document.body })
+    await flushPromises()
+    const open = async (label: string) => { await w.findAll('button').find((b) => b.text().includes(label))!.trigger('click'); await flushPromises() }
+    await open('Billing & rates')
+    expect((document.querySelector('.media-models') as HTMLDetailsElement).open).toBe(false)
+    await document.querySelector<HTMLButtonElement>('button[aria-label="Close billing settings"]')!.click(); await flushPromises()
+    await open('Media')
+    expect((document.querySelector('.media-models') as HTMLDetailsElement).open).toBe(true)
+    expect(document.body.textContent).toContain('Nano Banana 2')
+    w.unmount()
+  })
   it('makes usage failure visible instead of inventing zero costs', async () => {
     stubFetch((url) =>
       url === '/api/agents' ? { body: { agents } } : { status: 503, body: { detail: 'not ready' } },

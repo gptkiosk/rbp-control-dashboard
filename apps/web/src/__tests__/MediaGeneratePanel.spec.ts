@@ -76,3 +76,51 @@ it('asks for the key first when none is saved', async () => {
   expect(w.get('[data-slot=hero-still]').findAll('button').find(b => b.text() === 'Generate')!.attributes('disabled')).toBeDefined()
   w.unmount()
 })
+function batchSetup() {
+  const slots = [
+    slot({ name: 'a-still' }),                                              // ready
+    slot({ name: 'b-card', plans: { draft: plan('d', 0.08), standard: plan('s', 0.08), premium: plan('p', 0.15) } }),   // ready
+    slot({ name: 'c-done', published: true }),                              // already published
+    slot({ name: 'd-picked', candidates: ['d-picked-1.png'] }),             // a candidate waits for your choice
+    slot({ name: 'e-clip', kind: 'video', plans: veo, waiting_for_stills: ['a-still'] }),   // needs its still first
+    slot({ name: 'f-clip', kind: 'video', plans: { draft: plan('k', 0.35), standard: plan('v', null), premium: plan('v', null) } }),   // ready, price unknown at standard
+  ]
+  const f = stubFetch((u, init) => {
+    if (u === '/api/media/folders') return { body: { folders: [{ path: '/ws/site', name: 'site' }] } }
+    if (u.startsWith('/api/media/slots')) return { body: { working_dir: '/ws/site', slots } }
+    if (u === '/api/media/ledger') return { body: { runs: 0, done: 0, estimated_usd: 0, rows: [], note: 'n' } }
+    if (u === '/api/media/generate' && init?.method === 'POST') return { status: 202, body: { jobs: ['j' + Math.random()], endpoint: 'e', estimate_usd_each: 0.08 } }
+    if (u.startsWith('/api/media/jobs/')) return { body: { id: 'x', state: 'queued', progress: '', slot: 'a-still', error: null, files: [] } }
+  })
+  return { f, w: mount(MediaGeneratePanel, { props: { keySaved: true } }) }
+}
+it('counts only what is still missing and shows the batch price, flagging models with no listed price', async () => {
+  vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] })
+  const { w } = batchSetup()
+  await flushPromises()
+  const box = w.get('[data-testid=batch]')
+  expect(box.text()).toContain('3 ready')
+  expect(box.text()).toContain('1 more need an approved still first')
+  expect(box.text()).toContain('about $0.16 plus 1 with no listed price')
+  await box.get('select').setValue('draft')
+  expect(box.text()).toContain('about $0.51')                                  // 0.08 + 0.08 + 0.35
+  expect(box.findAll('button').find(b => b.text() === 'Generate all missing')!.attributes('disabled')).toBeDefined()   // spending not acknowledged
+  w.unmount()
+})
+it('asks once with the total, then makes one request per missing slot with the chosen tier', async () => {
+  vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] })
+  const { w, f } = batchSetup()
+  await flushPromises()
+  await w.get('input[type=checkbox]').setValue(true)
+  const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValueOnce(false).mockReturnValueOnce(true)
+  const go = w.get('[data-testid=batch]').findAll('button').find(b => b.text() === 'Generate all missing')!
+  await w.get('[data-testid=batch] select').setValue('premium')
+  await go.trigger('click'); await flushPromises()
+  expect(calls(f, 'POST', '/api/media/generate')).toHaveLength(0)             // cancelled: nothing was sent
+  expect(confirmSpy.mock.calls[0]![0]).toContain('at the premium tier')
+  await go.trigger('click'); await flushPromises()
+  const sent = calls(f, 'POST', '/api/media/generate').map(c => JSON.parse(String(c[1]?.body)))
+  expect(sent.map(b => b.slot)).toEqual(['a-still', 'b-card', 'f-clip'])
+  expect(sent.every(b => b.tier === 'premium' && b.count === 1 && b.confirm_spend === true && b.working_dir === '/ws/site')).toBe(true)
+  confirmSpy.mockRestore(); w.unmount()
+})

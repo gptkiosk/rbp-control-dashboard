@@ -12,6 +12,8 @@ Save the key in **Profile, Private credentials, fal.ai key**. It is encrypted, w
 
 ## Generating media from MCD
 
+Open it from the **Media** button on the Agents page (or Billing & rates, then Media models). **Generate all missing** makes one candidate for every slot that has nothing published, no candidate and no approved still it waits for, at one tier, after a single confirmation that shows the estimated total. Stills come first: pick and ingest the approved stills, then run it again for the clips and transitions.
+
 Under **Media models**, **Generate media with your saved fal key** lists the slots in a project folder's `media/slots.json`. For each slot choose a tier (draft is the cheapest model, standard the default, premium the best) and how many to make, tick the spending acknowledgement, and press Generate. MCD calls fal itself with your saved key, shows progress, and saves each result as a candidate in the folder's `media/candidates/`. **Use this one** copies a candidate into `media/inbox/`; then run the project's own `python3 tools/media/media.py ingest <slot>` to validate, convert and record it.
 
 How the key is protected:
