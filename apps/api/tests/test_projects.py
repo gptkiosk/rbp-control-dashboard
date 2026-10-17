@@ -1463,3 +1463,72 @@ def test_when_the_scratch_area_is_not_an_allowed_root_the_directory_is_left_alon
     c,s,wd,settings=app
     settings.workdir_roots=(wd.parent,)
     assert c.get('/api/workdirs').json()['scratch_root'] is None
+
+
+def test_a_closed_project_can_be_deleted_with_everything_kept_for_it_but_never_the_folder(app):
+    from models import Project, ProjectMemory, ProjectTask
+    p=active(app,[node('a'),node('b',depends_on=['a'])])
+    c,s,wd,settings=app
+    pid=p['id']
+    (wd/'site.html').write_text('<p>the work</p>')
+    finish(app,next(t['card_id'] for t in p['tasks'] if t['node_key']=='a'),'Done work.')
+    path=f'/api/projects/{pid}/delete'
+    assert c.post(path,json={'revision':1,'confirm':True}).status_code==409                    # active: close it first
+    closed=c.post(f'/api/projects/{pid}/close',json={'revision':1,'reason':'Replanning from a new brief'})
+    assert closed.status_code==200,closed.text
+    rev=closed.json()['revision']
+    assert c.post(path,json={'revision':rev}).status_code==422                                 # explicit confirmation required
+    assert c.post(path,json={'revision':rev+7,'confirm':True}).status_code==409                # stale revision
+    ledger=settings.data_dir/'project-ledgers'/f'project-{pid}.md'
+    ledger.parent.mkdir(parents=True,exist_ok=True);ledger.write_text('ledger')
+    outputs=settings.data_dir/'project-outputs'/f'project-{pid}'/'story-1'
+    outputs.mkdir(parents=True);(outputs/'out.md').write_text('x')
+    grants=settings.agent_git_grants_file
+    grants.parent.mkdir(parents=True,exist_ok=True);grants.write_text(json.dumps({str(pid):{'clones':[]},'99':{'clones':[]}}))
+    r=c.post(path,json={'revision':rev,'confirm':True})
+    assert r.status_code==200,r.text
+    assert r.json()['deleted']==pid and Path(r.json()['working_dir_kept']).resolve()==wd.resolve()
+    assert (wd/'site.html').read_text()=='<p>the work</p>'                                     # the folder and its files are never touched
+    assert c.get(f'/api/projects/{pid}').status_code==404
+    assert pid not in [x['id'] for x in c.get('/api/projects').json()['projects']]
+    with s() as db:
+        assert db.get(Project,pid) is None
+        assert not db.scalars(select(ProjectTask).where(ProjectTask.project_id==pid)).all()
+        assert not db.scalars(select(ProjectMemory).where(ProjectMemory.project_id==pid)).all()
+        assert not db.scalars(select(Card).where(Card.id.in_([t['card_id'] for t in p['tasks']]))).all()
+    assert not ledger.exists() and not outputs.parent.exists()
+    assert json.loads(grants.read_text())=={'99':{'clones':[]}}                                 # only this project's grants go
+
+
+def test_a_draft_project_can_be_deleted_and_a_live_one_cannot(app):
+    c,s,wd,settings=app
+    draft=new(app,[node('a')])
+    assert c.post(f'/api/projects/{draft["id"]}/delete',json={'revision':1,'confirm':True}).status_code==200
+    assert c.get(f'/api/projects/{draft["id"]}').status_code==404
+    live=active(app,[node('a')])
+    for state in ('paused',):
+        c.post(f'/api/projects/{live["id"]}/pause',json={'revision':1})
+        assert c.post(f'/api/projects/{live["id"]}/delete',json={'revision':1,'confirm':True}).status_code==409
+    assert c.get(f'/api/projects/{live["id"]}').status_code==200
+
+
+def test_small_planner_slips_are_tidied_but_real_problems_are_still_refused(app):
+    """A free planner returned a good plan with an empty route model on human stories, a blank touches entry and work_kind 'tests'; that must not
+    cost the plan or another planning turn."""
+    from fastapi import HTTPException
+    c,s,wd,settings=app
+    doc=new(app)['document']
+    phase=dict(key='p',kind='phase',title='Phase',description='A phase.',parent=None,depends_on=[])
+    agent=dict(node('a'),parent='p',work_kind='tests',touches=['','src/app.js'],routes=[dict(agent='claude',model='claude-sonnet-5-5'),dict(agent='claude',model='')])
+    human=dict(node('h'),parent='p',assignee='human',depends_on=['a'],routes=[dict(agent='hermes',model='')],touches=[''])
+    out=projects.proposal(doc,[phase,agent,human],settings)
+    by={n['key']:n for n in out['nodes']}
+    assert by['a']['work_kind']=='test'
+    assert by['a']['touches']==['src/app.js']
+    assert by['a']['routes']==[dict(agent='claude',model='claude-sonnet-5-5')]             # only the empty-model route is dropped
+    assert by['h']['routes']==[] and by['h']['touches']==[]
+    from pydantic import ValidationError
+    with pytest.raises((HTTPException,ValidationError)):
+        projects.proposal(doc,[phase,dict(agent,work_kind='nonsense')],settings)           # an unknown work kind is still refused
+    with pytest.raises((HTTPException,ValidationError)):
+        projects.proposal(doc,[phase,dict(agent,touches=['/etc/passwd'])],settings)        # a real path problem is still refused

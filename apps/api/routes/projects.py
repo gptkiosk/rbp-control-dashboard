@@ -181,6 +181,20 @@ def remove_tasks(project_id:int,body:Action,request:Request,s:Session=Depends(ge
     paths=projects.remove_tasks(s,p,identity)
     s.commit();remove_run_logs(paths);return projects.detail(s,p)
 
+class DeleteIn(BaseModel):
+    model_config=ConfigDict(extra='forbid')
+    revision:int=Field(ge=1)
+    confirm:bool=False
+
+@router.post('/{project_id}/delete')
+def delete_project(project_id:int,body:DeleteIn,request:Request,s:Session=Depends(get_session)):
+    """Delete a project that is not live, with its tasks, ledger and saved records. The working folder and its files are kept."""
+    identity=actor(request);write(s);p=projects.get(s,project_id);projects.check_revision(p,body.revision)
+    if not body.confirm: raise HTTPException(422,'Confirm the delete. It cannot be undone.')
+    paths,pid,folder=projects.delete_project(s,p,get_settings())
+    s.commit();remove_run_logs(paths);projects.forget_project_files(get_settings(),pid)
+    return {'deleted':pid,'working_dir_kept':folder}
+
 @router.post('/{project_id}/pause')
 def pause(project_id:int,body:Action,request:Request,s:Session=Depends(get_session)):
     identity=actor(request);write(s);p=projects.get(s,project_id);projects.check_revision(p,body.revision)
