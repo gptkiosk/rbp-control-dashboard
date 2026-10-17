@@ -161,6 +161,25 @@ def add_clone(path: Path, project_id: int, repo: str, directory: str, slug: str)
     return grant
 
 
+def forget_project(path: Path, project_id: int) -> bool:
+    """Drop every grant recorded for a project id. Ids can be reused after a project is deleted, so a leftover entry must never carry over."""
+    try:
+        raw = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+    if not isinstance(raw, dict) or str(project_id) not in raw:
+        return False
+    del raw[str(project_id)]
+    temporary = Path(path).with_name(Path(path).name + ".tmp")
+    fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as out:
+        out.write(json.dumps(raw, indent=2, sort_keys=True) + "\n")
+        out.flush()
+        os.fsync(out.fileno())
+    os.replace(temporary, path)
+    return True
+
+
 def load(path: Path) -> dict[int, Grant]:
     """All valid grants in the file. A missing or unreadable file, or a bad entry, grants nothing."""
     try:

@@ -322,3 +322,7 @@ history. The project becomes **Closed**, never Complete: Complete is for project
 - A failed task that another task already carries (an unneeded duplicate) can be removed from any project. That includes the failed task a
   project retry replaced while the retry is still queued or running; the retry itself stays protected.
 - Everything else on a project stays protected: only the Projects page changes a story.
+
+## Closing and deleting a project
+
+**Close** ends a project without finishing it. The project stays in the library with its plan and whole ledger, and you can remove its tasks from the board. **Delete project** (on a closed, complete, draft, in-review or failed project) is the separate, confirmed step that removes the project itself: its tasks and run history, ledger records, deliveries, standards proposals, ledger file, saved outputs and branch grants. The working folder and its files are never touched, so a new project can be pointed at the same folder. A live project (planning, dispatching, active or paused) must be closed first, and a running story cancelled.

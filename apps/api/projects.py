@@ -790,6 +790,9 @@ def resume_plan(s, p, revision, settings, actor):
     memory(s,p,'decision','Operator resumed the successful saved proposal without rerunning the subscription planner. Current native execution routes will be reviewed.',actor,run.card_id,run.id)
     advance(s, settings)
 
+WORK_KIND_ALIASES = {'tests': 'test', 'testing': 'test', 'doc': 'docs', 'documentation': 'docs', 'document': 'docs', 'implementation': 'implement', 'build': 'implement',
+                     'operations': 'ops', 'planning': 'plan', 'reviews': 'review', 'verify': 'test', 'verification': 'test'}
+
 def proposal(doc, nodes, settings):
     # Human reviews own a bounded decision rather than code paths. Fill only for
     # planner proposals; operator edits and agent execution still require scope.
@@ -802,6 +805,15 @@ def proposal(doc, nodes, settings):
         # A dependency on a key that does not exist is still refused, and an operator's own edit is validated as written.
         if isinstance(row.get('depends_on'), list):
             row['depends_on'] = [] if row.get('kind') == 'phase' else [d for d in row['depends_on'] if d not in phases and d != row.get('key')]
+        # Free planner models make small slips that say nothing about the plan: a route with an empty model, a blank touches entry, a work kind
+        # spelled a near way. Tidy exactly those before validating, so a good plan is not thrown away and no model is run again. A story that ends
+        # up without what it needs is still refused by validation; unknown work kinds and real path problems still fail.
+        if isinstance(row.get('routes'), list):
+            row['routes'] = [] if row.get('assignee') == 'human' else [r for r in row['routes'] if isinstance(r, dict) and str(r.get('agent') or '').strip() and str(r.get('model') or '').strip()]
+        if isinstance(row.get('touches'), list):
+            row['touches'] = [t for t in row['touches'] if not (isinstance(t, str) and not t.strip())]
+        if isinstance(row.get('work_kind'), str):
+            row['work_kind'] = WORK_KIND_ALIASES.get(row['work_kind'].strip().lower(), row['work_kind'].strip().lower())
         if row.get('kind', 'story') == 'story' and row.get('assignee') == 'human' and not (row.get('scope') or '').strip():
             row['scope'] = 'Operator decision or review limited to this story and its acceptance criteria; no agent workspace changes.'
         normalized.append(row)
@@ -1031,6 +1043,9 @@ def remove_tasks(s,p,actor):
     """Take every task of a closed project off the board, finished ones included. The project, its brief, plan and whole ledger stay:
     the handoff, incident and decision entries are the record. Returns the run log paths to delete once the transaction commits."""
     if p.state!='closed': fail('Only a closed project\'s tasks can be removed from the board.')
+    return _remove_cards(s,p,actor)
+
+def _remove_cards(s,p,actor,note=True):
     links=s.scalars(select(ProjectTask).where(ProjectTask.project_id==p.id)).all()
     held=[s.get(Card,l.card_id) for l in links]
     if any(c.column=='running' for c in held if c): fail('Cancel the story that is running first, then remove the project\'s tasks.')
@@ -1040,8 +1055,38 @@ def remove_tasks(s,p,actor):
         if c is None: continue
         paths+=s.execute(select(Run.log_path).where(Run.card_id==c.id)).scalars().all()
         s.delete(c)
-    memory(s,p,'decision',f'Removed {len(links)} task(s) of this closed project from the board. The run history of those tasks is deleted; this ledger keeps their handoff, incident and decision entries.',actor)
+    if note:
+        memory(s,p,'decision',f'Removed {len(links)} task(s) of this closed project from the board. The run history of those tasks is deleted; this ledger keeps their handoff, incident and decision entries.',actor)
     return paths
+
+DELETABLE_STATES={'closed','complete','draft','review','planning_failed','dispatch_failed'}
+
+def delete_project(s,p,settings):
+    """Remove a project that is not live, with everything the app keeps for it: its tasks and their run history, its ledger records, deliveries,
+    standards proposals, the ledger file, saved outputs and any branch grants. The working folder and the files in it are NEVER touched. Project ids
+    can be reused after a delete, so nothing keyed by the id may be left behind. Returns the run log paths to delete after commit, and what was kept."""
+    if p.state not in DELETABLE_STATES: fail('Close the project first. A project that is planning, dispatching, active or paused cannot be deleted.',409)
+    if running_stories(s,p): fail('Cancel the story that is running first, then delete the project.',409)
+    pid=p.id;folder=document(p).get('working_dir')
+    paths=_remove_cards(s,p,'delete',note=False)
+    from models import StandardsProposal
+    for model in (ProjectMemory,ProjectDelivery):
+        for row in s.scalars(select(model).where(model.project_id==pid)).all(): s.delete(row)
+    for row in s.scalars(select(StandardsProposal).where(StandardsProposal.project_id==pid)).all(): s.delete(row)
+    s.flush();s.delete(p)
+    return paths,pid,folder
+
+def forget_project_files(settings,pid):
+    """Files kept outside the database for a project id: its ledger file, saved outputs and branch grants. Called after the delete commits."""
+    import shutil
+    ledger=Path(settings.data_dir)/'project-ledgers'/f'project-{pid}.md'
+    try: ledger.unlink()
+    except FileNotFoundError: pass
+    outputs=Path(settings.data_dir)/'project-outputs'/f'project-{pid}'
+    if outputs.is_dir() and not outputs.is_symlink(): shutil.rmtree(outputs,ignore_errors=True)
+    import agent_git
+    try: agent_git.forget_project(settings.agent_git_grants_file,pid)
+    except Exception: pass
 
 def protect(s,card):
     if binding(s,card.id): fail('This task belongs to an approved project. Use Projects for handoff acceptance/retry; its scope and dependencies cannot be changed on the board.')

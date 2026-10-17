@@ -10,6 +10,20 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.6.15] - 2026-10-17
+
+### Fixed
+
+- A good plan is no longer thrown away over small slips from a free planner model. Before validating a planner's answer RCD now drops a route with an empty model (and clears routes on human stories, which are not run), drops blank `touches` entries and maps near-miss work kinds such as `tests` to `test`. Unknown work kinds and real path problems are still refused. A plan that already failed this way can be recovered with **Resume saved plan**, without running the planner again.
+
+### Changed
+
+- **Close project** now offers to delete the project in the same step: after the reason, one confirmation deletes the project with its tasks, ledger and saved records (the working folder is kept). Cancelling keeps the closed project and ledger as before.
+
+### Added
+
+- **Delete project** on any project that is not live (closed, complete, draft, in review or failed). It removes the project from the library together with its tasks and run history, ledger records, deliveries, standards proposals, ledger file, saved outputs and branch grants, so nothing keyed to its id is left to carry over when the id is reused. The working folder and the files in it are never touched. `POST /api/projects/{id}/delete`.
+
 ## [0.6.14] - 2026-10-17
 
 RCD catches up with MCD 0.6.11 to 0.6.14 in one release.
@@ -458,7 +472,8 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 - Claude Code stories may use web search and fetch without any shell, credential or publish permission.
 
 [0.3.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.0
-[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.14...HEAD
+[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.15...HEAD
+[0.6.15]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.15
 [0.6.14]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.14
 [0.6.10]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.10
 [0.6.9]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.9

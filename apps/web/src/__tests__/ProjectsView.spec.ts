@@ -60,6 +60,29 @@ it('edits the visual map without starting a model; saved revisions retain assign
  expect(JSON.parse(String(writes[0]![1]?.body)).document.nodes[1].routes[0].model).toBe('claude-sonnet-5-5')
  expect(w.text()).toContain('REVISION 2');w.unmount()
 })
+it('deletes a closed project only after confirmation and says the folder is kept',async()=>{
+ const {w,f}=await setup('closed')
+ const inner=globalThis.fetch
+ const posted:unknown[]=[]
+ vi.stubGlobal('fetch',(url:string,init?:RequestInit)=>url==='/api/projects/1/delete'&&init?.method==='POST'
+  ? (posted.push(JSON.parse(String(init.body))),Promise.resolve(new Response(JSON.stringify({deleted:1,working_dir_kept:'/tmp/project'}),{status:200,headers:{'content-type':'application/json'}})))
+  : inner(url as never,init))
+ await flushPromises()
+ const button=w.findAll('button').find(b=>b.text()==='Delete project…')!
+ expect(button).toBeTruthy()
+ const confirm=vi.spyOn(window,'confirm').mockReturnValueOnce(false).mockReturnValueOnce(true)
+ await button.trigger('click');await flushPromises()
+ expect(confirm.mock.calls[0]![0]).toContain('The working folder and its files are kept')
+ expect(posted).toEqual([])                                                            // cancelled: nothing sent
+ await button.trigger('click');await flushPromises()
+ expect(posted).toEqual([{revision:1,confirm:true}])
+ confirm.mockRestore();w.unmount()
+})
+it('does not offer Delete on a live project',async()=>{
+ const {w}=await setup('active')
+ expect(w.findAll('button').some(b=>b.text()==='Delete project…')).toBe(false)
+ w.unmount()
+})
 it('asks for a missing key before creating the project, then creates it after the key is saved or skipped',async()=>{
  const {w,f}=await setup()
  const inner=globalThis.fetch
@@ -317,14 +340,32 @@ it('closes an unfinished project only with a reason and shows it as Closed, neve
  expect(w.findAll('button').some(b=>b.text()==='Close project…')).toBe(false);w.unmount()
 })
 
-it('can close a project and remove its tasks in one step',async()=>{
+it('closes a project and then deletes it after one confirmation, keeping the folder',async()=>{
  vi.spyOn(window,'prompt').mockReturnValue('Replanned as a new project')
  const confirm=vi.spyOn(window,'confirm').mockReturnValue(true);confirm.mockClear()
  const {w,f}=await setup('active')
+ const inner=globalThis.fetch
+ const posted:{url:string,body:unknown}[]=[]
+ vi.stubGlobal('fetch',(url:string,init?:RequestInit)=>{
+  if(url==='/api/projects/1/delete'&&init?.method==='POST'){posted.push({url,body:JSON.parse(String(init.body))});return Promise.resolve(new Response(JSON.stringify({deleted:1,working_dir_kept:'/tmp/project'}),{status:200,headers:{'content-type':'application/json'}}))}
+  return inner(url as never,init)
+ })
  await w.findAll('button').find(b=>b.text()==='Close project…')!.trigger('click');await flushPromises()
  const write=f.mock.calls.find(([url])=>url==='/api/projects/1/close')!
  expect(JSON.parse(String(write[1]?.body))).toEqual({revision:1,reason:'Replanned as a new project',remove_tasks:true})
- expect(confirm).toHaveBeenCalledTimes(1);w.unmount()
+ expect(posted).toEqual([{url:'/api/projects/1/delete',body:{revision:expect.any(Number),confirm:true}}])
+ expect(confirm).toHaveBeenCalledTimes(1);expect(confirm.mock.calls[0]![0]).toContain('The working folder and its files are kept')
+ w.unmount()
+})
+it('can still close a project and remove only its tasks, keeping the project and ledger',async()=>{
+ vi.spyOn(window,'prompt').mockReturnValue('Parked for now')
+ const confirm=vi.spyOn(window,'confirm').mockReturnValueOnce(false).mockReturnValueOnce(true);confirm.mockClear()
+ const {w,f}=await setup('active')
+ await w.findAll('button').find(b=>b.text()==='Close project…')!.trigger('click');await flushPromises()
+ const write=f.mock.calls.find(([url])=>url==='/api/projects/1/close')!
+ expect(JSON.parse(String(write[1]?.body))).toEqual({revision:1,reason:'Parked for now',remove_tasks:true})
+ expect(f.mock.calls.some(([url])=>url==='/api/projects/1/delete')).toBe(false)
+ expect(confirm).toHaveBeenCalledTimes(2);w.unmount()
 })
 
 it('offers no close action for a completed or planning project',async()=>{
