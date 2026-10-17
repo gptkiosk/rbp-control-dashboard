@@ -310,6 +310,9 @@ class Dispatcher:
                 # Branch-scoped git access is an operator grant per approved project, never plan output.
                 grant = agent_git.grant_for(self.settings, link.project_id, card) if link and link.role == 'story' else None
                 card.agent_git_grant = grant
+                card.agent_commands = agent_git.allowed_commands(self.settings)
+                card.agent_domains = agent_git.network_domains(self.settings)
+                card.agent_work_profile = getattr(self.settings, "agent_permissions", "working") == "working"
                 if grant:
                     prompt = agent_git.apply_context(prompt, grant, card.id, card.agent, model_requested)
                 card.subscription_billing=_reviewed_route_class(s, self.settings, card, model_requested) == "subscription"

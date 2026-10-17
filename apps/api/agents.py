@@ -135,6 +135,9 @@ def build_claude(card, prompt: str, model: str | None, budget: float, binary: st
         argv += ["--allowedTools", "WebSearch", "WebFetch"]
         if grant:
             argv += agent_git.claude_allowed(grant)
+        if mode != "plan":
+            # An Edit story can run its tests, syntax checks and installs whether or not the project has a git grant; the operator can make this strict (settings.agent_permissions).
+            argv += [c for c in getattr(card, "agent_commands", agent_git.CHECK_COMMANDS) if c not in argv]
     if not getattr(card,"subscription_billing",False):
         argv += ["--max-budget-usd", f"{budget:.2f}"]
     if model:
@@ -242,7 +245,13 @@ def build_codex(card, prompt: str, model: str | None, budget: float, binary: str
     grant = getattr(card, "agent_git_grant", None)
     # With an operator grant the plain workspace-write sandbox (read-only .git, no network) is
     # replaced by a permission profile that lets the story commit and reach GitHub only.
-    profile = [a for o in agent_git.codex_overrides() for a in ("-c", o)] if grant else []
+    domains = tuple(getattr(card, "agent_domains", agent_git.CODEX_DOMAINS))
+    if grant:
+        profile = [a for o in agent_git.codex_overrides(domains) for a in ("-c", o)]
+    elif card.mode != "read" and getattr(card, "agent_work_profile", False):
+        profile = [a for o in agent_git.codex_work_overrides(domains) for a in ("-c", o)]    # the working default: workspace sandbox plus the package indexes and GitHub
+    else:
+        profile = []
     if session_id:
         # `codex exec resume` has no -s/-C flags, so the sandbox is forced with a config override;
         # otherwise a resumed turn would use whatever sandbox Codex's own config defaults to.
@@ -297,6 +306,12 @@ class HermesParser(Parser):
 
 def build_hermes(card, prompt: str, model: str | None, budget: float, binary: str,
                  session_id: str | None = None) -> list[str]:
+    # Hermes' terminal tool starts in the folder set in its own config, not in --in, so files written with relative paths would land there.
+    # Tell it the task folder first, for an Edit story that writes files.
+    folder = getattr(card, "working_dir", "") or ""
+    if folder and getattr(card, "mode", "read") != "read" and not session_id:
+        prompt = (f"Task folder: {folder}\nYour terminal may start in a different folder. Begin every shell command with `cd {folder} &&` "
+                  f"and keep every file you create or change inside that folder.\n\n{prompt}")
     argv = [binary, "chat", "-q", prompt, "--oneshot", "--format", "stream-json",
             "--in", card.working_dir, "--max-turns", "25", "--run-budget", str(card.timeout_s)]
     if model:
