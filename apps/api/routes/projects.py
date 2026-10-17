@@ -137,6 +137,7 @@ def retry(project_id:int,card_id:int,body:Retry,request:Request,s:Session=Depend
         previous={'agent':c.agent,'model':c.model}
         c.agent=chosen['agent'];c.model=chosen['model'];c.agent_target=target
         projects.memory(s,p,'decision',f'Operator selected approved retry route {chosen} instead of {previous} for the SAME story #{card_id}. Scope, workspace, dependencies and acceptance are unchanged; prior work remains unverified.',identity,card_id)
+    projects.timeout_gate(s,p,c,latest,body.acknowledge_timeout,identity,'rerun')
     if latest: projects.retry_output(s,p,link,latest)
     if reopening:
         p.state='active';p.error=None
@@ -269,6 +270,7 @@ def go_free(project_id:int,card_id:int,body:GoFree,request:Request,s:Session=Dep
     if c.agent=='openclaw' and chosen not in projects.other_free_routes([chosen],c):
         raise HTTPException(422,'Choose a different free model: this one just failed for this story.')
     why='a subscription limit' if projects.subscription_limit(c,latest) else 'a provider timeout or limit on its free model'
+    projects.timeout_gate(s,p,c,latest,body.acknowledge_timeout,identity,'another free model')
     manifest=json.loads(p.approved_manifest)
     manifest.setdefault('free_retries',{})[link.node_key]={'route':{'agent':'openclaw','model':body.model},
         'agent_target':body.agent_target,'source_run_id':latest.id,'approved_by':identity,'approved_at':projects.now()}

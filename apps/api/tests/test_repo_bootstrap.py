@@ -240,7 +240,7 @@ def test_the_planner_is_told_what_a_sandboxed_coding_agent_cannot_run():
     text = (pack / 'plan.txt').read_text()
     assert 'cannot reach the local container engine' in text and 'never assign a story to codex' in text
     assert 'verification story' in text and 'a human or to a read-only agent' in text
-    assert (pack / 'VERSION').read_text().strip() == '7'
+    assert int((pack / 'VERSION').read_text().strip()) >= 7
 
 
 def test_the_installation_summary_says_whether_github_writes_are_on_without_naming_repositories(make_client):

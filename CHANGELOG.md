@@ -10,6 +10,23 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.6.8] - 2026-10-16
+
+### Changed
+
+- The project consultant chat and the planner are told how project agents really work, so a brief written in chat plans well: edit versus read mode, coding agents
+  cannot run containers, a plain scratch folder is the simplest working directory for a demo, keep plans small, and what to do when a free model fails. Prompt pack
+  version 8; a planner prompt you edited under `roles/custom` is used as you wrote it.
+
+### Fixed
+
+- A returned plan can no longer leave a story that implements or writes documentation read-only. A free planner marked every story of a project Read, so none of them
+  could commit. RCD now sets such stories (and only those, never a human or review story) to Edit when the plan comes back, and says so in the project memory.
+- A story whose run timed out can be retried again. After a timeout the dispatcher refuses every new attempt (MCD cannot tell what the attempt changed or whether the
+  provider is still working), and nothing let you authorize one: Rerun, another free model, Haiku or Luna and Pay all queued the story and the dispatcher failed it
+  again with no run and no message. The project API now takes `acknowledge_timeout` on `retry`, `go-free`, `low-cost-retry` and `pay-retry`; it is required for a timed-out story (RCD's task panel has no retry buttons yet; MCD's shows a checkbox),
+  is recorded on the timed-out run and in the project ledger, and covers that run only. Without it the dispatcher still fails closed.
+
 ## [0.6.7] - 2026-10-16
 
 ### Added
@@ -393,7 +410,8 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 - Claude Code stories may use web search and fetch without any shell, credential or publish permission.
 
 [0.3.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.0
-[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.7...HEAD
+[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.8...HEAD
+[0.6.8]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.8
 [0.6.7]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.7
 [0.6.6]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.6
 [0.6.5]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.5
