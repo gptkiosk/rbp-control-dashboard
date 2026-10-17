@@ -10,6 +10,16 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.6.16] - 2026-10-17
+
+### Added
+
+- **Project types**: choose Web app, Packaged app or Website property when you create a project (RCD suggests one when the brief clearly fits). The planner is told the type's how-to and known failure points, and the plan review shows **Plan checks** for the type: whether there is a file verification story, a preview checkpoint before a human approves how something looks, the human sign-offs, and whether a story needs a container engine or generated media that an agent cannot supply. Warnings only; nothing blocks. Types are data files you can extend. `GET /api/project-types`, `POST /api/project-types/suggest`, `GET /api/projects/{id}/checks`. See `docs/configuration/project-types.md`.
+
+### Changed
+
+- **Delete project** now works only on a closed or completed project, so Close (and its cleanup) always comes first. A draft, review or failed project must be closed before it is deleted.
+
 ## [0.6.15] - 2026-10-17
 
 ### Fixed
@@ -472,7 +482,8 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 - Claude Code stories may use web search and fetch without any shell, credential or publish permission.
 
 [0.3.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.0
-[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.15...HEAD
+[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.16...HEAD
+[0.6.16]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.16
 [0.6.15]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.15
 [0.6.14]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.14
 [0.6.10]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.10

@@ -30,6 +30,7 @@ from agents import REGISTRY, SUBSCRIPTION_AGENTS
 import native_routes
 from role_pack import RoleStore, RoleError
 import project_outputs
+import project_types
 import project_schedule as schedule
 from settings import get_settings
 
@@ -826,7 +827,8 @@ def _planner_prompt(p,catalog=None,s=None,fresh=False):
     # Appended after substitution, so a user's own plan.txt keeps working without a new placeholder.
     extra=model_profiles.guidance_text(s,settings.data_dir,catalog) if s is not None else ''
     where=installation_text(s,settings) if s is not None else ''
-    return text+('\n\nThis installation:\n'+where if where else '')+('\n'+extra if extra else '')
+    typed=project_types.planner_section(document(p).get('project_type'),settings)
+    return text+('\n\n'+typed if typed else '')+('\n\nThis installation:\n'+where if where else '')+('\n'+extra if extra else '')
 
 
 def submit(s,p,action,settings,actor):
@@ -1059,13 +1061,13 @@ def _remove_cards(s,p,actor,note=True):
         memory(s,p,'decision',f'Removed {len(links)} task(s) of this closed project from the board. The run history of those tasks is deleted; this ledger keeps their handoff, incident and decision entries.',actor)
     return paths
 
-DELETABLE_STATES={'closed','complete','draft','review','planning_failed','dispatch_failed'}
+DELETABLE_STATES={'closed','complete'}
 
 def delete_project(s,p,settings):
-    """Remove a project that is not live, with everything the app keeps for it: its tasks and their run history, its ledger records, deliveries,
+    """Remove a closed or completed project, with everything the app keeps for it: its tasks and their run history, its ledger records, deliveries,
     standards proposals, the ledger file, saved outputs and any branch grants. The working folder and the files in it are NEVER touched. Project ids
     can be reused after a delete, so nothing keyed by the id may be left behind. Returns the run log paths to delete after commit, and what was kept."""
-    if p.state not in DELETABLE_STATES: fail('Close the project first. A project that is planning, dispatching, active or paused cannot be deleted.',409)
+    if p.state not in DELETABLE_STATES: fail('Close the project first, so its cleanup runs, then delete it. Only a closed or completed project can be deleted.',409)
     if running_stories(s,p): fail('Cancel the story that is running first, then delete the project.',409)
     pid=p.id;folder=document(p).get('working_dir')
     paths=_remove_cards(s,p,'delete',note=False)

@@ -1500,10 +1500,13 @@ def test_a_closed_project_can_be_deleted_with_everything_kept_for_it_but_never_t
     assert json.loads(grants.read_text())=={'99':{'clones':[]}}                                 # only this project's grants go
 
 
-def test_a_draft_project_can_be_deleted_and_a_live_one_cannot(app):
+def test_only_a_closed_or_completed_project_can_be_deleted(app):
     c,s,wd,settings=app
     draft=new(app,[node('a')])
-    assert c.post(f'/api/projects/{draft["id"]}/delete',json={'revision':1,'confirm':True}).status_code==200
+    assert c.post(f'/api/projects/{draft["id"]}/delete',json={'revision':1,'confirm':True}).status_code==409     # close it first
+    closed=c.post(f'/api/projects/{draft["id"]}/close',json={'revision':1,'reason':'Not needed'})
+    assert closed.status_code==200,closed.text
+    assert c.post(f'/api/projects/{draft["id"]}/delete',json={'revision':closed.json()['revision'],'confirm':True}).status_code==200
     assert c.get(f'/api/projects/{draft["id"]}').status_code==404
     live=active(app,[node('a')])
     for state in ('paused',):

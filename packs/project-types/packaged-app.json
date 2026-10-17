@@ -1,0 +1,25 @@
+{
+  "id": "packaged-app",
+  "label": "Packaged app (local install from a public GitHub release)",
+  "summary": "An application people install on their own machine from a signed package published as a GitHub release. Not cloud deployed. Examples: the Mac and Raspberry Pi control dashboards.",
+  "suggest": ["packaged app", "installable", "github release", "signed (package|release)", "local (install|deployment)", "\\bdmg\\b|\\.tar\\.gz", "raspberry pi", "launchd|systemd", "self.?update"],
+  "keys": ["agent", "github"],
+  "guides": ["packaged-app-delivery.md", "security.md", "practices.md"],
+  "planner_text": "This is a packaged app delivered as a signed package from a public GitHub release and installed locally; it is not cloud deployed. Plan the work as small stories with tests. The release flow is fixed and belongs to the operator's approval: changelog and version bump, a pull request with green CI, merge, tag, a package built and signed by the release workflow, verification of the checksum, signature and manifest, and publishing the verified draft. Agents prepare the code, tests, docs and changelog; they do not publish a release, hold a signing key or install onto the operator's machine. Plan a verification story that checks the built package, a human story to test an install and an update on the target hardware, and a human story that approves publishing. The update path, migrations and anything that touches the installer are high risk. No personal information, keys, hostnames or paths from the operator's machine may be in the packaged files. If the app has screens, add a verification story and a preview checkpoint before a human sign-off on how it looks.",
+  "failure_points": [
+    "The release is the operator's approval: an agent must not publish, sign or install; plan those as human stories.",
+    "Code that must run on older target Python versions needs a compile check for that version before it is pushed, or CI fails.",
+    "Personal information, keys, hostnames and local paths must never ship in a package; scan before release.",
+    "The update path is high risk; it needs a human install and update test on the target hardware.",
+    "Actions minutes cost money: batch non-blocking fixes and release only for a verified blocker.",
+    "A restart or upgrade of a running install must wait until nothing is running."
+  ],
+  "visual_checks": "Screens get a file-level verification story, then a preview checkpoint with screenshots or a local URL, then a human sign-off.",
+  "human_signoffs": ["Install and update test on the target hardware", "Approve publishing the verified release", "Anything touching the update path or installer", "How a screen looks (after a preview)"],
+  "checks": [
+    {"id": "release-is-human", "severity": "warn", "kind": "not_agent_for", "match": "publish (the )?(release|package)|sign (the )?(release|package|manifest)|install (on|onto) (the )?(operator|pi|mac|target)|rotate (the )?signing", "message": "Publishing, signing and installing belong to the operator. Make this a human story."},
+    {"id": "has-install-test", "severity": "warn", "kind": "has_story", "match": "install|update test|upgrade test", "assignee": "human", "message": "No human install or update test on the target hardware."},
+    {"id": "has-release-approval", "severity": "warn", "kind": "has_story", "match": "publish|release", "assignee": "human", "message": "No human story approves publishing the release."},
+    {"id": "package-check-before-publish", "severity": "warn", "kind": "order", "first": "verif|checksum|signature|manifest", "then": "publish|release", "message": "Publishing comes before any package verification story."}
+  ]
+}

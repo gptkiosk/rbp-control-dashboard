@@ -66,6 +66,8 @@ class Document(Strict):
     planner_model: str = Field(default='', max_length=120)
     planning_bias: int = Field(default=DEFAULT_PLANNING_BIAS, ge=0, le=100, strict=True)
     dispatch_mode: Literal['sequential','parallel'] = 'sequential'
+    # The kind of project (see project_types.py). Optional: a project without one is planned exactly as before.
+    project_type: str | None = Field(default=None, pattern=r'^[a-z0-9][a-z0-9-]{0,39}$')
     nodes: list[Node] = Field(default_factory=list, max_length=100)
 
 class Save(Strict):
