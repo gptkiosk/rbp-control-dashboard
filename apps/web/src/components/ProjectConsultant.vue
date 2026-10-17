@@ -4,7 +4,7 @@ import ChatConversation from '@/components/ChatConversation.vue'
 import AppSelect from '@/components/AppSelect.vue'
 import { getJson, postJson, type ChatThread, type ChatThreadDetail } from '@/lib/api'
 import type { Preferences } from '@/lib/profile'
-const props = defineProps<{ preferences?: Preferences; workdirs: {path:string;branch:string|null}[]; available: boolean; resumeId?: number }>()
+const props = defineProps<{ preferences?: Preferences; workdirs: {path:string;branch:string|null}[]; scratchRoot?: string | null; available: boolean; resumeId?: number }>()
 const emit = defineEmits<{ review: [draft:{title:string;brief:string;working_dir:string}]; started:[id:number] }>()
 const open=ref(false), threadId=ref(props.resumeId || 0), title=ref(''), goal=ref(''), workingDir=ref(''), busy=ref(false), error=ref('')
 const agent=computed(()=>props.preferences?.ai_agent || 'hermes')
@@ -17,7 +17,7 @@ onBeforeUnmount(()=>{if(timer)clearTimeout(timer)})
 async function start() {
   busy.value=true;error.value=''
   try {
-    const dir=workingDir.value || props.preferences?.working_dir || props.workdirs[0]?.path || ''
+    const dir=workingDir.value || props.scratchRoot || props.preferences?.working_dir || props.workdirs[0]?.path || ''
     if (!dir || !goal.value.trim() || !title.value.trim()) throw Error('Choose a workspace and add a name and initial goal.')
     if (!threadId.value) {
       const t=await postJson<ChatThread>('/api/chat/threads',{agent:agent.value,model:model.value,working_dir:dir,title:`Project consultant: ${title.value}`.slice(0,200),mode:'read'})
@@ -70,7 +70,7 @@ async function review() {
       <p v-if="busy && threadId" role="status" class="muted">Sending your goal to the consultant…</p>
       <form v-if="!threadId" @submit.prevent="start">
         <label>Project name<input v-model="title" class="input" maxlength="200" required /></label>
-        <label>Working directory<AppSelect v-model="workingDir" aria-label="Consultant working directory"><option value="">Profile or first allowed workspace</option><option v-for="w in workdirs" :key="w.path" :value="w.path">{{w.path}}</option></AppSelect></label>
+        <label>Working directory<AppSelect v-model="workingDir" aria-label="Consultant working directory"><option value="">{{ scratchRoot ? 'Scratch folder (recommended)' : 'Profile or first allowed workspace' }}</option><option v-for="w in workdirs" :key="w.path" :value="w.path">{{ w.path === scratchRoot ? 'Scratch folder (new, private to the project)' : w.path }}</option></AppSelect></label>
         <label>Initial goal<textarea v-model="goal" class="input" rows="4" maxlength="12000" required /></label>
         <button class="btn primary" :disabled="busy || !available">Start consultant conversation</button>
       </form>

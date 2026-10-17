@@ -251,7 +251,7 @@ def workdirs():
             continue
         for path in [root, *sorted(p for p in root.iterdir() if p.is_dir() and not p.name.startswith("."))]:
             out.append({"path": str(path), "branch": approval.current_branch(path), "root": str(root)})
-    return {"workdirs": out}
+    return {"workdirs": out, "scratch_root": str(projects.scratch_root(settings)) if projects.scratch_root(settings) else None}
 
 
 # ----------------------------------------------------------------------------- cards

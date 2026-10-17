@@ -164,8 +164,9 @@ one of these routes automatically. A successful retry still waits for handoff re
 
 ### Choosing the working directory
 
-A plain folder under an allowed root is the simplest working directory for a demo or prototype: every story shares that one folder in order, and there is no branch,
-branch grant, hook or commit rule to set up. Agents write files there and you review and keep them. Use a git repository as the working directory when the work must be
+A new project defaults to the **scratch area**: MCD creates a new private folder for it (`scratch-<name>-<time>` under the managed workspaces folder), every story shares
+that one folder in order, and there is no branch, branch grant, hook or commit rule to set up. Agents write files there and you review and keep them. Creating a project is a
+button push: name, brief, create. The planner, preference, build mode and working directory are under **Choices (the defaults work)**; the consultant chat uses the same default. Use a git repository as the working directory when the work must be
 committed on a branch; then the project needs a branch grant (`project-<id>/<slug>`) before agents can commit, and the checkout must stay on the approved branch.
 
 ### Retrying after a timeout

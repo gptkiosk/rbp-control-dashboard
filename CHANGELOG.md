@@ -10,6 +10,16 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.6.9] - 2026-10-16
+
+### Changed
+
+- Creating a project is a button push with defaults that work. The working directory now defaults to the scratch area: MCD makes a new private folder for the project, every
+  story shares it in order, and there is no repository, branch, branch grant or hook to set up (the usual source of a project that could not run). Name and brief are all the New
+  project dialog asks for; the planner, preference, build mode and working directory sit under **Choices (the defaults work)**. Choosing a repository folder is still a specific
+  choice and behaves as before, with a branch grant. The consultant chat defaults to the same scratch area, so a brief written in chat creates its folder automatically. The scratch
+  area is the managed workspaces folder, which is an allowed working-directory root by default.
+
 ## [0.6.8] - 2026-10-16
 
 ### Changed
@@ -410,7 +420,8 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 - Claude Code stories may use web search and fetch without any shell, credential or publish permission.
 
 [0.3.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.0
-[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.8...HEAD
+[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.9...HEAD
+[0.6.9]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.9
 [0.6.8]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.8
 [0.6.7]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.7
 [0.6.6]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.6

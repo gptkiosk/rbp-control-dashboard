@@ -1405,3 +1405,40 @@ def test_fix_implement_modes_leaves_human_review_and_edit_stories_alone():
         {'kind':'story','key':'i','assignee':'claude','mode':'read','work_kind':'implement','title':'Build it'}]}
     assert projects.fix_implement_modes(doc)==['Build it']
     assert [n['mode'] for n in doc['nodes']]==['read','read','read','edit','edit']
+
+
+def test_choosing_the_scratch_area_gives_the_project_its_own_private_folder_and_any_other_folder_is_kept(app):
+    """A project is a button push: the default working directory is a new private scratch folder, a repository folder is an explicit choice."""
+    c,s,wd,settings=app
+    root=settings.data_dir/'workspaces';root.mkdir(parents=True,exist_ok=True)
+    settings.workdir_roots=(wd.parent,root)
+    assert c.get('/api/workdirs').json()['scratch_root']==str(root)
+    mk=lambda title,dir:c.post('/api/projects',json={'title':title,'brief':'Build it.','working_dir':str(dir),'nodes':[]})
+    one=mk('Simple Business Website',root);two=mk('Simple Business Website',root)
+    assert one.status_code==201 and two.status_code==201,one.text
+    a,b=one.json()['document']['working_dir'],two.json()['document']['working_dir']
+    assert a!=b and Path(a).is_dir() and Path(b).is_dir() and Path(a).parent==root and Path(a).name.startswith('scratch-simple-business-website-')
+    assert oct(Path(a).stat().st_mode & 0o777)=='0o700'
+    kept=mk('Repository work',wd)                                                                         # a specific choice stays exactly as chosen
+    assert kept.status_code==201 and kept.json()['document']['working_dir']==str(wd)
+    assert Path(kept.json()['document']['working_dir']).name=='proj'
+    # saving a draft that still names the scratch area gets a folder too; one that already has its own folder keeps it
+    p=one.json()
+    saved=c.patch(f'/api/projects/{p["id"]}',json={'revision':p['revision'],'document':p['document']})
+    assert saved.status_code==200 and saved.json()['document']['working_dir']==a
+
+
+def test_a_failed_validation_does_not_leave_an_empty_scratch_folder_behind(app):
+    c,s,wd,settings=app
+    root=settings.data_dir/'workspaces';root.mkdir(parents=True,exist_ok=True)
+    settings.workdir_roots=(wd.parent,root)
+    before=set(root.iterdir())
+    r=c.post('/api/projects',json={'title':'Bad','brief':'x','working_dir':str(root),'nodes':[{'key':'a','title':'','kind':'nonsense'}]})
+    assert r.status_code>=400
+    assert set(root.iterdir())==before
+
+
+def test_when_the_scratch_area_is_not_an_allowed_root_the_directory_is_left_alone(app):
+    c,s,wd,settings=app
+    settings.workdir_roots=(wd.parent,)
+    assert c.get('/api/workdirs').json()['scratch_root'] is None

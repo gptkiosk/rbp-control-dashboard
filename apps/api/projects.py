@@ -568,8 +568,48 @@ def detail(s, p):
         'tasks':bindings, 'memory':[{'id':r.id,'kind':r.kind,'text':r.text,'actor':r.actor,
             'card_id':r.card_id,'run_id':r.run_id,'created_at':r.created_at} for r in records]}
 
+def scratch_root(settings):
+    """The managed folder that gives each new project a private working directory, when it is an allowed working-directory root."""
+    root = Path(settings.data_dir) / 'workspaces'
+    try:
+        mine = root.resolve()
+        return root if any(Path(r).expanduser().resolve() == mine for r in settings.workdir_roots) else None
+    except (OSError, RuntimeError):
+        return None
+
+def use_scratch(doc, settings):
+    """Choosing the scratch area itself, the default, gives the project a new private folder inside it. Every story shares that folder in order, with no
+    git repository, branch, grant or hook to set up. Choosing any other folder keeps that folder. Returns the document and the folder made, if any."""
+    root = scratch_root(settings)
+    wd = (doc.get('working_dir') or '').strip()
+    if root is None or not wd: return doc, None
+    try:
+        if Path(wd).expanduser().resolve() != root.resolve(): return doc, None
+    except (OSError, RuntimeError):
+        return doc, None
+    root.mkdir(parents=True, exist_ok=True, mode=0o700)
+    slug = re.sub(r'[^a-z0-9]+', '-', (doc.get('title') or 'project').lower()).strip('-')[:40] or 'project'
+    stamp = time.strftime('%Y%m%d-%H%M%S')
+    for n in range(1, 50):
+        path = root / (f'scratch-{slug}-{stamp}' + ('' if n == 1 else f'-{n}'))
+        try:
+            path.mkdir(mode=0o700)
+        except FileExistsError:
+            continue
+        return {**doc, 'working_dir': str(path)}, path
+    fail('A scratch folder could not be created. Choose a working directory instead.', 500)
+
+def _drop_empty(path):
+    try:
+        if path is not None: path.rmdir()
+    except OSError:
+        pass
+
 def create(s, doc, settings, actor):
-    data = validate(doc, settings)
+    doc, made = use_scratch(doc, settings)
+    try: data = validate(doc, settings)
+    except Exception:
+        _drop_empty(made); raise
     p = Project(document=json.dumps(data), revision=1, state='draft', created_by=actor, created_at=now(), updated_at=now())
     s.add(p); s.flush(); memory(s,p,'decision',f'Project created with story planning bias {data["planning_bias"]}/100. Planning prefers subscriptions; paid API planning requires approval.',actor)
     return p
@@ -577,7 +617,10 @@ def create(s, doc, settings, actor):
 def save(s, p, doc, revision, settings, actor):
     check_revision(p,revision)
     if p.state in BUSY: fail('This revision is in use. Finish or cancel its work before creating a new project; approved stories are immutable.')
-    data = validate(doc,settings)
+    doc, made = use_scratch(doc, settings)
+    try: data = validate(doc,settings)
+    except Exception:
+        _drop_empty(made); raise
     p.document=json.dumps(data); p.revision+=1; p.state='draft'; p.error=None; p.approved_manifest=None; p.pipeline=None
     memory(s,p,'decision',f'Plan saved as revision {p.revision}; story planning bias {data["planning_bias"]}/100. Preference is advisory; prior approval does not apply.',actor)
 
