@@ -289,7 +289,7 @@ def test_operator_retry_selects_only_reviewed_route_and_preserves_story(app):
     rejected=c.post(f'/api/projects/1/stories/{cid}/retry',json={'revision':1,'route':{'agent':'hermes','model':'anthropic/paid'}})
     assert rejected.status_code==422 and 'approved plan' in rejected.json()['detail']
     assert c.post(f'/api/projects/1/stories/{cid}/retry',json={'revision':2,'route':choice}).status_code==409
-    r=c.post(f'/api/projects/1/stories/{cid}/retry',json={'revision':1,'route':choice})
+    r=c.post(f'/api/projects/1/stories/{cid}/retry',json={'revision':1,'route':choice,'acknowledge_timeout':True})
     assert r.status_code==200,r.text
     after=c.get(f'/api/cards/{cid}').json()
     assert (after['agent'],after['model'],after['column'])==('claude','claude-haiku-5-5','queued')
@@ -362,7 +362,7 @@ def test_plain_retry_keeps_current_assignment_even_if_alternates_exist(app):
     p=active(app,[node('a',routes=[{'agent':'claude','model':'claude-haiku-5-5'}])])
     c,s,wd,settings=app;cid=next(t['card_id'] for t in p['tasks'] if t['role']=='story')
     finish(app,cid,stage='timeout',error='provider timeout')
-    assert c.post(f'/api/projects/1/stories/{cid}/retry',json={'revision':1}).status_code==200
+    assert c.post(f'/api/projects/1/stories/{cid}/retry',json={'revision':1,'acknowledge_timeout':True}).status_code==200
     after=c.get(f'/api/cards/{cid}').json()
     assert (after['agent'],after['model'])==('codex','gpt-6.1-sol')
 
@@ -1278,7 +1278,7 @@ def test_a_failed_openclaw_story_gets_other_free_models_and_cannot_pick_the_one_
     route=free_config(settings)
     settings.openclaw_config_path.write_text(json.dumps({'agents':{'defaults':{'models':{
         'openrouter/example/code:free':{},'openrouter/other/model:free':{}}},'list':[{'id':'mm-developer'}]}}))
-    rid=finish(app,cid,'',stage='timeout',error='OpenClaw provider timed out: the gateway reported an LLM request timeout.')
+    rid=finish(app,cid,'',stage='failed',error='OpenClaw provider timed out: the gateway reported an LLM request timeout.')
     task=next(t for t in c.get('/api/projects/1').json()['tasks'] if t['card_id']==cid)
     assert [r['model'] for r in task['free_retry_routes']]==['openrouter/other/model:free']                 # not the model that just timed out
     same=c.post(f'/api/projects/1/stories/{cid}/go-free',json={'revision':1,'run_id':rid,'model':route['model'],'agent_target':'mm-developer'})
@@ -1292,7 +1292,7 @@ def test_a_failed_story_can_be_retried_on_a_low_cost_subscription_model_and_opti
     n=dict(node('a'),assignee='openclaw',model='openrouter/example/code:free',agent_target='mm-developer',mode='read')
     p=active(app,[n]);c,s,wd,settings=app
     cid=next(t['card_id'] for t in p['tasks'] if t['node_key']=='a')
-    rid=finish(app,cid,'',stage='timeout',error='OpenClaw provider timed out')
+    rid=finish(app,cid,'',stage='failed',error='OpenClaw provider timed out')
     task=next(t for t in c.get('/api/projects/1').json()['tasks'] if t['card_id']==cid)
     assert {'agent':'claude','model':'claude-haiku-5-5'} in task['low_cost_routes'] and {'agent':'codex','model':'gpt-6-luna'} in task['low_cost_routes']
     base={'revision':1,'run_id':rid,'agent':'codex'}
@@ -1316,7 +1316,7 @@ def test_a_failed_story_can_be_retried_on_a_paid_model_only_with_acknowledgement
     p=active(app,[n,node('b',depends_on=['a'])]);c,s,wd,settings=app
     cid=next(t['card_id'] for t in p['tasks'] if t['node_key']=='a')
     free_config(settings)
-    rid=finish(app,cid,'',stage='timeout',error='OpenClaw provider timed out')
+    rid=finish(app,cid,'',stage='failed',error='OpenClaw provider timed out')
     task=next(t for t in c.get('/api/projects/1').json()['tasks'] if t['card_id']==cid)
     paid='openrouter/google/gemini-2.5-flash'
     assert [r['model'] for r in task['paid_retry_routes']]==[paid]                                          # configured, not free, not the Google BYOK list
@@ -1335,3 +1335,73 @@ def test_a_failed_story_can_be_retried_on_a_paid_model_only_with_acknowledgement
         assert {'agent':'openclaw','model':paid} in projects.approved_story_routes(db.get(Project,1),projects.binding(db,cid))
         assert db.scalar(select(ProjectMemory).where(ProjectMemory.text.like('%PAID retry%')))
         assert 'paid_retries' not in m or 'b' not in m['paid_retries']                                      # only this story
+
+
+def test_a_timed_out_story_is_retried_only_with_an_explicit_acknowledgement_and_then_really_dispatches(app):
+    """2026-10-16: after a provider timeout every retry was silently re-failed by the dispatcher; the operator had no way to authorize one."""
+    from models import RunEvent
+    n=dict(node('a'),assignee='openclaw',model='openrouter/example/code:free',agent_target='mm-developer')
+    c,s,wd,settings=app;init_repo(wd)
+    p=active(app,[n])
+    cid=next(t['card_id'] for t in p['tasks'] if t['node_key']=='a')
+    rid=finish(app,cid,'',stage='timeout',error='OpenClaw provider timed out')
+    r=c.post(f'/api/projects/1/stories/{cid}/retry',json={'revision':1})
+    assert r.status_code==422 and 'timed out' in r.json()['detail']                                      # no silent re-fail: the operator is told what to confirm
+    ok=c.post(f'/api/projects/1/stories/{cid}/retry',json={'revision':1,'acknowledge_timeout':True})
+    assert ok.status_code==200,ok.text
+    with s() as db:
+        ev=[e.text for e in db.scalars(select(RunEvent).where(RunEvent.run_id==rid,RunEvent.kind=='note'))]
+        assert any(t.startswith('RETRY_AUTHORIZED') for t in ev)
+    claimed=Dispatcher(s,settings)._claim(3)
+    assert [a['id'] for a,_ in claimed]==[cid]                                                          # the dispatcher now starts it instead of re-failing the card
+
+
+def test_an_unacknowledged_timeout_still_fails_closed_in_the_dispatcher_and_every_retry_path_needs_the_acknowledgement(app):
+    n=dict(node('a'),assignee='openclaw',model='openrouter/example/code:free',agent_target='mm-developer',mode='read')
+    p=active(app,[n]);c,s,wd,settings=app
+    init_repo(wd)
+    cid=next(t['card_id'] for t in p['tasks'] if t['node_key']=='a')
+    free_config(settings)
+    settings.openclaw_config_path.write_text(json.dumps({'agents':{'defaults':{'models':{'openrouter/example/code:free':{},'openrouter/other/model:free':{},'openrouter/google/gemini-2.5-flash':{}}},'list':[{'id':'mm-developer'}]}}))
+    rid=finish(app,cid,'',stage='timeout',error='OpenClaw provider timed out')
+    bodies={'go-free':{'revision':1,'run_id':rid,'model':'openrouter/other/model:free','agent_target':'mm-developer'},
+        'low-cost-retry':{'revision':1,'run_id':rid,'agent':'claude'},
+        'pay-retry':{'revision':1,'run_id':rid,'model':'openrouter/google/gemini-2.5-flash','agent_target':'mm-developer','acknowledge':True}}
+    for path,body in bodies.items():
+        r=c.post(f'/api/projects/1/stories/{cid}/{path}',json=body)
+        assert r.status_code==422 and 'timed out' in r.json()['detail'],(path,r.text)
+    # the dispatcher alone still refuses a timed-out story that nobody authorized
+    with s.begin() as db: db.get(Card,cid).column='queued'
+    assert Dispatcher(s,settings)._claim(3)==[]
+    with s() as db: assert db.get(Card,cid).column=='failed'
+    # with the acknowledgement a route change goes through and is recorded
+    ok=c.post(f'/api/projects/1/stories/{cid}/low-cost-retry',json={**bodies['low-cost-retry'],'acknowledge_timeout':True})
+    assert ok.status_code==200,ok.text
+
+
+def test_a_returned_plan_cannot_leave_an_implementation_story_read_only(app):
+    """2026-10-16: a free planner marked every story Read, including the ones that write and commit files; none of them could ever commit."""
+    p=new(app);c=app[0]
+    p=c.post('/api/projects/1/plan',json={'revision':1,'approve_coordination':True}).json()
+    selected=next(v for v in p['pipeline']['choices'] if v['agent']=='codex')
+    finish(app,p['pipeline']['card_id'],json.dumps({**selected,'rationale':'Fit'}));advance(app)
+    p=c.get('/api/projects/1').json()
+    nodes=[dict(node('impl'),work_kind='implement',mode='read'),dict(node('docs',depends_on=['impl']),work_kind='docs',mode='read'),
+           dict(node('check',depends_on=['docs']),work_kind='review',mode='read')]
+    finish(app,p['pipeline']['card_id'],json.dumps({'nodes':nodes}));advance(app)
+    p=c.get('/api/projects/1').json()
+    finish(app,p['pipeline']['card_id'],json.dumps({'nodes':nodes}));advance(app)
+    p=c.get('/api/projects/1').json();assert p['state']=='review'
+    modes={n['key']:n['mode'] for n in p['document']['nodes'] if n['kind']=='story'}
+    assert modes=={'impl':'edit','docs':'edit','check':'read'}                                           # only the review story stays read-only
+    assert any(m['kind']=='checkpoint' and 'from Read to Edit' in m['text'] for m in p['memory'])
+
+
+def test_fix_implement_modes_leaves_human_review_and_edit_stories_alone():
+    doc={'nodes':[{'kind':'phase','key':'p','mode':'read','work_kind':'implement'},
+        {'kind':'story','key':'h','assignee':'human','mode':'read','work_kind':'implement','title':'Human'},
+        {'kind':'story','key':'r','assignee':'codex','mode':'read','work_kind':'research','title':'Research'},
+        {'kind':'story','key':'e','assignee':'codex','mode':'edit','work_kind':'implement','title':'Done'},
+        {'kind':'story','key':'i','assignee':'claude','mode':'read','work_kind':'implement','title':'Build it'}]}
+    assert projects.fix_implement_modes(doc)==['Build it']
+    assert [n['mode'] for n in doc['nodes']]==['read','read','read','edit','edit']

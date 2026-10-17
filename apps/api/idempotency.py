@@ -4,6 +4,28 @@ from sqlalchemy import select
 from models import Run, RunEvent
 
 
+AUTHORIZED = "RETRY_AUTHORIZED"
+
+
+def timeout_retry_authorized(session, prior) -> bool:
+    return session.scalar(select(RunEvent.id).where(
+        RunEvent.run_id == prior.id, RunEvent.kind == "note", RunEvent.text.like(AUTHORIZED + "%")).limit(1)) is not None
+
+
+def authorize_timeout_retry(session, card, actor, now, how) -> int | None:
+    """Record that the operator reviewed the partial work of the card's latest timed-out run and authorized new attempts.
+    Only operator routes call this (agent processes cannot reach them), so an agent can never release the gate itself.
+    Returns the run id, or None when the latest run did not time out."""
+    prior = session.scalar(select(Run).where(Run.card_id == card.id).order_by(Run.id.desc()).limit(1))
+    if prior is None or prior.stage != "timeout":
+        return None
+    if not timeout_retry_authorized(session, prior):
+        session.add(RunEvent(run_id=prior.id, ts=now, kind="note", text=(
+            f"{AUTHORIZED}: {actor} reviewed the partial work of run #{prior.id} and authorized a new attempt ({how}). "
+            "The earlier attempt may have changed files or may still be running at the provider.")))
+    return prior.id
+
+
 def refuse_timeout_retry(session, card, now) -> bool:
     """Called under the dispatcher's claim transaction, before creating another Run.
 
@@ -14,7 +36,7 @@ def refuse_timeout_retry(session, card, now) -> bool:
     """
     prior = session.scalar(select(Run).where(Run.card_id == card.id)
                            .order_by(Run.id.desc()).limit(1))
-    if prior is None or prior.stage != "timeout":
+    if prior is None or prior.stage != "timeout" or timeout_retry_authorized(session, prior):
         return False
     key = getattr(prior, "idempotency_key", None) or f"mcd:run:{prior.id}"
     card.column, card.updated_at = "failed", now

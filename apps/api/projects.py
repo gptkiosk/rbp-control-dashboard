@@ -79,6 +79,17 @@ def subscription_model(agent, bias, *, planner=False):
         return 'claude-haiku-5-5' if agent == 'claude' else 'gpt-6-luna'
     return 'claude-opus-5-5' if agent == 'claude' else REGISTRY['codex'].default_model() or 'gpt-6.1-sol'
 
+def timeout_gate(s, p, card, run, acknowledged, actor, how):
+    """After a timeout MCD cannot tell what the attempt changed or whether it is still running, so the dispatcher refuses every new attempt until the
+    operator says they reviewed the partial work. This is that statement: required, recorded on the run, and good for the new attempt only."""
+    if not run or run.stage != 'timeout': return
+    if not acknowledged:
+        fail('The last attempt timed out, and MCD cannot tell what it changed or whether it is still running. Review its partial work, then retry with the timeout acknowledgement.', 422)
+    import idempotency
+    idempotency.authorize_timeout_retry(s, card, actor, now(), how)
+    memory(s, p, 'decision',
+           f'Operator reviewed the partial work of timed-out run #{run.id} and authorized a new attempt on story #{card.id} ({how}).', actor, card.id, run.id)
+
 LOW_COST_AGENTS = ('claude', 'codex')
 
 def low_cost_routes(s, settings):
@@ -97,6 +108,7 @@ def low_cost_retry(s, p, card_id, data, settings, actor):
         fail('A low-cost retry needs the current failed run of an agent story in an active project.')
     route = next((r for r in low_cost_routes(s, settings) if r['agent'] == data.agent), None)
     if not route: fail('That subscription agent is not installed or is not billed as a subscription.')
+    timeout_gate(s, p, card, run, data.acknowledge_timeout, actor, 'low-cost subscription retry')
     edit = card.mode == 'read' and data.edit_mode
     if edit and not data.acknowledge: fail('Acknowledge the switch from read-only review to workspace execution.', 422)
     if (card.agent, card.model or '') == (route['agent'], route['model']) and not edit:
@@ -447,6 +459,7 @@ def pay_retry(s,p,card_id,data,settings,actor):
             not card or card.assignee_type!='agent' or card.column!='failed' or not run or run.id!=data.run_id or run.stage not in RETRYABLE_STAGES):
         fail('A paid retry needs the current failed run of an agent story in an active project.')
     if not data.acknowledge: fail('Acknowledge that this run uses API billing for this story only.',422)
+    timeout_gate(s,p,card,run,data.acknowledge_timeout,actor,'paid retry')
     chosen={'agent':'openclaw','model':data.model,'agent_target':data.agent_target}
     if chosen not in paid_retry_routes(settings):
         fail('Choose a configured OpenClaw target and an OpenRouter model that is not free. Google BYOK routes are not offered here.',422)
@@ -815,6 +828,15 @@ def _story_data(p,d,n,std=None):
         'tags':[f'project {p.id}','project story',*job_envelope.standard_tags(f'p{p.id}r{p.revision}',n.get('work_kind'),n.get('size'),n.get('risk'),
             job_envelope.tier_for('human' if n['assignee']=='human' else 'agent',None if n['assignee']=='human' else n['assignee'],n['model'] or None),n.get('area') or None)]}
 
+def fix_implement_modes(proposed):
+    """A story that implements or writes documentation must be able to write files. A plan that says so in work_kind but leaves the mode on read (a
+    free planner did this to every story of a project) could never commit, so the mode becomes edit and the operator is told. Returns the titles."""
+    fixed=[]
+    for n in proposed.get('nodes',[]):
+        if n.get('kind')=='story' and n.get('assignee')!='human' and n.get('work_kind') in {'implement','docs'} and n.get('mode')=='read':
+            n['mode']='edit';fixed.append(n.get('title',n.get('key','')))
+    return fixed
+
 def usable_dispatch_order(order,nodes,all_nodes):
     """The order stories are created in, and a note when Hermes' answer was not used as given.
     Hermes' order only chooses between orders the approved dependencies already allow, so it is advice: a phase key or a repeated key in it is ignored, and an answer that
@@ -906,11 +928,13 @@ def advance(s,settings):
                 elif step=='return':
                     if not isinstance(data,dict) or set(data)!={'nodes'}: fail('Delegator response must contain only nodes.',422)
                     proposed=proposal(document(p),data['nodes'],settings)
+                    fixed_modes=fix_implement_modes(proposed)
                     p.document=json.dumps(proposed);p.revision+=1;p.state='review'
                     try: scorecard.record_returned(s,p,proposed['nodes'],settings,pipeline.get('chosen'),{'agent':r.agent,'model':r.model_reported or r.model_requested})
                     except Exception: pass   # a scorecard problem must never block planning
                     p.pipeline=None
                     memory(s,p,'proposal',f'Delegator returned editable map revision {p.revision}; operator review required.',r.agent,r.card_id,r.id)
+                    if fixed_modes: memory(s,p,'checkpoint','MCD set '+str(len(fixed_modes))+' implementation or documentation stor'+('y' if len(fixed_modes)==1 else 'ies')+' from Read to Edit mode, because a story that writes files cannot run read-only: '+'; '.join(t[:60] for t in fixed_modes[:12])+'. Review each story\'s Mode before submitting.','mcd',r.card_id,r.id)
                 elif step=='dispatch': _materialize(s,p,data.get('order'),settings)
                 else: fail('Unknown project pipeline stage.',422)
         except (HTTPException,ValidationError,ValueError,TypeError,AttributeError) as exc:
