@@ -124,3 +124,26 @@ it('asks once with the total, then makes one request per missing slot with the c
   expect(sent.every(b => b.tier === 'premium' && b.count === 1 && b.confirm_spend === true && b.working_dir === '/ws/site')).toBe(true)
   confirmSpy.mockRestore(); w.unmount()
 })
+it('shows each candidate as a thumbnail or video you can open, from the operator-only viewer', async () => {
+  const f = stubFetch((u, init) => {
+    if (u === '/api/media/folders') return { body: { folders: [{ path: '/ws/site', name: 'site' }] } }
+    if (u.startsWith('/api/media/slots')) return { body: { working_dir: '/ws/site', slots: [slot({ name: 'hero-still', candidates: ['hero-still-1.png', 'hero-still-2.png'] }), slot({ name: 'hero', kind: 'video', plans: veo, candidates: ['hero-1.mp4'] })] } }
+    if (u === '/api/media/ledger') return { body: { runs: 0, done: 0, estimated_usd: 0, rows: [], note: 'n' } }
+    void init
+  })
+  const w = mount(MediaGeneratePanel, { props: { keySaved: true } })
+  await flushPromises()
+  const imgs = w.get('[data-slot=hero-still]').findAll('img')
+  expect(imgs.map(i => i.attributes('src'))).toEqual([
+    '/api/media/candidate?working_dir=%2Fws%2Fsite&name=hero-still-1.png',
+    '/api/media/candidate?working_dir=%2Fws%2Fsite&name=hero-still-2.png',
+  ])
+  expect(w.get('[data-slot=hero-still] a').attributes('href')).toBe(imgs[0]!.attributes('src'))        // opens full size
+  expect(w.get('[data-slot=hero-still] a').attributes('target')).toBe('_blank')
+  const video = w.get('[data-slot=hero] video')
+  expect(video.attributes('src')).toBe('/api/media/candidate?working_dir=%2Fws%2Fsite&name=hero-1.mp4')
+  expect(video.attributes('controls')).toBeDefined()
+  expect(w.get('[data-slot=hero]').findAll('img')).toHaveLength(0)
+  void f
+  w.unmount()
+})

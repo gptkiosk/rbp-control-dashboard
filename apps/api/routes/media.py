@@ -1,8 +1,10 @@
 """Operator-run media generation: MCD calls fal with the saved key; the project folder is only data."""
+import re
 import shutil
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.orm import Session
 
@@ -56,7 +58,7 @@ def slots(working_dir: str, request: Request, s: Session = Depends(get_session))
     for slot in items.values():
         folder = "video" if slot["kind"] == "video" else "img"
         published = mg.inside(root, f"assets/{folder}/{slot['name']}." + ("mp4" if slot["kind"] == "video" else "jpg")) is not None
-        candidates = sorted(p.name for p in (root / "media" / "candidates").glob(slot["name"] + "-*") if p.suffix != ".json") if (root / "media" / "candidates").is_dir() else []
+        candidates = sorted(p.name for p in (root / "media" / "candidates").iterdir() if mg.candidate_of(slot["name"], p.name)) if (root / "media" / "candidates").is_dir() else []
         needs = [n for n in (slot.get("from_still"), slot.get("first_still"), slot.get("last_still")) if n]
         waiting = [n for n in needs if mg.inside(root, f"assets/img/{n}.jpg") is None]
         out.append({"name": slot["name"], "kind": slot["kind"], "world": slot.get("world"), "purpose": slot.get("purpose", ""), "prompt": slot["prompt"],
@@ -118,6 +120,23 @@ def ledger(request: Request):
             "note": "Estimates come from listed or your own prices and are not invoices; fal's billing page is authoritative."}
 
 
+@router.get("/candidate")
+def candidate(working_dir: str, name: str, request: Request):
+    """One candidate file, so the panel can show it for a visual decision. Operator-only; only `<slot>-<number>.<media>` files inside media/candidates."""
+    operator(request)
+    try:
+        root = mg.project_root(get_settings(), working_dir)
+    except mg.MediaError as exc:
+        fail(exc)
+    slot = re.sub(r"-\d+\.[a-z0-9]+$", "", name)
+    if Path(name).name != name or not mg.SLOT_RE.fullmatch(slot) or not mg.candidate_of(slot, name):
+        raise HTTPException(404, "No such candidate.")
+    path = mg.candidate_file(root, name)
+    if path is None:
+        raise HTTPException(404, "No such candidate.")
+    return FileResponse(path, media_type=mg.CANDIDATE_TYPES[path.suffix], headers={"Cache-Control": "private, max-age=300", "Content-Disposition": "inline"})
+
+
 class PickIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
     working_dir: str = Field(max_length=500)
@@ -135,10 +154,10 @@ def pick(body: PickIn, request: Request):
         slot = mg.load_slots(root).get(body.slot)
     except mg.MediaError as exc:
         fail(exc)
-    if slot is None or Path(body.candidate).name != body.candidate or not body.candidate.startswith(body.slot + "-"):
+    if slot is None or Path(body.candidate).name != body.candidate or not mg.candidate_of(body.slot, body.candidate):
         raise HTTPException(422, "Choose one of this slot's candidates.")
-    source = mg.inside(root, f"media/candidates/{body.candidate}")
-    if source is None or source.suffix == ".json" or source.stat().st_size == 0:
+    source = mg.candidate_file(root, body.candidate)
+    if source is None:
         raise HTTPException(404, "That candidate no longer exists.")
     inbox = root / "media" / "inbox"
     inbox.mkdir(parents=True, exist_ok=True)
