@@ -18,7 +18,9 @@ const jobs = ref<Job[]>([])
 const confirm = ref(false), error = ref(''), busy = ref(false)
 // Feedback belongs beside the button that was pressed, not at the bottom of a long panel.
 const note = ref<Record<string, { ok: boolean; text: string }>>({}), working = ref<Record<string, boolean>>({})
-const ledger = ref<{ runs: number; done: number; estimated_usd: number; note: string } | null>(null)
+const ledger = ref<{ runs: number; done: number; estimated_usd: number; unpriced: number; repeats: number; repeat_usd: number; note: string } | null>(null)
+// A slot that already has generations waiting for review is not paid for again unless the operator says so outright.
+const offerTake = ref<Record<string, boolean>>({})
 let timer: ReturnType<typeof setInterval> | undefined
 const money = (v: number | null) => (v === null ? 'price not listed' : `about $${v.toFixed(2)}`)
 async function loadFolders() {
@@ -27,10 +29,10 @@ async function loadFolders() {
 async function loadSlots() {
   if (!folder.value) { slots.value = []; return }
   try {
-    const data = await getJson<{ slots: Slot[]; summary?: Summary }>(`/api/media/slots?working_dir=${encodeURIComponent(folder.value)}`)
+    const data = await getJson<{ slots: Slot[]; summary?: Summary; default_tiers?: Partial<Record<'image' | 'video', Tier>> }>(`/api/media/slots?working_dir=${encodeURIComponent(folder.value)}`)
     slots.value = data.slots
     summary.value = data.summary ?? null
-    for (const s of data.slots) { tier.value[s.name] ||= 'standard'; count.value[s.name] ||= 1 }
+    for (const s of data.slots) { tier.value[s.name] ||= data.default_tiers?.[s.kind] || 'standard'; count.value[s.name] ||= 1 }
   } catch (e) { error.value = e instanceof Error ? e.message : String(e); slots.value = [] }
 }
 async function loadLedger() { try { ledger.value = await getJson('/api/media/ledger') } catch { ledger.value = null } }
@@ -41,36 +43,45 @@ const review = computed(() => slots.value.filter(s => !s.published && !s.skipped
 const todo = computed(() => slots.value.filter(s => !s.published && !s.skipped && s.candidates.length === 0))
 const eligible = computed(() => todo.value.filter(s => s.waiting_for_stills.length === 0))
 const stillWaiting = computed(() => todo.value.filter(s => s.waiting_for_stills.length > 0).length)
-const batchTier = ref<Tier>('standard')
+// 'each' uses the tier already chosen on every slot (a website's background clips start on the cheapest video tier); a named tier overrides all of them.
+const batchTier = ref<Tier | 'each'>('each')
+const tierFor = (s: Slot): Tier => (batchTier.value === 'each' ? (tier.value[s.name] || 'standard') : batchTier.value)
 const batch = computed(() => {
   let total = 0, unknown = 0
-  for (const s of eligible.value) { const e = s.plans[batchTier.value].estimate_usd; if (e === null) unknown++; else total += e }
+  for (const s of eligible.value) { const e = s.plans[tierFor(s)].estimate_usd; if (e === null) unknown++; else total += e }
   return { total, unknown }
 })
 const unfinished = computed(() => jobs.value.filter(j => j.state === 'queued' || j.state === 'running').length)
 function queue(slot: string, ids: string[]) { for (const id of ids) jobs.value.push({ id, state: 'queued', progress: '', slot, error: null, files: [] }) }
 async function generateAll() {
   if (!confirm.value || busy.value || !eligible.value.length) return
-  const n = eligible.value.length, tierName = batchTier.value
+  const n = eligible.value.length, tierName = batchTier.value === 'each' ? 'chosen' : batchTier.value
   const price = batch.value.unknown ? `about $${batch.value.total.toFixed(2)} plus ${batch.value.unknown} with no listed price` : `about $${batch.value.total.toFixed(2)}`
   if (!window.confirm(`Generate ${n} item${n === 1 ? '' : 's'} at the ${tierName} tier? Estimated cost ${price}. This spends from your fal account and cannot be undone; fal's invoice is the truth.`)) return
   busy.value = true; error.value = ''
   try {
-    for (const s of eligible.value) queue(s.name, (await postJson<{ jobs: string[] }>('/api/media/generate', { working_dir: folder.value, slot: s.name, tier: tierName, count: 1, confirm_spend: true })).jobs)
+    for (const s of eligible.value) queue(s.name, (await postJson<{ jobs: string[] }>('/api/media/generate', { working_dir: folder.value, slot: s.name, tier: tierFor(s), count: 1, confirm_spend: true })).jobs)
     poll()
   } catch (e) { error.value = e instanceof Error ? e.message : String(e); if (jobs.value.length) poll() } finally { busy.value = false }
 }
 const candidateUrl = (name: string) => `/api/media/candidate?working_dir=${encodeURIComponent(folder.value)}&name=${encodeURIComponent(name)}`
 const isVideo = (name: string) => /\.(mp4|webm)$/i.test(name)
 function estimate(s: Slot) { const e = s.plans[tier.value[s.name] || 'standard'].estimate_usd; return e === null ? null : e * (count.value[s.name] || 1) }
-async function generate(s: Slot) {
+async function generate(s: Slot, anotherTake = false) {
   if (!confirm.value || busy.value) return
-  busy.value = true; note.value[s.name] = { ok: true, text: 'Requested. It appears here when fal finishes (about a minute for an image, a few for a clip).' }
+  const n = count.value[s.name] || 1, price = money(estimate(s))
+  if (!window.confirm(`Generate ${n} for ${s.name} at the ${tier.value[s.name] || 'standard'} tier? Estimated cost ${price}. This spends from your fal account.`)) return
+  busy.value = true; offerTake.value[s.name] = false
+  note.value[s.name] = { ok: true, text: 'Requested. It appears here when fal finishes (about a minute for an image, a few for a clip).' }
   try {
-    queue(s.name, (await postJson<{ jobs: string[] }>('/api/media/generate', { working_dir: folder.value, slot: s.name, tier: tier.value[s.name] || 'standard', count: count.value[s.name] || 1, confirm_spend: true })).jobs)
+    queue(s.name, (await postJson<{ jobs: string[] }>('/api/media/generate', { working_dir: folder.value, slot: s.name, tier: tier.value[s.name] || 'standard', count: n, confirm_spend: true, ...(anotherTake ? { another_take: true } : {}) })).jobs)
     more.value[s.name] = false
     poll()
-  } catch (e) { note.value[s.name] = { ok: false, text: e instanceof Error ? e.message : String(e) } } finally { busy.value = false }
+  } catch (e) {
+    const text = e instanceof Error ? e.message : String(e)
+    offerTake.value[s.name] = /Another take/.test(text)
+    note.value[s.name] = { ok: false, text }
+  } finally { busy.value = false }
 }
 async function refreshJobs() {
   let changed = false
@@ -137,7 +148,7 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
       <strong>Generate everything not made yet</strong>
       <span class="muted small">{{ eligible.length }} ready<template v-if="stillWaiting">, {{ stillWaiting }} more need an approved still first</template>. Slots you have already made or published are never regenerated here.</span>
       <div class="controls">
-        <select v-model="batchTier" class="input" aria-label="Tier for all"><option value="draft">draft (cheapest)</option><option value="standard">standard</option><option value="premium">premium</option></select>
+        <select v-model="batchTier" class="input" aria-label="Tier for all"><option value="each">each slot's own tier</option><option value="draft">draft (cheapest)</option><option value="standard">standard</option><option value="premium">premium</option></select>
         <span class="small">{{ eligible.length ? (batch.unknown ? `about $${batch.total.toFixed(2)} plus ${batch.unknown} with no listed price` : `about $${batch.total.toFixed(2)}`) : 'nothing to generate' }}</span>
         <button type="button" class="btn primary" :disabled="!keyOk || !confirm || busy || !eligible.length" @click="generateAll">Generate all missing</button>
       </div>
@@ -166,6 +177,7 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
         <button type="button" class="btn primary" :disabled="!keyOk || !confirm || busy" @click="generate(s)">Generate</button>
       </div>
       <p v-if="note[s.name]" class="small" :class="note[s.name]!.ok ? 'ok-text' : 'error-text'" :role="note[s.name]!.ok ? 'status' : 'alert'" :data-note="s.name">{{ note[s.name]!.text }}</p>
+      <button v-if="offerTake[s.name]" type="button" class="btn" :disabled="busy" :aria-label="`Another take for ${s.name}`" @click="generate(s, true)">Another take (spends again)</button>
     </div>
 
     <h4 v-if="todo.length" class="group">Not made yet ({{ todo.length }})</h4>
@@ -183,6 +195,7 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
         <button type="button" class="btn" :disabled="working[s.name]" :aria-label="`Skip ${s.name}`" @click="decide(s, 'skip')">Skip: use the fallback</button>
       </div>
       <p v-if="note[s.name]" class="small" :class="note[s.name]!.ok ? 'ok-text' : 'error-text'" :role="note[s.name]!.ok ? 'status' : 'alert'" :data-note="s.name">{{ note[s.name]!.text }}</p>
+      <button v-if="offerTake[s.name]" type="button" class="btn" :disabled="busy" :aria-label="`Another take for ${s.name}`" @click="generate(s, true)">Another take (spends again)</button>
     </div>
 
     <h4 v-if="skipped.length" class="group">Skipped ({{ skipped.length }})</h4>
@@ -207,13 +220,14 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
         <button type="button" class="btn primary" :disabled="!keyOk || !confirm || busy" @click="generate(s)">Generate</button>
       </div>
       <p v-if="note[s.name]" class="small" :class="note[s.name]!.ok ? 'ok-text' : 'error-text'" :role="note[s.name]!.ok ? 'status' : 'alert'" :data-note="s.name">{{ note[s.name]!.text }}</p>
+      <button v-if="offerTake[s.name]" type="button" class="btn" :disabled="busy" :aria-label="`Another take for ${s.name}`" @click="generate(s, true)">Another take (spends again)</button>
     </div>
 
     <ul v-if="jobs.length" class="jobs" aria-live="polite">
       <li v-for="j in jobs" :key="j.id">{{ j.slot }}: {{ j.state }}<template v-if="j.progress && j.state !== 'done'"> ({{ j.progress }})</template><template v-if="j.error"> · {{ j.error }}</template></li>
     </ul>
     <p v-if="error" class="error-text" role="alert">{{ error }}</p>
-    <p v-if="ledger" class="muted small">{{ ledger.done }} of {{ ledger.runs }} runs finished; estimated spend about ${{ ledger.estimated_usd.toFixed(2) }}. {{ ledger.note }}</p>
+    <p v-if="ledger" class="muted small">{{ ledger.done }} of {{ ledger.runs }} runs finished; estimated spend up to about ${{ ledger.estimated_usd.toFixed(2) }}<template v-if="ledger.repeats">, of which {{ ledger.repeats }} {{ ledger.repeats === 1 ? 'was a repeat' : 'were repeats' }} of a slot already generated (about ${{ ledger.repeat_usd.toFixed(2) }})</template><template v-if="ledger.unpriced">; {{ ledger.unpriced }} {{ ledger.unpriced === 1 ? 'run has' : 'runs have' }} no price and {{ ledger.unpriced === 1 ? 'is' : 'are' }} not counted</template>. {{ ledger.note }}</p>
   </section>
 </template>
 <style scoped>

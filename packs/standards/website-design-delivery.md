@@ -6,7 +6,7 @@ Lessons from a two-theme site with generated media. Apply them before the first 
 - Put the owner's product facts in the brief: which products are live (real addresses) and which are beta. Never write "coming soon" for something live; update tests that encoded the old assumption.
 
 ## One visual language
-- Pick one style per kind of picture and state it in DESIGN.md. Hero, cards and vignettes are all photographic stills from one world, or all illustration; never a mix. Generate the hero still first, approve it, then give it to every other slot as the style reference and say "same world as the hero image" in each prompt.
+- Pick one style per kind of picture and state it in DESIGN.md. Hero, cards and every vignette (about, contact too) are photographic stills from one world, or all illustration; never a mix. Drawn SVGs are fallbacks only. Generate the hero still first, approve it, then give it to every other slot as the style reference and say "same world as the hero image" in each prompt.
 - Cards are 16:9 across the top of the card, not squares. Clips are wide establishing shots; a close-up or macro clip reads as a crop of rust. An ambient loop is a low-opacity blended texture over a still, never the picture itself.
 
 ## Layout rules that broke before

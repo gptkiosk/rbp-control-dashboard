@@ -10,6 +10,16 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+### Fixed
+
+- Media spend was under-reported: Veo clips had no price, so only images were counted (about $2 against $16.88 on fal's own usage table). Every model now has a price checked against fal's billing, 2K pictures are priced at 1.5 units, and a run with no price is shown as unpriced instead of zero.
+- Double generation: a slot with generations still waiting for review is no longer generated again unless you choose Another take, the panel confirms each request with its estimated cost, and the spend line shows how many runs were repeats.
+
+### Added
+
+- MiniMax H3 Max and H3 Max Turbo clip models (text to video, image to video, and start-and-end-still transitions), about a fifth to a half of Veo's cost. They are the standard and draft video tiers; Veo 3.1 is the premium tier. Add `minimax/h3-max*` to the fal key's allowed models.
+- Project types can set the media tier the panel starts on. A website's background clips start on the cheapest video tier.
+
 ### Added
 
 - A website design guide ("Making a stylized website that needs little adjustment") that the website property type hands to its planner and agents: one visual language (the approved hero still is the style reference for every other picture), 16:9 photographic cards, wide establishing clips with the ambient loop as a texture, layout rules that broke on a real site, and a responsive review at eight widths in both themes. The type gained matching failure points, planner text and a plan check for the responsive review. A companion guide records the starting spacing, sizing and timing values (1.5 second theme crossing, header and card sizes, breakpoints) for the design direction story to carry into DESIGN.md as tokens, plus the collapsible phone menu and em media-query rules.

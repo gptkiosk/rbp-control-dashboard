@@ -128,10 +128,12 @@ def test_a_folder_with_slots_is_listed_with_prices_for_each_tier(env):
     by = {s["name"]: s for s in data["slots"]}
     assert by["hero-still"]["plans"]["draft"]["endpoint"] == "fal-ai/nano-banana-2/edit"
     assert by["hero-still"]["plans"]["premium"]["endpoint"] == "fal-ai/nano-banana-pro/edit"
-    assert by["hero-still"]["plans"]["standard"]["estimate_usd"] == 0.08
-    assert by["hero-clip"]["plans"]["draft"]["estimate_usd"] == 0.35               # 5 s at $0.07
-    assert by["hero-clip"]["plans"]["standard"]["estimate_usd"] is None             # Veo is not listed: never invented
-    assert by["plate"]["plans"]["standard"]["endpoint"] == "fal-ai/veo3.1/first-last-frame-to-video"
+    assert by["hero-still"]["plans"]["standard"]["estimate_usd"] == 0.12        # 2K is 1.5 units of $0.08
+    assert by["hero-clip"]["plans"]["draft"]["estimate_usd"] == 0.2                # 5 s of MiniMax Turbo at $0.04: the shortest clip the slot can use
+    assert by["hero-clip"]["plans"]["standard"]["estimate_usd"] == 0.4            # 5 s of MiniMax H3 Max at $0.08
+    assert by["hero-clip"]["plans"]["premium"]["estimate_usd"] == 3.2             # 8 s of Veo 3.1 (not fast) at $0.40 is the dear tier, shown before anything is spent
+    assert by["plate"]["plans"]["standard"]["endpoint"] == "minimax/h3-max/image-to-video"
+    assert by["plate"]["plans"]["premium"]["endpoint"] == "fal-ai/veo3.1/first-last-frame-to-video"
     assert by["hero-clip"]["waiting_for_stills"] == []
 
 
@@ -139,15 +141,16 @@ def test_a_clip_run_calls_fal_with_the_saved_key_and_saves_a_candidate(env):
     client, folder = env
     r = run_and_wait(client, {"working_dir": str(folder), "slot": "hero-clip", "tier": "draft"})
     posts = [e for e in FakeFal.log if e[0] == "POST"]
-    assert posts[0][1] == "/fal-ai/kling-video/v2.5-turbo/pro/image-to-video"
+    assert posts[0][1] == "/minimax/h3-max-turbo/image-to-video"
     assert posts[0][2] == "Key " + FAL
     assert posts[0][3]["image_url"].startswith("data:image/")
+    assert posts[0][3]["duration"] == 5.0 and posts[0][3]["resolution"] == "768P" and "end_image_url" not in posts[0][3]
     downloads = [e for e in FakeFal.log if e[1].startswith("/files/")]
     assert downloads and all(e[2] is None for e in downloads)                       # no key on the download
-    assert r.json()["estimate_usd_each"] == 0.35
+    assert r.json()["estimate_usd_each"] == 0.2
     assert (folder / "media" / "candidates" / "hero-clip-1.mp4").stat().st_size > 0
     side = json.loads((folder / "media" / "candidates" / "hero-clip-1.json").read_text())
-    assert side["model"] == "fal-ai/kling-video/v2.5-turbo/pro/image-to-video" and side["tool"].startswith("fal")
+    assert side["model"] == "minimax/h3-max-turbo/image-to-video" and side["tool"].startswith("fal")
     job = client.get(f"/api/media/jobs/{r.json()['jobs'][0]}").json()
     assert job["state"] == "done" and job["files"][0]["path"] == "media/candidates/hero-clip-1.mp4"
 
@@ -165,7 +168,7 @@ def test_the_ledger_records_each_run_with_an_estimate_and_a_total(env):
     client, folder = env
     run_and_wait(client, {"working_dir": str(folder), "slot": "hero-still", "count": 2})
     ledger = client.get("/api/media/ledger").json()
-    assert ledger["done"] == 2 and ledger["estimated_usd"] == 0.16
+    assert ledger["done"] == 2 and ledger["estimated_usd"] == 0.24 and ledger["unpriced"] == 0
     assert ledger["rows"][0]["endpoint"] == "fal-ai/nano-banana-2/edit" and ledger["rows"][0]["request_id"] == "req-1"
     assert "not invoices" in ledger["note"]
 
@@ -279,7 +282,7 @@ def test_each_still_is_made_in_its_own_shape_unless_one_is_asked_for(env):
         body = [e for e in FakeFal.log if e[0] == "POST"][0][3]
         assert body["aspect_ratio"] == expected, (name, body["aspect_ratio"])
     FakeFal.log = []
-    run_and_wait(client, {"working_dir": str(folder), "slot": "card-x", "aspect": "4:5"})
+    run_and_wait(client, {"working_dir": str(folder), "slot": "card-x", "aspect": "4:5", "another_take": True})
     assert [e for e in FakeFal.log if e[0] == "POST"][0][3]["aspect_ratio"] == "4:5"                 # an explicit choice still wins
 
 
@@ -511,3 +514,59 @@ def test_a_journaled_job_that_cannot_be_resumed_is_marked_failed_not_retried(env
     assert mg.journal_open(get_settings()) == []
     assert [e for e in FakeFal.log if e[0] == "POST"] == []                                               # never resubmitted
     assert any(r.get("recovered") and r["status"] == "failed" for r in client.get("/api/media/ledger").json()["rows"])
+
+
+def test_a_slot_with_generations_waiting_for_review_is_not_paid_for_again_unless_asked(env):
+    client, folder = env
+    first = run_and_wait(client, {"working_dir": str(folder), "slot": "hero-still"})
+    assert first.status_code == 202
+    posts = len([e for e in FakeFal.log if e[0] == "POST"])
+    again = client.post("/api/media/generate", json={"confirm_spend": True, "regenerate": True, "working_dir": str(folder), "slot": "hero-still"})
+    assert again.status_code == 409 and "already been paid for" in again.text and "Another take" in again.text
+    assert len([e for e in FakeFal.log if e[0] == "POST"]) == posts                            # nothing more was sent to fal
+    take = run_and_wait(client, {"working_dir": str(folder), "slot": "hero-still", "another_take": True})
+    assert take.status_code == 202
+    assert len([e for e in FakeFal.log if e[0] == "POST"]) == posts + 1
+    client.post("/api/media/decision", json={"working_dir": str(folder), "slot": "hero-still", "event": "reject"})
+    assert run_and_wait(client, {"working_dir": str(folder), "slot": "hero-still"}).status_code == 202      # a decision clears the wait
+
+
+def test_the_ledger_counts_repeats_and_unpriced_runs_separately(env):
+    client, folder = env
+    run_and_wait(client, {"working_dir": str(folder), "slot": "hero-still"})
+    run_and_wait(client, {"working_dir": str(folder), "slot": "hero-still", "another_take": True})
+    ledger = client.get("/api/media/ledger").json()
+    assert ledger["done"] == 2 and ledger["repeats"] == 1 and ledger["repeat_usd"] == 0.12 and ledger["unpriced"] == 0
+
+
+def test_a_transition_plate_uses_one_minimax_endpoint_with_a_start_and_an_end_still_and_asks_for_the_shortest_clip(env):
+    client, folder = env
+    run_and_wait(client, {"working_dir": str(folder), "slot": "plate", "tier": "standard"})
+    post = [e for e in FakeFal.log if e[0] == "POST"][0]
+    assert post[1] == "/minimax/h3-max/image-to-video"
+    assert post[3]["image_url"].startswith("data:image/") and post[3]["end_image_url"].startswith("data:image/")
+    assert post[3]["duration"] == 5.0                                  # the slot allows 4 to 6; one second over the minimum covers the loop fade
+    ledger = client.get("/api/media/ledger").json()
+    assert ledger["estimated_usd"] == 0.4 and ledger["unpriced"] == 0
+
+
+def test_the_expensive_models_are_only_used_when_chosen():
+    for slot in ({"kind": "video", "from_still": "a"}, {"kind": "video", "first_still": "a", "last_still": "b"}, {"kind": "video"}):
+        for tier in ("draft", "standard"):
+            assert mg.endpoint_for(slot, tier).startswith("minimax/"), (slot, tier)
+        assert mg.endpoint_for(slot, "premium").startswith("fal-ai/veo3.1"), slot
+
+
+def test_background_clips_start_on_the_cheapest_tier_for_a_website_and_standard_for_other_projects(env, tmp_path):
+    client, folder = env
+    assert client.get("/api/media/slots", params={"working_dir": str(folder)}).json()["default_tiers"] == {"image": "standard", "video": "standard"}
+    r = client.post("/api/projects", json={"title": "Site", "brief": "A site.", "working_dir": str(folder), "nodes": [], "project_type": "website-property"})
+    assert r.status_code == 201, r.text
+    assert client.get("/api/media/slots", params={"working_dir": str(folder)}).json()["default_tiers"] == {"image": "standard", "video": "draft"}
+    other = tmp_path / "ws" / "app"
+    other.mkdir(parents=True)
+    (other / "media").mkdir()
+    (other / "media" / "slots.json").write_text((folder / "media" / "slots.json").read_text())
+    r = client.post("/api/projects", json={"title": "App", "brief": "An app.", "working_dir": str(other), "nodes": [], "project_type": "web-app"})
+    assert r.status_code == 201, r.text
+    assert client.get("/api/media/slots", params={"working_dir": str(other)}).json()["default_tiers"]["video"] == "standard"

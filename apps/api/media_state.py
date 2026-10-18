@@ -62,6 +62,20 @@ def entry(root, slot):
     return {"skipped": bool(e.get("skipped")), "history": list(e.get("history", []))[-6:]}
 
 
+DECISIONS = {"accepted", "published", "rejected", "skipped"}
+
+
+def unreviewed(root, slot):
+    """How many generations this slot has had since the last decision about it (accept, publish, reject or skip): paid for, not yet looked at."""
+    count = 0
+    for item in (load(root)["slots"].get(slot) or {}).get("history", []):
+        if item.get("event") in DECISIONS:
+            count = 0
+        elif item.get("event") in {"generated", "regenerated"}:
+            count += 1
+    return count
+
+
 def summary(slots, is_published):
     """Counts and a plain-text summary for a decision record. `slots` are slot dicts with `name` and `skipped`; `is_published(slot)` says if files exist."""
     done, skipped, pending = [], [], []

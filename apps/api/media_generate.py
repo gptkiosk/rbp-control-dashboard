@@ -43,7 +43,10 @@ TIERS = ("draft", "standard", "premium")
 IMAGE_TIERS = {"draft": ("fal-ai/nano-banana-2", "1K"), "standard": ("fal-ai/nano-banana-2", "2K"), "premium": ("fal-ai/nano-banana-pro", "2K")}
 VEO = "fal-ai/veo3.1"
 KLING25 = "fal-ai/kling-video/v2.5-turbo/pro"
-VIDEO_TIERS = {"draft": KLING25, "standard": VEO + "/fast", "premium": VEO}
+MINIMAX = "minimax/h3-max"
+MINIMAX_TURBO = "minimax/h3-max-turbo"
+# draft and standard are MiniMax (a fifth to a half of what Veo billed on a real run); premium is the full Veo 3.1.
+VIDEO_TIERS = {"draft": MINIMAX_TURBO, "standard": MINIMAX, "premium": VEO}
 
 
 class MediaError(Exception):
@@ -139,8 +142,8 @@ def still_url(root, name):
 # ---------------------------------------------------------------- what to ask fal for
 
 def video_endpoint(tier, mode):
-    if tier == "draft":
-        return KLING25 + ("/text-to-video" if mode == "t2v" else "/image-to-video")
+    if tier in {"draft", "standard"}:      # MiniMax takes a start still and an end still on the same image-to-video endpoint
+        return VIDEO_TIERS[tier] + ("/text-to-video" if mode == "t2v" else "/image-to-video")
     if mode == "flf":
         return VEO + "/first-last-frame-to-video"
     if mode == "i2v":
@@ -174,6 +177,12 @@ def aspect_for(slot):
     return min(ASPECTS, key=lambda name: abs(ASPECTS[name] - ratio) / ratio)
 
 
+def minimax_seconds(slot):
+    """The shortest clip the slot can use: its minimum plus one second for the loop fade, never above its maximum. MiniMax bills by the second, so length is cost."""
+    lo, hi = (slot.get("seconds") or [4, 8])[:2]
+    return float(min(max(lo + 1, 2), hi))
+
+
 def build_request(root, slot, tier, model=None, aspect=None):
     """(endpoint, input body) for a slot. Reads the reference and still images from the folder."""
     endpoint = endpoint_for(slot, tier, model)
@@ -191,7 +200,15 @@ def build_request(root, slot, tier, model=None, aspect=None):
         single = still_url(root, slot["from_still"])
     mode = "flf" if first else "i2v" if single else "t2v"
     hi = (slot.get("seconds") or [4, 8])[-1]
-    if "/kling-video/v3" in endpoint:
+    if endpoint.startswith("minimax/"):
+        body = {"prompt": slot["prompt"], "duration": minimax_seconds(slot), "resolution": "768P", "prompt_expansion_mode": "balanced"}
+        if mode == "t2v":
+            body["aspect_ratio"] = "16:9"
+        else:
+            body["image_url"] = first or single
+            if last:
+                body["end_image_url"] = last
+    elif "/kling-video/v3" in endpoint:
         body = {"prompt": slot["prompt"], "duration": "5", "generate_audio": False}
         if mode == "t2v":
             body["aspect_ratio"] = "16:9"
@@ -222,9 +239,12 @@ def quick_plan(s, slot, tier, model=None):
     endpoint = endpoint_for(slot, tier, model)
     if slot["kind"] == "video":
         hi = (slot.get("seconds") or [4, 8])[-1]
-        body = {"duration": "5" if "/kling-video/" in endpoint else f"{min(max(round(hi), 4), 8) // 2 * 2}s"}
+        if endpoint.startswith("minimax/"):
+            body = {"duration": minimax_seconds(slot), "resolution": "768P"}
+        else:
+            body = {"duration": "5" if "/kling-video/" in endpoint else f"{min(max(round(hi), 4), 8) // 2 * 2}s"}
     else:
-        body = {"num_images": 1}
+        body = {"num_images": 1, "resolution": IMAGE_TIERS[tier][1]}
     return {"endpoint": endpoint, "estimate_usd": estimate_for(s, endpoint, body)}
 
 
@@ -236,11 +256,11 @@ def estimate_for(s, endpoint, body):
     rates = media_catalog.saved_rates(s)
     seconds = None
     if model["unit"] == "second":
-        digits = re.match(r"(\d+)", str(body.get("duration", "")))
-        seconds = int(digits.group(1)) if digits else None
+        digits = re.match(r"(\d+(?:\.\d+)?)", str(body.get("duration", "")))
+        seconds = float(digits.group(1)) if digits else None
         if seconds is None:
             return None
-    return media_catalog.estimate(model, seconds=seconds, images=body.get("num_images", 1), rates=rates)
+    return media_catalog.estimate(model, seconds=seconds, images=body.get("num_images", 1), rates=rates, resolution=body.get("resolution"))
 
 
 # ---------------------------------------------------------------- talking to fal

@@ -125,3 +125,13 @@ def test_every_type_flags_an_agent_story_that_needs_a_browser_and_leaves_static_
         assert "Never ask an agent story to render pages" in pt.planner_section(kind)
     human = [story("v", "Preview checkpoint: check both themes render without console errors", assignee="human")]
     assert "browser-checks-need-a-person" not in ids(pt.check("website-property", human))             # a person can
+
+
+def test_media_default_tiers_are_validated_and_default_to_standard(tmp_path):
+    assert pt.media_default_tiers("website-property") == {"image": "standard", "video": "draft"}
+    assert pt.media_default_tiers("web-app") == {"image": "standard", "video": "standard"}
+    assert pt.media_default_tiers(None) == {"image": "standard", "video": "standard"}
+    base = {"id": "x", "label": "X", "summary": "s", "planner_text": "p"}
+    assert pt._valid({**base, "media_default_tiers": {"video": "draft"}})
+    assert not pt._valid({**base, "media_default_tiers": {"video": "cheapest"}})
+    assert not pt._valid({**base, "media_default_tiers": {"audio": "draft"}})
