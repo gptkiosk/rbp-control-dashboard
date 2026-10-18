@@ -9,7 +9,7 @@ from deps import get_session
 from dispatcher import remove_run_logs
 from settings import get_settings
 from models import Project, ProjectTask, Card, CardDependency, Run
-from project_schemas import Close, Document, Save, Action, Retry, GoFree, ContinueOutput, Note, Accept, HandoffPolicy, Retier, RepairExecution, ModelLock, LowCostRetry, PayRetry
+from project_schemas import AcceptDespiteReport, Close, Document, Save, Action, Retry, GoFree, ContinueOutput, Note, Accept, HandoffPolicy, Retier, RepairExecution, ModelLock, LowCostRetry, PayRetry
 import agent_git
 import projects
 import standards
@@ -100,6 +100,13 @@ def note(project_id:int,body:Note,request:Request,s:Session=Depends(get_session)
 def accept(project_id:int,card_id:int,body:Accept,request:Request,s:Session=Depends(get_session)):
     identity=actor(request);write(s);p=projects.get(s,project_id)
     projects.accept_story(s,p,card_id,body,identity);s.commit();return projects.detail(s,p)
+
+@router.post('/{project_id}/stories/{card_id}/accept-despite-report')
+def accept_despite_report(project_id:int,card_id:int,body:AcceptDespiteReport,request:Request,s:Session=Depends(get_session)):
+    """Accept a story whose agent reported it unfinished, with the operator's reason recorded in the ledger and the handoff."""
+    identity=actor(request);write(s);p=projects.get(s,project_id)
+    if body.revision is not None: projects.check_revision(p,body.revision)
+    projects.accept_despite_report(s,p,card_id,body,identity);s.commit();return projects.detail(s,p)
 
 @router.post('/{project_id}/stories/{card_id}/retry')
 def retry(project_id:int,card_id:int,body:Retry,request:Request,s:Session=Depends(get_session)):

@@ -10,6 +10,13 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.6.22] - 2026-10-18
+
+### Added
+
+- **Accept anyway** on a failed story whose agent finished and reported unfinished work. You give a reason (at least ten characters); the agent's own report and your reason are recorded as the handoff (marked as accepted despite the report, with its gaps still listed), the decision goes in the project ledger, the run stays failed in the history, and dependent stories are released. A story that crashed or timed out has no report to accept and still needs a retry. `POST /api/projects/{id}/stories/{card}/accept-despite-report`. It exists because some checks cannot run where an agent works (a browser, a loopback server), so an honest "unfinished" would otherwise block the project for good.
+- All three project types now flag an agent story that asks for rendering, a browser console check or screenshots, and tell the planner to keep agent verification static and leave rendering to the human preview.
+
 ## [0.6.21] - 2026-10-18
 
 ### Added
@@ -533,7 +540,8 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 - Claude Code stories may use web search and fetch without any shell, credential or publish permission.
 
 [0.3.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.0
-[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.21...HEAD
+[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.22...HEAD
+[0.6.22]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.22
 [0.6.21]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.21
 [0.6.20]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.20
 [0.6.19]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.19
