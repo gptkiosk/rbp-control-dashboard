@@ -135,3 +135,11 @@ def test_media_default_tiers_are_validated_and_default_to_standard(tmp_path):
     assert pt._valid({**base, "media_default_tiers": {"video": "draft"}})
     assert not pt._valid({**base, "media_default_tiers": {"video": "cheapest"}})
     assert not pt._valid({**base, "media_default_tiers": {"audio": "draft"}})
+
+
+def test_the_consultant_is_told_the_types_and_the_media_rules():
+    text = pt.consultant_text()
+    assert "Website property" in text and "Web app" in text and "Packaged app" in text
+    assert text.count("A person signs off:") == 3                              # every type fits inside the budget, none cut off
+    assert "never by an agent" in text and "cheapest video tier" in text and "another take" in text
+    assert len(text) <= 1300

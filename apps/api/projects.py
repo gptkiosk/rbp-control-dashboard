@@ -699,6 +699,7 @@ def consultant_context(s, settings, working_dir):
     parts = [('How the software is delivered', RoleStore(settings).source('context.md').strip()),
              ('Standards that apply to this working directory', standards.prompt_section(found)),
              ('Methods and practices to build the plan on', methods),
+             ('Project types and generated media', project_types.consultant_text(settings)),
              ('This installation and its configuration', installation_text(s, settings)),
              ('Models you could recommend', model_profiles.guidance_text(s, settings.data_dir, execution_catalog(settings)))]
     return '\n\n'.join(f'## {title}\n{body}' for title, body in parts if body)[:CONSULTANT_CONTEXT_MAX]

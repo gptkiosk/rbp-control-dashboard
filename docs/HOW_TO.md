@@ -387,6 +387,90 @@ Rules are configured in the Pi’s private alerts.toml. RCD does not automatical
 
 [Open alert history](http://127.0.0.1:8800/#alerts-title) · [Inspect service health](http://127.0.0.1:8800/services) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=alerts)
 
+## Refine a project with the consultant
+
+Talk your idea through, say when it is enough, then send the plan to the coordinator.
+
+1. Open Projects and choose Refine with project consultant below Create project brief.
+2. Choose an allowed workspace, enter a project name and goal, and start the conversation.
+3. New AI conversations use Hermes with openrouter/free unless you changed Profile → AI defaults. Install and configure the selected native agent first.
+4. The consultant answers, then asks what it needs to know. Keep talking until you are satisfied; you never have to read its instructions.
+5. Choose That’s enough, write up the plan. The brief opens for you to edit. Confirm the working directory and approve coordination; the assigned Delegator then creates the project map and stories.
+6. Review the returned project map before separately approving story execution.
+
+Free routes can throttle or fail. Profile → AI defaults also supplies new chat, task and planning forms; existing work keeps its routes. Native membership accounts and API billing are separate. The built-in help chat uses local guides and makes no model calls.
+
+[Configure AI defaults](http://127.0.0.1:8800/profile#ai-settings) · [Open Projects](http://127.0.0.1:8800/projects) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=project-consultant)
+
+## Pick a project type so the plan follows a template
+
+A type tells the planner how this kind of project is planned and where it has failed before, then checks the plan.
+
+1. Open Projects, choose New project and pick a type: Web app, Packaged app or Website property. When your brief clearly fits one, MCD suggests it and you can accept or ignore the suggestion. A project with no type is planned as before.
+2. The type adds planner text and known failure points to the plan prompt, hands its guides to the planner and agents (for a website: the design guide and the spacing and timing guide), and lists the keys it usually needs.
+3. After a plan is proposed, read Plan checks for this project type. They only warn: for example no file verification story, a preview that does not follow verification, a container story an agent cannot do, generated media planned for an agent, or no responsive review. Fix the plan or ignore a warning on purpose.
+4. Look for the human sign-offs the type expects, such as making the media in MCD, approving the look from a live preview and the final local verification. Agents cannot render pages, so you check rendering in the preview.
+5. To change a type, copy packs/project-types/<id>.json into the project-types folder of your data directory and edit it; your copy replaces the shipped one. When a project fails for a reason that could have been planned around, add it to the type’s failure points.
+
+Types guide planning. They never block a plan and never run model output. A Website property also starts its background clips on the cheapest video tier in the media panel.
+
+[Start a project](http://127.0.0.1:8800/projects?action=new) · [Open Projects](http://127.0.0.1:8800/projects) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=project-types)
+
+## Make site art and video for a project (fal)
+
+Generate stills and clips from the project’s Media tab, review them, and publish the ones you choose.
+
+1. Save a fal key first in Profile, Private credentials. The guide Create or replace the fal key lists the models it needs.
+2. Open the project’s Media tab (a project whose folder has media/slots.json gets one, and a banner while slots are unresolved). Tick the spending acknowledgement at the top of the panel; pressing Generate without it tells you what is missing and takes you to the box.
+3. Each slot starts on a tier from its project type: a website’s clips start on the cheapest video tier (MiniMax H3 Max Turbo) and images on standard. Standard clips use MiniMax H3 Max and premium uses Veo 3.1. Change the tier or how many, read the estimate, press Generate and confirm.
+4. Watch progress under that slot’s button: a spinner, waiting or generating text, then finished or the failure. The button reads Generating… until it ends.
+5. Review each candidate as a thumbnail or video. Accept and publish the one you want (MCD converts and records it), choose None of these to make another, or Skip to keep the site’s drawn fallback.
+6. A slot with generations still waiting for review is not generated again unless you choose Another take, so a double click never pays twice. A published slot is only regenerated when you choose Regenerate.
+
+A clip starts from a published, approved still. A draft still is too small to publish; make stills at standard or premium. Agents never receive the fal key and cannot generate media.
+
+[Open Projects](http://127.0.0.1:8800/projects) · [Media models and prices](http://127.0.0.1:8800/agents?action=billing) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=project-media)
+
+## Check media spend and avoid paying twice
+
+Estimates are an upper bound; fal’s usage page is the truth. Repeats and unpriced runs are shown, not hidden.
+
+1. Every estimate comes from list prices checked against fal’s own usage table: Veo 3.1 Fast $0.15 a second, Veo 3.1 $0.40 a second, MiniMax H3 Max $0.08 and Turbo $0.04 a second at 768p, and a 2K Nano Banana picture is 1.5 image units of $0.08. fal’s usage page is the truth.
+2. Under the Media panel the spend line shows runs finished, the estimated total, how many runs repeated a slot already generated, and any runs with no price. An unpriced run is named, never counted as zero.
+3. To keep cost down: leave website clips on the cheapest tier, generate one take at a time, review before asking for another, and set a credit limit at fal. MiniMax’s launch discount ends on 31 October 2026, so estimates use the higher price.
+4. If fal’s usage is far above MCD’s total, check for runs with no price and for repeats. Every run, with its fal request id, is in media/ledger.jsonl in MCD’s data folder.
+5. MCD does not cap spending. The limits are the confirmation, the repeat guard and the credit limit you set at fal.
+
+In the first real website run fal billed $16.88 while MCD showed about $2, because Veo clips had no price and repeat generations were not flagged. Both are fixed.
+
+[Media models and prices](http://127.0.0.1:8800/agents?action=billing) · [Open Projects](http://127.0.0.1:8800/projects) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=media-spend)
+
+## Create or replace the fal key
+
+fal fixes a key’s allowed models when the key is created, so a model added later needs a new key.
+
+1. At fal.ai/dashboard/keys create a key with the API preset, add its allowed models, and set a credit limit. fal cannot change a key’s model list afterwards.
+2. Add these patterns: minimax/h3-max* (the default video models), fal-ai/nano-banana-2* and fal-ai/nano-banana-pro* (images), and fal-ai/veo3.1* only if you want the premium Veo tier. If a wildcard is refused, add the exact endpoint ids listed in Agents, Billing & rates, Media models.
+3. Copy the secret once and paste it into Profile, Private credentials, fal.ai key. It is encrypted, write-only and never shown again, and agents never receive it.
+4. Run one cheap generation to confirm. If a model is refused, the key’s list does not include it: make a new key, replace the saved one and delete the old key at fal.
+
+The edit screen for an existing fal key shows the model list read-only; that is why adding a model there does nothing.
+
+[Save the key](http://127.0.0.1:8800/profile#credentials-profile) · [Media models and prices](http://127.0.0.1:8800/agents?action=billing) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=fal-key)
+
+## Accept a story whose agent reported unfinished work
+
+Accept anyway records the agent’s report and your reason, keeps the run failed in history and releases what waits on it.
+
+1. When an agent finishes but its report says work is unfinished or a check could not run, the story fails and blocks what depends on it. Read its report first.
+2. If you are content with the result (for example the missing items are made by a later human step, or a check needs a browser the agent does not have), choose Accept anyway… on the story, in Projects under Stories & runs.
+3. Type a reason of at least ten characters. MCD records the agent’s own report and your reason as the handoff, keeps the run as failed in the history and releases the stories that depend on it.
+4. A crash or timeout leaves no report to accept: use Retry same story instead. A human story is decided, not accepted this way.
+
+Nobody should later read an accepted story as a clean pass: the handoff begins with the operator’s acceptance and keeps the agent’s list of gaps.
+
+[Open Projects](http://127.0.0.1:8800/projects) · [Open the task board](http://127.0.0.1:8800/tasks) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=accept-anyway)
+
 ## Sign in and resolve a login problem
 
 Use an allowed Google account; RCD requests identity access only.

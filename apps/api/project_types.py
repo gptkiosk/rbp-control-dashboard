@@ -73,6 +73,19 @@ def listing(settings=None):
              "human_signoffs": t.get("human_signoffs", []), "visual_checks": t.get("visual_checks", "")} for t in load(settings).values()]
 
 
+def consultant_text(settings=None, limit=1300):
+    """A bounded description of the project types for the consultant chat: what each is for and where a person signs off, so it can say which type
+    a goal fits and what the plan must contain. Advice for the conversation; it authorizes nothing."""
+    footer = ("Generated media (images, clips) is made by the operator in MCD's Media tab with their own fal key, never by an agent: plan it as a human story after the wiring story, "
+              "and make the site complete on its fallbacks first. Website clips start on the cheapest video tier; a slot with generations waiting for review is not "
+              "generated again unless the operator asks for another take.")
+    lines = ["Project types (the operator picks one in New project; a plan for a typed project is checked against it):"]
+    for t in load(settings).values():
+        signoffs = "; ".join(x[:40].rstrip() for x in t.get("human_signoffs", [])[:2])
+        lines.append(f"- {t['label'].split(' (')[0]}: {t['summary'][:60].rstrip()}... A person signs off: {signoffs}.")
+    return "\n".join(lines)[:max(0, limit - len(footer) - 1)] + "\n" + footer
+
+
 def media_default_tiers(type_id, settings=None):
     """The quality tier the media panel starts each kind of slot on for a project type. A website's background clips start on the cheapest tier; other types on standard."""
     given = (load(settings).get(type_id or "") or {}).get("media_default_tiers", {})

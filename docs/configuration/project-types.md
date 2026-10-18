@@ -15,6 +15,10 @@ Choose the type in **New project** (or in the brief panel of a draft). When your
 - **Planner text and failure points.** Added to the planner prompt. Failure points are real causes of failed projects, for example "a story that needs a container engine cannot be done by an agent", "a human approval has nothing to judge without a live preview", "a Dockerfile that copies only html, css and js ships no assets".
 - **Plan checks.** After a plan is proposed, the review shows **Plan checks for this project type**: warnings such as "no file verification story", "the preview checkpoint does not follow a verification story", "a story needs a container engine, make it a human story", "generated media is made by the operator, not an agent". They only warn and never block, and they read story titles for gates and the full story text for risky commands.
 - **Keys.** The keys the type usually needs, which feed the key check before a project is created.
+- **Guides.** Reviewed guides handed to the planner and agents. A Website property carries the [website design guide](../../packs/standards/website-design-delivery.md) (one visual language, layout rules that broke on a real site, the responsive review) and the [spacing and timing guide](../../packs/standards/website-spacing-and-timing.md) (starting values for transitions, header, cards and breakpoints, the collapsible phone menu, em media queries). The planner is told to carry those numbers into DESIGN.md as tokens in the design direction story.
+- **Media defaults.** A type can set the quality tier the media panel starts on, per kind of slot (`media_default_tiers`, values draft, standard or premium). A Website property starts its video on the cheapest tier; other types start on standard. You can always change a slot's tier.
+
+A website plan is also checked for a **responsive review** story: a person looks at the preview at phone, tablet and wide widths in both themes for sideways scroll, overlapping header pieces, text spacing and pictures that do not fill their box.
 
 ## Growing the types
 

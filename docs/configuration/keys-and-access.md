@@ -6,11 +6,15 @@
 | --- | --- | --- |
 | An agent signed in | Required for basic use | Runs tasks, chats and projects. Managed in the agent, not stored by MCD. |
 | OpenRouter key | Recommended | Reads actual spending, can be shared with Hermes and OpenClaw (off by default), and is the automated route for still images through your Google AI Studio key set up as bring-your-own-key at OpenRouter. |
-| fal.ai key | Optional | Video generation (the only automated route) and image generation as a fallback. |
+| fal.ai key | Optional | Video generation (the only automated route; MiniMax H3 Max by default, Veo 3.1 as the premium tier) and image generation as a fallback. |
 | Discord bot token | Optional | Project notifications from your own bot. |
 | GitHub access | Optional | Branch grants for private repositories, set per project. |
 
 Saved keys are encrypted, write-only and never given to agents. Set a credit limit with each provider; MCD does not cap provider spending.
+
+## The fal key and its model list
+
+At fal, create the key with the **API** preset, add its allowed models and set a credit limit. fal fixes a key's model list when the key is created and cannot change it afterwards (the edit screen shows it read-only), so a model added later needs a new key: create it, paste it over the saved one in Profile, and delete the old key at fal. Add `minimax/h3-max*` (the default clips), `fal-ai/nano-banana-2*` and `fal-ai/nano-banana-pro*` (images), and `fal-ai/veo3.1*` only if you want the premium Veo tier. If a wildcard is refused, add the exact endpoint ids shown in Agents, Billing & rates, Media models.
 
 ## The key check before a project is created
 

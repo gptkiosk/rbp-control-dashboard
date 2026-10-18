@@ -19,6 +19,12 @@ Pending capture: `projects-brief.png` (new project), `projects-planning-map.png`
 5. In **Stories & runs**, inspect each successful result against its definition of done. Review the handoff summary and artifact files before accepting. Human stories require the actual operator decision. Dependents wait for acceptance, not just a successful process exit.
 6. Pause dispatch to prevent new stories from starting; active runs can finish. Resume when ready. Publication/security decisions remain explicit human stories where the plan requires them.
 
+### Project types and media
+
+1. In **New project**, pick a type (Web app, Packaged app or Website property) or accept the one MCD suggests from your brief. The type adds planning guidance, known failure points, plan checks and human sign-offs. See [Project types](../configuration/project-types.md).
+2. A project whose folder has `media/slots.json` gets a **Media** tab. Tick the spending acknowledgement, choose a tier (a website's clips start on the cheapest video tier), press Generate and watch progress under that slot's button. Review each candidate, **Accept and publish** or ask for **Another take**. See [Media models](../configuration/media-models.md).
+3. On a failed story whose agent reported unfinished work, **Accept anyway…** records your reason and the agent's report and releases dependent stories.
+
 ### Assignment preference and routes
 
 Economy recommends OpenClaw for routine bounded work, reserving subscriptions for difficult/sensitive work. Capability favors Claude/Codex. Balanced splits recommendations by task complexity. This is an advisory preference, not a fixed percentage, quality guarantee or projected discount. OpenClaw's gateway is local; its models can run in the cloud. Subscription fees stay fixed even when quota is conserved.

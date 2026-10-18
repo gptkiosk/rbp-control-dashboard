@@ -357,7 +357,7 @@ def test_the_consultant_chat_gets_delivery_standards_and_model_knowledge(app):  
     text = c.get('/api/projects/consultant-context', params={'working_dir': str(wd)}).json()['text']
     assert 'packaged app runs on users' in text                       # delivery models (the Delegator context text)
     assert 'area money: minimum risk high' in text                      # the standards for this directory
-    assert len(text) <= 18000                                           # the chat prompt budget; the code cap is 20000
+    assert len(text) <= 19000                                           # the chat prompt budget (raised from 18000 for the project types section); the code cap is 20000
     for heading in ('## How the software is delivered', '## Standards that apply to this working directory', '## Methods and practices to build the plan on'):
         assert heading in text
     assert 'Development practice:' in text and 'Application security:' in text and 'Delivering a packaged app:' in text and 'Delivering a hosted web app:' in text
