@@ -12,6 +12,7 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ### Added
 
+- A fix for tools the dashboard installed that a plain shell cannot find (typing `codex login --device-auth` on a Pi said *command not found*): the sign-in command shown on each installed tool now starts with its full path when its folder is not on the PATH, and Host readiness can put the installed tools on the PATH for new shells (**Put installed tools on my PATH**, idempotent, a marked block in `~/.profile` and `~/.bashrc`).
 - **Host readiness** in Setup wizard step 1: a checklist of what the machine needs to build and deliver projects (workspace folder, git, git identity, GitHub access, an agent that can write code, optional tools, disk, and an on-request network test) with one-click fixes that each do one named thing: create the workspace folder, set the git identity, make a GitHub SSH key (the private half stays on the host) and test it. Hermes is shown as a manager, not a builder. Built so a new Raspberry Pi can be made ready without hand configuration.
 
 ## [0.6.24] - 2026-10-18

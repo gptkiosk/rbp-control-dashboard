@@ -154,3 +154,57 @@ def test_a_tool_the_dashboard_installed_itself_is_found_even_off_path(host, tmp_
     monkeypatch.setenv("MAC_CONTROL_AGENT_TOOLS_ROOT", str(managed))
     tools = {t["id"]: t["installed"] for t in by_id(hr.report(settings))["tools"]["tools"]}
     assert tools["node"] is True
+
+
+def _managed(tmp_path, monkeypatch, name="codex"):
+    managed = tmp_path / "agent-tools"
+    tool = managed / "bin" / name
+    tool.parent.mkdir(parents=True)
+    tool.write_text("#!/bin/sh\n")
+    tool.chmod(0o755)
+    monkeypatch.setenv("MAC_CONTROL_AGENT_TOOLS_ROOT", str(managed))
+    return managed
+
+
+def test_tools_the_dashboard_installed_are_put_on_the_shell_path_on_request_and_idempotently(host, tmp_path, monkeypatch):
+    home, settings = host
+    assert by_id(hr.report(settings))["tools_path"]["status"] == "info"                     # nothing installed: nothing to say
+    managed = _managed(tmp_path, monkeypatch)
+    check = by_id(hr.report(settings))["tools_path"]
+    assert check["status"] == "warn" and "command not found" in check["detail"] and check["fix"]["action"] == "add_tools_to_path"
+    message = hr.apply(settings, "add_tools_to_path")
+    assert ".profile" in message and ".bashrc" in message and "new terminal" in message
+    for name in (".profile", ".bashrc"):
+        text = (home / name).read_text()
+        assert text.count(hr.PATH_BEGIN) == 1 and f'export PATH="{managed}/bin:$PATH"' in text
+    hr.apply(settings, "add_tools_to_path")
+    assert (home / ".profile").read_text().count(hr.PATH_BEGIN) == 1                           # running it again does not stack blocks
+    assert by_id(hr.report(settings))["tools_path"]["status"] == "ok"
+
+
+def test_an_existing_profile_is_kept_when_the_path_block_is_added(host, tmp_path, monkeypatch):
+    home, settings = host
+    (home / ".profile").write_text('export EDITOR=vi\n')
+    _managed(tmp_path, monkeypatch)
+    hr.apply(settings, "add_tools_to_path")
+    assert (home / ".profile").read_text().startswith("export EDITOR=vi\n")
+
+
+def test_the_sign_in_command_uses_the_full_path_when_the_tool_is_not_on_the_shell_path(tmp_path, monkeypatch):
+    import tool_install as ti
+    tool = tmp_path / "managed" / "bin" / "codex"
+    tool.parent.mkdir(parents=True)
+    tool.write_text("#!/bin/sh\n")
+    tool.chmod(0o755)
+    monkeypatch.setenv("PATH", "/usr/bin:/bin")
+    assert ti.login_command("codex login --device-auth", str(tool)) == f"{tool} login --device-auth"
+    monkeypatch.setenv("PATH", f"{tool.parent}:/usr/bin:/bin")
+    assert ti.login_command("codex login --device-auth", str(tool)) == "codex login --device-auth"        # on the PATH: the short command works
+    assert ti.login_command("codex login --device-auth", None) == "codex login --device-auth"             # not installed: unchanged
+    assert ti.login_command("hermes model", str(tool)) == "hermes model"                                  # a different tool's path is never substituted
+    spaced = tmp_path / "my tools" / "bin" / "codex"
+    spaced.parent.mkdir(parents=True)
+    spaced.write_text("#!/bin/sh\n")
+    spaced.chmod(0o755)
+    monkeypatch.setenv("PATH", "/usr/bin:/bin")
+    assert ti.login_command("codex login --device-auth", str(spaced)).startswith("'") and "my tools" in ti.login_command("codex login --device-auth", str(spaced))

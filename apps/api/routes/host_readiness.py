@@ -13,7 +13,7 @@ router = APIRouter(prefix="/api/host/readiness", tags=["host"])
 
 class FixIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    action: str = Field(pattern="^(create_workspace|set_git_identity|make_github_key|test_github_ssh)$")
+    action: str = Field(pattern="^(create_workspace|set_git_identity|make_github_key|test_github_ssh|add_tools_to_path)$")
     name: str | None = Field(default=None, max_length=120)
     email: str | None = Field(default=None, max_length=254)
     path: str | None = Field(default=None, max_length=500)

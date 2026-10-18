@@ -479,8 +479,9 @@ A checklist with one-click fixes for the workspace folder, git identity and GitH
 2. Create the workspace folder if it is missing. Projects that must end in a GitHub repository should work in a clone of that repository inside this folder, never in a scratch folder (a scratch folder has no remote).
 3. Set the git identity (a name and an email) so commits are attributed. It is saved as the global git identity for this host user.
 4. Make a GitHub SSH key. The private half stays on this host; copy the public key shown, add it to your GitHub account (or to one repository’s Deploy keys with write access), then press Test GitHub access.
-5. Read Agents that build: Claude Code, Codex, OpenClaw and Grok can write code; Hermes plans and coordinates but does not. Install and sign in to a builder from Agent tools if none is listed. Sign-in is not verified here.
-6. Optional tools are only needed by some stories: Docker for container images, Node for JavaScript tests and the Playwright screenshot script, ffmpeg for media, gh for pull requests. Use Recheck with network test to confirm GitHub and your model provider are reachable.
+5. If you installed Codex or OpenClaw from Agent tools and your shell says command not found, press Put installed tools on my PATH (or copy the sign-in command shown on the tool, which starts with its full path), then open a new terminal.
+6. Read Agents that build: Claude Code, Codex, OpenClaw and Grok can write code; Hermes plans and coordinates but does not. Install and sign in to a builder from Agent tools if none is listed. Sign-in is not verified here.
+7. Optional tools are only needed by some stories: Docker for container images, Node for JavaScript tests and the Playwright screenshot script, ffmpeg for media, gh for pull requests. Use Recheck with network test to confirm GitHub and your model provider are reachable.
 
 Fixes do one named thing each: create the folder, set the git identity, make or test the GitHub key. Nothing installs software, stores a token or runs project code, and the private key is never shown.
 

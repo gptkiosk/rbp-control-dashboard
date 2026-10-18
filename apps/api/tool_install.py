@@ -45,6 +45,7 @@ import json
 import os
 import re
 import secrets
+import shlex
 import shutil
 import stat
 import struct
@@ -918,6 +919,18 @@ def native_install(cfg, catalog, facts, cid):
         return {'path': str(binary), 'version': version}
     except (OSError, subprocess.SubprocessError, UnicodeError):
         return {'path': str(path), 'version': None}
+
+
+def login_command(command, path):
+    """The sign-in command as it should be typed in a plain shell. A tool this dashboard installed lives in its own `bin`, which is usually not on the
+    shell's PATH, so `codex login` fails with "command not found"; then the command starts with the tool's full path."""
+    first, _, rest = command.partition(" ")
+    if not path or not os.path.isabs(path) or Path(path).name != first:
+        return command
+    found = shutil.which(first)
+    if found and os.path.realpath(found) == os.path.realpath(path):
+        return command
+    return (shlex.quote(path) + (" " + rest if rest else ""))
 
 
 def build_plan(cfg: ToolsConfig, catalog: Catalog, facts: HostFacts, cid: str, action: str) -> dict:
@@ -1836,6 +1849,7 @@ def inspect(cfg: ToolsConfig, catalog: Catalog, facts: HostFacts | None = None) 
                       "size_mb": comp["size_mb"], "login": comp["login"], "requires": comp["requires"],
                       "commands": [b["name"] for b in comp["bins"]], "actions": actions,
                       "path": str(cfg.bin / comp["bins"][0]["name"]) if view["installed"] else native["path"] if native else None})
+        tools[-1]["login_command"] = login_command(comp["login"]["command"], tools[-1]["path"])
     all_pkgs = sorted({p for cid in catalog.tool_ids() for k in ("required", "recommended")
                        for p in catalog.component(cid)["system_packages"][k]})
     return {"product": cfg.product, "platform": cfg.platform_key, "root": str(cfg.root), "tools": tools,

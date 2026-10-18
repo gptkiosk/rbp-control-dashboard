@@ -11,7 +11,7 @@ const POLL_MS = 3000, NOT_STARTED_POLLS = 10, MAX_POLLS = 1000 // about 50 minut
 interface Tool {
   id: string; name: string; pinned_version: string; installed: boolean; installed_version: string | null
   installation_source?: 'native' | 'managed' | null; previous_version: string | null; installed_at: number | null; size_mb: number; commands: string[]; requires: string[]
-  login: { command: string; note: string }; path: string | null
+  login: { command: string; note: string }; login_command?: string; path: string | null
   actions: Record<Action, string[] | null> // null: not offered now; []: allowed; otherwise the reasons it is refused
 }
 interface Status {
@@ -207,7 +207,7 @@ onBeforeUnmount(() => { disposed = true; if (timer) clearTimeout(timer) })
           <ul v-if="reasons(t).length" class="why" aria-label="Why a button is off"><li v-for="x in reasons(t)" :key="x.r" class="muted small">{{ VERB[x.a] }}: {{ x.r }}</li></ul>
           <div v-if="t.installed" class="login" :data-login="t.id">
             <p class="small"><strong>Sign in yourself.</strong> This panel never signs in. In a terminal on this host run:</p>
-            <p class="cmd"><code>{{ t.login.command }}</code> <button class="btn small-btn" @click="copy(t.login.command, t.id)">{{ copied === t.id ? 'Copied' : 'Copy' }}</button></p>
+            <p class="cmd"><code>{{ t.login_command || t.login.command }}</code> <button class="btn small-btn" @click="copy(t.login_command || t.login.command, t.id)">{{ copied === t.id ? 'Copied' : 'Copy' }}</button></p>
             <p class="muted small">{{ t.login.note }} Put API keys in <RouterLink to="/profile#credentials-profile">Private credentials</RouterLink> (write-only); never paste a key into this page.</p>
           </div>
         </li>
@@ -239,7 +239,7 @@ onBeforeUnmount(() => { disposed = true; if (timer) clearTimeout(timer) })
         <ul v-if="plan.refusals.length" class="warn" aria-label="Why this cannot run"><li v-for="r in plan.refusals" :key="r" class="notice-warn" role="alert">{{ r }}</li></ul>
         <p v-if="plan.system_packages.apt_command && plan.action !== 'remove'" class="small">Optional, run by you: <code>{{ plan.system_packages.apt_command }}</code></p>
         <p class="small"><strong>Not changed by this:</strong> {{ plan.unchanged.join('; ') }}.</p>
-        <p v-if="plan.login" class="small">After it finishes, sign in yourself with <code>{{ plan.login.command }}</code>.</p>
+        <p v-if="plan.login" class="small">After it finishes, sign in yourself with <code>{{ plan.login.command }}</code>. If your shell says command not found, copy the command shown on the installed tool, which starts with its full path.</p>
         <label class="check"><input v-model="confirmed" type="checkbox" :disabled="plan.refusals.length > 0" />I have read this and want to continue.</label>
         <div class="actions">
           <button class="btn primary" :disabled="!confirmed || busy || plan.refusals.length > 0 || working" @click="submit">{{ VERB[plan.action] }} {{ plan.name }}</button>

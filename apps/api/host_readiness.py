@@ -113,6 +113,31 @@ def check_github():
     return _item("github_ssh", "GitHub access (SSH key)", "missing", "Nothing on this host can push to GitHub yet. A project that ends in a repository needs this (or a GitHub token set in the project's git grant).", fix)
 
 
+PATH_BEGIN, PATH_END = "# >>> dashboard tools on PATH >>>", "# <<< dashboard tools on PATH <<<"
+PATH_FILES = (".profile", ".bashrc")
+
+
+def _managed_bin():
+    root = Path(os.environ.get("MAC_CONTROL_AGENT_TOOLS_ROOT") or default_agent_tools_root(os.environ.get("MAC_CONTROL_PRODUCT_SHORT_NAME", "MCD")))
+    return root / "bin"
+
+
+def _has_tools(folder):
+    return folder.is_dir() and any(p.is_file() and os.access(p, os.X_OK) for p in folder.iterdir())
+
+
+def check_path():
+    folder = _managed_bin()
+    if not _has_tools(folder):
+        return _item("tools_path", "Installed tools on your shell PATH", "info", "No tools have been installed by this dashboard yet.")
+    configured = any(PATH_BEGIN in (_home() / f).read_text("utf-8", "replace") for f in PATH_FILES if (_home() / f).is_file())
+    on_path = str(folder) in os.environ.get("PATH", "").split(os.pathsep)
+    if configured or on_path:
+        return _item("tools_path", "Installed tools on your shell PATH", "ok", f"{folder} is on the shell PATH, so commands such as codex and openclaw work in a new terminal.")
+    return _item("tools_path", "Installed tools on your shell PATH", "warn", f"Tools installed here live in {folder}, which your shell does not search, so typing codex or openclaw says command not found. The sign-in command shown on each tool uses the full path; this fix makes the short commands work in new shells.",
+                 {"action": "add_tools_to_path", "label": "Put installed tools on my PATH"})
+
+
 def check_agents(settings):
     rows = []
     for name in (*CODE_AGENTS, *MANAGER_AGENTS):
@@ -156,7 +181,7 @@ def check_network():
 
 
 def report(settings, network=False):
-    checks = [check_workspace(settings), check_git(), check_git_identity(), check_github(), check_agents(settings), check_tools(), check_disk()]
+    checks = [check_workspace(settings), check_git(), check_git_identity(), check_github(), check_agents(settings), check_path(), check_tools(), check_disk()]
     if network:
         checks.append(check_network())
     status = {c["id"]: c["status"] for c in checks}
@@ -231,6 +256,24 @@ def test_github_ssh():
     raise ReadinessError("Could not reach GitHub over SSH: " + (out.strip()[:160] or "no answer"), 502)
 
 
+def add_tools_to_path():
+    folder = _managed_bin()
+    if not folder.is_dir():
+        raise ReadinessError("No tools have been installed by this dashboard yet.")
+    block = f'{PATH_BEGIN}\nexport PATH="{folder}:$PATH"\n{PATH_END}\n'
+    changed = []
+    for name in PATH_FILES:
+        target = _home() / name
+        text = target.read_text("utf-8") if target.is_file() else ""
+        if PATH_BEGIN in text:
+            text = re.sub(re.escape(PATH_BEGIN) + r".*?" + re.escape(PATH_END) + r"\n?", block, text, flags=re.S)
+        else:
+            text = (text.rstrip("\n") + "\n\n" if text.strip() else "") + block
+        target.write_text(text, "utf-8")
+        changed.append(name)
+    return f"Added {folder} to the PATH in ~/{' and ~/'.join(changed)}. Open a new terminal (or run: source ~/.profile) and codex, openclaw and the other installed tools work by name."
+
+
 def apply(settings, action, name=None, email=None, path=None):
     if action == "create_workspace":
         return create_workspace(settings, path)
@@ -240,4 +283,6 @@ def apply(settings, action, name=None, email=None, path=None):
         return make_github_key()
     if action == "test_github_ssh":
         return test_github_ssh()
+    if action == "add_tools_to_path":
+        return add_tools_to_path()
     raise ReadinessError("Unknown fix.")

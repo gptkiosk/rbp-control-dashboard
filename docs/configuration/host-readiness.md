@@ -10,6 +10,7 @@ Before a project can be built and delivered from this machine, the machine needs
 | git | `git` is installed. | None: install it with the system package manager. |
 | git identity | The global git `user.name` and `user.email` are set. | **Set the git identity** (name up to 100 characters, a valid email). |
 | GitHub access | A key made here (`~/.ssh/rcd-github`) exists. | **Make a GitHub SSH key**, then **Test GitHub access**. |
+| Installed tools on your shell PATH | Tools this dashboard installed (Codex, OpenClaw and the rest) live in their own `bin` folder, which a plain shell does not search, so `codex login` says *command not found*. Ready when that folder is on the PATH or already set up. | **Put installed tools on my PATH** adds a marked block to `~/.profile` and `~/.bashrc`; open a new terminal afterwards. |
 | Agents that build | At least one of Claude Code, Codex, OpenClaw or Grok is installed. Hermes plans and coordinates but does not write code, so it does not count. | None: install a builder from Agent tools and sign in. Sign-in is not verified. |
 | Optional tools | Docker (container images), Node (JavaScript tests, the Playwright screenshot script), ffmpeg (media), `gh` (pull requests from this host). | None. |
 | Disk | At least 5 GB free. | None. |
@@ -27,4 +28,4 @@ Agents push only through a project's git grant, never with this key directly. Se
 
 Checks change nothing. A fix does one named thing the operator asked for, through an operator-only route, and shows what it changed. It does not install software, store a token, change agent routing or run project code.
 
-The API is `GET /api/host/readiness` (add `?network=true` for the network test) and `POST /api/host/readiness/fix` with one of `create_workspace`, `set_git_identity`, `make_github_key`, `test_github_ssh`.
+The API is `GET /api/host/readiness` (add `?network=true` for the network test) and `POST /api/host/readiness/fix` with one of `create_workspace`, `set_git_identity`, `make_github_key`, `test_github_ssh`, `add_tools_to_path`.
