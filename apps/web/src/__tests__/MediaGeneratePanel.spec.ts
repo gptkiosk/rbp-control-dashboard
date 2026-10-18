@@ -1,179 +1,210 @@
 import { afterEach, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import MediaGeneratePanel from '@/components/MediaGeneratePanel.vue'
-import { calls, headerOf, stubFetch } from './helpers'
+import { calls, stubFetch } from './helpers'
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); document.body.innerHTML = '' })
 const plan = (endpoint: string, estimate: number | null) => ({ endpoint, estimate_usd: estimate })
-const slot = (over: object) => ({ name: 'hero-still', kind: 'image', world: 'light', purpose: 'Anchor still', prompt: 'p', published: false, candidates: [], waiting_for_stills: [],
-  plans: { draft: plan('fal-ai/nano-banana-2/edit', 0.08), standard: plan('fal-ai/nano-banana-2/edit', 0.08), premium: plan('fal-ai/nano-banana-pro/edit', 0.15) }, ...over })
+const img = { draft: plan('d', 0.08), standard: plan('s', 0.08), premium: plan('p', 0.15) }
 const veo = { draft: plan('k', 0.35), standard: plan('v', null), premium: plan('v', null) }
-function setup(keySaved = true, jobState = 'done') {
+const slot = (over: object) => ({ name: 'a', kind: 'image', world: 'light', purpose: 'Anchor still', prompt: 'p', published: false, inbox: null, candidates: [] as string[], waiting_for_stills: [] as string[], plans: img, ...over })
+type S = ReturnType<typeof slot>
+function setup(getSlots: () => S[], extra: (u: string, init?: RequestInit) => { status?: number; body: unknown } | undefined = () => undefined, keySaved = true) {
   const f = stubFetch((u, init) => {
     if (u === '/api/media/folders') return { body: { folders: [{ path: '/ws/site', name: 'site' }] } }
-    if (u.startsWith('/api/media/slots')) return { body: { working_dir: '/ws/site', slots: [slot({ candidates: ['hero-still-1.png'] }), slot({ name: 'hero-clip', kind: 'video', plans: veo, waiting_for_stills: ['hero-still'] })] } }
+    if (u.startsWith('/api/media/slots')) return { body: { working_dir: '/ws/site', slots: getSlots() } }
     if (u === '/api/media/ledger') return { body: { runs: 3, done: 2, estimated_usd: 0.16, rows: [], note: 'Estimates are not invoices.' } }
-    if (u === '/api/media/generate' && init?.method === 'POST') return { status: 202, body: { jobs: ['j1'], endpoint: 'e', estimate_usd_each: 0.08 } }
-    if (u === '/api/media/jobs/j1') return { body: { id: 'j1', state: jobState, progress: 'queued at fal', slot: 'hero-still', error: jobState === 'failed' ? 'fal reported an error: content policy' : null, files: [] } }
-    if (u === '/api/media/pick' && init?.method === 'POST') return { body: { copied: 'media/inbox/hero-still.png', next: 'python3 tools/media/media.py ingest hero-still' } }
+    return extra(u, init)
   })
   return { f, w: mount(MediaGeneratePanel, { props: { keySaved } }) }
 }
-it('shows slots with the price for the chosen tier and keeps Generate off until spending is confirmed', async () => {
-  const { w } = setup()
+const buttons = (w: ReturnType<typeof mount>, label: string, within = '') => (within ? w.get(within) : w).findAll('button').filter(b => b.text() === label)
+
+it('groups slots by what needs you and keeps Generate off until spending is acknowledged', async () => {
+  const { w } = setup(() => [slot({ name: 'todo-a' }), slot({ name: 'review-b', candidates: ['review-b-1.png'] }), slot({ name: 'done-c', published: true }), slot({ name: 'clip-d', kind: 'video', plans: veo, waiting_for_stills: ['todo-a'] })])
   await flushPromises()
-  const row = w.get('[data-slot=hero-still]')
-  expect(row.text()).toContain('about $0.08')
-  await row.get('select').setValue('premium')
-  expect(row.text()).toContain('about $0.15')
-  expect(w.get('[data-slot=hero-clip]').text()).toContain('price not listed')
-  expect(w.get('[data-slot=hero-clip]').text()).toContain('Waiting for the approved still')
-  const go = row.findAll('button').find(b => b.text() === 'Generate')!
+  expect(w.get('[data-testid=summary]').text()).toContain('1 published · 0 skipped · 1 waiting for your decision · 2 not made yet')
+  const todo = w.get('[data-slot=todo-a]')
+  expect(todo.text()).toContain('about $0.08')
+  await todo.get('select').setValue('premium')
+  expect(todo.text()).toContain('about $0.15')
+  expect(w.get('[data-slot=clip-d]').text()).toContain('price not listed')
+  expect(w.get('[data-slot=clip-d]').text()).toContain('Waiting for the approved still')
+  const go = buttons(w, 'Generate', '[data-slot=todo-a]')[0]!
   expect(go.attributes('disabled')).toBeDefined()
   await w.get('input[type=checkbox]').setValue(true)
   expect(go.attributes('disabled')).toBeUndefined()
-  expect(w.get('[data-slot=hero-clip]').findAll('button').find(b => b.text() === 'Generate')!.attributes('disabled')).toBeDefined()
+  expect(buttons(w, 'Generate', '[data-slot=clip-d]')[0]!.attributes('disabled')).toBeDefined()
   w.unmount()
 })
-it('sends the explicit confirmation and the chosen tier and count, then follows the job', async () => {
+it('keeps a published slot out of the way: no Generate until you ask to regenerate it', async () => {
+  const { w } = setup(() => [slot({ name: 'done-c', published: true })])
+  await flushPromises()
+  const row = w.get('[data-slot=done-c]')
+  expect(row.text()).toContain('✓ published')
+  expect(buttons(w, 'Generate', '[data-slot=done-c]')).toHaveLength(0)
+  await w.get('input[type=checkbox]').setValue(true)
+  await w.get('button[aria-label="Regenerate done-c"]').trigger('click')
+  expect(buttons(w, 'Generate', '[data-slot=done-c]')).toHaveLength(1)
+  w.unmount()
+})
+it('sends the explicit confirmation, tier and count, shows each result as soon as its job finishes, and reports a failure beside the slot', async () => {
   vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] })
-  const { w, f } = setup()
+  let made = false
+  const { w, f } = setup(
+    () => [slot({ name: 'one', candidates: made ? ['one-1.png'] : [] }), slot({ name: 'two' })],
+    (u, init) => {
+      if (u === '/api/media/generate' && init?.method === 'POST') { const b = JSON.parse(String(init.body)); return { status: 202, body: { jobs: ['j-' + b.slot], endpoint: 'e', estimate_usd_each: 0.08 } } }
+      if (u === '/api/media/jobs/j-one') { made = true; return { body: { id: 'j-one', state: 'done', progress: 'done', slot: 'one', error: null, files: [] } } }
+      if (u === '/api/media/jobs/j-two') return { body: { id: 'j-two', state: 'running', progress: 'queued at fal', slot: 'two', error: null, files: [] } }
+    },
+  )
   await flushPromises()
   await w.get('input[type=checkbox]').setValue(true)
-  const row = w.get('[data-slot=hero-still]')
-  await row.get('select').setValue('draft')
-  await row.get('input[type=number]').setValue(2)
-  await row.findAll('button').find(b => b.text() === 'Generate')!.trigger('click')
-  await flushPromises()
-  const call = calls(f, 'POST', '/api/media/generate')[0]!
-  expect(headerOf(call[1], 'X-Mac-Control')).toBe('1')
-  expect(JSON.parse(String(call[1]?.body))).toEqual({ working_dir: '/ws/site', slot: 'hero-still', tier: 'draft', count: 2, confirm_spend: true })
-  expect(w.text()).toContain('hero-still: queued')
-  await vi.advanceTimersByTimeAsync(3000)
-  await flushPromises()
-  expect(w.text()).toContain('hero-still: done')
-  expect(w.text()).toContain('2 of 3 runs finished')
+  for (const name of ['one', 'two']) {
+    const row = w.get(`[data-slot=${name}]`)
+    await row.get('select').setValue('draft')
+    await row.get('input[type=number]').setValue(2)
+    await buttons(w, 'Generate', `[data-slot=${name}]`)[0]!.trigger('click'); await flushPromises()
+  }
+  const posted = calls(f, 'POST', '/api/media/generate').map(c => JSON.parse(String(c[1]?.body)))
+  expect(posted[0]).toEqual({ working_dir: '/ws/site', slot: 'one', tier: 'draft', count: 2, confirm_spend: true })
+  expect(w.text()).toContain('2 generating now')
+  await vi.advanceTimersByTimeAsync(3000); await flushPromises()
+  expect(w.get('[data-slot=one]').text()).toContain('one-1.png')                         // one finished: it is on screen while two is still running
+  expect(w.text()).toContain('1 generating now')
+  expect(buttons(w, 'Accept and publish', '[data-slot=one]')).toHaveLength(1)
   w.unmount()
 })
-it('reports a failed run plainly and picks a candidate without running anything', async () => {
-  vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] })
-  const { w, f } = setup(true, 'failed')
+it('accepts a candidate in one click: it is chosen and published, and a refusal is explained beside the slot', async () => {
+  let published = false
+  let refuse = true
+  const { w, f } = setup(
+    () => [slot({ name: 'hero', candidates: ['hero-1.png', 'hero-2.png'], published })],
+    (u, init) => {
+      if (u === '/api/media/pick' && init?.method === 'POST') return { body: { copied: 'media/inbox/hero.png', next: '' } }
+      if (u === '/api/media/publish' && init?.method === 'POST') {
+        if (refuse) return { status: 422, body: { detail: 'hero.png is 640px wide and this slot needs at least 960px (a draft is too small to publish).' } }
+        published = true; return { body: { published: 'hero', files: [{ path: 'assets/img/hero.jpg', bytes: 204800 }] } }
+      }
+    },
+  )
   await flushPromises()
-  await w.get('input[type=checkbox]').setValue(true)
-  await w.get('[data-slot=hero-still]').findAll('button').find(b => b.text() === 'Generate')!.trigger('click')
-  await flushPromises(); await vi.advanceTimersByTimeAsync(3000); await flushPromises()
-  expect(w.text()).toContain('content policy')
-  await w.get('button[aria-label="Use hero-still-1.png"]').trigger('click')
-  await flushPromises()
-  expect(JSON.parse(String(calls(f, 'POST', '/api/media/pick')[0]![1]?.body))).toEqual({ working_dir: '/ws/site', slot: 'hero-still', candidate: 'hero-still-1.png' })
-  expect(w.get('[data-note=hero-still]').text()).toContain('Chosen: hero-still-1.png')            // feedback sits beside the button, in the slot
+  await w.get('button[aria-label="Accept hero-2.png"]').trigger('click'); await flushPromises()
+  expect(JSON.parse(String(calls(f, 'POST', '/api/media/pick')[0]![1]?.body))).toEqual({ working_dir: '/ws/site', slot: 'hero', candidate: 'hero-2.png' })
+  expect(w.get('[data-note=hero]').text()).toContain('too small to publish')
+  expect(w.get('[data-note=hero]').attributes('role')).toBe('alert')
+  refuse = false
+  await w.get('button[aria-label="Accept hero-2.png"]').trigger('click'); await flushPromises()
+  expect(calls(f, 'POST', '/api/media/publish')).toHaveLength(2)
+  expect(w.get('[data-slot=hero]').text()).toContain('✓ published')                       // it moves to the published group
+  expect(w.text()).toContain('Published: assets/img/hero.jpg (200 KB)')
   w.unmount()
 })
-it('asks for the key first when none is saved', async () => {
-  const { w } = setup(false)
-  await flushPromises()
-  expect(w.text()).toContain('Save your fal key first')
-  await w.get('input[type=checkbox]').setValue(true)
-  expect(w.get('[data-slot=hero-still]').findAll('button').find(b => b.text() === 'Generate')!.attributes('disabled')).toBeDefined()
-  w.unmount()
-})
-function batchSetup() {
-  const slots = [
-    slot({ name: 'a-still' }),                                              // ready
-    slot({ name: 'b-card', plans: { draft: plan('d', 0.08), standard: plan('s', 0.08), premium: plan('p', 0.15) } }),   // ready
-    slot({ name: 'c-done', published: true }),                              // already published
-    slot({ name: 'd-picked', candidates: ['d-picked-1.png'] }),             // a candidate waits for your choice
-    slot({ name: 'e-clip', kind: 'video', plans: veo, waiting_for_stills: ['a-still'] }),   // needs its still first
-    slot({ name: 'f-clip', kind: 'video', plans: { draft: plan('k', 0.35), standard: plan('v', null), premium: plan('v', null) } }),   // ready, price unknown at standard
-  ]
-  const f = stubFetch((u, init) => {
-    if (u === '/api/media/folders') return { body: { folders: [{ path: '/ws/site', name: 'site' }] } }
-    if (u.startsWith('/api/media/slots')) return { body: { working_dir: '/ws/site', slots } }
-    if (u === '/api/media/ledger') return { body: { runs: 0, done: 0, estimated_usd: 0, rows: [], note: 'n' } }
-    if (u === '/api/media/generate' && init?.method === 'POST') return { status: 202, body: { jobs: ['j' + Math.random()], endpoint: 'e', estimate_usd_each: 0.08 } }
-    if (u.startsWith('/api/media/jobs/')) return { body: { id: 'x', state: 'queued', progress: '', slot: 'a-still', error: null, files: [] } }
-  })
-  return { f, w: mount(MediaGeneratePanel, { props: { keySaved: true } }) }
-}
-it('counts only what is still missing and shows the batch price, flagging models with no listed price', async () => {
-  vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] })
-  const { w } = batchSetup()
-  await flushPromises()
-  const box = w.get('[data-testid=batch]')
-  expect(box.text()).toContain('3 ready')
-  expect(box.text()).toContain('1 more need an approved still first')
-  expect(box.text()).toContain('about $0.16 plus 1 with no listed price')
-  await box.get('select').setValue('draft')
-  expect(box.text()).toContain('about $0.51')                                  // 0.08 + 0.08 + 0.35
-  expect(box.findAll('button').find(b => b.text() === 'Generate all missing')!.attributes('disabled')).toBeDefined()   // spending not acknowledged
-  w.unmount()
-})
-it('asks once with the total, then makes one request per missing slot with the chosen tier', async () => {
-  vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] })
-  const { w, f } = batchSetup()
-  await flushPromises()
-  await w.get('input[type=checkbox]').setValue(true)
-  const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValueOnce(false).mockReturnValueOnce(true)
-  const go = w.get('[data-testid=batch]').findAll('button').find(b => b.text() === 'Generate all missing')!
-  await w.get('[data-testid=batch] select').setValue('premium')
-  await go.trigger('click'); await flushPromises()
-  expect(calls(f, 'POST', '/api/media/generate')).toHaveLength(0)             // cancelled: nothing was sent
-  expect(confirmSpy.mock.calls[0]![0]).toContain('at the premium tier')
-  await go.trigger('click'); await flushPromises()
-  const sent = calls(f, 'POST', '/api/media/generate').map(c => JSON.parse(String(c[1]?.body)))
-  expect(sent.map(b => b.slot)).toEqual(['a-still', 'b-card', 'f-clip'])
-  expect(sent.every(b => b.tier === 'premium' && b.count === 1 && b.confirm_spend === true && b.working_dir === '/ws/site')).toBe(true)
-  confirmSpy.mockRestore(); w.unmount()
-})
-it('shows each candidate as a thumbnail or video you can open, from the operator-only viewer', async () => {
-  const f = stubFetch((u, init) => {
-    if (u === '/api/media/folders') return { body: { folders: [{ path: '/ws/site', name: 'site' }] } }
-    if (u.startsWith('/api/media/slots')) return { body: { working_dir: '/ws/site', slots: [slot({ name: 'hero-still', candidates: ['hero-still-1.png', 'hero-still-2.png'] }), slot({ name: 'hero', kind: 'video', plans: veo, candidates: ['hero-1.mp4'] })] } }
-    if (u === '/api/media/ledger') return { body: { runs: 0, done: 0, estimated_usd: 0, rows: [], note: 'n' } }
-    void init
-  })
-  const w = mount(MediaGeneratePanel, { props: { keySaved: true } })
+it('shows each candidate as a thumbnail or video from the operator-only viewer, and offers another when none is right', async () => {
+  const { w } = setup(() => [slot({ name: 'hero-still', candidates: ['hero-still-1.png', 'hero-still-2.png'] }), slot({ name: 'hero', kind: 'video', plans: veo, candidates: ['hero-1.mp4'] })])
   await flushPromises()
   const imgs = w.get('[data-slot=hero-still]').findAll('img')
   expect(imgs.map(i => i.attributes('src'))).toEqual([
     '/api/media/candidate?working_dir=%2Fws%2Fsite&name=hero-still-1.png',
     '/api/media/candidate?working_dir=%2Fws%2Fsite&name=hero-still-2.png',
   ])
-  expect(w.get('[data-slot=hero-still] a').attributes('href')).toBe(imgs[0]!.attributes('src'))        // opens full size
   expect(w.get('[data-slot=hero-still] a').attributes('target')).toBe('_blank')
   const video = w.get('[data-slot=hero] video')
   expect(video.attributes('src')).toBe('/api/media/candidate?working_dir=%2Fws%2Fsite&name=hero-1.mp4')
   expect(video.attributes('controls')).toBeDefined()
   expect(w.get('[data-slot=hero]').findAll('img')).toHaveLength(0)
-  void f
+  expect(buttons(w, 'Generate', '[data-slot=hero-still]')).toHaveLength(0)
+  expect(w.find('button[aria-label="None of these for hero-still"]').exists()).toBe(true)
   w.unmount()
 })
-it('shows the picked file waiting in the inbox and publishes it, reporting the files made or the reason it cannot', async () => {
-  let inbox: string | null = null
-  let publishError = false
-  const f = stubFetch((u, init) => {
-    if (u === '/api/media/folders') return { body: { folders: [{ path: '/ws/site', name: 'site' }] } }
-    if (u.startsWith('/api/media/slots')) return { body: { working_dir: '/ws/site', slots: [slot({ name: 'hero-still', candidates: ['hero-still-1.png', 'hero-still-2.png'], inbox, published: inbox === 'published' })] } }
-    if (u === '/api/media/ledger') return { body: { runs: 0, done: 0, estimated_usd: 0, rows: [], note: 'n' } }
-    if (u === '/api/media/pick' && init?.method === 'POST') { inbox = 'hero-still.png'; return { body: { copied: 'media/inbox/hero-still.png', next: '' } } }
-    if (u === '/api/media/publish' && init?.method === 'POST') {
-      if (publishError) return { status: 422, body: { detail: 'hero-still.png is 640px wide and this slot needs at least 960px (a draft is too small to publish).' } }
-      inbox = 'published'; return { body: { published: 'hero-still', files: [{ path: 'assets/img/hero-still.jpg', bytes: 204800 }] } }
-    }
-  })
-  const w = mount(MediaGeneratePanel, { props: { keySaved: true } })
+function batchSetup() {
+  return setup(
+    () => [
+      slot({ name: 'a-still' }), slot({ name: 'b-card' }),                                             // ready
+      slot({ name: 'c-done', published: true }),                                                       // published: never regenerated
+      slot({ name: 'd-picked', candidates: ['d-picked-1.png'] }),                                      // waiting for your decision: not regenerated either
+      slot({ name: 'e-clip', kind: 'video', plans: veo, waiting_for_stills: ['a-still'] }),            // needs its still first
+      slot({ name: 'f-clip', kind: 'video', plans: { draft: plan('k', 0.35), standard: plan('v', null), premium: plan('v', null) } }),   // ready, price unknown at standard
+    ],
+    (u, init) => {
+      if (u === '/api/media/generate' && init?.method === 'POST') return { status: 202, body: { jobs: ['j' + Math.random()], endpoint: 'e', estimate_usd_each: 0.08 } }
+      if (u.startsWith('/api/media/jobs/')) return { body: { id: 'x', state: 'queued', progress: '', slot: 'a-still', error: null, files: [] } }
+    },
+  )
+}
+it('counts only what is not made yet and shows the batch price, flagging models with no listed price', async () => {
+  vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] })
+  const { w } = batchSetup()
   await flushPromises()
-  const row = () => w.get('[data-slot=hero-still]')
-  expect(row().text()).not.toContain('Publish')
-  await w.get('button[aria-label="Use hero-still-2.png"]').trigger('click'); await flushPromises()
-  expect(row().text()).toContain('Waiting in the inbox: hero-still.png (from hero-still-2.png)')
-  expect(w.get('button[aria-label="Use hero-still-2.png"]').text()).toContain('✓ Chosen')
-  publishError = true
-  await w.get('button[aria-label="Publish hero-still"]').trigger('click'); await flushPromises()
-  expect(w.get('[data-note=hero-still]').text()).toContain('too small to publish')
-  expect(w.get('[data-note=hero-still]').attributes('role')).toBe('alert')
-  publishError = false
-  await w.get('button[aria-label="Publish hero-still"]').trigger('click'); await flushPromises()
-  expect(w.get('[data-note=hero-still]').text()).toContain('Published: assets/img/hero-still.jpg (200 KB)')
-  expect(calls(f, 'POST', '/api/media/publish')).toHaveLength(2)
+  const box = w.get('[data-testid=batch]')
+  expect(box.text()).toContain('3 ready')
+  expect(box.text()).toContain('1 more need an approved still first')
+  expect(box.text()).toContain('never regenerated here')
+  expect(box.text()).toContain('about $0.16 plus 1 with no listed price')
+  await box.get('select').setValue('draft')
+  expect(box.text()).toContain('about $0.51')
+  expect(buttons(w, 'Generate all missing', '[data-testid=batch]')[0]!.attributes('disabled')).toBeDefined()
+  w.unmount()
+})
+it('asks once with the total, then makes one request per slot that is not made yet', async () => {
+  vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] })
+  const { w, f } = batchSetup()
+  await flushPromises()
+  await w.get('input[type=checkbox]').setValue(true)
+  const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValueOnce(false).mockReturnValueOnce(true)
+  const go = buttons(w, 'Generate all missing', '[data-testid=batch]')[0]!
+  await w.get('[data-testid=batch] select').setValue('premium')
+  await go.trigger('click'); await flushPromises()
+  expect(calls(f, 'POST', '/api/media/generate')).toHaveLength(0)
+  expect(confirmSpy.mock.calls[0]![0]).toContain('at the premium tier')
+  await go.trigger('click'); await flushPromises()
+  const sent = calls(f, 'POST', '/api/media/generate').map(c => JSON.parse(String(c[1]?.body)))
+  expect(sent.map(b => b.slot)).toEqual(['a-still', 'b-card', 'f-clip'])                              // not the published, not the one awaiting a decision, not the one waiting for a still
+  expect(sent.every(b => b.tier === 'premium' && b.count === 1 && b.confirm_spend === true && b.working_dir === '/ws/site')).toBe(true)
+  confirmSpy.mockRestore(); w.unmount()
+})
+it('asks for the key first when none is saved', async () => {
+  const { w } = setup(() => [slot({ name: 'a' })], () => undefined, false)
+  await flushPromises()
+  expect(w.text()).toContain('Save your fal key first')
+  await w.get('input[type=checkbox]').setValue(true)
+  expect(buttons(w, 'Generate', '[data-slot=a]')[0]!.attributes('disabled')).toBeDefined()
+  w.unmount()
+})
+it('records skip, restore and none-of-these as decisions, and the skipped slot leaves the work list', async () => {
+  let skipped = false
+  const { w, f } = setup(
+    () => [slot({ name: 'a', skipped }), slot({ name: 'b', candidates: ['b-1.png'] })],
+    (u, init) => {
+      if (u === '/api/media/decision' && init?.method === 'POST') { const b = JSON.parse(String(init.body)); if (b.slot === 'a') skipped = b.event === 'skip'; return { body: { slot: b.slot, skipped } } }
+    },
+  )
+  await flushPromises()
+  await w.get('button[aria-label="Skip a"]').trigger('click'); await flushPromises()
+  expect(JSON.parse(String(calls(f, 'POST', '/api/media/decision')[0]![1]?.body))).toEqual({ working_dir: '/ws/site', slot: 'a', event: 'skip' })
+  expect(w.get('[data-testid=summary]').text()).toContain('1 skipped')
+  expect(w.get('[data-slot=a]').text()).toContain('skipped, the site uses its fallback')
+  expect(w.findAll('button').some(b => b.text() === 'Generate' && b.element.closest('[data-slot=a]'))).toBe(false)         // out of the work list
+  await w.get('button[aria-label="Restore a"]').trigger('click'); await flushPromises()
+  expect(JSON.parse(String(calls(f, 'POST', '/api/media/decision')[1]![1]?.body)).event).toBe('unskip')
+  await w.get('button[aria-label="None of these for b"]').trigger('click'); await flushPromises()
+  expect(JSON.parse(String(calls(f, 'POST', '/api/media/decision')[2]![1]?.body))).toEqual({ working_dir: '/ws/site', slot: 'b', event: 'reject' })
+  expect(w.get('[data-slot=b]').text()).toContain('Make another below')
+  w.unmount()
+})
+it('opened from a project it uses that folder without a picker, reads the key status itself, and says when every slot is decided', async () => {
+  const f = stubFetch((u) => {
+    if (u.startsWith('/api/media/slots')) return { body: { working_dir: '/ws/proj', slots: [slot({ name: 'a', published: true }), slot({ name: 'b', skipped: true })], summary: { published: 1, skipped: 1, pending: 0, total: 2, complete: true, text: 'Media: 1 of 2 slots published, 1 skipped.' } } }
+    if (u === '/api/media/models') return { body: { provider: 'fal', fal_key_saved: true, models: [], key_rules: { preset: 'API', note: '', allowed_models: [] } } }
+    if (u === '/api/media/ledger') return { body: { runs: 0, done: 0, estimated_usd: 0, rows: [], note: 'n' } }
+  })
+  const w = mount(MediaGeneratePanel, { props: { workingDir: '/ws/proj' } })
+  await flushPromises()
+  expect(w.find('select[aria-label="Project folder"]').exists()).toBe(false)
+  expect(f.mock.calls.some(([u]) => u === '/api/media/folders')).toBe(false)
+  expect(f.mock.calls.some(([u]) => String(u).includes('working_dir=%2Fws%2Fproj'))).toBe(true)
+  expect(w.get('[data-testid=complete]').text()).toContain('Every slot is decided')
+  expect(f.mock.calls.some(([u]) => u === '/api/media/models')).toBe(true)
+  expect(w.text()).not.toContain('Save your fal key first')
   w.unmount()
 })

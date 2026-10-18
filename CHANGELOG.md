@@ -10,6 +10,19 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.6.21] - 2026-10-18
+
+### Added
+
+- **Media review is part of the project.** A project whose working folder has media slots gets a **Media** tab, and a banner on the project page while slots still need a decision. A human story about media (and the board card for it) shows **Open media review** with where the slots stand, and its decision box shows a summary you can use as your decision. The same panel still opens from Agents, Media. `GET /api/media/project/{id}`.
+- **Persistent, systematic decisions.** Each slot ends published or skipped. **Accept and publish** (one click), **None of these: make another**, **Skip: use the fallback** and **Restore** are all recorded in `media/decisions.json` in the project folder (what was generated, accepted, rejected, published or skipped, and by whom), and mirrored into the project's ledger so the project remembers them. The panel groups slots as waiting for your decision, not made yet, skipped and published, and says when every slot is decided. `POST /api/media/decision`.
+- **Generations survive a restart.** Every submission to fal is journaled; a generation that was in flight when RCD restarted is finished at the next start (its result is fetched and saved as a candidate) or marked failed in the ledger, and is never resubmitted.
+- **No accidental repeats.** RCD refuses to regenerate a slot that is published unless you choose Regenerate, and refuses a second generation for a slot while one is running. Results appear as each job finishes, not when the whole batch does.
+
+### Changed
+
+- The media panel is a review flow: published slots are collapsed with a ✓, candidates show as thumbnails or players with an Accept button, and Generate only appears for slots not yet made (or after you choose Regenerate or Make another).
+
 ## [0.6.20] - 2026-10-18
 
 ### Added
@@ -520,7 +533,8 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 - Claude Code stories may use web search and fetch without any shell, credential or publish permission.
 
 [0.3.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.0
-[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.20...HEAD
+[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.21...HEAD
+[0.6.21]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.21
 [0.6.20]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.20
 [0.6.19]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.19
 [0.6.18]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.18

@@ -7,7 +7,8 @@ import ProjectsView from '@/views/ProjectsView.vue'
 import { emptyProject, newNode, arrange } from '@/lib/projects'
 import { stubFetch } from './helpers'
 import { vi } from 'vitest'
-afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); document.body.innerHTML='' })
+let mediaProject:unknown={available:false}
+afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); document.body.innerHTML=''; mediaProject={available:false} })
 async function setup(state='draft', tasks: import('@/lib/projects').ProjectTask[] = [], proposedOutput: {path:string;markdown:string;sha256:string} | null = null, url='/projects?project=1', unarranged=false) {
  const phase=newNode('phase',0);phase.title='Architecture'
  const story=newNode('story',1,phase.key);story.title='Bounded implementation';story.model='gpt-6.1-sol';story.routes=[{agent:'claude',model:'claude-sonnet-5-5'}]
@@ -15,6 +16,10 @@ async function setup(state='draft', tasks: import('@/lib/projects').ProjectTask[
  let p={model_lock:false,id:1,document:doc,revision:1,state,can_resume_plan:state==='planning_failed',approved_revision:null,pipeline:null,error:null,updated_at:1,handoff_approval:{mode:'manual' as 'manual'|'automatic',manifest_hash:'b'.repeat(64),eligible:[{card_id:5,title:'Routine document',column:'review'}],excluded:[{card_id:6,title:'Repository publication',reason:'Publication requires individual review'}]},tasks,memory:[],workspaces:{},artifacts:{}}
  const f=stubFetch((url,init) => {
   if(url==='/api/roles') return {body:{delegator:'hermes',revision:'a'.repeat(64)}}
+  if(url==='/api/media/project/1') return {body:mediaProject}
+  if(url.startsWith('/api/media/slots')) return {body:{working_dir:'/tmp/project',slots:[],summary:null}}
+  if(url==='/api/media/models') return {body:{provider:'fal',fal_key_saved:true,models:[],key_rules:{preset:'API',note:'',allowed_models:[]}}}
+  if(url==='/api/media/ledger') return {body:{runs:0,done:0,estimated_usd:0,rows:[],note:'n'}}
   if(url==='/api/projects' && init?.method==='POST') { p={...p,document:JSON.parse(String(init.body))}; return {status:201,body:p} }
   if(url==='/api/projects') return {body:{projects:[{id:1,title:doc.title,state,revision:1,updated_at:1}]}}
   if(url==='/api/projects/1' && init?.method==='PATCH') { const body=JSON.parse(String(init.body)); p={...p,document:body.document,revision:2}; return {body:p} }
@@ -81,6 +86,28 @@ it('deletes a closed project only after confirmation and says the folder is kept
 it('does not offer Delete on a live project',async()=>{
  const {w}=await setup('active')
  expect(w.findAll('button').some(b=>b.text()==='Delete project…')).toBe(false)
+ w.unmount()
+})
+it('shows a Media tab and a banner for a project with media slots, and the link opens that tab directly',async()=>{
+ mediaProject={available:true,working_dir:'/tmp/project',summary:{published:4,skipped:0,pending:6,total:10,complete:false,text:'Media: 4 of 10 slots published, 6 still undecided.'}}
+ const {w}=await setup('active')
+ await flushPromises()
+ expect(w.findAll('nav.tabs button').map(b=>b.text())).toContain('Media')
+ expect(w.get('[data-testid=media-banner]').text()).toContain('4 of 10 published, 6 waiting for your decision')
+ await w.get('[data-testid=media-banner] button').trigger('click');await flushPromises()
+ expect(w.find('.media-tab').exists()).toBe(true)
+ expect(w.find('[data-testid=media-banner]').exists()).toBe(false)           // the banner steps aside once you are on the tab
+ w.unmount()
+ const direct=await setup('active',[],null,'/projects?project=1&view=media')
+ await flushPromises()
+ expect(direct.w.find('.media-tab').exists()).toBe(true)                      // arriving from the story's link lands on the tab
+ direct.w.unmount()
+})
+it('has no Media tab for a project without media slots',async()=>{
+ const {w}=await setup('active')
+ await flushPromises()
+ expect(w.findAll('nav.tabs button').map(b=>b.text())).not.toContain('Media')
+ expect(w.find('[data-testid=media-banner]').exists()).toBe(false)
  w.unmount()
 })
 it('asks for a missing key before creating the project, then creates it after the key is saved or skipped',async()=>{

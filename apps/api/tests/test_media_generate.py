@@ -108,7 +108,7 @@ def env(tmp_path, secured, monkeypatch):  # noqa: F811
 
 
 def run_and_wait(client, body, expect=202):
-    r = client.post("/api/media/generate", json={"confirm_spend": True, **body})
+    r = client.post("/api/media/generate", json={"confirm_spend": True, "regenerate": True, **body})      # the fixture publishes hero-still, which clips are made from
     assert r.status_code == expect, r.text
     if expect != 202:
         return r
@@ -387,3 +387,127 @@ def test_publish_is_operator_only_and_stays_inside_the_allowed_folders(env, tmp_
     inbox.mkdir(parents=True, exist_ok=True)
     (inbox / "hero-still.png").symlink_to(folder / "media" / "slots.json")
     assert client.get("/api/media/slots", params={"working_dir": str(folder)}).json()["slots"][0]["inbox"] is None         # a link is never a pick
+
+
+def test_a_published_slot_is_not_regenerated_unless_asked_and_a_running_one_is_not_duplicated(env):
+    client, folder = env
+    body = {"working_dir": str(folder), "slot": "hero-clip"}
+    (folder / "assets" / "video").mkdir(parents=True)
+    (folder / "assets" / "video" / "hero-clip.mp4").write_bytes(b"published")
+    r = client.post("/api/media/generate", json={"confirm_spend": True, **body})
+    assert r.status_code == 409 and "already published" in r.text
+    assert [e for e in FakeFal.log if e[0] == "POST"] == []                                  # nothing was sent to fal
+    r = client.post("/api/media/generate", json={"confirm_spend": True, "regenerate": True, **body})
+    assert r.status_code == 202                                                              # an explicit regenerate goes through
+    again = client.post("/api/media/generate", json={"confirm_spend": True, "regenerate": True, **body})
+    assert again.status_code in {202, 409}                                                   # 409 while the first is still running, 202 once it has finished
+    for job in r.json()["jobs"]:
+        for _ in range(200):
+            if client.get(f"/api/media/jobs/{job}").json()["state"] in {"done", "failed"}:
+                break
+            time.sleep(0.05)
+
+
+# ---------------------------------------------------------------- decisions, the project connection and restart recovery
+
+def make_project(client, folder):
+    r = client.post("/api/projects", json={"title": "Site", "brief": "A site.", "working_dir": str(folder), "nodes": []})
+    assert r.status_code == 201, r.text
+    return r.json()["id"]
+
+
+def memory_texts(client, pid):
+    return [m["text"] for m in client.get(f"/api/projects/{pid}").json()["memory"] if m["kind"] == "decision"]
+
+
+def test_skip_restore_and_reject_are_recorded_with_the_slot_and_the_project_remembers_them(env):
+    client, folder = env
+    pid = make_project(client, folder)
+    body = {"working_dir": str(folder), "slot": "hero-clip"}
+    assert client.post("/api/media/decision", json={**body, "event": "skip", "note": "Not needed for launch"}).json() == {"slot": "hero-clip", "skipped": True}
+    row = next(s for s in client.get("/api/media/slots", params={"working_dir": str(folder)}).json()["slots"] if s["name"] == "hero-clip")
+    assert row["skipped"] is True and row["history"][-1]["event"] == "skipped" and "Not needed" in row["history"][-1]["detail"]
+    state = json.loads((folder / "media" / "decisions.json").read_text())["slots"]["hero-clip"]
+    assert state["skipped"] is True
+    assert any("Skipped media slot hero-clip: Not needed for launch" in t and "fallback" in t for t in memory_texts(client, pid))
+    assert client.post("/api/media/decision", json={**body, "event": "unskip"}).json()["skipped"] is False
+    assert client.post("/api/media/decision", json={**body, "event": "reject"}).status_code == 200
+    events = [h["event"] for h in next(s for s in client.get("/api/media/slots", params={"working_dir": str(folder)}).json()["slots"] if s["name"] == "hero-clip")["history"]]
+    assert events == ["skipped", "restored", "rejected"]
+    assert client.post("/api/media/decision", json={**body, "event": "bogus"}).status_code == 422
+
+
+def test_a_published_slot_cannot_be_skipped_and_accept_and_publish_are_remembered(env):
+    client, folder = env
+    pid = make_project(client, folder)
+    small_slots(folder)
+    run_and_wait(client, {"working_dir": str(folder), "slot": "hero-still"})
+    client.post("/api/media/pick", json={"working_dir": str(folder), "slot": "hero-still", "candidate": "hero-still-1.png"})
+    if shutil.which("ffmpeg") and shutil.which("ffprobe"):
+        assert client.post("/api/media/publish", json={"working_dir": str(folder), "slot": "hero-still"}).status_code == 200
+        assert client.post("/api/media/decision", json={"working_dir": str(folder), "slot": "hero-still", "event": "skip"}).status_code == 409
+        assert any("Published media slot hero-still" in t for t in memory_texts(client, pid))
+    texts = memory_texts(client, pid)
+    assert any("Accepted candidate hero-still-1.png for media slot hero-still" in t for t in texts)
+    history = [h["event"] for h in json.loads((folder / "media" / "decisions.json").read_text())["slots"]["hero-still"]["history"]]
+    assert history[0] == "regenerated" or history[0] == "generated"
+    assert "accepted" in history
+
+
+def test_the_project_route_reports_where_media_stands_and_is_quiet_without_media(env, tmp_path):
+    client, folder = env
+    pid = make_project(client, folder)
+    r = client.get(f"/api/media/project/{pid}").json()
+    assert r["available"] is True and (r["summary"]["total"], r["summary"]["published"], r["summary"]["pending"]) == (3, 1, 2)      # hero-still is published by the fixture
+    for name in ("hero-clip", "plate"):
+        client.post("/api/media/decision", json={"working_dir": str(folder), "slot": name, "event": "skip"})
+    r = client.get(f"/api/media/project/{pid}").json()["summary"]
+    assert r["published"] == 1 and r["skipped"] == 2 and r["pending"] == 0 and r["complete"] is True      # hero-still is published by the fixture
+    assert "slots published" in r["text"] and "Skipped: hero-clip, plate." in r["text"]
+    other = tmp_path / "ws" / "plain"
+    other.mkdir()
+    pid2 = make_project(client, other)
+    assert client.get(f"/api/media/project/{pid2}").json() == {"available": False}
+    assert client.get("/api/media/project/9999").status_code == 404
+    import profiles
+    profiles.bridge_token(get_settings(), True)
+    assert bridge(client).get(f"/api/media/project/{pid}").status_code in {401, 403}
+
+
+def test_a_submission_is_journaled_and_one_left_unfinished_by_a_restart_is_finished_later(env):
+    client, folder = env
+    run_and_wait(client, {"working_dir": str(folder), "slot": "hero-still"})
+    journal = [json.loads(line) for line in mg.journal_path(get_settings()).read_text().splitlines()]
+    assert [j["state"] for j in journal][-2:] == ["submitted", "done"] and mg.journal_open(get_settings()) == []
+    # simulate MCD stopping after fal accepted a job: a journal entry that never reached done
+    me = get_settings().fal_queue_base
+    owner = client.get("/api/profile").json()["owner"]
+    mg.journal_add(get_settings(), {"id": "lost-1", "state": "submitted", "ts": int(time.time()), "folder": str(folder), "slot": "hero-still", "endpoint": "fal-ai/nano-banana-2/edit",
+                                    "request_id": "req-lost", "status_url": me + "/status/1", "response_url": me + "/result/1", "owner": owner, "tier": "standard", "estimate_usd": 0.08})
+    assert [e["id"] for e in mg.journal_open(get_settings())] == ["lost-1"]
+    before = len(list((folder / "media" / "candidates").glob("hero-still-*.png")))
+    mg.recover(get_settings(), client.app.state.sessions)
+    for _ in range(300):
+        if not mg.journal_open(get_settings()):
+            break
+        time.sleep(0.05)
+    assert mg.journal_open(get_settings()) == []
+    assert len(list((folder / "media" / "candidates").glob("hero-still-*.png"))) == before + 1          # the result was fetched and saved
+    ledger = client.get("/api/media/ledger").json()["rows"]
+    assert any(r.get("recovered") and r["status"] == "done" for r in ledger)
+    assert any("finished after a restart" in h["detail"] for h in json.loads((folder / "media" / "decisions.json").read_text())["slots"]["hero-still"]["history"])
+
+
+def test_a_journaled_job_that_cannot_be_resumed_is_marked_failed_not_retried(env):
+    client, folder = env
+    client.delete("/api/profile/credentials/fal")
+    mg.journal_add(get_settings(), {"id": "lost-2", "state": "submitted", "ts": int(time.time()), "folder": str(folder), "slot": "hero-still", "endpoint": "e", "request_id": "r",
+                                    "status_url": "https://evil.example.com/s", "response_url": "https://evil.example.com/r", "owner": "gptkiosk@gmail.com"})
+    mg.recover(get_settings(), client.app.state.sessions)
+    for _ in range(200):
+        if not mg.journal_open(get_settings()):
+            break
+        time.sleep(0.05)
+    assert mg.journal_open(get_settings()) == []
+    assert [e for e in FakeFal.log if e[0] == "POST"] == []                                               # never resubmitted
+    assert any(r.get("recovered") and r["status"] == "failed" for r in client.get("/api/media/ledger").json()["rows"])
