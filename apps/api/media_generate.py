@@ -278,8 +278,34 @@ def price_of(settings, key, endpoint):
         return None
 
 
-def generate_once(settings, key, root, slot, endpoint, body, progress=lambda text: None):
-    """One submit, wait, download. Returns the candidate path and fal's request id. Raises MediaError on any failure, leaving no candidate."""
+def journal_path(settings):
+    return Path(settings.data_dir) / "media" / "journal.jsonl"
+
+
+def journal_add(settings, row):
+    """An append-only record of every submitted generation, so one that was in flight when MCD restarted can be finished instead of lost."""
+    path = journal_path(settings)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a") as handle:
+        handle.write(json.dumps(row, sort_keys=True) + "\n")
+
+
+def journal_open(settings):
+    """Entries whose latest state is still `submitted`."""
+    path = journal_path(settings)
+    if not path.exists():
+        return []
+    latest = {}
+    for line in path.read_text().splitlines():
+        try:
+            row = json.loads(line)
+            latest[row["id"]] = {**latest.get(row["id"], {}), **row}
+        except (ValueError, KeyError):
+            continue
+    return [r for r in latest.values() if r.get("state") == "submitted"]
+
+
+def submit_job(settings, key, endpoint, body):
     base = settings.fal_queue_base.rstrip("/")
     if not base_ok(base):
         raise MediaError("fal_queue_base must be https.", 500)
@@ -287,6 +313,15 @@ def generate_once(settings, key, root, slot, endpoint, body, progress=lambda tex
     for field in ("status_url", "response_url"):
         if not link_ok(str(job.get(field, "")), base):
             raise MediaError("fal returned an unexpected link; the key was not sent to it.", 502)
+    return job
+
+
+def finish_job(settings, key, root, slot, endpoint, job, progress=lambda text: None):
+    """Wait for a submitted job, download the result and save it as a candidate. Raises MediaError on any failure, leaving no candidate."""
+    base = settings.fal_queue_base.rstrip("/")
+    for field in ("status_url", "response_url"):
+        if not link_ok(str(job.get(field, "")), base):
+            raise MediaError("The saved job has an unexpected link; the key was not sent to it.", 502)
     request_id = job.get("request_id")
     progress("queued at fal")
     waited = 0.0
@@ -331,6 +366,15 @@ def generate_once(settings, key, root, slot, endpoint, body, progress=lambda tex
     return target, request_id, len(data)
 
 
+def generate_once(settings, key, root, slot, endpoint, body, progress=lambda text: None, meta=None):
+    """One submit, wait, download. Returns the candidate path, fal's request id and size. The submission is journaled first, so a restart can finish it."""
+    job = submit_job(settings, key, endpoint, body)
+    journal_add(settings, {"id": (meta or {}).get("id") or job.get("request_id"), "state": "submitted", "ts": int(time.time()), "folder": str(root), "slot": slot["name"], "endpoint": endpoint,
+                           "request_id": job.get("request_id"), "status_url": job.get("status_url"), "response_url": job.get("response_url"),
+                           "owner": (meta or {}).get("owner"), "tier": (meta or {}).get("tier"), "estimate_usd": (meta or {}).get("estimate_usd")})
+    return finish_job(settings, key, root, slot, endpoint, job, progress)
+
+
 # ---------------------------------------------------------------- jobs and the spend ledger
 
 class Ledger:
@@ -367,7 +411,7 @@ class Jobs:
 
     def submit(self, settings, key, root, slot, endpoint, body, estimate, meta):
         job_id = uuid.uuid4().hex[:12]
-        record = {"id": job_id, "state": "queued", "progress": "", "slot": slot["name"], "endpoint": endpoint, "estimate_usd": estimate, "files": [], "error": None}
+        record = {"id": job_id, "state": "queued", "progress": "", "slot": slot["name"], "folder": str(root), "endpoint": endpoint, "estimate_usd": estimate, "files": [], "error": None}
         with self.lock:
             self.items[job_id] = record
             if len(self.items) > 100:
@@ -378,24 +422,36 @@ class Jobs:
         def run():
             record["state"] = "running"
             ledger = {"ts": int(time.time()), "slot": slot["name"], "folder": str(root), "endpoint": endpoint, "estimate_usd": estimate, "owner": meta.get("owner"), "tier": meta.get("tier")}
+            import media_state
             try:
-                target, request_id, size = generate_once(settings, key, root, slot, endpoint, body, lambda text: record.__setitem__("progress", text))
+                target, request_id, size = generate_once(settings, key, root, slot, endpoint, body, lambda text: record.__setitem__("progress", text),
+                                                         {"id": job_id, "owner": meta.get("owner"), "tier": meta.get("tier"), "estimate_usd": estimate})
                 record.update(state="done", files=[{"path": str(target.relative_to(root)), "bytes": size}], progress="done")
                 self.ledger.add({**ledger, "status": "done", "request_id": request_id, "file": str(target.relative_to(root))})
+                journal_add(settings, {"id": job_id, "state": "done", "ts": int(time.time())})
+                media_state.record(root, slot["name"], "regenerated" if meta.get("regenerate") else "generated", f"{target.name} ({endpoint}, {meta.get('tier')} tier)", meta.get("owner") or "")
             except MediaError as exc:
                 record.update(state="failed", error=str(exc).replace(key, "[key]"))
                 self.ledger.add({**ledger, "status": "failed", "error": record["error"][:200]})
+                journal_add(settings, {"id": job_id, "state": "failed", "ts": int(time.time()), "error": record["error"][:200]})
+                media_state.record(root, slot["name"], "generate_failed", record["error"][:300], meta.get("owner") or "")
             except Exception:       # never let a worker die silently or echo internals
                 record.update(state="failed", error="Generation failed unexpectedly.")
                 self.ledger.add({**ledger, "status": "failed", "error": "unexpected"})
+                journal_add(settings, {"id": job_id, "state": "failed", "ts": int(time.time()), "error": "unexpected"})
 
         self.pool.submit(run)
         return job_id
 
+    def active_for(self, folder, slot_name):
+        """True while a generation for this slot in this folder is queued or running."""
+        with self.lock:
+            return any(r.get("folder") == str(folder) and r["slot"] == slot_name and r["state"] in {"queued", "running"} for r in self.items.values())
+
     def get(self, job_id):
         with self.lock:
             record = self.items.get(job_id)
-        return {k: v for k, v in record.items() if k != "t"} if record else None
+        return {k: v for k, v in record.items() if k not in {"t", "folder"}} if record else None
 
 
 _state = {}
@@ -417,6 +473,11 @@ ATTEMPTS = [(30, 1920), (34, 1920), (36, 1600), (38, 1280), (42, 1280)]      # (
 INVENTORY_BEGIN, INVENTORY_END = "<!-- media:begin -->", "<!-- media:end -->"
 VIDEO_SUFFIXES = {".mp4", ".mov", ".webm", ".mkv", ".m4v"}
 IMAGE_SUFFIXES_IN = {".png", ".jpg", ".jpeg", ".webp", ".avif", ".heic"}
+
+
+def is_published(root, slot):
+    folder = "video" if slot["kind"] == "video" else "img"
+    return inside(root, f"assets/{folder}/{slot['name']}." + ("mp4" if slot["kind"] == "video" else "jpg")) is not None
 
 
 def inbox_file(root, slot):
@@ -545,3 +606,31 @@ def publish(root, slot, loop_fade=0.6):
     pfile.write_text(json.dumps(provenance, indent=2, sort_keys=True) + "\n")
     _write_inventory(root, provenance)
     return [{"path": str(f.relative_to(root)), "bytes": f.stat().st_size} for f in files]
+
+
+def recover(settings, sessions):
+    """Finish generations that were submitted to fal but not finished when MCD last stopped. Runs in the background at start-up; a job it cannot
+    resume (no key, folder gone, fal no longer knows it) is marked failed in the journal and the ledger, never retried or resubmitted."""
+    import media_state
+    import profiles
+    runtime_ = runtime(settings)
+    for entry in journal_open(settings):
+        def resume(entry=entry):
+            ledger = {"ts": int(time.time()), "slot": entry.get("slot"), "folder": entry.get("folder"), "endpoint": entry.get("endpoint"), "estimate_usd": entry.get("estimate_usd"),
+                      "owner": entry.get("owner"), "tier": entry.get("tier"), "recovered": True}
+            try:
+                with sessions() as s:
+                    key = profiles.credential(s, entry.get("owner") or "operator", "fal", settings)
+                if not key:
+                    raise MediaError("No saved fal key to resume this generation with.", 422)
+                root = project_root(settings, entry["folder"])
+                slot = load_slots(root)[entry["slot"]]
+                target, request_id, size = finish_job(settings, key, root, slot, entry["endpoint"], entry)
+                runtime_.ledger.add({**ledger, "status": "done", "request_id": request_id, "file": str(target.relative_to(root))})
+                journal_add(settings, {"id": entry["id"], "state": "done", "ts": int(time.time())})
+                media_state.record(root, slot["name"], "generated", f"{target.name} (finished after a restart)", entry.get("owner") or "")
+            except Exception as exc:
+                message = str(exc)[:200] if isinstance(exc, MediaError) else "could not be resumed"
+                runtime_.ledger.add({**ledger, "status": "failed", "error": message})
+                journal_add(settings, {"id": entry["id"], "state": "failed", "ts": int(time.time()), "error": message})
+        runtime_.pool.submit(resume)

@@ -120,6 +120,12 @@ def create_app() -> FastAPI:
             dispatcher.start()
         app.state.dispatcher = dispatcher
         if settings.dispatcher_enabled:
+            try:
+                import media_generate
+                media_generate.recover(settings, sessions)          # finish media generations that were in flight when MCD last stopped
+            except Exception:
+                logging.getLogger(__name__).exception('media recovery failed to start')
+        if settings.dispatcher_enabled:
             app.state.project_messenger.start()
         app.state.alerts.start()
         ops_stop = asyncio.Event()

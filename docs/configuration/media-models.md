@@ -28,3 +28,9 @@ Every run is explicit and recorded in `media/ledger.jsonl` under MCD's data dire
 ## Changing the catalog
 
 The model list is in `apps/api/media_catalog.py`. Add a model there with its endpoint id, unit, listed price (or none) and tier; the panel and `GET /api/media/models` pick it up.
+
+## Media review as part of a project
+
+A project whose working folder has `media/slots.json` gets a **Media** tab and, while slots are undecided, a banner on the project page. A human story about media links straight to it (**Open media review**), and its decision box offers the summary as your decision. Each slot ends **published** or **skipped** (the site uses its fallback); nothing else is left open.
+
+Decisions are kept with the project: `media/decisions.json` in the folder records, per slot, what was generated, accepted, rejected, published or skipped and by whom, and the project's ledger gets a matching entry. A published slot is not regenerated unless you choose Regenerate, and a slot with a generation running refuses a second. Every submission to fal is journaled in MCD's data directory, so a generation in flight when MCD restarts is finished at the next start rather than lost (or marked failed in the ledger if it cannot be resumed; it is never resubmitted).

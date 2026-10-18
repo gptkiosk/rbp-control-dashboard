@@ -2,6 +2,7 @@
 import KeyGateDialog, { type MissingKey } from '@/components/KeyGateDialog.vue'
 import ProjectTypePicker from '@/components/ProjectTypePicker.vue'
 import PlanChecks from '@/components/PlanChecks.vue'
+import MediaGeneratePanel from '@/components/MediaGeneratePanel.vue'
 import { computed, ref, watch, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import ProjectConsultant from '@/components/ProjectConsultant.vue'
@@ -41,7 +42,7 @@ const selectedId = computed(() => Number(route.query.project) || null)
 const detailPath = computed(() => selectedId.value ? `/api/projects/${selectedId.value}` : '/api/projects')
 const { data: remote, error: detailError, refresh: refreshDetail } = usePolledJson<Project | { projects: ProjectSummary[] }>(detailPath, 3000, { match: () => true })
 const project = ref<Project | null>(null), draft = ref<ProjectDocument>(emptyProject()), baseline = ref(''), selectedNode = ref('')
-const error = ref(''), busy = ref(false), tab = ref<'map' | 'memory' | 'work'>(route.query.view === 'work' ? 'work' : 'map'), zoom = ref(1)
+const error = ref(''), busy = ref(false), tab = ref<'map' | 'memory' | 'work' | 'media'>(route.query.view === 'work' ? 'work' : route.query.view === 'media' ? 'media' : 'map'), zoom = ref(1)
 // Parallel build is a switch chosen when the project is built. Off (the default) builds one story at a time in dependency order.
 const parallelDraft = computed({ get: () => draft.value.dispatch_mode === 'parallel', set: (on: boolean) => { draft.value.dispatch_mode = on ? 'parallel' : 'sequential' } })
 const parallelNew = computed({ get: () => newDraft.value.dispatch_mode === 'parallel', set: (on: boolean) => { newDraft.value.dispatch_mode = on ? 'parallel' : 'sequential' } })
@@ -93,6 +94,16 @@ watch(remote, value => {
   }
   apply(value)
 })
+// Media: a project whose folder has media slots gets a Media tab, and a banner while slots still need a decision.
+const projectMedia = ref<{ available: boolean; summary?: { published: number; skipped: number; pending: number; total: number; complete: boolean; text: string } } | null>(null)
+async function loadProjectMedia() {
+  const id = project.value?.id
+  if (!id) { projectMedia.value = null; return }
+  try { projectMedia.value = await getJson(`/api/media/project/${id}`) } catch { projectMedia.value = null }
+}
+watch(() => [project.value?.id, project.value?.revision, project.value?.state] as const, () => { void loadProjectMedia() }, { immediate: true })
+watch(() => route.query.view, v => { if (v === 'media' && projectMedia.value?.available) tab.value = 'media' })
+watch(projectMedia, m => { if (route.query.view === 'media' && m?.available) tab.value = 'media' })
 watch(selectedId, () => { project.value = null; draft.value = emptyProject(); baseline.value = ''; conflict.value = false; error.value = '' })
 function apply(value: Project) {
   project.value = value; draft.value = { ...emptyProject(), ...structuredClone(value.document) }
@@ -374,7 +385,9 @@ function human(task: ProjectTask) { return draft.value.nodes.find(n => n.key ===
           <p v-else>Review the plan here when ready. <RouterLink to="/profile#discord-profile">Link Discord in your profile</RouterLink> to receive plan notifications and edit through Hermes.</p>
           <p v-if="readyDelivery?.error" class="muted">{{ readyDelivery.error }}</p><p class="muted">Hermes asks whether you need a diagram before sending an image. Story execution requires a separate review.</p>
         </section>
-        <nav class="tabs" aria-label="Project sections"><button v-for="t in (['map','memory','work'] as const)" :key="t" class="btn" :class="{ active: tab === t }" :aria-pressed="tab === t" @click="tab = t">{{ t === 'map' ? (locked ? 'Live map' : 'Planning map') : t === 'memory' ? 'Shared memory' : 'Stories & runs' }}</button></nav>
+        <nav class="tabs" aria-label="Project sections"><button v-for="t in (projectMedia?.available ? ['map','memory','work','media'] : ['map','memory','work']) as ('map' | 'memory' | 'work' | 'media')[]" :key="t" class="btn" :class="{ active: tab === t }" :aria-pressed="tab === t" @click="tab = t">{{ t === 'map' ? (locked ? 'Live map' : 'Planning map') : t === 'memory' ? 'Shared memory' : t === 'media' ? 'Media' : 'Stories & runs' }}</button></nav>
+        <p v-if="projectMedia?.available && projectMedia.summary && !projectMedia.summary.complete && tab !== 'media'" class="notice-warn media-banner" role="status" data-testid="media-banner">Media for this project: {{ projectMedia.summary.published }} of {{ projectMedia.summary.total }} published, {{ projectMedia.summary.pending }} waiting for your decision. <button type="button" class="btn" @click="tab = 'media'">Open media review</button></p>
+        <div v-if="tab === 'media' && projectMedia?.available" class="card media-tab"><MediaGeneratePanel :working-dir="project.document.working_dir" /></div>
         <template v-if="tab === 'map'">
           <ProjectGitAccess v-if="project" :project-id="project.id" />
           <ProjectSchedule v-if="project?.schedule" :schedule="project.schedule" :titles="nodeTitles" :timing="project.timing" />
