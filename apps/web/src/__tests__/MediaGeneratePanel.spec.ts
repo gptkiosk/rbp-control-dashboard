@@ -65,7 +65,7 @@ it('reports a failed run plainly and picks a candidate without running anything'
   await w.get('button[aria-label="Use hero-still-1.png"]').trigger('click')
   await flushPromises()
   expect(JSON.parse(String(calls(f, 'POST', '/api/media/pick')[0]![1]?.body))).toEqual({ working_dir: '/ws/site', slot: 'hero-still', candidate: 'hero-still-1.png' })
-  expect(w.text()).toContain('python3 tools/media/media.py ingest hero-still')
+  expect(w.get('[data-note=hero-still]').text()).toContain('Chosen: hero-still-1.png')            // feedback sits beside the button, in the slot
   w.unmount()
 })
 it('asks for the key first when none is saved', async () => {
@@ -145,5 +145,35 @@ it('shows each candidate as a thumbnail or video you can open, from the operator
   expect(video.attributes('controls')).toBeDefined()
   expect(w.get('[data-slot=hero]').findAll('img')).toHaveLength(0)
   void f
+  w.unmount()
+})
+it('shows the picked file waiting in the inbox and publishes it, reporting the files made or the reason it cannot', async () => {
+  let inbox: string | null = null
+  let publishError = false
+  const f = stubFetch((u, init) => {
+    if (u === '/api/media/folders') return { body: { folders: [{ path: '/ws/site', name: 'site' }] } }
+    if (u.startsWith('/api/media/slots')) return { body: { working_dir: '/ws/site', slots: [slot({ name: 'hero-still', candidates: ['hero-still-1.png', 'hero-still-2.png'], inbox, published: inbox === 'published' })] } }
+    if (u === '/api/media/ledger') return { body: { runs: 0, done: 0, estimated_usd: 0, rows: [], note: 'n' } }
+    if (u === '/api/media/pick' && init?.method === 'POST') { inbox = 'hero-still.png'; return { body: { copied: 'media/inbox/hero-still.png', next: '' } } }
+    if (u === '/api/media/publish' && init?.method === 'POST') {
+      if (publishError) return { status: 422, body: { detail: 'hero-still.png is 640px wide and this slot needs at least 960px (a draft is too small to publish).' } }
+      inbox = 'published'; return { body: { published: 'hero-still', files: [{ path: 'assets/img/hero-still.jpg', bytes: 204800 }] } }
+    }
+  })
+  const w = mount(MediaGeneratePanel, { props: { keySaved: true } })
+  await flushPromises()
+  const row = () => w.get('[data-slot=hero-still]')
+  expect(row().text()).not.toContain('Publish')
+  await w.get('button[aria-label="Use hero-still-2.png"]').trigger('click'); await flushPromises()
+  expect(row().text()).toContain('Waiting in the inbox: hero-still.png (from hero-still-2.png)')
+  expect(w.get('button[aria-label="Use hero-still-2.png"]').text()).toContain('✓ Chosen')
+  publishError = true
+  await w.get('button[aria-label="Publish hero-still"]').trigger('click'); await flushPromises()
+  expect(w.get('[data-note=hero-still]').text()).toContain('too small to publish')
+  expect(w.get('[data-note=hero-still]').attributes('role')).toBe('alert')
+  publishError = false
+  await w.get('button[aria-label="Publish hero-still"]').trigger('click'); await flushPromises()
+  expect(w.get('[data-note=hero-still]').text()).toContain('Published: assets/img/hero-still.jpg (200 KB)')
+  expect(calls(f, 'POST', '/api/media/publish')).toHaveLength(2)
   w.unmount()
 })

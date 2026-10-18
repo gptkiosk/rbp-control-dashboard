@@ -315,3 +315,75 @@ def test_a_candidate_can_be_viewed_by_the_operator_only_and_only_if_it_is_a_real
     import profiles
     profiles.bridge_token(get_settings(), True)
     assert bridge(client).get("/api/media/candidate", params={"working_dir": str(folder), "name": "hero-still-1.png"}).status_code in {401, 403}
+
+
+needs_ffmpeg = pytest.mark.skipif(not (shutil.which("ffmpeg") and shutil.which("ffprobe")), reason="ffmpeg not installed")
+
+
+def small_slots(folder):
+    slots = json.loads((folder / "media" / "slots.json").read_text())
+    for s in slots["slots"]:
+        s["min_width"] = 300
+    (folder / "media" / "slots.json").write_text(json.dumps(slots))
+
+
+@needs_ffmpeg
+def test_a_picked_still_is_published_by_mcd_with_provenance_and_the_inventory(env):
+    client, folder = env
+    small_slots(folder)
+    (folder / "assets" / "img" / "hero-still.jpg").unlink()
+    def slot_row():
+        return next(s for s in client.get("/api/media/slots", params={"working_dir": str(folder)}).json()["slots"] if s["name"] == "hero-still")
+    run_and_wait(client, {"working_dir": str(folder), "slot": "hero-still"})
+    assert slot_row()["inbox"] is None and slot_row()["published"] is False
+    assert client.post("/api/media/publish", json={"working_dir": str(folder), "slot": "hero-still"}).status_code == 404          # nothing picked yet
+    client.post("/api/media/pick", json={"working_dir": str(folder), "slot": "hero-still", "candidate": "hero-still-1.png"})
+    assert slot_row()["inbox"] == "hero-still.png"
+    r = client.post("/api/media/publish", json={"working_dir": str(folder), "slot": "hero-still"})
+    assert r.status_code == 200, r.text
+    assert [f["path"] for f in r.json()["files"]] == ["assets/img/hero-still.jpg"] and r.json()["files"][0]["bytes"] > 0
+    assert slot_row()["published"] is True
+    provenance = json.loads((folder / "media" / "provenance.json").read_text())["hero-still"]
+    assert provenance["tool"] == "fal (run by MCD)" and provenance["ai_generated"] is True and provenance["files"] == "assets/img/hero-still.jpg"
+    inventory = (folder / "assets" / "ART-INVENTORY.md").read_text()
+    assert "hero-still" in inventory and "fal (run by MCD)" in inventory and "<!-- media:begin -->" in inventory
+    assert FAL not in inventory and FAL not in json.dumps(provenance)
+
+
+@needs_ffmpeg
+def test_a_picked_clip_is_published_silent_with_both_formats_and_a_poster(env):
+    client, folder = env
+    small_slots(folder)
+    run_and_wait(client, {"working_dir": str(folder), "slot": "hero-clip", "tier": "draft"})
+    client.post("/api/media/pick", json={"working_dir": str(folder), "slot": "hero-clip", "candidate": "hero-clip-1.mp4"})
+    r = client.post("/api/media/publish", json={"working_dir": str(folder), "slot": "hero-clip"})
+    assert r.status_code == 200, r.text
+    assert sorted(f["path"] for f in r.json()["files"]) == ["assets/video/hero-clip.jpg", "assets/video/hero-clip.mp4", "assets/video/hero-clip.webm"]
+    assert all(f["bytes"] <= 4 * 1024 * 1024 for f in r.json()["files"])
+
+
+@needs_ffmpeg
+def test_publish_refuses_a_draft_that_is_too_small_and_a_pick_with_no_recorded_tool(env):
+    client, folder = env
+    (folder / "assets" / "img" / "hero-still.jpg").unlink()
+    run_and_wait(client, {"working_dir": str(folder), "slot": "hero-still"})                    # the mock image is 640 px wide; the slot needs 960
+    client.post("/api/media/pick", json={"working_dir": str(folder), "slot": "hero-still", "candidate": "hero-still-1.png"})
+    r = client.post("/api/media/publish", json={"working_dir": str(folder), "slot": "hero-still"})
+    assert r.status_code == 422 and "too small" in r.text and not (folder / "assets" / "img" / "hero-still.jpg").exists()
+    small_slots(folder)
+    (folder / "media" / "inbox" / "hero-still.json").write_text(json.dumps({"model": "m"}))
+    r = client.post("/api/media/publish", json={"working_dir": str(folder), "slot": "hero-still"})
+    assert r.status_code == 422 and "tool" in r.text
+
+
+def test_publish_is_operator_only_and_stays_inside_the_allowed_folders(env, tmp_path):
+    client, folder = env
+    import profiles
+    profiles.bridge_token(get_settings(), True)
+    assert bridge(client).post("/api/media/publish", json={"working_dir": str(folder), "slot": "hero-still"}).status_code in {401, 403}
+    assert client.post("/api/media/publish", json={"working_dir": "/etc", "slot": "hero-still"}).status_code == 422
+    assert client.post("/api/media/publish", json={"working_dir": str(folder), "slot": "no-such-slot"}).status_code == 422
+    inbox = folder / "media" / "inbox"
+    inbox.mkdir(parents=True, exist_ok=True)
+    (inbox / "hero-still.png").symlink_to(folder / "media" / "slots.json")
+    assert client.get("/api/media/slots", params={"working_dir": str(folder)}).json()["slots"][0]["inbox"] is None         # a link is never a pick

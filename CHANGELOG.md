@@ -10,6 +10,16 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.6.20] - 2026-10-18
+
+### Added
+
+- **Publish in the media panel.** After **Use this one**, a **Publish** button validates and converts the picked file (a resized JPEG for a still; silent WebM and MP4 with a seamless loop blend and a poster for a clip), then records its tool, model, prompt and date in `media/provenance.json` and `assets/ART-INVENTORY.md`, with RCD's own code (nothing from the project folder is run). No terminal step is needed any more; the project's `tools/media/media.py ingest` still does the same thing. `POST /api/media/publish`. A draft too small for its slot is refused with the reason. Needs `ffmpeg` on the host.
+
+### Fixed
+
+- Feedback now appears beside the button you pressed. **Use this one** worked but confirmed at the very bottom of a long panel, so it looked like nothing happened. The chosen candidate is marked, the inbox file is shown with a Publish button, and errors and results show under that slot.
+
 ## [0.6.19] - 2026-10-18
 
 ### Added
@@ -510,7 +520,8 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 - Claude Code stories may use web search and fetch without any shell, credential or publish permission.
 
 [0.3.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.0
-[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.19...HEAD
+[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.20...HEAD
+[0.6.20]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.20
 [0.6.19]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.19
 [0.6.18]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.18
 [0.6.17]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.17

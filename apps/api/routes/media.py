@@ -62,7 +62,7 @@ def slots(working_dir: str, request: Request, s: Session = Depends(get_session))
         needs = [n for n in (slot.get("from_still"), slot.get("first_still"), slot.get("last_still")) if n]
         waiting = [n for n in needs if mg.inside(root, f"assets/img/{n}.jpg") is None]
         out.append({"name": slot["name"], "kind": slot["kind"], "world": slot.get("world"), "purpose": slot.get("purpose", ""), "prompt": slot["prompt"],
-                    "published": published, "candidates": candidates, "waiting_for_stills": waiting,
+                    "published": published, "candidates": candidates, "inbox": (lambda f: f.name if f else None)(mg.inbox_file(root, slot)), "waiting_for_stills": waiting,
                     "plans": {tier: mg.quick_plan(s, slot, tier) for tier in mg.TIERS}})
     return {"working_dir": str(root), "slots": out}
 
@@ -135,6 +135,28 @@ def candidate(working_dir: str, name: str, request: Request):
     if path is None:
         raise HTTPException(404, "No such candidate.")
     return FileResponse(path, media_type=mg.CANDIDATE_TYPES[path.suffix], headers={"Cache-Control": "private, max-age=300", "Content-Disposition": "inline"})
+
+
+class PublishIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    working_dir: str = Field(max_length=500)
+    slot: str = Field(max_length=60)
+
+
+@router.post("/publish")
+def publish(body: PublishIn, request: Request):
+    """Publish the picked file for a slot: validate, convert, and record provenance, with MCD's own code (nothing from the folder is run)."""
+    operator(request)
+    settings = get_settings()
+    try:
+        root = mg.project_root(settings, body.working_dir)
+        slot = mg.load_slots(root).get(body.slot)
+        if slot is None:
+            raise mg.MediaError("Unknown slot.")
+        files = mg.publish(root, slot)
+    except mg.MediaError as exc:
+        fail(exc)
+    return {"published": body.slot, "files": files}
 
 
 class PickIn(BaseModel):
