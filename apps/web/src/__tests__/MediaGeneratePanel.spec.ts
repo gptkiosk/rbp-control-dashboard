@@ -30,7 +30,9 @@ it('groups slots by what needs you and keeps Generate off until spending is ackn
   expect(w.get('[data-slot=clip-d]').text()).toContain('price not listed')
   expect(w.get('[data-slot=clip-d]').text()).toContain('Waiting for the approved still')
   const go = buttons(w, 'Generate', '[data-slot=todo-a]')[0]!
-  expect(go.attributes('disabled')).toBeDefined()
+  expect(go.attributes('disabled')).toBeUndefined()                                         // never a silent dead button: pressing it says what is missing
+  await go.trigger('click'); await flushPromises()
+  expect(w.get('[data-note=todo-a]').text()).toContain('Tick "I understand each run spends')
   await w.get('input[type=checkbox]').setValue(true)
   expect(go.attributes('disabled')).toBeUndefined()
   expect(buttons(w, 'Generate', '[data-slot=clip-d]')[0]!.attributes('disabled')).toBeDefined()
@@ -71,9 +73,13 @@ it('sends the explicit confirmation, tier and count, shows each result as soon a
   const posted = calls(f, 'POST', '/api/media/generate').map(c => JSON.parse(String(c[1]?.body)))
   expect(posted[0]).toEqual({ working_dir: '/ws/site', slot: 'one', tier: 'draft', count: 2, confirm_spend: true })
   expect(w.text()).toContain('2 generating now')
+  expect(w.get('[data-slot=two] [data-job=two]').text()).toContain('waiting to start')                         // progress sits under the slot's own button at once
   await vi.advanceTimersByTimeAsync(3000); await flushPromises()
   expect(w.get('[data-slot=one]').text()).toContain('one-1.png')                         // one finished: it is on screen while two is still running
   expect(w.text()).toContain('1 generating now')
+  expect(w.get('[data-slot=two] [data-job=two]').text()).toContain('generating (queued at fal)')                  // progress sits under the slot's own button
+  expect(w.find('[data-slot=two] [data-job=two] .spinner').exists()).toBe(true)
+  expect(buttons(w, 'Generating…', '[data-slot=two]')[0]!.attributes('disabled')).toBeDefined()               // and the button itself says it is working
   expect(buttons(w, 'Accept and publish', '[data-slot=one]')).toHaveLength(1)
   w.unmount()
 })
@@ -136,7 +142,7 @@ function batchSetup() {
 }
 it('counts only what is not made yet and shows the batch price, flagging models with no listed price', async () => {
   vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] })
-  const { w } = batchSetup()
+  const { f, w } = batchSetup()
   await flushPromises()
   const box = w.get('[data-testid=batch]')
   expect(box.text()).toContain('3 ready')
@@ -145,7 +151,11 @@ it('counts only what is not made yet and shows the batch price, flagging models 
   expect(box.text()).toContain('about $0.16 plus 1 with no listed price')
   await box.get('select').setValue('draft')
   expect(box.text()).toContain('about $0.51')
-  expect(buttons(w, 'Generate all missing', '[data-testid=batch]')[0]!.attributes('disabled')).toBeDefined()
+  const all = buttons(w, 'Generate all missing', '[data-testid=batch]')[0]!
+  expect(all.attributes('disabled')).toBeUndefined()
+  await all.trigger('click'); await flushPromises()
+  expect(w.text()).toContain('Tick "I understand each run spends')
+  expect(calls(f, 'POST', '/api/media/generate')).toHaveLength(0)
   w.unmount()
 })
 it('asks once with the total, then makes one request per slot that is not made yet', async () => {

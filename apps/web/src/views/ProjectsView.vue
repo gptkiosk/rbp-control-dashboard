@@ -123,7 +123,7 @@ function startNew() {
   newDraft.value = { ...emptyProject(defaultDir()), planning_bias: profile.value?.preferences.planning_bias ?? 50, planner_agent: profile.value?.preferences.ai_agent || 'hermes', planner_model: profile.value?.preferences.ai_model || 'openrouter/free' }
   newCoordination.value = false; newApiPlanning.value = false; newDialog.value = true
 }
-function reviewConsultant(value: {title:string;brief:string;working_dir:string}) {
+function reviewConsultant(value: {title:string;brief:string;working_dir:string;project_type?:string|null}) {
   if (roleStatus.value?.delegator !== 'hermes') { error.value='Assign Hermes as Delegator in Settings → Agent roles before submitting the consultant brief.'; return }
   startNew()
   newDraft.value = {...newDraft.value,...value}

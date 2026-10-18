@@ -20,12 +20,17 @@ describe('how-to answers and deep links', () => {
     expect(findGuides('How do I chat with mm-developer?')[0]?.id).toBe('openclaw-chat')
     expect(findGuides('How do I do that?', 'dependencies')[0]?.id).toBe('dependencies')
     expect(findGuides('Where can I buy a pizza?', 'dependencies')).toEqual([])
+    expect(findGuides('Which project type should I pick for a website?')[0]?.id).toBe('project-types')
+    expect(findGuides('How do I generate images and video with fal for my project?')[0]?.id).toBe('project-media')
+    expect(findGuides('Why was my fal bill higher than the estimate and how do I avoid double generation?')[0]?.id).toBe('media-spend')
+    expect(findGuides('fal will not let me add minimax to the allowed models')[0]?.id).toBe('fal-key')
+    expect(findGuides('How do I use accept anyway on an unfinished story?')[0]?.id).toBe('accept-anyway')
     expect(findGuides('')).toEqual([])
   })
   it('covers every feature with resolvable local links and complete steps', () => {
     const router = createAppRouter(createMemoryHistory())
     expect(new Set(helpGuides.map(g => g.id)).size).toBe(helpGuides.length)
-    expect(helpGuides.length).toBe(34)
+    expect(helpGuides.length).toBe(39)
     expect(findGuides('Approve all project handoffs')[0]?.id).toBe('project-approvals')
     for (const guide of helpGuides) {
       expect(guide.steps.length).toBeGreaterThanOrEqual(3)

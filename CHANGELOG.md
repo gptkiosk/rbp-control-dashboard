@@ -10,6 +10,21 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.6.24] - 2026-10-18
+
+### Fixed
+
+- The media panel's Generate buttons no longer sit dimmed and silent until the spending box is ticked: pressing one without it says what is missing and takes you to the box.
+- Generation progress now sits under the slot's own button: a spinner and a status line (waiting, generating with fal's progress text, finished, or the failure), and the button reads Generating… and stays off until it finishes. The list at the bottom of the panel is gone.
+
+### Added
+
+- **Other** project type for work that does not exactly fit Web app, Packaged app or Website property: the plan says which type it resembles and which of that type's gates it keeps or drops.
+- Every project type now asks for documentation that shows the application: a README with a hero screenshot, a Mermaid architecture and data-flow diagram when the project is more than a local install, and a screenshot and how-to for each application area beyond installation and sign-in. Screenshots come from a Playwright script in the repository run by a person or the pipeline (agents cannot run a browser); the plan gets warnings if there is no README story or no such story. The browser-check warning no longer fires for an agent that only writes the screenshot script.
+- The project consultant asks for the project type before it starts (a required dropdown with Other), tells the consultant the type's planning guidance, says in the brief which type it is, and hands the type to the plan when you review the brief.
+- Every project type now asks that the project ends in the remote repository: the working folder is a clone of the repository (not a scratch folder), and the plan has a delivery story (push the project branch, open the pull request) and one that reads the pipeline result. A plan without one gets a warning. The repository is public for an externally packaged MIT-licensed app and private for a proprietary one, and the plan says which. The first website project finished with nothing pushed because it ran in a scratch folder.
+- Help, the help chat and the docs now cover project types (picking one, plan checks, the website guides), making media with fal (tiers, progress, Another take, accepting and publishing), media spend (estimates are an upper bound, repeats and unpriced runs are shown), creating or replacing the fal key (fal fixes its model list at creation), and Accept anyway. Five new how-tos; the project consultant chat is told the project types and the media rules.
+
 ## [0.6.23] - 2026-10-18
 
 ### Fixed
@@ -553,7 +568,8 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 - Claude Code stories may use web search and fetch without any shell, credential or publish permission.
 
 [0.3.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.0
-[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.23...HEAD
+[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.24...HEAD
+[0.6.24]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.24
 [0.6.23]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.23
 [0.6.22]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.22
 [0.6.21]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.21

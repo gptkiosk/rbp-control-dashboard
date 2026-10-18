@@ -282,7 +282,7 @@ def test_the_shipped_guides_are_general_not_about_any_one_product():
     from pathlib import Path
     folder = Path(__file__).resolve().parents[3] / 'packs' / 'standards'
     names = sorted(p.name for p in folder.glob('*.md'))
-    assert names == ['container-app-delivery.md', 'packaged-app-delivery.md', 'practices.md', 'security.md', 'starter.md', 'web-app-delivery.md', 'website-design-delivery.md', 'website-spacing-and-timing.md']
+    assert names == ['container-app-delivery.md', 'packaged-app-delivery.md', 'practices.md', 'readme-and-docs.md', 'security.md', 'starter.md', 'web-app-delivery.md', 'website-design-delivery.md', 'website-spacing-and-timing.md']
     import re
     for p in folder.glob('*.md'):
         text = p.read_text()
@@ -357,7 +357,7 @@ def test_the_consultant_chat_gets_delivery_standards_and_model_knowledge(app):  
     text = c.get('/api/projects/consultant-context', params={'working_dir': str(wd)}).json()['text']
     assert 'packaged app runs on users' in text                       # delivery models (the Delegator context text)
     assert 'area money: minimum risk high' in text                      # the standards for this directory
-    assert len(text) <= 18000                                           # the chat prompt budget; the code cap is 20000
+    assert len(text) <= 19500                                           # the chat prompt budget (raised from 18000 for the project types section; the chosen type adds up to 1700 characters); the code cap is 20000
     for heading in ('## How the software is delivered', '## Standards that apply to this working directory', '## Methods and practices to build the plan on'):
         assert heading in text
     assert 'Development practice:' in text and 'Application security:' in text and 'Delivering a packaged app:' in text and 'Delivering a hosted web app:' in text
@@ -399,3 +399,17 @@ def test_the_consultant_and_the_planner_know_what_is_installed_and_the_spending_
     with s() as db:
         prompt = projects._planner_prompt(projects.get(db, p['id']), [], db)
     assert 'This installation:' in prompt and 'free routes only' in prompt
+
+
+def test_the_consultant_context_follows_the_chosen_project_type(app):  # noqa: F811
+    c, s, wd, settings = app
+    write(wd)
+    plain = c.get('/api/projects/consultant-context', params={'working_dir': str(wd)}).json()['text']
+    assert 'The operator chose' not in plain and 'Website property' in plain                      # no choice yet: the short list of types
+    typed = c.get('/api/projects/consultant-context', params={'working_dir': str(wd), 'project_type': 'website-property'}).json()['text']
+    assert 'The operator chose the project type Website property' in typed and 'does not fit this type' in typed
+    other = c.get('/api/projects/consultant-context', params={'working_dir': str(wd), 'project_type': 'other'}).json()['text']
+    assert 'The operator chose the project type Other' in other
+    junk = c.get('/api/projects/consultant-context', params={'working_dir': str(wd), 'project_type': '../x'}).json()['text']
+    assert 'The operator chose' not in junk                                                      # a malformed id is ignored, never used
+    assert len(typed) <= 19500

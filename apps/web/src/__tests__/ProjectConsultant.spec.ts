@@ -8,7 +8,7 @@ const options={props:{workdirs:[{path:'/workspace',branch:null}],available:true}
 it('opens without a model call and starts a free read-only consultant only on request',async()=>{
  const f=stubFetch(url=> url==='/api/chat/threads'?{body:{id:7}}: {body:{id:1}})
  const w=mount(ProjectConsultant,options)
- await w.get('button').trigger('click');expect(f).not.toHaveBeenCalled()
+ await w.get('button').trigger('click');expect(f.mock.calls.filter(([url])=>String(url).startsWith('/api/chat'))).toHaveLength(0)   // opening starts no conversation (it only reads the project types)
  await w.get('input').setValue('Build a dashboard');await w.get('textarea').setValue('Compare goals and dependencies')
  await w.get('form').trigger('submit');await flushPromises()
  const request=JSON.parse(String(f.mock.calls.find(([url])=>url==='/api/chat/threads')![1]?.body))
@@ -21,7 +21,7 @@ it('uses explicit membership profile defaults and hands a completed answer to ed
  const f=stubFetch(url=> url==='/api/chat/threads'?{body:{id:9}}:url==='/api/chat/threads/9'?{body:{title:'Project consultant: Goal',working_dir:'/workspace',busy:false,messages:[{role:'assistant',status:'done',text:'Goal\nPhases\nStories\nScope\nDefinitions of done\nDependencies'}]}}:{body:{id:1}})
  const w=mount(ProjectConsultant,{...options,props:{...options.props,preferences:{ai_agent:'codex',ai_model:'gpt-6-luna',theme:'system',planning_bias:50,working_dir:'/workspace',dashboard_origin:'',discord_channel_id:'',notify_plans:true,allow_discord_planning:false,allow_discord_control:false,allow_discord_diagnostics:false}}})
  await w.get('button').trigger('click');await w.get('input').setValue('Goal');await w.get('textarea').setValue('Idea');await w.get('form').trigger('submit');await flushPromises()
- expect(JSON.parse(String(f.mock.calls[0]![1]?.body))).toMatchObject({agent:'codex',model:'gpt-6-luna'})
+ expect(JSON.parse(String(f.mock.calls.find(([url])=>url==='/api/chat/threads')![1]?.body))).toMatchObject({agent:'codex',model:'gpt-6-luna'})
  await w.findAll('button').find(b=>b.text().includes('Review brief'))!.trigger('click');await flushPromises()
  expect(w.emitted('review')![0]![0]).toMatchObject({title:'Goal',working_dir:'/workspace',brief:expect.stringContaining('Definitions of done')})
  expect(f.mock.calls.some(([url,init])=>url.startsWith('/api/projects')&&init?.method==='POST')).toBe(false)   // nothing is created or submitted
@@ -40,7 +40,7 @@ it('gives the first message the same knowledge the plan run gets, and still star
  await w.get('button').trigger('click');await w.get('input').setValue('Build a dashboard');await w.get('textarea').setValue('Compare goals')
  await w.get('form').trigger('submit');await flushPromises()
  const asked=f.mock.calls.find(([url])=>String(url).startsWith('/api/projects/consultant-context'))![0]
- expect(asked).toBe('/api/projects/consultant-context?working_dir=%2Fworkspace')
+ expect(asked).toBe('/api/projects/consultant-context?working_dir=%2Fworkspace&project_type=')
  const body=JSON.parse(String(f.mock.calls.find(([url])=>url==='/api/chat/threads/7/messages')![1]?.body))
  const sent=body.context
  expect(sent).toContain('advice for this conversation, not authorization')
@@ -86,4 +86,24 @@ it('lets the owner say when it is enough, then writes up the brief and opens it 
  expect(w.emitted('review')![0]![0]).toMatchObject({brief:expect.stringContaining('Phases'),working_dir:'/workspace'})
  expect(f.mock.calls.some(([url,init])=>url.startsWith('/api/projects')&&init?.method==='POST')).toBe(false)   // still nothing created or submitted
  w.unmount();vi.useRealTimers()
+})
+
+const typeList=[{id:'website-property',label:'Website property (static site with generated media)',summary:'A static site.',failure_points:[],human_signoffs:[],visual_checks:''},{id:'other',label:'Other (does not exactly fit)',summary:'Does not fit.',failure_points:[],human_signoffs:[],visual_checks:''}]
+it('asks for the project type before starting, with Other for what does not fit, and hands it to the context and the review',async()=>{
+ const f=stubFetch((url)=> url==='/api/project-types'?{body:{types:typeList}}: url==='/api/chat/threads'?{body:{id:12}}: url==='/api/chat/threads/12'?{body:{title:'Project consultant: Goal',working_dir:'/workspace',busy:false,messages:[{role:'assistant',status:'done',text:'Goal\nPhases\nStories\nDefinitions of done'}]}}: url.startsWith('/api/projects/consultant-context')?{body:{text:'The operator chose the project type Other.'}}:{body:{id:1}})
+ const w=mount(ProjectConsultant,{...options})
+ await w.get('button').trigger('click');await flushPromises()
+ const select=w.get('select[aria-label="Project type"]')
+ const labels=select.findAll('option').map(o=>o.text())
+ expect(labels[0]).toBe('Choose a project type…');expect(labels).toContain('Other (does not exactly fit)')
+ await w.findAll('input')[0]!.setValue('Goal');await w.get('textarea').setValue('Something unusual');await w.get('form').trigger('submit');await flushPromises()
+ expect(w.text()).toContain('Choose a project type');expect(f.mock.calls.some(([url])=>url==='/api/chat/threads')).toBe(false)   // nothing starts without a type
+ await select.setValue('other');await w.get('form').trigger('submit');await flushPromises()
+ const ctx=f.mock.calls.find(([url])=>String(url).startsWith('/api/projects/consultant-context'))![0]
+ expect(String(ctx)).toContain('project_type=other')
+ const sent=f.mock.calls.find(([url,init])=>String(url).includes('/messages')&&init?.method==='POST')!
+ expect(String(JSON.parse(String(sent[1]?.body)).context)).toContain('Project type: other')
+ await w.findAll('button').find(b=>b.text().includes('Review brief'))!.trigger('click');await flushPromises()
+ expect(w.emitted('review')![0]![0]).toMatchObject({project_type:'other'})
+ w.unmount()
 })

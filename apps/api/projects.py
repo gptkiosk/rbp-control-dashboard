@@ -686,7 +686,7 @@ def installation_text(s, settings):
     return '\n'.join(lines)
 
 
-def consultant_context(s, settings, working_dir):
+def consultant_context(s, settings, working_dir, project_type=None):
     """What the project consultant chat should know, the same as the plan run: how the software is delivered, the standards that apply to the
     working directory, and the track record of the models it could use. Advice for the conversation; it authorizes nothing."""
     wd = approval.resolve_workdir(working_dir, settings.workdir_roots)
@@ -699,6 +699,7 @@ def consultant_context(s, settings, working_dir):
     parts = [('How the software is delivered', RoleStore(settings).source('context.md').strip()),
              ('Standards that apply to this working directory', standards.prompt_section(found)),
              ('Methods and practices to build the plan on', methods),
+             ('Project types and generated media', project_types.consultant_text(settings, type_id=project_type)),
              ('This installation and its configuration', installation_text(s, settings)),
              ('Models you could recommend', model_profiles.guidance_text(s, settings.data_dir, execution_catalog(settings)))]
     return '\n\n'.join(f'## {title}\n{body}' for title, body in parts if body)[:CONSULTANT_CONTEXT_MAX]

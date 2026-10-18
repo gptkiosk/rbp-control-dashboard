@@ -1,0 +1,64 @@
+{
+  "id": "other",
+  "label": "Other (does not exactly fit)",
+  "summary": "A project that does not exactly fit a listed type. It is planned from the brief and the general practices, and the plan says which listed type it resembles and which of that type's gates still apply.",
+  "suggest": [],
+  "keys": [],
+  "guides": [
+    "practices.md",
+    "security.md",
+    "readme-and-docs.md"
+  ],
+  "planner_text": "This project does not exactly fit Web app, Packaged app or Website property. Plan it from the brief and the general practices. At the top of the plan notes, say which listed type it most resembles and why it does not fit exactly. Then decide, gate by gate, which of that type's gates still apply: a file-level verification before anyone approves, a live preview before a person judges how something looks, human stories for anything an agent cannot do (containers, browsers, hardware, signing, publishing, payments or account data), and a final human verification on the target machine. Name any gate you drop and why, so the owner can overrule it in review. The project ends in the remote repository, not in a scratch folder: when the brief names a repository, the working folder must be a clone of it, and the plan needs a delivery story that pushes the project branch and opens a pull request, then a story that reads the pipeline result so the image or app build and the tests have actually run there. Nothing goes to the main branch from an agent. The project is not done until the branch is pushed, the pull request is open and the pipeline result is known. Choose the repository's visibility from how it is delivered: public for an MIT-licensed project others install or reuse, private for anything proprietary. Say the visibility and licence in the plan. Plan the documentation as part of the project: a README story (an agent writes it) and the how-tos, with a Mermaid architecture diagram and a data-flow diagram whenever the project is more than a local install, and a screenshot of every application area plus how-tos for what a person does beyond installing and signing in. Screenshots are made with Playwright from a script kept in the repository, run by a person or a CI job against seeded test data, because agent sandboxes have no browser; the agent writes the script and the README, a human story or the pipeline runs it and commits the images.",
+  "failure_points": [
+    "A story that needs a browser, a container engine, real hardware or a signing key cannot be done by an agent: make it a human story.",
+    "A human approval of how something looks has nothing to judge without a live preview and clickable addresses.",
+    "An agent's report that something exists is not proof: verify the files or results before asking a person to approve.",
+    "Stories that must be decided by the owner (money, accounts, publishing, deleting data) are human stories with their own scope and definition of done.",
+    "A project run in a scratch folder with no git remote finishes with nothing pushed: no pull request and no pipeline run, so the image or app build and tests never ran where they are meant to. When the brief names a repository, the working folder must be a clone of it, and delivery (push the project branch, open the pull request, read the pipeline result) must be stories in the plan.",
+    "A README with only install commands tells a new person nothing about the application. Add a Mermaid architecture and data-flow diagram when it is more than a local install, a screenshot and a short how-to for each application area beyond installation and sign-in, and make the screenshots with a Playwright script that a person or the pipeline runs (an agent cannot run a browser)."
+  ],
+  "visual_checks": "If anything a person will look at is produced, add a file-level verification story, then a preview checkpoint, then a human sign-off.",
+  "human_signoffs": [
+    "Anything a person must see, approve or run on their own machine",
+    "Money, account, publishing and data-deletion decisions"
+  ],
+  "checks": [
+    {
+      "id": "container-needs-human",
+      "severity": "warn",
+      "kind": "not_agent_for",
+      "match": "docker (build|compose|run)|compose up|colima|smoke test (against|on) (a )?running|build the (container )?image",
+      "message": "A story needs a container engine, which agents cannot run. The build and run belong to the final human local verification story."
+    },
+    {
+      "id": "browser-checks-need-a-person",
+      "severity": "warn",
+      "kind": "not_agent_for",
+      "match": "console errors|render(s|ed|ing)? (in|without|correctly)|in a browser|browser (render|check|test)|\\b(run|launch|execute|take|capture|generate|make)s?\\s+(the\\s+|a\\s+|all\\s+|some\\s+)?(playwright|puppeteer|lighthouse|screenshots?)\\b",
+      "message": "A story asks an agent to render pages or check a browser console, which no agent sandbox can do. It will report itself unfinished. Keep agent verification to static checks and move rendering to the human preview."
+    },
+    {
+      "id": "delivery-to-remote",
+      "severity": "warn",
+      "kind": "has_story",
+      "match": "push|pull request|\\bpr\\b|pipeline (run|result|status)|ci (run|result|status)|deliver",
+      "message": "No delivery story. A project should end in the remote repository: add a story that pushes the project branch and opens a pull request, and one that reads the pipeline result (the build and tests running there), or say plainly that this project has no repository."
+    },
+    {
+      "id": "readme-story",
+      "severity": "warn",
+      "kind": "has_story",
+      "match": "readme|documentation|\\bdocs\\b|how-?tos?",
+      "message": "No README or documentation story. Add one that writes the README with a Mermaid architecture and data-flow diagram (when it is more than a local install) and a how-to for each application area."
+    },
+    {
+      "id": "screenshots-by-a-person-or-ci",
+      "severity": "warn",
+      "kind": "has_story",
+      "match": "screenshot|playwright",
+      "assignee": "human",
+      "message": "No story that makes the application screenshots. Agents cannot run a browser: add a human story (or a pipeline job) that runs the Playwright screenshot script against seeded test data and commits the images the README uses."
+    }
+  ]
+}
