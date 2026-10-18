@@ -71,7 +71,7 @@ def test_the_github_key_is_made_once_kept_private_and_never_returned_as_a_privat
     config = (home / ".ssh" / "config").read_text()
     assert config.count(hr.MARK_BEGIN) == 1 and f"IdentityFile {private}" in config and stat.S_IMODE((home / ".ssh" / "config").stat().st_mode) == 0o600
     check = by_id(hr.report(settings))["github_ssh"]
-    assert check["status"] == "ok" and check["public_key"].startswith("ssh-ed25519 ")
+    assert check["status"] == "warn" and "has not accepted it yet" in check["detail"] and check["public_key"].startswith("ssh-ed25519 ")   # a key that exists is not a key GitHub accepts
     assert "PRIVATE" not in str(hr.report(settings)) and private.read_text().strip().splitlines()[1] not in str(hr.report(settings))
     with pytest.raises(hr.ReadinessError) as again:
         hr.apply(settings, "make_github_key")
@@ -124,7 +124,9 @@ def test_everything_ready_reports_ready_to_deliver(host, tmp_path):
     hr.apply(settings, "set_git_identity", name="Pi Builder", email="pi@example.com")
     assert hr.report(settings)["ready_to_build"] is True and hr.report(settings)["ready_to_deliver"] is False
     hr.apply(settings, "make_github_key")
-    assert hr.report(settings)["ready_to_deliver"] is True
+    assert hr.report(settings)["ready_to_deliver"] is False                                       # a key that exists but is untested is not "ready to deliver"
+    hr._verified_marker().write_text("2026-10-18\n")
+    assert hr.report(settings)["ready_to_deliver"] is True and by_id(hr.report(settings))["github_ssh"]["status"] == "ok"
 
 
 def test_the_routes_are_operator_only_and_reject_unknown_fixes(make_client, tmp_path, monkeypatch):
@@ -208,3 +210,41 @@ def test_the_sign_in_command_uses_the_full_path_when_the_tool_is_not_on_the_shel
     spaced.chmod(0o755)
     monkeypatch.setenv("PATH", "/usr/bin:/bin")
     assert ti.login_command("codex login --device-auth", str(spaced)).startswith("'") and "my tools" in ti.login_command("codex login --device-auth", str(spaced))
+
+
+def test_testing_github_ignores_the_system_ssh_config_and_records_only_a_success(host, monkeypatch):
+    home, settings = host
+    hr.apply(settings, "make_github_key")
+    seen = []
+
+    def fake_run(cmd, timeout=8, env=None):
+        seen.append(cmd)
+        return 1, "Hi someone! You've successfully authenticated, but GitHub does not provide shell access."
+    monkeypatch.setattr(hr, "_run", fake_run)
+    assert "GitHub accepted the key" in hr.apply(settings, "test_github_ssh")
+    cmd = seen[0]
+    assert cmd[cmd.index("-F") + 1] == os.devnull and "IdentitiesOnly=yes" in cmd and "git" + chr(64) + "github.com" in cmd
+    assert hr._verified_marker().is_file() and by_id(hr.report(settings))["github_ssh"]["status"] == "ok"
+    hr._verified_marker().unlink()
+    monkeypatch.setattr(hr, "_run", lambda *a, **k: (255, "git@github.com: Permission denied (publickey)."))
+    with pytest.raises(hr.ReadinessError) as refused:
+        hr.apply(settings, "test_github_ssh")
+    assert refused.value.status == 409 and not hr._verified_marker().exists()                    # a refusal never marks the key as accepted
+
+
+def test_tools_are_found_under_the_roots_the_settings_name_and_agents_the_way_the_dashboard_finds_them(host, tmp_path):
+    home, settings = host
+    managed = tmp_path / "managed"
+    (managed / "tools" / "node" / "current" / "bin").mkdir(parents=True)
+    node = managed / "tools" / "node" / "current" / "bin" / "node"
+    node.write_text("#!/bin/sh\n")
+    node.chmod(0o755)
+    (managed / "bin").mkdir()
+    claude = managed / "bin" / "claude"
+    claude.write_text("#!/bin/sh\n")
+    claude.chmod(0o755)
+    settings.agent_tools_path = managed                                       # the settings' own answer wins over the defaults
+    checks = by_id(hr.report(settings))
+    assert {t["id"]: t["installed"] for t in checks["tools"]["tools"]}["node"] is True
+    assert checks["tools_path"]["status"] == "warn" and str(managed / "bin") in checks["tools_path"]["detail"]       # installed tools exist and the shell cannot see them
+    assert {a["id"]: a["installed"] for a in checks["agents"]["agents"]}["claude"] is True                         # an agent installed after startup is found, as it is when a task runs

@@ -44,18 +44,29 @@ def _run(cmd, timeout=8, env=None):
         return 127, ""
 
 
-def _managed_bins():
+def _managed_root(settings=None):
+    """The folder the dashboard installs agent tools into: the settings' own answer, else the same default the settings use."""
+    root = getattr(settings, "agent_tools_path", None) if settings is not None else None
+    if root:
+        return Path(root)
+    env = os.environ.get("MAC_CONTROL_AGENT_TOOLS_ROOT")
+    if env:
+        return Path(env)
+    short = os.environ.get("MAC_CONTROL_PRODUCT_SHORT_NAME")
+    return default_agent_tools_root(short) if short else default_agent_tools_root()
+
+
+def _managed_bins(settings=None):
     """The `bin` folders of tools the dashboard installed itself (for example Node), which are not on PATH."""
-    root = Path(os.environ.get("MAC_CONTROL_AGENT_TOOLS_ROOT") or default_agent_tools_root(os.environ.get("MAC_CONTROL_PRODUCT_SHORT_NAME", "MCD")))
-    tools = root / "tools"
+    tools = _managed_root(settings) / "tools"
     return [str(p) for p in sorted(tools.glob("*/current/bin"))] if tools.is_dir() else []
 
 
-def _tool(name):
+def _tool(name, settings=None):
     found = find_tool(name)
     if os.path.isabs(found) and os.access(found, os.X_OK):
         return found
-    return shutil.which(name) or shutil.which(name, path=os.pathsep.join(_managed_bins()) or os.devnull)
+    return shutil.which(name) or shutil.which(name, path=os.pathsep.join(_managed_bins(settings)) or os.devnull)
 
 
 def _item(id_, label, status, detail, fix=None, **extra):
@@ -75,6 +86,10 @@ def _git_value(key):
 def _key_paths():
     base = _home() / ".ssh"
     return base / KEY_NAME, base / (KEY_NAME + ".pub")
+
+
+def _verified_marker():
+    return _home() / ".ssh" / (KEY_NAME + ".verified")
 
 
 def _roots(settings):
@@ -108,7 +123,12 @@ def check_github():
     private, public = _key_paths()
     if public.is_file() and private.is_file():
         text = public.read_text("utf-8", "replace").strip()[:600]
-        return _item("github_ssh", "GitHub access (SSH key)", "ok", "A key exists on this host. Add the public key to GitHub (Settings, SSH keys, or a repository's Deploy keys with write access), then test it.",
+        marker = _verified_marker()
+        if marker.is_file() and marker.stat().st_mtime >= private.stat().st_mtime:
+            when = marker.read_text("utf-8", "replace").strip()[:40]
+            return _item("github_ssh", "GitHub access (SSH key)", "ok", f"GitHub accepted this key{(' on ' + when) if when else ''}. Test again any time.",
+                         {"action": "test_github_ssh", "label": "Test GitHub access"}, public_key=text)
+        return _item("github_ssh", "GitHub access (SSH key)", "warn", "A key exists here, but GitHub has not accepted it yet. Add the public key to GitHub (Settings, SSH keys, or a repository's Deploy keys with write access), then press Test GitHub access.",
                      {"action": "test_github_ssh", "label": "Test GitHub access"}, public_key=text)
     fix = {"action": "make_github_key", "label": "Make a GitHub SSH key"} if _tool("ssh-keygen") else None
     return _item("github_ssh", "GitHub access (SSH key)", "missing", "Nothing on this host can push to GitHub yet. A project that ends in a repository needs this (or a GitHub token set in the project's git grant).", fix)
@@ -118,17 +138,16 @@ PATH_BEGIN, PATH_END = "# >>> dashboard tools on PATH >>>", "# <<< dashboard too
 PATH_FILES = (".profile", ".bashrc")
 
 
-def _managed_bin():
-    root = Path(os.environ.get("MAC_CONTROL_AGENT_TOOLS_ROOT") or default_agent_tools_root(os.environ.get("MAC_CONTROL_PRODUCT_SHORT_NAME", "MCD")))
-    return root / "bin"
+def _managed_bin(settings=None):
+    return _managed_root(settings) / "bin"
 
 
 def _has_tools(folder):
     return folder.is_dir() and any(p.is_file() and os.access(p, os.X_OK) for p in folder.iterdir())
 
 
-def check_path():
-    folder = _managed_bin()
+def check_path(settings=None):
+    folder = _managed_bin(settings)
     if not _has_tools(folder):
         return _item("tools_path", "Installed tools on your shell PATH", "info", "No tools have been installed by this dashboard yet.")
     configured = any(PATH_BEGIN in (_home() / f).read_text("utf-8", "replace") for f in PATH_FILES if (_home() / f).is_file())
@@ -139,12 +158,18 @@ def check_path():
                  {"action": "add_tools_to_path", "label": "Put installed tools on my PATH"})
 
 
-def check_agents(settings):
-    rows = []
-    for name in (*CODE_AGENTS, *MANAGER_AGENTS):
+def _agent_installed(settings, name):
+    """Whether the dashboard itself would find this agent: its registry resolves a path set at startup and also a copy the Agent tools panel installed since."""
+    try:
+        from agents import REGISTRY
+        return bool(REGISTRY[name].available(settings))
+    except (ImportError, KeyError):
         path = getattr(settings, f"{name}_path", None) or name
-        found = path if (os.path.isabs(path) and os.access(path, os.X_OK)) else shutil.which(path)
-        rows.append({"id": name, "installed": bool(found), "writes_code": name in CODE_AGENTS})
+        return bool(path if (os.path.isabs(path) and os.access(path, os.X_OK)) else shutil.which(path))
+
+
+def check_agents(settings):
+    rows = [{"id": name, "installed": _agent_installed(settings, name), "writes_code": name in CODE_AGENTS} for name in (*CODE_AGENTS, *MANAGER_AGENTS)]
     coders = [r["id"] for r in rows if r["installed"] and r["writes_code"]]
     managers = [r["id"] for r in rows if r["installed"] and not r["writes_code"]]
     if coders:
@@ -155,10 +180,10 @@ def check_agents(settings):
     return _item("agents", "Agents that build", status, detail, agents=rows)
 
 
-def check_tools():
+def check_tools(settings=None):
     notes = {"python3": "tests and scripts", "node": "JavaScript tests and the Playwright screenshot script", "docker": "building and running container images (otherwise a person or the pipeline does it)",
              "gh": "opening pull requests from this host (optional: a person or the pipeline can)", "ffmpeg": "publishing generated media"}
-    rows = [{"id": n, "installed": bool(_tool(n)), "needed_for": why} for n, why in notes.items()]
+    rows = [{"id": n, "installed": bool(_tool(n, settings)), "needed_for": why} for n, why in notes.items()]
     missing = [r["id"] for r in rows if not r["installed"]]
     return _item("tools", "Optional tools", "info", ("Missing: " + ", ".join(missing) + ". Each is only needed by some stories.") if missing else "All present.", tools=rows)
 
@@ -182,12 +207,12 @@ def check_network():
 
 
 def report(settings, network=False):
-    checks = [check_workspace(settings), check_git(), check_git_identity(), check_github(), check_agents(settings), check_path(), check_tools(), check_disk()]
+    checks = [check_workspace(settings), check_git(), check_git_identity(), check_github(), check_agents(settings), check_path(settings), check_tools(settings), check_disk()]
     if network:
         checks.append(check_network())
     status = {c["id"]: c["status"] for c in checks}
     build = all(status[k] == "ok" for k in ("workspace", "git", "git_identity", "agents"))
-    deliver = build and status["github_ssh"] == "ok"
+    deliver = build and status["github_ssh"] == "ok"                 # a key that GitHub has accepted, not just a key that exists
     return {"checks": checks, "ready_to_build": build, "ready_to_deliver": deliver,
             "note": "Checks never change anything. A fix does one named thing and shows what it changed. Sign-in to agents is not verified here."}
 
@@ -249,16 +274,19 @@ def test_github_ssh():
     private, _ = _key_paths()
     if not ssh or not private.is_file():
         raise ReadinessError("Make the GitHub key first.")
-    code, out = _run([ssh, "-i", str(private), "-o", "IdentitiesOnly=yes", "-o", "BatchMode=yes", "-o", "ConnectTimeout=8", "-o", "StrictHostKeyChecking=accept-new", "-T", GITHUB_TARGET], timeout=20)
+    # -F /dev/null: the dashboard may run in a hardened service where the system ssh config looks wrongly owned ("Bad owner or permissions"); everything needed is on the command line.
+    code, out = _run([ssh, "-F", os.devnull, "-i", str(private), "-o", "IdentitiesOnly=yes", "-o", "BatchMode=yes", "-o", "ConnectTimeout=8", "-o", "StrictHostKeyChecking=accept-new", "-T", GITHUB_TARGET], timeout=20)
     if "successfully authenticated" in out:
+        import datetime
+        _verified_marker().write_text(datetime.date.today().isoformat() + "\n", "utf-8")
         return "GitHub accepted the key: " + out.strip().splitlines()[0][:160]
     if "Permission denied" in out:
         raise ReadinessError("GitHub did not accept the key yet. Add the public key to your GitHub account or to the repository's Deploy keys (with write access), then test again.", 409)
     raise ReadinessError("Could not reach GitHub over SSH: " + (out.strip()[:160] or "no answer"), 502)
 
 
-def add_tools_to_path():
-    folder = _managed_bin()
+def add_tools_to_path(settings=None):
+    folder = _managed_bin(settings)
     if not folder.is_dir():
         raise ReadinessError("No tools have been installed by this dashboard yet.")
     block = f'{PATH_BEGIN}\nexport PATH="{folder}:$PATH"\n{PATH_END}\n'
@@ -285,5 +313,5 @@ def apply(settings, action, name=None, email=None, path=None):
     if action == "test_github_ssh":
         return test_github_ssh()
     if action == "add_tools_to_path":
-        return add_tools_to_path()
+        return add_tools_to_path(settings)
     raise ReadinessError("Unknown fix.")

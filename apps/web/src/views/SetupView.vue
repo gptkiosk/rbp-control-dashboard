@@ -127,9 +127,11 @@ onBeforeUnmount(() => { key.value = '' })
         <template v-if="progress.step === 0">
           <p>RCD runs locally on a Raspberry Pi. You can use its browser interface from another computer or your phone; the agents and their sign-ins belong on the Pi hosting RCD.</p>
           <ol class="instructions"><li>Use Raspberry Pi OS (64-bit) on a Raspberry Pi 4 or newer. The packaged RCD runtime uses Python 3.11 and the installer manages its isolated environment. Follow the clean-OS installation guide for the compatible Python and Node versions rather than relying on the OS defaults.</li><li>Once installed, use Settings → Agent tools for reviewed runtime installation. The packaged systemd service runs RCD across reboots; source-development setup is a separate path.</li><li>Keep installation settings in the private <code>~/.rcd-control/.env</code>. Configure allowed workspace roots and agent executable paths there, then restart RCD when no jobs are running.</li></ol>
-          <label for="setup-workdir">Default working directory</label><AppSelect id="setup-workdir" v-model="workingDir" aria-label="Setup working directory"><option value="">Choose an allowed workspace…</option><option v-for="w in workdirs" :key="w.path" :value="w.path" :data-description="directoryDetail(w.path,w.branch)">{{ directoryName(w.path) }}</option></AppSelect>
-          <button class="btn" :disabled="busy || !workingDir" @click="saveWorkspace">Save workspace</button>
-          <p v-if="!workdirs.length" class="small muted">No workspace detected. Ask the Pi administrator to configure MAC_CONTROL_WORKDIR_ROOTS, then refresh checks.</p>
+          <div class="field-group">
+            <label for="setup-workdir">Default working directory</label><AppSelect id="setup-workdir" v-model="workingDir" aria-label="Setup working directory"><option value="">Choose an allowed workspace…</option><option v-for="w in workdirs" :key="w.path" :value="w.path" :data-description="directoryDetail(w.path,w.branch)">{{ directoryName(w.path) }}</option></AppSelect>
+            <button class="btn" :disabled="busy || !workingDir" @click="saveWorkspace">Save workspace</button>
+            <p v-if="!workdirs.length" class="small muted">No workspace detected. Ask the Pi administrator to configure MAC_CONTROL_WORKDIR_ROOTS, then refresh checks.</p>
+          </div>
           <HostReadinessPanel @changed="refresh" />
           <label class="check"><input type="checkbox" :checked="confirmed('host')" :disabled="busy" @change="confirm('host',$event)" />I have checked the Pi’s local installation and prerequisites.</label>
         </template>
@@ -210,6 +212,8 @@ onBeforeUnmount(() => { key.value = '' })
 .agent-checks { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,var(--tile-min-width)),1fr)); gap:var(--gap); }
 .agent-checks article { display:grid; gap:var(--gap-sm); align-content:start; padding:var(--gap); border:1px solid var(--surface-border); border-radius:var(--radius); min-width:0; }
 .key-form { display:grid; gap:var(--gap-sm); }
+.field-group { display:grid; gap:var(--gap-xs); }
+.field-group > .btn { justify-self:start; margin-top:var(--gap-xs); }
 .actions,.tour-actions,.wizard-footer { display:flex; flex-wrap:wrap; gap:var(--gap-sm); align-items:center; }
 .wizard-footer { border-top:1px solid var(--surface-border); padding-top:var(--gap); margin-top:var(--gap); }
 .wizard-footer .primary { margin-left:auto; }
