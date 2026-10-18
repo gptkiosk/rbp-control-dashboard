@@ -8,7 +8,7 @@ Choose the type in **New project** (or in the brief panel of a draft). When your
 | --- | --- | --- |
 | **Web app** (containerized, deployed to a cloud service) | A hosted web service, monetized or not, deployed to Cloud Run or Fargate. Examples: a subscription site, a free community site. | Infrastructure apply, payment and account-data stories, the go-live, and how visitor-facing pages look (after a preview). |
 | **Packaged app** (local install from a public GitHub release) | An app installed from a signed package published as a GitHub release; not cloud deployed. Examples: the Mac and Raspberry Pi control dashboards. | An install and update test on the target hardware, approving the publish, anything touching the update path, and how screens look. |
-| **Website property** (static site with generated media) | A static, original, stylized site built with the media pipeline. | Making the generated media in MCD, approving the look from a live preview, the contact form and container stories, and the final local verification. |
+| **Website property** (static site with generated media) | A static, original, stylized site built with the media pipeline, following the [website design guide](../../packs/standards/website-design-delivery.md). | Making the generated media in MCD, approving the look from a live preview, the contact form and container stories, and the final local verification. |
 
 ## What a type contains
 

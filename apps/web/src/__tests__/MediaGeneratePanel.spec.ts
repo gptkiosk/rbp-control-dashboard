@@ -8,11 +8,11 @@ const img = { draft: plan('d', 0.08), standard: plan('s', 0.08), premium: plan('
 const veo = { draft: plan('k', 0.35), standard: plan('v', null), premium: plan('v', null) }
 const slot = (over: object) => ({ name: 'a', kind: 'image', world: 'light', purpose: 'Anchor still', prompt: 'p', published: false, inbox: null, candidates: [] as string[], waiting_for_stills: [] as string[], plans: img, ...over })
 type S = ReturnType<typeof slot>
-function setup(getSlots: () => S[], extra: (u: string, init?: RequestInit) => { status?: number; body: unknown } | undefined = () => undefined, keySaved = true) {
+function setup(getSlots: () => S[], extra: (u: string, init?: RequestInit) => { status?: number; body: unknown } | undefined = () => undefined, keySaved = true, defaultTiers?: Record<string, string>) {
   const f = stubFetch((u, init) => {
     if (u === '/api/media/folders') return { body: { folders: [{ path: '/ws/site', name: 'site' }] } }
-    if (u.startsWith('/api/media/slots')) return { body: { working_dir: '/ws/site', slots: getSlots() } }
-    if (u === '/api/media/ledger') return { body: { runs: 3, done: 2, estimated_usd: 0.16, rows: [], note: 'Estimates are not invoices.' } }
+    if (u.startsWith('/api/media/slots')) return { body: { working_dir: '/ws/site', slots: getSlots(), ...(defaultTiers ? { default_tiers: defaultTiers } : {}) } }
+    if (u === '/api/media/ledger') return { body: { runs: 3, done: 2, estimated_usd: 0.16, unpriced: 0, repeats: 0, repeat_usd: 0, rows: [], note: 'Estimates are not invoices.' } }
     return extra(u, init)
   })
   return { f, w: mount(MediaGeneratePanel, { props: { keySaved } }) }
@@ -59,6 +59,7 @@ it('sends the explicit confirmation, tier and count, shows each result as soon a
     },
   )
   await flushPromises()
+  const ok = vi.spyOn(window, 'confirm').mockReturnValue(true)
   await w.get('input[type=checkbox]').setValue(true)
   for (const name of ['one', 'two']) {
     const row = w.get(`[data-slot=${name}]`)
@@ -66,6 +67,7 @@ it('sends the explicit confirmation, tier and count, shows each result as soon a
     await row.get('input[type=number]').setValue(2)
     await buttons(w, 'Generate', `[data-slot=${name}]`)[0]!.trigger('click'); await flushPromises()
   }
+  ok.mockRestore()
   const posted = calls(f, 'POST', '/api/media/generate').map(c => JSON.parse(String(c[1]?.body)))
   expect(posted[0]).toEqual({ working_dir: '/ws/site', slot: 'one', tier: 'draft', count: 2, confirm_spend: true })
   expect(w.text()).toContain('2 generating now')
@@ -207,4 +209,33 @@ it('opened from a project it uses that folder without a picker, reads the key st
   expect(f.mock.calls.some(([u]) => u === '/api/media/models')).toBe(true)
   expect(w.text()).not.toContain('Save your fal key first')
   w.unmount()
+})
+
+it('starts each kind of slot on the tier its project type asks for: a website\'s clips on the cheapest', async () => {
+  const { w } = setup(() => [slot({ name: 'a-still' }), slot({ name: 'b-clip', kind: 'video', plans: veo })], () => undefined, true, { image: 'standard', video: 'draft' })
+  await flushPromises()
+  expect((w.get('[data-slot=a-still] select').element as HTMLSelectElement).value).toBe('standard')
+  expect((w.get('[data-slot=b-clip] select').element as HTMLSelectElement).value).toBe('draft')
+  w.unmount()
+})
+it('does not pay for a slot twice by accident: the refusal is shown beside the slot with an explicit Another take', async () => {
+  const ok = vi.spyOn(window, 'confirm').mockReturnValue(true)
+  let takes = 0
+  const { f, w } = setup(() => [slot({ name: 'x' })], (u, init) => {
+    if (u === '/api/media/generate' && init?.method === 'POST') {
+      const b = JSON.parse(String(init.body))
+      if (!b.another_take) return { status: 409, body: { detail: 'x already has 1 generation waiting for your review, and they have already been paid for. Review, accept or reject them first, or choose Another take if you want to pay for more.' } }
+      takes++; return { status: 202, body: { jobs: ['j-x'], endpoint: 'e', estimate_usd_each: 0.08 } }
+    }
+    if (u === '/api/media/jobs/j-x') return { body: { id: 'j-x', state: 'running', progress: 'queued', slot: 'x', error: null, files: [] } }
+  })
+  await flushPromises()
+  await w.get('input[type=checkbox]').setValue(true)
+  await buttons(w, 'Generate', '[data-slot=x]')[0]!.trigger('click'); await flushPromises()
+  expect(w.get('[data-note=x]').text()).toContain('already been paid for')
+  expect(takes).toBe(0)
+  await w.get('button[aria-label="Another take for x"]').trigger('click'); await flushPromises()
+  expect(takes).toBe(1)
+  expect(calls(f, 'POST', '/api/media/generate').map(c => JSON.parse(String(c[1]?.body)).another_take)).toEqual([undefined, true])
+  ok.mockRestore(); w.unmount()
 })

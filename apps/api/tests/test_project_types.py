@@ -19,8 +19,9 @@ GOOD_SITE = [
     story("b", "Restyle the pages", ["a"]),
     story("c", "Verification of the files and themes", ["b"], assignee="openclaw"),
     story("d", "Preview checkpoint on localhost", ["c"], assignee="claude"),
-    story("e", "Approve the look from the preview", ["d"], assignee="human"),
-    story("f", "Container and pipeline finish", ["e"]),
+    story("e", "Responsive and polish review in the preview", ["d"], assignee="human"),
+    story("e2", "Approve the look from the preview", ["e"], assignee="human"),
+    story("f", "Container and pipeline finish", ["e2"]),
     story("g", "Final local verification on Colima: docker compose up --build", ["f"], assignee="human"),
 ]
 
@@ -124,3 +125,13 @@ def test_every_type_flags_an_agent_story_that_needs_a_browser_and_leaves_static_
         assert "Never ask an agent story to render pages" in pt.planner_section(kind)
     human = [story("v", "Preview checkpoint: check both themes render without console errors", assignee="human")]
     assert "browser-checks-need-a-person" not in ids(pt.check("website-property", human))             # a person can
+
+
+def test_media_default_tiers_are_validated_and_default_to_standard(tmp_path):
+    assert pt.media_default_tiers("website-property") == {"image": "standard", "video": "draft"}
+    assert pt.media_default_tiers("web-app") == {"image": "standard", "video": "standard"}
+    assert pt.media_default_tiers(None) == {"image": "standard", "video": "standard"}
+    base = {"id": "x", "label": "X", "summary": "s", "planner_text": "p"}
+    assert pt._valid({**base, "media_default_tiers": {"video": "draft"}})
+    assert not pt._valid({**base, "media_default_tiers": {"video": "cheapest"}})
+    assert not pt._valid({**base, "media_default_tiers": {"audio": "draft"}})

@@ -30,6 +30,9 @@ def _valid(t):
         for key in ("suggest", "keys", "guides", "failure_points", "human_signoffs"):
             if not isinstance(t.get(key, []), list) or not all(isinstance(x, str) for x in t.get(key, [])):
                 return False
+        tiers = t.get("media_default_tiers", {})
+        if not isinstance(tiers, dict) or not all(k in {"image", "video"} and v in {"draft", "standard", "premium"} for k, v in tiers.items()):
+            return False
         for pattern in t.get("suggest", []):
             re.compile(pattern)
         seen = set()
@@ -68,6 +71,12 @@ def load(settings=None):
 def listing(settings=None):
     return [{"id": t["id"], "label": t["label"], "summary": t["summary"], "keys": t.get("keys", []), "failure_points": t.get("failure_points", []),
              "human_signoffs": t.get("human_signoffs", []), "visual_checks": t.get("visual_checks", "")} for t in load(settings).values()]
+
+
+def media_default_tiers(type_id, settings=None):
+    """The quality tier the media panel starts each kind of slot on for a project type. A website's background clips start on the cheapest tier; other types on standard."""
+    given = (load(settings).get(type_id or "") or {}).get("media_default_tiers", {})
+    return {kind: given.get(kind, "standard") for kind in ("image", "video")}
 
 
 def suggest(text, settings=None):

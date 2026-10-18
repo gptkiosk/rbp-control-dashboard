@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 import media_generate as mg
 import media_state
 import profiles
+import project_types
 import projects
 from deps import get_session
 from settings import get_settings
@@ -23,8 +24,8 @@ def fail(exc):
     raise HTTPException(exc.status, str(exc)) from None
 
 
-def project_note(s, root, text, identity):
-    """Mirror a media decision into the ledger of the project whose working folder this is (the newest one), so the project remembers it."""
+def project_of(s, root):
+    """The project whose working folder this is (the newest one), or None."""
     from models import Project
     best = None
     for p in s.scalars(select(Project)):
@@ -33,6 +34,12 @@ def project_note(s, root, text, identity):
                 best = p
         except (OSError, RuntimeError, KeyError):
             continue
+    return best
+
+
+def project_note(s, root, text, identity):
+    """Mirror a media decision into the ledger of the project whose working folder this is (the newest one), so the project remembers it."""
+    best = project_of(s, root)
     if best is not None:
         projects.memory(s, best, "decision", text, identity)
         s.commit()
@@ -84,7 +91,9 @@ def slots(working_dir: str, request: Request, s: Session = Depends(get_session))
                     "published": published, "candidates": candidates, "inbox": (lambda f: f.name if f else None)(mg.inbox_file(root, slot)), "waiting_for_stills": waiting,
                     "plans": {tier: mg.quick_plan(s, slot, tier) for tier in mg.TIERS}})
     summary = media_state.summary(out, lambda x: x["published"])
-    return {"working_dir": str(root), "slots": out, "summary": summary}
+    owner = project_of(s, root)
+    tiers = project_types.media_default_tiers(projects.document(owner).get("project_type") if owner else None, settings)
+    return {"working_dir": str(root), "slots": out, "summary": summary, "default_tiers": tiers}
 
 
 class GenerateIn(BaseModel):
@@ -97,6 +106,7 @@ class GenerateIn(BaseModel):
     aspect: str | None = Field(default=None, pattern=r"^\d{1,2}:\d{1,2}$")      # None: use the slot's own shape
     confirm_spend: bool = False
     regenerate: bool = False      # a slot that is already published is only regenerated when this is said outright
+    another_take: bool = False    # a slot with candidates still waiting for review is only generated again when this is said outright
 
 
 @router.post("/generate", status_code=202)
@@ -120,6 +130,10 @@ def generate(body: GenerateIn, request: Request, s: Session = Depends(get_sessio
     jobs = mg.runtime(settings)
     if mg.is_published(root, slot) and not body.regenerate:
         raise HTTPException(409, f"{body.slot} is already published. Choose Regenerate if you really want a new one.")
+    waiting = media_state.unreviewed(root, body.slot)
+    if waiting and not body.another_take:
+        raise HTTPException(409, f"{body.slot} already has {waiting} generation{'s' if waiting != 1 else ''} waiting for your review, and they have already been paid for. "
+                                 "Review, accept or reject them first, or choose Another take if you want to pay for more.")
     if jobs.active_for(root, body.slot):
         raise HTTPException(409, f"A generation for {body.slot} is already running. Wait for it to finish.")
     estimate = mg.estimate_for(s, endpoint, payload)
@@ -141,8 +155,17 @@ def ledger(request: Request):
     operator(request)
     rows = mg.runtime(get_settings()).ledger.rows()
     done = [r for r in rows if r.get("status") == "done"]
+    seen, repeats, repeat_usd = set(), 0, 0.0
+    for r in done:
+        key = (r.get("folder"), r.get("slot"), r.get("endpoint"))
+        if key in seen:
+            repeats += 1
+            repeat_usd += r.get("estimate_usd") or 0
+        seen.add(key)
+    unpriced = sum(1 for r in done if r.get("estimate_usd") is None)
     return {"rows": rows[-50:], "runs": len(rows), "done": len(done), "estimated_usd": round(sum(r.get("estimate_usd") or 0 for r in done), 4),
-            "note": "Estimates come from listed or your own prices and are not invoices; fal's billing page is authoritative."}
+            "unpriced": unpriced, "repeats": repeats, "repeat_usd": round(repeat_usd, 4),
+            "note": "Estimates are an upper bound from listed or your own prices and are not invoices; fal's usage page is authoritative."}
 
 
 @router.get("/candidate")

@@ -210,6 +210,10 @@ async function save() {
           Create the fal key with the <strong>{{ media.key_rules.preset }}</strong> preset and restrict its allowed models to:
           <code>{{ media.key_rules.allowed_models.join('  ') }}</code>
         </p>
+        <p v-if="media.key_rules.exact_models?.length" class="muted small">
+          fal fixes a key's model list when the key is created, so a model added later needs a new key. If a wildcard is refused, add these exact endpoints instead:
+          <code>{{ media.key_rules.exact_models.join('  ') }}</code>
+        </p>
       </details>
       <details v-if="settings" class="rate-settings">
         <summary>Model rates · USD per million tokens</summary>

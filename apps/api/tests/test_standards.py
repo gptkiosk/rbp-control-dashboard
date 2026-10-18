@@ -282,7 +282,7 @@ def test_the_shipped_guides_are_general_not_about_any_one_product():
     from pathlib import Path
     folder = Path(__file__).resolve().parents[3] / 'packs' / 'standards'
     names = sorted(p.name for p in folder.glob('*.md'))
-    assert names == ['container-app-delivery.md', 'packaged-app-delivery.md', 'practices.md', 'security.md', 'starter.md', 'web-app-delivery.md']
+    assert names == ['container-app-delivery.md', 'packaged-app-delivery.md', 'practices.md', 'security.md', 'starter.md', 'web-app-delivery.md', 'website-design-delivery.md', 'website-spacing-and-timing.md']
     import re
     for p in folder.glob('*.md'):
         text = p.read_text()

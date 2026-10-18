@@ -16,25 +16,31 @@ def test_the_catalog_lists_every_model_with_its_unit_and_source(make_client):
     by_id = {m["id"]: m for m in data["models"]}
     assert by_id["fal-ai/nano-banana-2"]["unit"] == "image" and by_id["fal-ai/nano-banana-2"]["price_usd"] == 0.08
     assert by_id["fal-ai/kling-video/v2.5-turbo/pro/image-to-video"]["unit"] == "second"
-    assert by_id["fal-ai/kling-video/v2.5-turbo/pro/image-to-video"]["tier"] == "draft"
-    assert by_id["fal-ai/veo3.1/fast/image-to-video"]["price_usd"] is None        # not on fal's pricing page: never invented
+    assert by_id["minimax/h3-max-turbo/image-to-video"]["tier"] == "draft" and by_id["minimax/h3-max/image-to-video"]["tier"] == "standard"
+    assert by_id["minimax/h3-max/image-to-video"]["price_usd"] == 0.08 and by_id["minimax/h3-max-turbo/text-to-video"]["price_usd"] == 0.04
+    assert by_id["fal-ai/veo3.1/fast/image-to-video"]["price_usd"] == 0.15        # what fal billed, so a clip never counts as free
+    assert by_id["fal-ai/veo3.1/first-last-frame-to-video"]["price_usd"] == 0.40
+    assert by_id["fal-ai/kling-video/v2.5-turbo/pro/text-to-video"]["price_usd"] is None   # still unknown: never invented
     assert all(m["price_source"] == media_catalog.SOURCE for m in data["models"])
     assert {m["tier"] for m in data["models"]} >= {"draft", "standard", "premium"}
     assert data["key_rules"]["preset"] == "API" and "fal-ai/veo3.1*" in data["key_rules"]["allowed_models"]
+    exact = set(data["key_rules"]["exact_models"])
+    assert {"minimax/h3-max/image-to-video", "minimax/h3-max-turbo/image-to-video", "fal-ai/nano-banana-2/edit"} <= exact
+    assert {m["id"] for m in data["models"] if m["tier"]} <= exact               # every model a tier can pick is on the list a new key needs
 
 
 def test_your_own_price_replaces_the_listed_one_and_can_be_cleared(make_client):
     c = make_client()
     with c:
         assert c.get("/api/billing").json()["media_rates"] == {}
-        r = c.patch("/api/billing", json={"media_rates": {"fal-ai/veo3.1/fast/image-to-video": 0.15}})
-        assert r.status_code == 200 and r.json()["media_rates"] == {"fal-ai/veo3.1/fast/image-to-video": 0.15}
-        row = next(m for m in c.get("/api/media/models").json()["models"] if m["id"] == "fal-ai/veo3.1/fast/image-to-video")
+        r = c.patch("/api/billing", json={"media_rates": {"fal-ai/kling-video/v2.5-turbo/pro/text-to-video": 0.15}})
+        assert r.status_code == 200 and r.json()["media_rates"] == {"fal-ai/kling-video/v2.5-turbo/pro/text-to-video": 0.15}
+        row = next(m for m in c.get("/api/media/models").json()["models"] if m["id"] == "fal-ai/kling-video/v2.5-turbo/pro/text-to-video")
         assert row["price_usd"] == 0.15 and row["listed_price_usd"] is None and row["price_source"] == "operator"
         c.patch("/api/billing", json={"media_rates": {"fal-ai/nano-banana-2": 0.09}})
-        assert set(c.get("/api/billing").json()["media_rates"]) == {"fal-ai/veo3.1/fast/image-to-video", "fal-ai/nano-banana-2"}
-        c.patch("/api/billing", json={"media_rates": {"fal-ai/veo3.1/fast/image-to-video": None}})
-        row = next(m for m in c.get("/api/media/models").json()["models"] if m["id"] == "fal-ai/veo3.1/fast/image-to-video")
+        assert set(c.get("/api/billing").json()["media_rates"]) == {"fal-ai/kling-video/v2.5-turbo/pro/text-to-video", "fal-ai/nano-banana-2"}
+        c.patch("/api/billing", json={"media_rates": {"fal-ai/kling-video/v2.5-turbo/pro/text-to-video": None}})
+        row = next(m for m in c.get("/api/media/models").json()["models"] if m["id"] == "fal-ai/kling-video/v2.5-turbo/pro/text-to-video")
         assert row["price_usd"] is None and row["price_source"] == media_catalog.SOURCE
 
 
@@ -64,7 +70,15 @@ def test_estimates_use_the_unit_and_say_nothing_when_the_price_is_unknown():
     video = next(m for m in media_catalog.MODELS if m["id"] == "fal-ai/kling-video/v2.5-turbo/pro/image-to-video")
     image = next(m for m in media_catalog.MODELS if m["id"] == "fal-ai/nano-banana-2")
     veo = next(m for m in media_catalog.MODELS if m["id"] == "fal-ai/veo3.1/fast/image-to-video")
+    flf = next(m for m in media_catalog.MODELS if m["id"] == "fal-ai/veo3.1/first-last-frame-to-video")
+    unknown = next(m for m in media_catalog.MODELS if m["id"] == "fal-ai/kling-video/v2.5-turbo/pro/text-to-video")
     assert media_catalog.estimate(video, seconds=5) == 0.35
-    assert media_catalog.estimate(image, images=3) == 0.24
-    assert media_catalog.estimate(veo, seconds=8) is None
-    assert media_catalog.estimate(veo, seconds=8, rates={veo["id"]: 0.15}) == 1.2
+    assert media_catalog.estimate(image, images=3) == 0.24                                    # 1K, the base price
+    assert media_catalog.estimate(image, images=1, resolution="2K") == 0.12                   # fal billed 1.5 units for a 2K picture
+    assert media_catalog.estimate(image, images=1, resolution="4K") == 0.16
+    assert media_catalog.estimate(veo, seconds=8) == 1.2                                      # Veo 3.1 Fast, $0.15 a second
+    assert media_catalog.estimate(flf, seconds=6) == 2.4                                      # the full Veo 3.1 model, $0.40 a second
+    assert media_catalog.estimate(next(m for m in media_catalog.MODELS if m["id"] == "minimax/h3-max/image-to-video"), seconds=5, resolution="768P") == 0.4
+    assert media_catalog.estimate(next(m for m in media_catalog.MODELS if m["id"] == "minimax/h3-max/image-to-video"), seconds=5, resolution="1080P") == 0.8
+    assert media_catalog.estimate(unknown, seconds=5) is None
+    assert media_catalog.estimate(unknown, seconds=5, rates={unknown["id"]: 0.1}) == 0.5
