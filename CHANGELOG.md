@@ -17,7 +17,7 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ### Added
 
-- MiniMax H3 Max and H3 Max Turbo clip models (text to video, image to video, and start-and-end-still transitions), about a fifth to a half of Veo's cost. They are the standard and draft video tiers; Veo 3.1 is the premium tier. Add `minimax/h3-max*` to the fal key's allowed models.
+- MiniMax H3 Max and H3 Max Turbo clip models (text to video, image to video, and start-and-end-still transitions), about a fifth to a half of Veo's cost. They are the standard and draft video tiers; Veo 3.1 is the premium tier. fal fixes a key's allowed models when it is created, so a key made earlier needs replacing: the key guide now lists the exact endpoint ids to add, and says so.
 - Project types can set the media tier the panel starts on. A website's background clips start on the cheapest video tier.
 
 ### Added

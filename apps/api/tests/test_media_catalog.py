@@ -24,6 +24,9 @@ def test_the_catalog_lists_every_model_with_its_unit_and_source(make_client):
     assert all(m["price_source"] == media_catalog.SOURCE for m in data["models"])
     assert {m["tier"] for m in data["models"]} >= {"draft", "standard", "premium"}
     assert data["key_rules"]["preset"] == "API" and "fal-ai/veo3.1*" in data["key_rules"]["allowed_models"]
+    exact = set(data["key_rules"]["exact_models"])
+    assert {"minimax/h3-max/image-to-video", "minimax/h3-max-turbo/image-to-video", "fal-ai/nano-banana-2/edit"} <= exact
+    assert {m["id"] for m in data["models"] if m["tier"]} <= exact               # every model a tier can pick is on the list a new key needs
 
 
 def test_your_own_price_replaces_the_listed_one_and_can_be_cleared(make_client):

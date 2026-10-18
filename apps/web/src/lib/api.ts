@@ -677,7 +677,7 @@ export interface MediaCatalog {
   provider: string
   fal_key_saved: boolean
   models: MediaModel[]
-  key_rules: { preset: string; note: string; allowed_models: string[] }
+  key_rules: { preset: string; note: string; allowed_models: string[]; exact_models?: string[] }
 }
 export interface BillingSettings {
   accounts: Record<AgentId, BillingAccount>

@@ -39,7 +39,7 @@ MODELS = [
      "note": "Default for clips that start from a still, and for transitions (start and end stills). Prices are the list prices after the launch discount, so an estimate is an upper bound until 31 October."},
     {"id": "fal-ai/kling-video/v2.5-turbo/pro/image-to-video", "label": "Kling 2.5 Turbo Pro (image to video)", "kind": "video", "mode": "image-to-video", "unit": "second", "price_usd": 0.07, "tier": None,
      "note": "Cheapest clip tier. 5 or 10 seconds. An end-frame field lets it morph between two stills."},
-    {"id": "fal-ai/kling-video/v2.5-turbo/pro/text-to-video", "label": "Kling 2.5 Turbo Pro (text to video)", "kind": "video", "mode": "text-to-video", "unit": "second", "price_usd": None, "tier": "draft",
+    {"id": "fal-ai/kling-video/v2.5-turbo/pro/text-to-video", "label": "Kling 2.5 Turbo Pro (text to video)", "kind": "video", "mode": "text-to-video", "unit": "second", "price_usd": None, "tier": None,
      "note": "Not priced on fal's pricing page."},
     {"id": "fal-ai/kling-video/v3/standard/image-to-video", "label": "Kling v3 Standard (image to video)", "kind": "video", "mode": "image-to-video", "unit": "second", "price_usd": 0.14, "tier": None,
      "note": "3 to 15 seconds, start and end image fields. Name it with --model."},
@@ -56,7 +56,10 @@ MODELS = [
 
 KEY_RULES = {
     "preset": "API",
-    "note": "Create the key with the API preset (model execution and storage). Restrict allowed models to the patterns below so a mistake or a leaked key cannot call other models.",
+    "note": "Create the key with the API preset (model execution and storage). Restrict allowed models so a mistake or a leaked key cannot call other models. fal fixes a key's model list when the key is created and cannot change it afterwards, so a key made before a model was added has to be replaced by a new key. If a wildcard is refused, add the exact endpoint ids instead.",
+    "exact_models": ["minimax/h3-max/text-to-video", "minimax/h3-max/image-to-video", "minimax/h3-max-turbo/text-to-video", "minimax/h3-max-turbo/image-to-video",
+                     "fal-ai/nano-banana-2", "fal-ai/nano-banana-2/edit", "fal-ai/nano-banana-pro", "fal-ai/nano-banana-pro/edit",
+                     "fal-ai/veo3.1", "fal-ai/veo3.1/image-to-video", "fal-ai/veo3.1/first-last-frame-to-video", "fal-ai/veo3.1/fast", "fal-ai/veo3.1/fast/image-to-video"],
     "allowed_models": ["fal-ai/nano-banana-2*", "fal-ai/nano-banana-pro*", "fal-ai/veo3.1*", "minimax/h3-max*", "fal-ai/kling-video/v2.5-turbo/pro/*", "fal-ai/kling-video/v3/standard/*"],
 }
 
