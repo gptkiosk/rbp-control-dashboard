@@ -73,17 +73,29 @@ def listing(settings=None):
              "human_signoffs": t.get("human_signoffs", []), "visual_checks": t.get("visual_checks", "")} for t in load(settings).values()]
 
 
-def consultant_text(settings=None, limit=1300):
-    """A bounded description of the project types for the consultant chat: what each is for and where a person signs off, so it can say which type
-    a goal fits and what the plan must contain. Advice for the conversation; it authorizes nothing."""
-    footer = ("Generated media (images, clips) is made by the operator in MCD's Media tab with their own fal key, never by an agent: plan it as a human story after the wiring story, "
-              "and make the site complete on its fallbacks first. Website clips start on the cheapest video tier; a slot with generations waiting for review is not "
-              "generated again unless the operator asks for another take.")
+MEDIA_RULES = ("Generated media (images, clips) is made by the operator in MCD's Media tab with their own fal key, never by an agent: plan it as a human story after the wiring story, "
+               "and make the site complete on its fallbacks first. Website clips start on the cheapest video tier; a slot with generations waiting "
+               "for review is not generated again unless the operator asks for another take.")
+
+
+def consultant_text(settings=None, limit=1300, type_id=None):
+    """A bounded description of the project types for the consultant chat, so it can say which type a goal fits and what the plan must contain.
+    With `type_id` it is focused on the type the operator chose (how it is planned, where a person signs off, where it has failed). Advice for the
+    conversation; it authorizes nothing."""
+    types = load(settings)
+    chosen = types.get(type_id or "")
+    if chosen:
+        lines = [f"The operator chose the project type {chosen['label']}. {chosen['summary']}", chosen["planner_text"][:420].rstrip() + ("..." if len(chosen["planner_text"]) > 420 else "")]
+        if chosen.get("human_signoffs"):
+            lines.append("A person signs off: " + "; ".join(x[:50] for x in chosen["human_signoffs"][:3]) + ".")
+        lines += ["Known failure: " + fp[:140] for fp in chosen.get("failure_points", [])[:2]]
+        lines.append("If what they describe does not fit this type, say so and suggest another type or Other; the type is changed in the review step.")
+        return "\n".join(lines)[:max(0, 1700 - len(MEDIA_RULES) - 1)] + "\n" + MEDIA_RULES
     lines = ["Project types (the operator picks one in New project; a plan for a typed project is checked against it):"]
-    for t in load(settings).values():
+    for t in types.values():
         signoffs = "; ".join(x[:40].rstrip() for x in t.get("human_signoffs", [])[:2])
         lines.append(f"- {t['label'].split(' (')[0]}: {t['summary'][:60].rstrip()}... A person signs off: {signoffs}.")
-    return "\n".join(lines)[:max(0, limit - len(footer) - 1)] + "\n" + footer
+    return "\n".join(lines)[:max(0, limit - len(MEDIA_RULES) - 1)] + "\n" + MEDIA_RULES
 
 
 def media_default_tiers(type_id, settings=None):

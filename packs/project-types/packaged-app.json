@@ -22,7 +22,7 @@
     "security.md",
     "practices.md"
   ],
-  "planner_text": "This is a packaged app delivered as a signed package from a public GitHub release and installed locally; it is not cloud deployed. Plan the work as small stories with tests. The release flow is fixed and belongs to the operator's approval: changelog and version bump, a pull request with green CI, merge, tag, a package built and signed by the release workflow, verification of the checksum, signature and manifest, and publishing the verified draft. Agents prepare the code, tests, docs and changelog; they do not publish a release, hold a signing key or install onto the operator's machine. Plan a verification story that checks the built package, a human story to test an install and an update on the target hardware, and a human story that approves publishing. The update path, migrations and anything that touches the installer are high risk. No personal information, keys, hostnames or paths from the operator's machine may be in the packaged files. If the app has screens, add a verification story and a preview checkpoint before a human sign-off on how it looks. Never ask an agent story to render pages, check a browser console or take screenshots: agent sandboxes have no browser, so keep agent verification static and leave rendering to the human preview.",
+  "planner_text": "This is a packaged app delivered as a signed package from a public GitHub release and installed locally; it is not cloud deployed. Plan the work as small stories with tests. The release flow is fixed and belongs to the operator's approval: changelog and version bump, a pull request with green CI, merge, tag, a package built and signed by the release workflow, verification of the checksum, signature and manifest, and publishing the verified draft. Agents prepare the code, tests, docs and changelog; they do not publish a release, hold a signing key or install onto the operator's machine. Plan a verification story that checks the built package, a human story to test an install and an update on the target hardware, and a human story that approves publishing. The update path, migrations and anything that touches the installer are high risk. No personal information, keys, hostnames or paths from the operator's machine may be in the packaged files. If the app has screens, add a verification story and a preview checkpoint before a human sign-off on how it looks. Never ask an agent story to render pages, check a browser console or take screenshots: agent sandboxes have no browser, so keep agent verification static and leave rendering to the human preview. The project ends in the remote repository, not in a scratch folder: when the brief names a repository, the working folder must be a clone of it, and the plan needs a delivery story that pushes the project branch and opens a pull request, then a story that reads the pipeline result so the image or app build and the tests have actually run there. Nothing goes to the main branch from an agent. The project is not done until the branch is pushed, the pull request is open and the pipeline result is known. The repository is public: this app is delivered as an MIT-licensed package that other people install from a GitHub release, so its code, tests and pipeline are public too. Say the licence in the plan.",
   "failure_points": [
     "The release is the operator's approval: an agent must not publish, sign or install; plan those as human stories.",
     "Code that must run on older target Python versions needs a compile check for that version before it is pushed, or CI fails.",
@@ -30,7 +30,8 @@
     "The update path is high risk; it needs a human install and update test on the target hardware.",
     "Actions minutes cost money: batch non-blocking fixes and release only for a verified blocker.",
     "A restart or upgrade of a running install must wait until nothing is running.",
-    "A story that asks an agent to render pages, read a browser console or take screenshots cannot be done in an agent sandbox (no browser, no loopback server); it reports itself unfinished and blocks everything behind it. Agent verification is static (files, references, syntax, tests); rendering is checked by a person in the preview."
+    "A story that asks an agent to render pages, read a browser console or take screenshots cannot be done in an agent sandbox (no browser, no loopback server); it reports itself unfinished and blocks everything behind it. Agent verification is static (files, references, syntax, tests); rendering is checked by a person in the preview.",
+    "A project run in a scratch folder with no git remote finishes with nothing pushed: no pull request and no pipeline run, so the image or app build and tests never ran where they are meant to. When the brief names a repository, the working folder must be a clone of it, and delivery (push the project branch, open the pull request, read the pipeline result) must be stories in the plan."
   ],
   "visual_checks": "Screens get a file-level verification story, then a preview checkpoint with screenshots or a local URL, then a human sign-off.",
   "human_signoffs": [
@@ -77,6 +78,13 @@
       "kind": "not_agent_for",
       "match": "console errors|render(s|ed|ing)? (in|without|correctly)|in a browser|browser (render|check|test)|playwright|puppeteer|lighthouse|screenshot",
       "message": "A story asks an agent to render pages or check a browser console, which no agent sandbox can do. It will report itself unfinished. Keep agent verification to static checks and move rendering to the human preview."
+    },
+    {
+      "id": "delivery-to-remote",
+      "severity": "warn",
+      "kind": "has_story",
+      "match": "push|pull request|\\bpr\\b|pipeline (run|result|status)|ci (run|result|status)|deliver",
+      "message": "No delivery story. A project should end in the remote repository: add a story that pushes the project branch and opens a pull request, and one that reads the pipeline result (the build and tests running there), or say plainly that this project has no repository."
     }
   ]
 }

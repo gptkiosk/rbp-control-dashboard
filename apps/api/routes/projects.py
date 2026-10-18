@@ -1,5 +1,6 @@
 """Operator-only project review and planning. Agent tokens cannot approve or dispatch."""
 import json
+import re
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel, ConfigDict, Field
@@ -59,8 +60,8 @@ def add_git_grant(project_id:int,body:GitGrantIn,request:Request,s:Session=Depen
     return {'clones':[{'dir':c.dir,'repo':c.repo,'branch':c.branch} for c in grant.clones]}
 
 @router.get('/consultant-context')
-def consultant_context(working_dir:str,request:Request,s:Session=Depends(get_session)):
-    actor(request);return {'text':projects.consultant_context(s,get_settings(),working_dir)}
+def consultant_context(working_dir:str,request:Request,project_type:str|None=None,s:Session=Depends(get_session)):
+    actor(request);return {'text':projects.consultant_context(s,get_settings(),working_dir,project_type if project_type and re.fullmatch(r'[a-z0-9][a-z0-9-]{0,39}',project_type) else None)}
 
 @router.get('/{project_id}')
 def get_project(project_id:int,request:Request,s:Session=Depends(get_session)):

@@ -12,6 +12,12 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ### Added
 
+- **Other** project type for work that does not exactly fit Web app, Packaged app or Website property: the plan says which type it resembles and which of that type's gates it keeps or drops.
+- The project consultant asks for the project type before it starts (a required dropdown with Other), tells the consultant the type's planning guidance, says in the brief which type it is, and hands the type to the plan when you review the brief.
+- Every project type now asks that the project ends in the remote repository: the working folder is a clone of the repository (not a scratch folder), and the plan has a delivery story (push the project branch, open the pull request) and one that reads the pipeline result. A plan without one gets a warning. The repository is public for an externally packaged MIT-licensed app and private for a proprietary one, and the plan says which. The first website project finished with nothing pushed because it ran in a scratch folder.
+
+### Added
+
 - Help, the help chat and the docs now cover project types (picking one, plan checks, the website guides), making media with fal (tiers, progress, Another take, accepting and publishing), media spend (estimates are an upper bound, repeats and unpriced runs are shown), creating or replacing the fal key (fal fixes its model list at creation), and Accept anyway. Five new how-tos; the project consultant chat is told the project types and the media rules.
 
 ### Fixed

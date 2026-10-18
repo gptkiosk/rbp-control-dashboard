@@ -392,7 +392,7 @@ Rules are configured in the Pi’s private alerts.toml. RCD does not automatical
 Talk your idea through, say when it is enough, then send the plan to the coordinator.
 
 1. Open Projects and choose Refine with project consultant below Create project brief.
-2. Choose an allowed workspace, enter a project name and goal, and start the conversation.
+2. Choose an allowed workspace, enter a project name and goal, and choose a project type (the closest fit, or Other if nothing fits exactly). The type is required here so it is always part of the plan. The consultant is told the type’s planning guidance and says if your goal does not fit it.
 3. New AI conversations use Hermes with openrouter/free unless you changed Profile → AI defaults. Install and configure the selected native agent first.
 4. The consultant answers, then asks what it needs to know. Keep talking until you are satisfied; you never have to read its instructions.
 5. Choose That’s enough, write up the plan. The brief opens for you to edit. Confirm the working directory and approve coordination; the assigned Delegator then creates the project map and stories.
@@ -406,9 +406,9 @@ Free routes can throttle or fail. Profile → AI defaults also supplies new chat
 
 A type tells the planner how this kind of project is planned and where it has failed before, then checks the plan.
 
-1. Open Projects, choose New project and pick a type: Web app, Packaged app or Website property. When your brief clearly fits one, MCD suggests it and you can accept or ignore the suggestion. A project with no type is planned as before.
+1. Open Projects, choose New project and pick a type: Web app, Packaged app, Website property, or Other when nothing fits exactly (the plan then says which type it resembles and which gates it keeps). When your brief clearly fits one, MCD suggests it and you can accept or ignore the suggestion. A project with no type is planned as before.
 2. The type adds planner text and known failure points to the plan prompt, hands its guides to the planner and agents (for a website: the design guide and the spacing and timing guide), and lists the keys it usually needs.
-3. After a plan is proposed, read Plan checks for this project type. They only warn: for example no file verification story, a preview that does not follow verification, a container story an agent cannot do, generated media planned for an agent, or no responsive review. Fix the plan or ignore a warning on purpose.
+3. After a plan is proposed, read Plan checks for this project type. They only warn: for example no delivery story (the project must end in the remote repository, public for an MIT-licensed package others install and private for proprietary work, with the branch pushed, a pull request open and the pipeline result read), no file verification story, a preview that does not follow verification, a container story an agent cannot do, generated media planned for an agent, or no responsive review. Fix the plan or ignore a warning on purpose.
 4. Look for the human sign-offs the type expects, such as making the media in MCD, approving the look from a live preview and the final local verification. Agents cannot render pages, so you check rendering in the preview.
 5. To change a type, copy packs/project-types/<id>.json into the project-types folder of your data directory and edit it; your copy replaces the shipped one. When a project fails for a reason that could have been planned around, add it to the type’s failure points.
 

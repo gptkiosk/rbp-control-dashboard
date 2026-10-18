@@ -22,7 +22,8 @@ GOOD_SITE = [
     story("e", "Responsive and polish review in the preview", ["d"], assignee="human"),
     story("e2", "Approve the look from the preview", ["e"], assignee="human"),
     story("f", "Container and pipeline finish", ["e2"]),
-    story("g", "Final local verification on Colima: docker compose up --build", ["f"], assignee="human"),
+    story("f2", "Push the project branch and open the pull request", ["f"]),
+    story("g", "Final local verification on Colima: docker compose up --build, and the pipeline result", ["f2"], assignee="human"),
 ]
 
 
@@ -32,7 +33,7 @@ def ids(findings):
 
 def test_every_shipped_type_is_usable_and_named_for_its_file(tmp_path):
     types = pt.load(type("S", (), {"data_dir": tmp_path})())
-    assert set(types) == {"web-app", "packaged-app", "website-property"}
+    assert set(types) == {"web-app", "packaged-app", "website-property", "other"}
     for t in types.values():
         assert t["failure_points"] and t["human_signoffs"] and t["planner_text"] and t["checks"]
         assert all(c["message"] for c in t["checks"])
@@ -66,7 +67,8 @@ def test_web_app_and_packaged_app_checks():
     package = [story("a", "Publish the release and sign the manifest", assignee="claude"), story("b", "Write docs")]
     assert {"release-is-human", "has-install-test", "has-release-approval"} <= ids(pt.check("packaged-app", package))
     ok = [story("a", "Code and tests"), story("b", "Verify the package checksum signature and manifest", ["a"]),
-          story("c", "Install and update test on the Pi", ["b"], assignee="human"), story("d", "Approve publishing the release", ["c"], assignee="human")]
+          story("c", "Install and update test on the Pi", ["b"], assignee="human"), story("d", "Approve publishing the release", ["c"], assignee="human"),
+          story("e", "Push the branch and open the pull request, then read the pipeline result", ["a"])]
     assert pt.check("packaged-app", ok) == []
 
 
@@ -105,7 +107,7 @@ def test_the_operators_own_copy_wins_and_a_broken_one_is_ignored(tmp_path):
 def test_types_and_checks_are_available_through_the_api(app):  # noqa: F811
     c, s, wd, settings = app
     listing = c.get("/api/project-types").json()["types"]
-    assert {t["id"] for t in listing} == {"web-app", "packaged-app", "website-property"}
+    assert {t["id"] for t in listing} == {"web-app", "packaged-app", "website-property", "other"}
     assert c.post("/api/project-types/suggest", json={"text": "A static website with dark mode and art and animation"}).json() == {"suggested": "website-property"}
     plain = new(app, [node("a")])
     assert c.get(f"/api/projects/{plain['id']}/checks").json() == {"project_type": None, "findings": []}
@@ -140,6 +142,37 @@ def test_media_default_tiers_are_validated_and_default_to_standard(tmp_path):
 def test_the_consultant_is_told_the_types_and_the_media_rules():
     text = pt.consultant_text()
     assert "Website property" in text and "Web app" in text and "Packaged app" in text
-    assert text.count("A person signs off:") == 3                              # every type fits inside the budget, none cut off
+    assert text.count("A person signs off:") == 4                              # every type fits inside the budget, none cut off
+    assert "Other (does not exactly fit)".split(" (")[0] in text
     assert "never by an agent" in text and "cheapest video tier" in text and "another take" in text
     assert len(text) <= 1300
+
+
+def test_a_chosen_type_focuses_the_consultant_and_other_is_a_real_type():
+    other = pt.load()["other"]
+    assert other["label"].startswith("Other") and other["suggest"] == [] and {c["id"] for c in other["checks"]} == {"container-needs-human", "browser-checks-need-a-person", "delivery-to-remote"}     # never suggested; only the limits and the delivery gate every project has
+    assert "most resembles" in other["planner_text"]
+    text = pt.consultant_text(type_id="website-property")
+    assert "The operator chose the project type Website property" in text and "A person signs off:" in text and "Known failure:" in text
+    assert "does not fit this type" in text and "never by an agent" in text and len(text) <= 1700
+    assert "The operator chose" not in pt.consultant_text(type_id="nonsense")                      # an unknown id falls back to the general list
+    assert pt.media_default_tiers("other") == {"image": "standard", "video": "standard"}
+
+
+def test_every_type_asks_for_delivery_to_the_remote_repository_and_says_why():
+    for type_id in ("web-app", "packaged-app", "website-property", "other"):
+        t = pt.load()[type_id]
+        assert "ends in the remote repository" in t["planner_text"] and "scratch folder" in t["planner_text"]
+        assert any("scratch folder with no git remote" in fp for fp in t["failure_points"])
+        none = [story("a", "Code and tests")]
+        assert "delivery-to-remote" in ids(pt.check(type_id, none))
+        done = [story("a", "Code and tests"), story("b", "Push the project branch and open a pull request", ["a"])]
+        assert "delivery-to-remote" not in ids(pt.check(type_id, done))
+
+
+def test_each_type_says_whether_its_repository_is_public_or_private():
+    load = pt.load()
+    assert "The repository is public" in load["packaged-app"]["planner_text"] and "MIT" in load["packaged-app"]["planner_text"]
+    for type_id in ("web-app", "website-property"):
+        assert "The repository is private" in load[type_id]["planner_text"] and "proprietary" in load[type_id]["planner_text"]
+    assert "public for an MIT-licensed project" in load["other"]["planner_text"] and "private for anything proprietary" in load["other"]["planner_text"]
