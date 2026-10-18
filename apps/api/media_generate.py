@@ -43,6 +43,8 @@ TIERS = ("draft", "standard", "premium")
 IMAGE_TIERS = {"draft": ("fal-ai/nano-banana-2", "1K"), "standard": ("fal-ai/nano-banana-2", "2K"), "premium": ("fal-ai/nano-banana-pro", "2K")}
 VEO = "fal-ai/veo3.1"
 KLING25 = "fal-ai/kling-video/v2.5-turbo/pro"
+IMAGE_RESOLUTIONS = ("1K", "2K", "4K")                  # a slot may ask for less than its tier (a small picture does not need 2K)
+VIDEO_RESOLUTIONS = ("480P", "768P", "1080P")           # MiniMax: 480p costs 0.625 of 768p, and suits a VHS or retro look
 MINIMAX = "minimax/h3-max"
 MINIMAX_TURBO = "minimax/h3-max-turbo"
 # draft and standard are MiniMax (a fifth to a half of what Veo billed on a real run); premium is the full Veo 3.1.
@@ -107,6 +109,9 @@ def load_slots(root):
         for key in ("refs",):
             if not isinstance(item.get(key, []), list) or len(item.get(key, [])) > 4 or not all(isinstance(r, str) and len(r) < 200 for r in item.get(key, [])):
                 raise MediaError(f"Slot {item['name']} has invalid references.")
+        if "resolution" in item and item["resolution"] not in (IMAGE_RESOLUTIONS if item["kind"] == "image" else VIDEO_RESOLUTIONS):
+            allowed = " or ".join(IMAGE_RESOLUTIONS if item["kind"] == "image" else VIDEO_RESOLUTIONS)
+            raise MediaError(f"Slot {item['name']} has an invalid resolution: use {allowed}.")
         for key in ("from_still", "first_still", "last_still"):
             if key in item and not (isinstance(item[key], str) and SLOT_RE.fullmatch(item[key])):
                 raise MediaError(f"Slot {item['name']} has an invalid {key}.")
@@ -189,7 +194,7 @@ def build_request(root, slot, tier, model=None, aspect=None):
     if slot["kind"] == "image":
         aspect = aspect or aspect_for(slot)
         refs = [data_url(root, r) for r in slot.get("refs", [])]
-        body = {"prompt": slot["prompt"], "aspect_ratio": aspect, "resolution": IMAGE_TIERS[tier][1], "output_format": "png", "num_images": 1}
+        body = {"prompt": slot["prompt"], "aspect_ratio": aspect, "resolution": slot.get("resolution") or IMAGE_TIERS[tier][1], "output_format": "png", "num_images": 1}
         if refs:
             body["image_urls"] = refs
         return endpoint, body
@@ -201,7 +206,7 @@ def build_request(root, slot, tier, model=None, aspect=None):
     mode = "flf" if first else "i2v" if single else "t2v"
     hi = (slot.get("seconds") or [4, 8])[-1]
     if endpoint.startswith("minimax/"):
-        body = {"prompt": slot["prompt"], "duration": minimax_seconds(slot), "resolution": "768P", "prompt_expansion_mode": "balanced"}
+        body = {"prompt": slot["prompt"], "duration": minimax_seconds(slot), "resolution": slot.get("resolution") or "768P", "prompt_expansion_mode": "balanced"}
         if mode == "t2v":
             body["aspect_ratio"] = "16:9"
         else:
@@ -240,11 +245,11 @@ def quick_plan(s, slot, tier, model=None):
     if slot["kind"] == "video":
         hi = (slot.get("seconds") or [4, 8])[-1]
         if endpoint.startswith("minimax/"):
-            body = {"duration": minimax_seconds(slot), "resolution": "768P"}
+            body = {"duration": minimax_seconds(slot), "resolution": slot.get("resolution") or "768P"}
         else:
             body = {"duration": "5" if "/kling-video/" in endpoint else f"{min(max(round(hi), 4), 8) // 2 * 2}s"}
     else:
-        body = {"num_images": 1, "resolution": IMAGE_TIERS[tier][1]}
+        body = {"num_images": 1, "resolution": slot.get("resolution") or IMAGE_TIERS[tier][1]}
     return {"endpoint": endpoint, "estimate_usd": estimate_for(s, endpoint, body)}
 
 

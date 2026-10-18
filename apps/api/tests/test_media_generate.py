@@ -570,3 +570,35 @@ def test_background_clips_start_on_the_cheapest_tier_for_a_website_and_standard_
     r = client.post("/api/projects", json={"title": "App", "brief": "An app.", "working_dir": str(other), "nodes": [], "project_type": "web-app"})
     assert r.status_code == 201, r.text
     assert client.get("/api/media/slots", params={"working_dir": str(other)}).json()["default_tiers"]["video"] == "standard"
+
+
+def test_a_slot_can_ask_for_less_resolution_than_its_tier_and_the_price_follows(env):
+    client, folder = env
+    slots = {"slots": [
+        {"name": "small-still", "kind": "image", "prompt": "A marquee.", "width": 1024, "height": 576, "min_width": 900, "resolution": "1K"},
+        {"name": "big-still", "kind": "image", "prompt": "A hero.", "width": 2560, "height": 1100},
+        {"name": "vhs-clip", "kind": "video", "prompt": "VHS footage.", "seconds": [4, 6], "resolution": "480P", "from_still": "hero-still"},
+        {"name": "full-clip", "kind": "video", "prompt": "Clean footage.", "seconds": [4, 6], "from_still": "hero-still"},
+    ]}
+    (folder / "media" / "slots.json").write_text(json.dumps(slots))
+    data = client.get("/api/media/slots", params={"working_dir": str(folder)}).json()
+    by = {s["name"]: s for s in data["slots"]}
+    assert by["small-still"]["plans"]["standard"]["estimate_usd"] == 0.08            # 1K is the base price, not 2K's 0.12
+    assert by["big-still"]["plans"]["standard"]["estimate_usd"] == 0.12
+    assert by["vhs-clip"]["plans"]["standard"]["estimate_usd"] == 0.25               # 5 s of MiniMax H3 Max at 480p: 5 x 0.08 x 0.625
+    assert by["full-clip"]["plans"]["standard"]["estimate_usd"] == 0.4
+    assert by["vhs-clip"]["plans"]["draft"]["estimate_usd"] == 0.125                 # and Turbo at 480p is cheaper still
+    FakeFal.log = []
+    run_and_wait(client, {"working_dir": str(folder), "slot": "small-still"})
+    assert [e for e in FakeFal.log if e[0] == "POST"][0][3]["resolution"] == "1K"    # what is sent is what was priced
+    FakeFal.log = []
+    run_and_wait(client, {"working_dir": str(folder), "slot": "vhs-clip"})
+    assert [e for e in FakeFal.log if e[0] == "POST"][0][3]["resolution"] == "480P"
+
+
+@pytest.mark.parametrize("kind,resolution", [("image", "480P"), ("video", "2K"), ("image", "8K"), ("video", "ultra")])
+def test_a_resolution_that_does_not_fit_the_kind_of_slot_is_refused(env, kind, resolution):
+    client, folder = env
+    (folder / "media" / "slots.json").write_text(json.dumps({"slots": [{"name": "x", "kind": kind, "prompt": "p", "resolution": resolution}]}))
+    r = client.get("/api/media/slots", params={"working_dir": str(folder)})
+    assert r.status_code == 422 and "invalid resolution" in r.text

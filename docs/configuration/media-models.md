@@ -23,6 +23,8 @@ How the key is protected:
 - The API is operator-only; agents and the project bridge are refused.
 - Reference images and approved stills must be real image files inside the folder (links and `..` that leave the folder are refused). Only models in the catalog can be named.
 
+A slot in `media/slots.json` can set `"resolution"` to ask for less than its tier by default: `1K`, `2K` or `4K` for a picture, `480P`, `768P` or `1080P` for a MiniMax clip (480p costs 0.625 of 768p). The request and the price estimate both use it, so a small picture at `1K` shows $0.08 instead of $0.12 and a 5 second clip at `480P` shows $0.25 instead of $0.40 on the standard tier. A value that does not fit the slot's kind is refused. MiniMax's launch discount (35% off) runs to 31 October 2026, so a run before then bills less than the estimate.
+
 Every run is explicit and recorded in `media/ledger.jsonl` under MCD's data directory (slot, model, estimate, fal request id, result). Estimates use listed or your own prices, are an upper bound and are not invoices; fal's usage page is the truth. The spend line under the panel also shows how many runs were repeats of a slot already generated. Video needs the approved still published first (`assets/img/<name>.jpg`). MCD does not limit spending; set a credit limit at fal. A restart of MCD loses jobs still in flight, and the ledger keeps the fal request id so you can find them in your fal dashboard.
 
 ## Changing the catalog

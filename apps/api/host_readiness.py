@@ -12,6 +12,10 @@ import re
 import shutil
 import socket
 import subprocess
+import uuid
+import time
+import threading
+import sys
 import urllib.request
 from pathlib import Path
 
@@ -180,12 +184,75 @@ def check_agents(settings):
     return _item("agents", "Agents that build", status, detail, agents=rows)
 
 
+BREW_INSTALL = '/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"'
+
+
+def _is_mac():
+    return sys.platform == "darwin"
+
+
+def _colima_running():
+    colima = _tool("colima")
+    if not colima:
+        return False
+    code, _ = _run([colima, "status"], timeout=8)
+    return code == 0
+
+
+def _how_to_get(tool, have_brew=True):
+    """How a missing optional tool is obtained here. The dashboard installs the ones it can without administrator rights (Agent tools); for the rest it only
+    shows the command for the person to run, and never runs it. On a Mac the commands use Homebrew, and when Homebrew itself is missing the first step is to install it."""
+    mac = _is_mac()
+    if tool in ("gh", "node"):
+        why = {"gh": "Install the GitHub CLI from Agent tools: a pinned, checksum-verified download into the dashboard's own folder, no administrator rights.",
+               "node": "Node.js arrives with Claude Code, Codex or OpenClaw in Agent tools (a pinned copy in the dashboard's own folder, no administrator rights)."}[tool]
+        return {"kind": "agent_tools", "tool": tool, "note": why}
+    if tool == "brew":
+        return {"kind": "command", "command": BREW_INSTALL, "note": "Run it yourself in Terminal (it asks for your password); the dashboard does not run it. Homebrew is how this Mac gets Docker (through Colima), ffmpeg and Python."}
+    if tool == "colima":
+        return {"kind": "command", "command": "colima start", "note": "Colima is the Docker engine on a Mac and is not running. Start it, then check again."}
+    if mac and not have_brew and tool in ("docker", "ffmpeg", "python3"):
+        return {"kind": "command", "command": BREW_INSTALL, "note": "Homebrew is not installed, so install it first (run it yourself in Terminal; it asks for your password), then check again for the install command for " + tool + "."}
+    commands = {
+        "docker": ("brew install colima docker docker-compose && colima start" if mac else "sudo apt-get update && sudo apt-get install -y docker.io docker-compose && sudo usermod -aG docker \"$USER\"",
+                   ("Colima provides the Docker engine on a Mac. " if mac else "Needs administrator rights, so the dashboard does not run it. ")
+                   + "Optional: container images can also be built by the pipeline." + ("" if mac else " Log out and in afterwards so the docker group applies.")),
+        "ffmpeg": ("brew install ffmpeg" if mac else "sudo apt-get install -y ffmpeg", "The dashboard does not run it." if mac else "Needs administrator rights, so the dashboard does not run it."),
+        "python3": ("brew install python" if mac else "sudo apt-get install -y python3", "The dashboard does not run it." if mac else "Needs administrator rights, so the dashboard does not run it."),
+    }
+    if tool in commands:
+        command, note = commands[tool]
+        return {"kind": "command", "command": command, "note": note}
+    return None
+
+
 def check_tools(settings=None):
     notes = {"python3": "tests and scripts", "node": "JavaScript tests and the Playwright screenshot script", "docker": "building and running container images (otherwise a person or the pipeline does it)",
              "gh": "opening pull requests from this host (optional: a person or the pipeline can)", "ffmpeg": "publishing generated media"}
-    rows = [{"id": n, "installed": bool(_tool(n, settings)), "needed_for": why} for n, why in notes.items()]
+    mac = _is_mac()
+    have_brew = bool(_tool("brew")) if mac else True
+    if mac:
+        notes = {"brew": "installing system tools on this Mac (Docker, ffmpeg, Python)", **notes, "colima": "the Docker engine on a Mac (docker needs it running)"}
+    rows = []
+    for n, why in notes.items():
+        installed = bool(_tool(n, settings))
+        row = {"id": n, "installed": installed, "needed_for": why}
+        if not installed:
+            row["get"] = _how_to_get(n, have_brew)
+            if mac and have_brew and n in BREW_TOOLS:                  # Homebrew installs need no password, so the dashboard can do them
+                row["get"] = {**row["get"], "fix": {"action": "brew_install", "tool": n, "label": f"Install {n} with Homebrew"}}
+        elif n == "colima" and not _colima_running():
+            row["installed"] = False                                  # present but stopped: say so and offer the start command
+            row["stopped"] = True
+            row["get"] = {**_how_to_get("colima"), "fix": {"action": "colima_start", "label": "Start Colima"}}
+        rows.append(row)
+    # A Mac with Colima not installed but docker present is fine; colima is only worth a row when the person is using it or docker is missing.
+    if mac and _tool("docker") and not _tool("colima"):
+        rows = [r for r in rows if r["id"] != "colima"]
     missing = [r["id"] for r in rows if not r["installed"]]
-    return _item("tools", "Optional tools", "info", ("Missing: " + ", ".join(missing) + ". Each is only needed by some stories.") if missing else "All present.", tools=rows)
+    detail = ("Missing: " + ", ".join(f"{m} (stopped)" if next(r for r in rows if r['id'] == m).get('stopped') else m for m in missing) + ". Each is only needed by some stories.") if missing else "All present."
+    fix = {"action": "brew_update", "label": "Update tools with Homebrew"} if mac and have_brew else None
+    return _item("tools", "Optional tools", "info", detail, fix, tools=rows)
 
 
 def check_disk():
@@ -193,17 +260,28 @@ def check_disk():
     return _item("disk", "Free disk space", "ok" if free >= 5 else "warn", f"{free:.0f} GB free.")
 
 
+def _reachable(host):
+    """Whether something answers at https://host. Any HTTP answer counts, including 403 (several services refuse unfamiliar clients but are plainly reachable);
+    only a failure to connect, resolve or finish the TLS handshake does not."""
+    import urllib.error
+    request = urllib.request.Request(f"https://{host}", method="HEAD", headers={"User-Agent": "dashboard-host-readiness/1 (+network check)"})
+    try:
+        urllib.request.urlopen(request, timeout=5).close()
+        return True, ""
+    except urllib.error.HTTPError as exc:
+        return True, f"answered {exc.code}"
+    except Exception as exc:                                    # DNS, refused, timed out, TLS
+        return False, type(exc).__name__ + (": " + str(getattr(exc, "reason", exc))[:60] if str(getattr(exc, "reason", exc)) else "")
+
+
 def check_network():
     rows = []
     for host in ("github.com", "openrouter.ai"):
-        try:
-            socket.setdefaulttimeout(5)
-            urllib.request.urlopen(urllib.request.Request(f"https://{host}", method="HEAD"), timeout=5).close()
-            rows.append({"host": host, "reachable": True})
-        except Exception:
-            rows.append({"host": host, "reachable": False})
+        ok, why = _reachable(host)
+        rows.append({"host": host, "reachable": ok, "note": why})
     ok = all(r["reachable"] for r in rows)
-    return _item("network", "Network", "ok" if ok else "warn", "GitHub and OpenRouter are reachable." if ok else "Cannot reach: " + ", ".join(r["host"] for r in rows if not r["reachable"]) + ".", hosts=rows)
+    bad = [f"{r['host']} ({r['note']})" if r["note"] else r["host"] for r in rows if not r["reachable"]]
+    return _item("network", "Network", "ok" if ok else "warn", "GitHub and OpenRouter are reachable." if ok else "Cannot reach: " + ", ".join(bad) + ".", hosts=rows)
 
 
 def report(settings, network=False):
@@ -303,7 +381,109 @@ def add_tools_to_path(settings=None):
     return f"Added {folder} to the PATH in ~/{' and ~/'.join(changed)}. Open a new terminal (or run: source ~/.profile) and codex, openclaw and the other installed tools work by name."
 
 
-def apply(settings, action, name=None, email=None, path=None):
+BREW_TOOLS = {"ffmpeg": ("ffmpeg",), "python3": ("python",), "docker": ("colima", "docker", "docker-compose"), "colima": ("colima",)}
+JOB_LOCK = threading.Lock()
+JOB = {"current": None}                       # the one running or last finished job; the dashboard runs only one at a time
+JOB_LIMITS = {"brew_install": 1800, "brew_update": 3600, "colima_start": 600}
+
+
+def _job_env():
+    brew = _tool("brew") or ""
+    path = os.pathsep.join(dict.fromkeys(p for p in (os.path.dirname(brew), "/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin", "/usr/sbin", "/sbin") if p))
+    return {"HOME": str(_home()), "PATH": path, "HOMEBREW_NO_ANALYTICS": "1", "HOMEBREW_NO_ENV_HINTS": "1", "LANG": "en_US.UTF-8"}
+
+
+def _job_view(job):
+    if not job:
+        return None
+    text = ""
+    try:
+        text = Path(job["log"]).read_text("utf-8", "replace")[-4000:]
+    except OSError:
+        pass
+    lines = [re.sub(r"[\x00-\x08\x0b-\x1f\x7f]", "", l).rstrip() for l in text.splitlines() if l.strip()]
+    return {"id": job["id"], "action": job["action"], "label": job["label"], "state": job["state"], "started": job["started"], "tail": lines[-12:], "exit": job.get("exit")}
+
+
+def current_job():
+    with JOB_LOCK:
+        return _job_view(JOB["current"])
+
+
+def _start_job(settings, action, label, argvs):
+    """Run one or more commands one after another (stopping at the first failure), logging their output."""
+    with JOB_LOCK:
+        running = JOB["current"]
+        if running and running["state"] == "running":
+            raise ReadinessError(f"{running['label']} is still running. Wait for it to finish.", 409)
+        folder = Path(getattr(settings, "data_dir", None) or (_home() / ".host-readiness")) / "host-readiness"
+        folder.mkdir(parents=True, exist_ok=True)
+        job = {"id": uuid.uuid4().hex[:10], "action": action, "label": label, "state": "running", "started": int(time.time())}
+        job["log"] = str(folder / f"{job['id']}.log")
+        JOB["current"] = job
+
+    def work():
+        try:
+            deadline = time.time() + JOB_LIMITS[action]
+            code = 0
+            with open(job["log"], "wb") as out:
+                for argv in argvs:
+                    out.write(("$ " + " ".join(argv) + "\n").encode())
+                    out.flush()
+                    proc = subprocess.Popen(argv, stdout=out, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, env=_job_env(), start_new_session=True)
+                    try:
+                        code = proc.wait(timeout=max(1, deadline - time.time()))
+                    except subprocess.TimeoutExpired:
+                        proc.kill()
+                        out.write(b"\nStopped: it ran longer than the limit.\n")
+                        code = 124
+                    if code != 0:
+                        break
+            job["exit"], job["state"] = code, "done" if code == 0 else "failed"
+        except OSError as exc:
+            job["exit"], job["state"] = 127, "failed"
+            Path(job["log"]).write_text(f"Could not start: {type(exc).__name__}\n")
+    threading.Thread(target=work, daemon=True).start()
+    return _job_view(job)
+
+
+def brew_install(settings, tool):
+    if not _is_mac():
+        raise ReadinessError("Homebrew installs are for a Mac. On Linux the dashboard cannot install system packages (they need administrator rights).", 409)
+    formulae = BREW_TOOLS.get(tool or "")
+    if not formulae:
+        raise ReadinessError("Choose ffmpeg, python3, docker or colima.")
+    brew = _tool("brew")
+    if not brew:
+        raise ReadinessError("Homebrew is not installed. Install it first with the command shown, then try again.", 409)
+    _start_job(settings, "brew_install", f"Installing {tool} with Homebrew", [[brew, "install", *formulae]])
+    return f"Started: brew install {' '.join(formulae)}. It can take a few minutes; progress shows below."
+
+
+def brew_update(settings):
+    """`brew update`, then upgrade only the tools this wizard manages that are installed through Homebrew. Nothing else on the Mac is touched."""
+    if not _is_mac():
+        raise ReadinessError("Homebrew updates are for a Mac.", 409)
+    brew = _tool("brew")
+    if not brew:
+        raise ReadinessError("Homebrew is not installed. Install it first with the command shown, then try again.", 409)
+    code, out = _run([brew, "list", "--formula"], timeout=20, env=_job_env())
+    have = set(out.split()) if code == 0 else set()
+    managed = sorted({f for formulae in BREW_TOOLS.values() for f in formulae} & have)
+    argvs = [[brew, "update"]] + ([[brew, "upgrade", *managed]] if managed else [])
+    _start_job(settings, "brew_update", "Updating Homebrew tools", argvs)
+    return "Started: brew update" + (f", then brew upgrade {' '.join(managed)}" if managed else " (none of the wizard's tools are installed with Homebrew yet)") + ". Progress shows below."
+
+
+def colima_start(settings):
+    colima = _tool("colima")
+    if not _is_mac() or not colima:
+        raise ReadinessError("Colima is not installed here.", 409)
+    _start_job(settings, "colima_start", "Starting Colima", [[colima, "start"]])
+    return "Started: colima start. The first start downloads a small VM, so it can take a few minutes."
+
+
+def apply(settings, action, name=None, email=None, path=None, tool=None):
     if action == "create_workspace":
         return create_workspace(settings, path)
     if action == "set_git_identity":
@@ -314,4 +494,10 @@ def apply(settings, action, name=None, email=None, path=None):
         return test_github_ssh()
     if action == "add_tools_to_path":
         return add_tools_to_path(settings)
+    if action == "brew_install":
+        return brew_install(settings, tool)
+    if action == "colima_start":
+        return colima_start(settings)
+    if action == "brew_update":
+        return brew_update(settings)
     raise ReadinessError("Unknown fix.")

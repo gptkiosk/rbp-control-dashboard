@@ -51,7 +51,7 @@ The update panel UI is identical in both apps. Whether the backend update helper
 
 ## Version 0.3.0 capability alignment
 
-The shared feature level includes five agent types (Claude Code, Codex CLI, Grok Build, Hermes and OpenClaw), managed installers for all five, operator-reviewed update/remove/rollback, release updates with verification and recovery, assignable Delegator roles and generic role guidance, and free-only planning without a required membership CLI.
+The shared feature level includes five agent types (Claude Code, Codex CLI, Grok Build, Hermes and OpenClaw) plus the GitHub CLI as an optional managed tool, managed installers for all five, operator-reviewed update/remove/rollback, release updates with verification and recovery, assignable Delegator roles and generic role guidance, and free-only planning without a required membership CLI.
 
 | Capability | MCD | RCD |
 |---|---|---|

@@ -160,7 +160,7 @@
       },
       "login": {
         "command": "codex login --device-auth",
-        "note": "For this dashboard\u2019s Codex CLI subscription route, use an eligible ChatGPT plan such as Plus ($20/month US), Pro, or an eligible organizational seat and choose ChatGPT sign-in. API-key authentication is billed separately. Free/Go desktop access does not establish CLI entitlement."
+        "note": "For this dashboard’s Codex CLI subscription route, use an eligible ChatGPT plan such as Plus ($20/month US), Pro, or an eligible organizational seat and choose ChatGPT sign-in. API-key authentication is billed separately. Free/Go desktop access does not establish CLI entitlement."
       },
       "system_packages": {
         "required": [],
@@ -320,6 +320,56 @@
         "recommended": []
       },
       "note": "Official native binary, version and SHA-256 pinned by this dashboard. No vendor installer or auto-update runs. Sign-in and billing remain separate operator steps."
+    },
+    "gh": {
+      "name": "GitHub CLI",
+      "installer": "archive",
+      "version": "2.102.0",
+      "archive": {
+        "linux-arm64": {
+          "url": "https://github.com/cli/cli/releases/download/v2.102.0/gh_2.102.0_linux_arm64.tar.gz",
+          "sha256": "7862c86c72f43df3a2d93ddde6f473285b4e2af61b494849846827e513ef6484",
+          "size": 13917794,
+          "format": "tar.gz",
+          "root": "gh_2.102.0_linux_arm64",
+          "shasums_url": "https://github.com/cli/cli/releases/download/v2.102.0/gh_2.102.0_checksums.txt"
+        },
+        "darwin-arm64": {
+          "url": "https://github.com/cli/cli/releases/download/v2.102.0/gh_2.102.0_macOS_arm64.zip",
+          "sha256": "da922c20d1792e5b2cbf375593d7a658acf034c12c84e007e71c76ef959c337e",
+          "size": 14359983,
+          "format": "zip",
+          "root": "gh_2.102.0_macOS_arm64",
+          "shasums_url": "https://github.com/cli/cli/releases/download/v2.102.0/gh_2.102.0_checksums.txt"
+        }
+      },
+      "requires": [],
+      "bins": [
+        {
+          "name": "gh",
+          "argv": [
+            "bin/gh"
+          ]
+        }
+      ],
+      "size_mb": 40,
+      "peak_ram_mb": 120,
+      "check": {
+        "argv": [
+          "gh",
+          "--version"
+        ],
+        "expect": "2.102.0"
+      },
+      "login": {
+        "command": "gh auth login",
+        "note": "Optional. Signing in saves a GitHub credential on this machine that any agent with a full shell (OpenClaw has one) can read, which is wider than a project's branch-scoped git grant. Prefer a fine-grained credential limited to the repositories you need, or skip it and let a person open pull requests. Pushing a branch needs only the SSH key from Host readiness."
+      },
+      "system_packages": {
+        "required": [],
+        "recommended": []
+      },
+      "note": "The official GitHub CLI release, version and SHA-256 pinned by this dashboard and checked against GitHub's published checksums. No auto-update runs. Needed only for opening pull requests from this machine."
     }
   }
 }

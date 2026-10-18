@@ -10,6 +10,19 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.6.27] - 2026-10-18
+
+### Fixed
+
+- The host readiness network check no longer reports OpenRouter as unreachable: Python's default client was refused with a 403 by OpenRouter, which is an answer from a reachable server. Any HTTP answer now counts as reachable, the check sends a normal User-Agent, and a real failure names its reason.
+
+### Added
+
+- **GitHub CLI (`gh`) in Agent tools**: a pinned, checksum-verified per-user install (no administrator rights) for Linux arm64 (tar.gz) and Apple Silicon (zip, with a new safe zip extractor that refuses links, devices and anything outside the folder). Its sign-in note warns that a signed-in `gh` stores a credential any full-shell agent can read; pushing a branch needs only the SSH key from Host readiness.
+- **Website property** plans must leave a preview script (`tools/preview.sh`) that serves the site on the host's Tailscale address, a `/health.txt`, the clickable address of every page, a curl check and the stop command, so the human look sign-off has something to open and test.
+- **Per-slot media resolution**: a slot in `media/slots.json` can set `resolution` (`1K`/`2K`/`4K` for pictures, `480P`/`768P`/`1080P` for MiniMax clips) so a small picture or a retro clip is not made and billed at the tier's full size; the request and the estimate both follow it. The Website property type now tells the planner how to keep the media bill small.
+- **Host readiness installs and updates tools**: each missing optional tool says how to get it (Agent tools for `gh` and Node; a copy-paste administrator command on Linux). On a Mac with Homebrew the wizard installs ffmpeg, python, docker and colima, starts Colima, and **Update tools with Homebrew** runs `brew update` and upgrades only its own packages, as a one-at-a-time job with a live log, a clean environment and a time limit. It checks Homebrew and Colima first and, without Homebrew, shows its official install command for you to run.
+
 ## [0.6.26] - 2026-10-18
 
 ### Fixed
@@ -582,7 +595,8 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 - Claude Code stories may use web search and fetch without any shell, credential or publish permission.
 
 [0.3.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.0
-[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.26...HEAD
+[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.27...HEAD
+[0.6.27]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.27
 [0.6.26]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.26
 [0.6.25]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.25
 [0.6.24]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.24
