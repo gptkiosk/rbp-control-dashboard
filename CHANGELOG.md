@@ -10,6 +10,8 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.6.23] - 2026-10-18
+
 ### Fixed
 
 - Media spend was under-reported: Veo clips had no price, so only images were counted (about $2 against $16.88 on fal's own usage table). Every model now has a price checked against fal's billing, 2K pictures are priced at 1.5 units, and a run with no price is shown as unpriced instead of zero.
@@ -19,9 +21,6 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 - MiniMax H3 Max and H3 Max Turbo clip models (text to video, image to video, and start-and-end-still transitions), about a fifth to a half of Veo's cost. They are the standard and draft video tiers; Veo 3.1 is the premium tier. fal fixes a key's allowed models when it is created, so a key made earlier needs replacing: the key guide now lists the exact endpoint ids to add, and says so.
 - Project types can set the media tier the panel starts on. A website's background clips start on the cheapest video tier.
-
-### Added
-
 - A website design guide ("Making a stylized website that needs little adjustment") that the website property type hands to its planner and agents: one visual language (the approved hero still is the style reference for every other picture), 16:9 photographic cards, wide establishing clips with the ambient loop as a texture, layout rules that broke on a real site, and a responsive review at eight widths in both themes. The type gained matching failure points, planner text and a plan check for the responsive review. A companion guide records the starting spacing, sizing and timing values (1.5 second theme crossing, header and card sizes, breakpoints) for the design direction story to carry into DESIGN.md as tokens, plus the collapsible phone menu and em media-query rules.
 
 ## [0.6.22] - 2026-10-18
@@ -554,7 +553,8 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 - Claude Code stories may use web search and fetch without any shell, credential or publish permission.
 
 [0.3.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.0
-[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.22...HEAD
+[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.23...HEAD
+[0.6.23]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.23
 [0.6.22]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.22
 [0.6.21]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.21
 [0.6.20]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.20
