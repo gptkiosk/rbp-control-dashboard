@@ -425,7 +425,8 @@ Generate stills and clips from the project’s Media tab, review them, and publi
 3. Each slot starts on a tier from its project type: a website’s clips start on the cheapest video tier (MiniMax H3 Max Turbo) and images on standard. Standard clips use MiniMax H3 Max and premium uses Veo 3.1. Change the tier or how many, read the estimate, press Generate and confirm.
 4. Watch progress under that slot’s button: a spinner, waiting or generating text, then finished or the failure. The button reads Generating… until it ends.
 5. Review each candidate as a thumbnail or video. Accept and publish the one you want (MCD converts and records it), choose None of these to make another, or Skip to keep the site’s drawn fallback.
-6. A slot with generations still waiting for review is not generated again unless you choose Another take, so a double click never pays twice. A published slot is only regenerated when you choose Regenerate.
+6. To keep the bill small, give each slot in media/slots.json only the resolution it needs: "resolution": "1K" for a picture shown small, "480P" for a retro or VHS-look clip (it costs 0.625 of 768p). The estimate on the slot follows it.
+7. A slot with generations still waiting for review is not generated again unless you choose Another take, so a double click never pays twice. A published slot is only regenerated when you choose Regenerate.
 
 A clip starts from a published, approved still. A draft still is too small to publish; make stills at standard or premium. Agents never receive the fal key and cannot generate media.
 

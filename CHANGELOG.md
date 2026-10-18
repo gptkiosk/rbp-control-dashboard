@@ -13,6 +13,7 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 ### Added
 
 - **GitHub CLI (`gh`) in Agent tools**: a pinned, checksum-verified per-user install (no administrator rights) for Linux arm64 (tar.gz) and Apple Silicon (zip, with a new safe zip extractor that refuses links, devices and anything outside the folder). Its sign-in note warns that a signed-in `gh` stores a credential any full-shell agent can read; pushing a branch needs only the SSH key from Host readiness.
+- **Per-slot media resolution**: a slot in `media/slots.json` can set `resolution` (`1K`/`2K`/`4K` for pictures, `480P`/`768P`/`1080P` for MiniMax clips) so a small picture or a retro clip is not made and billed at the tier's full size; the request and the estimate both follow it. The Website property type now tells the planner how to keep the media bill small.
 - **Host readiness installs and updates tools**: each missing optional tool says how to get it (Agent tools for `gh` and Node; a copy-paste administrator command on Linux). On a Mac with Homebrew the wizard installs ffmpeg, python, docker and colima, starts Colima, and **Update tools with Homebrew** runs `brew update` and upgrades only its own packages, as a one-at-a-time job with a live log, a clean environment and a time limit. It checks Homebrew and Colima first and, without Homebrew, shows its official install command for you to run.
 
 ### Fixed
