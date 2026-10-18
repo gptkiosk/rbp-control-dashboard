@@ -49,6 +49,8 @@ async function generateAll() {
     poll()
   } catch (e) { error.value = e instanceof Error ? e.message : String(e); if (jobs.value.length) poll() } finally { busy.value = false }
 }
+const candidateUrl = (name: string) => `/api/media/candidate?working_dir=${encodeURIComponent(folder.value)}&name=${encodeURIComponent(name)}`
+const isVideo = (name: string) => /\.(mp4|webm)$/i.test(name)
 function estimate(s: Slot) { const e = s.plans[tier.value[s.name] || 'standard'].estimate_usd; return e === null ? null : e * (count.value[s.name] || 1) }
 async function generate(s: Slot) {
   if (!confirm.value || busy.value) return
@@ -115,7 +117,12 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
         <button type="button" class="btn primary" :disabled="!props.keySaved || !confirm || busy || s.waiting_for_stills.length > 0" @click="generate(s)">Generate</button>
       </div>
       <ul v-if="s.candidates.length" class="candidates">
-        <li v-for="c in s.candidates" :key="c">{{ c }} <button type="button" class="btn" :aria-label="`Use ${c}`" @click="pick(s, c)">Use this one</button></li>
+        <li v-for="c in s.candidates" :key="c" class="candidate">
+          <video v-if="isVideo(c)" :src="candidateUrl(c)" class="thumb" controls muted loop preload="metadata" :aria-label="`Preview of ${c}`" />
+          <a v-else :href="candidateUrl(c)" target="_blank" rel="noopener" :aria-label="`Open ${c} full size`"><img :src="candidateUrl(c)" class="thumb" loading="lazy" :alt="`Candidate ${c}`" /></a>
+          <span class="small">{{ c }}</span>
+          <button type="button" class="btn" :aria-label="`Use ${c}`" @click="pick(s, c)">Use this one</button>
+        </li>
       </ul>
     </div>
     <ul v-if="jobs.length" class="jobs" aria-live="polite">
@@ -132,7 +139,10 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
 .slot { display: flex; flex-direction: column; gap: var(--gap-xs); padding-bottom: var(--gap); border-bottom: 1px solid var(--glass-border); }
 .controls { display: flex; flex-wrap: wrap; align-items: center; gap: var(--gap); }
 .controls input[type='number'] { width: 4rem; }
-.candidates, .jobs { margin: 0; padding-left: 1.2rem; }
+.jobs { margin: 0; padding-left: 1.2rem; }
+.candidates { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: var(--gap); }
+.candidate { display: flex; flex-direction: column; gap: var(--gap-xs); }
+.thumb { width: 100%; max-height: 11rem; object-fit: contain; background: rgba(0, 0, 0, 0.35); border: 1px solid var(--glass-border); border-radius: 6px; display: block; }
 label { display: flex; flex-direction: column; gap: var(--gap-xs); color: var(--text-muted); font-size: var(--font-size-sm); }
 .check { flex-direction: row; align-items: center; }
 p { margin: 0; }

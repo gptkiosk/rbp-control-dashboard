@@ -26,6 +26,14 @@ import approval
 import media_catalog
 
 SLOT_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,40}$")
+CANDIDATE_SUFFIXES = (".png", ".jpg", ".jpeg", ".webp", ".mp4", ".webm")
+CANDIDATE_TYPES = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp", ".mp4": "video/mp4", ".webm": "video/webm"}
+
+
+def candidate_of(slot_name, filename):
+    """True only for `<slot>-<number>.<media extension>`. A prefix match is not enough: `hero-light` must not claim `hero-light-still-1.png`."""
+    m = re.fullmatch(re.escape(slot_name) + r"-(\d+)(\.[a-z0-9]+)", filename)
+    return bool(m) and m.group(2) in CANDIDATE_SUFFIXES
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp"}
 MAX_SLOTS_FILE = 200_000
 MAX_REF_BYTES = 8 * 1024 * 1024
@@ -60,6 +68,19 @@ def inside(root, rel):
     except (OSError, RuntimeError):
         return None
     return path if path.is_file() and (root in path.parents) else None
+
+
+def candidate_file(root, name):
+    """A candidate as a regular file directly inside media/candidates with a media extension, or None. A link (even one that stays inside the
+    project) is refused, so a candidate can never be another file in disguise."""
+    folder = root / "media" / "candidates"
+    path = folder / name
+    try:
+        if path.is_symlink() or not path.is_file() or path.resolve().parent != folder.resolve() or path.suffix not in CANDIDATE_TYPES or path.stat().st_size == 0:
+            return None
+    except OSError:
+        return None
+    return path
 
 
 def load_slots(root):
@@ -297,7 +318,7 @@ def generate_once(settings, key, root, slot, endpoint, body, progress=lambda tex
         raise MediaError("The downloaded file was empty or too large.", 502)
     out = root / "media" / "candidates"
     out.mkdir(parents=True, exist_ok=True)
-    n = len(list(out.glob(slot["name"] + "-*" + ext))) + 1
+    n = len([p for p in out.iterdir() if candidate_of(slot["name"], p.name) and p.suffix == ext]) + 1
     target = out / f"{slot['name']}-{n}{ext}"
     target.write_bytes(data)
     if shutil.which("ffprobe"):

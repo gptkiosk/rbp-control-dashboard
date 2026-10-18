@@ -281,3 +281,37 @@ def test_each_still_is_made_in_its_own_shape_unless_one_is_asked_for(env):
     FakeFal.log = []
     run_and_wait(client, {"working_dir": str(folder), "slot": "card-x", "aspect": "4:5"})
     assert [e for e in FakeFal.log if e[0] == "POST"][0][3]["aspect_ratio"] == "4:5"                 # an explicit choice still wins
+
+
+def test_a_slot_only_claims_its_own_numbered_candidates_not_a_longer_slot_name(env):
+    """`hero-light` is a video slot and `hero-light-still` an image slot: the second's candidates must never show up under the first."""
+    client, folder = env
+    slots = {"slots": [{"name": "hero-light-still", "kind": "image", "prompt": "Still."}, {"name": "hero-light", "kind": "video", "prompt": "Clip."}]}
+    (folder / "media" / "slots.json").write_text(json.dumps(slots))
+    cand = folder / "media" / "candidates"
+    cand.mkdir(parents=True)
+    for name in ("hero-light-still-1.png", "hero-light-still-2.png", "hero-light-1.mp4", "hero-light-1.json", "hero-light-notes.png", "hero-light-x.mp4"):
+        (cand / name).write_bytes(b"data")
+    by = {s["name"]: s for s in client.get("/api/media/slots", params={"working_dir": str(folder)}).json()["slots"]}
+    assert by["hero-light-still"]["candidates"] == ["hero-light-still-1.png", "hero-light-still-2.png"]
+    assert by["hero-light"]["candidates"] == ["hero-light-1.mp4"]                       # not the stills, not the sidecar, not oddly named files
+    body = {"working_dir": str(folder), "slot": "hero-light", "candidate": "hero-light-still-1.png"}
+    assert client.post("/api/media/pick", json=body).status_code == 422                 # a still can never be picked into the video slot
+    assert client.post("/api/media/pick", json={**body, "candidate": "hero-light-1.mp4"}).status_code == 200
+    assert (folder / "media" / "inbox" / "hero-light.mp4").exists() and not (folder / "media" / "inbox" / "hero-light.png").exists()
+
+
+def test_a_candidate_can_be_viewed_by_the_operator_only_and_only_if_it_is_a_real_candidate(env):
+    client, folder = env
+    run_and_wait(client, {"working_dir": str(folder), "slot": "hero-still"})
+    r = client.get("/api/media/candidate", params={"working_dir": str(folder), "name": "hero-still-1.png"})
+    assert r.status_code == 200 and r.headers["content-type"] == "image/png" and len(r.content) > 0
+    assert "inline" in r.headers["content-disposition"]
+    for name in ("hero-still-1.json", "../slots.json", "hero-still-1.png/../../slots.json", "slots.json", "hero-still-9.png", "hero-still-.png", "HERO-1.png"):
+        assert client.get("/api/media/candidate", params={"working_dir": str(folder), "name": name}).status_code == 404, name
+    (folder / "media" / "candidates" / "hero-still-3.png").symlink_to(folder / "media" / "slots.json")
+    assert client.get("/api/media/candidate", params={"working_dir": str(folder), "name": "hero-still-3.png"}).status_code == 404     # a link out of the folder
+    assert client.get("/api/media/candidate", params={"working_dir": "/etc", "name": "hero-still-1.png"}).status_code == 422
+    import profiles
+    profiles.bridge_token(get_settings(), True)
+    assert bridge(client).get("/api/media/candidate", params={"working_dir": str(folder), "name": "hero-still-1.png"}).status_code in {401, 403}
