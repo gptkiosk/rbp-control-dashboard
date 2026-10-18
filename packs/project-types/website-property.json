@@ -41,7 +41,8 @@
     "A fixed grid row count that does not match the children leaves stray rows and a squashed picture; let rows follow the content.",
     "A theme sheet's display rule outranks a plain responsive hide, so decorative plaques collide with the nav on mid-size screens; make the hide outrank the theme rule and size the breakpoints from measurements.",
     "Product status written from guesswork (live products marked coming soon, beta products unmarked) is a content bug; record the owner's facts in the brief and update the tests that encode them.",
-    "Timing and spacing left to each build story drift: a 1-second theme crossing reads as rushed and header parts collide. Record the numbers as tokens in DESIGN.md first (see the spacing and timing guide)."
+    "Timing and spacing left to each build story drift: a 1-second theme crossing reads as rushed and header parts collide. Record the numbers as tokens in DESIGN.md first (see the spacing and timing guide).",
+    "A menu that only reflows at phone width, or media queries in px, break for readers with larger text: collapse the menu behind an accessible button below 760 px (visible without script) and write media queries in em."
   ],
   "visual_checks": "Always: a file-level verification story, then a localhost preview checkpoint with clickable URLs per page and theme, then the human look sign-off. Changes loop back through verification and preview.",
   "human_signoffs": [

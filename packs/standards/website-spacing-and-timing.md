@@ -1,6 +1,6 @@
 # Spacing, sizing and timing settings for a stylized website
 
-Starting values proven on a two-theme site. Put them in DESIGN.md as tokens on day one, then tune; do not rediscover them in review.
+Starting values proven on a two-theme site. Put them in DESIGN.md as tokens on day one, then tune.
 
 ## Timing
 - Theme crossing: 1500 ms (allowed 700 to 1800). Never 1000 ms: it read as rushed. Keyframe offsets are fractions of one duration constant, so a single number retimes the whole sequence.
@@ -20,6 +20,10 @@ Starting values proven on a two-theme site. Put them in DESIGN.md as tokens on d
 - Cards: two per row from 1100 px, picture 16:9 across the top; one per row below, picture beside the words from 900 to 1099 px; single column under 600 px.
 - Page banner: at least 240 px tall, picture anchored right, headline panel left.
 - Contain any rail or shadow that is wider than its column when the layout is one column.
+
+## Menus and resizing
+- Below 760 px the menu collapses behind a 44 px round button beside the other control, with `aria-expanded`, `aria-controls`, Escape and outside-click to close, and opens as one full-width column of 48 px rows. Without script the button stays hidden and the links stay visible.
+- Write media queries in em (px divided by 16) so layouts follow the reader's text-size setting. Text in rem and clamp(); never disable zoom; the wordmark yields to the buttons however large the text is.
 
 ## Always measure
 - Run the audit at 1920, 1440, 1280, 1100, 1024, 768, 600, 390 and 360 px in both themes: sideways scroll, overlapping header boxes, anything past the edge.
