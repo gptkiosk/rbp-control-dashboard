@@ -73,9 +73,13 @@ it('sends the explicit confirmation, tier and count, shows each result as soon a
   const posted = calls(f, 'POST', '/api/media/generate').map(c => JSON.parse(String(c[1]?.body)))
   expect(posted[0]).toEqual({ working_dir: '/ws/site', slot: 'one', tier: 'draft', count: 2, confirm_spend: true })
   expect(w.text()).toContain('2 generating now')
+  expect(w.get('[data-slot=two] [data-job=two]').text()).toContain('waiting to start')                         // progress sits under the slot's own button at once
   await vi.advanceTimersByTimeAsync(3000); await flushPromises()
   expect(w.get('[data-slot=one]').text()).toContain('one-1.png')                         // one finished: it is on screen while two is still running
   expect(w.text()).toContain('1 generating now')
+  expect(w.get('[data-slot=two] [data-job=two]').text()).toContain('generating (queued at fal)')                  // progress sits under the slot's own button
+  expect(w.find('[data-slot=two] [data-job=two] .spinner').exists()).toBe(true)
+  expect(buttons(w, 'Generating…', '[data-slot=two]')[0]!.attributes('disabled')).toBeDefined()               // and the button itself says it is working
   expect(buttons(w, 'Accept and publish', '[data-slot=one]')).toHaveLength(1)
   w.unmount()
 })

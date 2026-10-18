@@ -51,6 +51,14 @@ const batch = computed(() => {
   for (const s of eligible.value) { const e = s.plans[tierFor(s)].estimate_usd; if (e === null) unknown++; else total += e }
   return { total, unknown }
 })
+const jobsFor = (slot: string) => jobs.value.filter(j => j.slot === slot)
+const activeFor = (slot: string) => jobs.value.some(j => j.slot === slot && (j.state === 'queued' || j.state === 'running'))
+function jobLine(j: Job, n: number, of: number) {
+  const take = of > 1 ? `Take ${n} of ${of}: ` : ''
+  if (j.state === 'failed') return `${take}failed. ${j.error || 'Nothing was saved.'}`
+  if (j.state === 'done') return `${take}finished. It is waiting for your decision.`
+  return `${take}${j.state === 'queued' ? 'waiting to start' : 'generating'}${j.progress ? ` (${j.progress})` : ''}. About a minute for a picture, a few for a clip.`
+}
 const unfinished = computed(() => jobs.value.filter(j => j.state === 'queued' || j.state === 'running').length)
 function queue(slot: string, ids: string[]) { for (const id of ids) jobs.value.push({ id, state: 'queued', progress: '', slot, error: null, files: [] }) }
 const confirmBox = ref<HTMLInputElement | null>(null)
@@ -183,9 +191,12 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
         <select v-model="tier[s.name]" class="input" :aria-label="`${s.name} tier`"><option value="draft">draft (cheapest)</option><option value="standard">standard</option><option value="premium">premium</option></select>
         <input v-model.number="count[s.name]" class="input" type="number" min="1" max="4" :aria-label="`${s.name} how many`" />
         <span class="small">{{ money(estimate(s)) }}</span>
-        <button type="button" class="btn primary" :disabled="!keyOk || busy" @click="generate(s)">Generate</button>
+        <button type="button" class="btn primary" :disabled="!keyOk || busy || activeFor(s.name)" @click="generate(s)">{{ activeFor(s.name) ? 'Generating…' : 'Generate' }}</button>
       </div>
       <p v-if="note[s.name]" class="small" :class="note[s.name]!.ok ? 'ok-text' : 'error-text'" :role="note[s.name]!.ok ? 'status' : 'alert'" :data-note="s.name">{{ note[s.name]!.text }}</p>
+      <p v-for="(j, i) in jobsFor(s.name)" :key="j.id" class="job small" :class="j.state === 'failed' ? 'error-text' : j.state === 'done' ? 'ok-text' : ''" :role="j.state === 'failed' ? 'alert' : 'status'" :data-job="s.name">
+        <span v-if="j.state === 'queued' || j.state === 'running'" class="spinner" aria-hidden="true"></span>{{ jobLine(j, i + 1, jobsFor(s.name).length) }}
+      </p>
       <button v-if="offerTake[s.name]" type="button" class="btn" :disabled="busy" :aria-label="`Another take for ${s.name}`" @click="generate(s, true)">Another take (spends again)</button>
     </div>
 
@@ -200,10 +211,13 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
         <select v-model="tier[s.name]" class="input" :aria-label="`${s.name} tier`"><option value="draft">draft (cheapest)</option><option value="standard">standard</option><option value="premium">premium</option></select>
         <input v-model.number="count[s.name]" class="input" type="number" min="1" max="4" :aria-label="`${s.name} how many`" />
         <span class="small">{{ money(estimate(s)) }}</span>
-        <button type="button" class="btn primary" :disabled="!keyOk || busy || s.waiting_for_stills.length > 0" @click="generate(s)">Generate</button>
+        <button type="button" class="btn primary" :disabled="!keyOk || busy || activeFor(s.name) || s.waiting_for_stills.length > 0" @click="generate(s)">{{ activeFor(s.name) ? 'Generating…' : 'Generate' }}</button>
         <button type="button" class="btn" :disabled="working[s.name]" :aria-label="`Skip ${s.name}`" @click="decide(s, 'skip')">Skip: use the fallback</button>
       </div>
       <p v-if="note[s.name]" class="small" :class="note[s.name]!.ok ? 'ok-text' : 'error-text'" :role="note[s.name]!.ok ? 'status' : 'alert'" :data-note="s.name">{{ note[s.name]!.text }}</p>
+      <p v-for="(j, i) in jobsFor(s.name)" :key="j.id" class="job small" :class="j.state === 'failed' ? 'error-text' : j.state === 'done' ? 'ok-text' : ''" :role="j.state === 'failed' ? 'alert' : 'status'" :data-job="s.name">
+        <span v-if="j.state === 'queued' || j.state === 'running'" class="spinner" aria-hidden="true"></span>{{ jobLine(j, i + 1, jobsFor(s.name).length) }}
+      </p>
       <button v-if="offerTake[s.name]" type="button" class="btn" :disabled="busy" :aria-label="`Another take for ${s.name}`" @click="generate(s, true)">Another take (spends again)</button>
     </div>
 
@@ -214,6 +228,9 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
         <button type="button" class="btn" :disabled="working[s.name]" :aria-label="`Restore ${s.name}`" @click="decide(s, 'unskip')">Restore</button>
       </div>
       <p v-if="note[s.name]" class="small" :class="note[s.name]!.ok ? 'ok-text' : 'error-text'" :data-note="s.name">{{ note[s.name]!.text }}</p>
+      <p v-for="(j, i) in jobsFor(s.name)" :key="j.id" class="job small" :class="j.state === 'failed' ? 'error-text' : j.state === 'done' ? 'ok-text' : ''" :role="j.state === 'failed' ? 'alert' : 'status'" :data-job="s.name">
+        <span v-if="j.state === 'queued' || j.state === 'running'" class="spinner" aria-hidden="true"></span>{{ jobLine(j, i + 1, jobsFor(s.name).length) }}
+      </p>
     </div>
 
     <h4 v-if="published.length" class="group">Published ({{ published.length }})</h4>
@@ -226,15 +243,15 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
         <select v-model="tier[s.name]" class="input" :aria-label="`${s.name} tier`"><option value="draft">draft (cheapest)</option><option value="standard">standard</option><option value="premium">premium</option></select>
         <input v-model.number="count[s.name]" class="input" type="number" min="1" max="4" :aria-label="`${s.name} how many`" />
         <span class="small">{{ money(estimate(s)) }}</span>
-        <button type="button" class="btn primary" :disabled="!keyOk || busy" @click="generate(s)">Generate</button>
+        <button type="button" class="btn primary" :disabled="!keyOk || busy || activeFor(s.name)" @click="generate(s)">{{ activeFor(s.name) ? 'Generating…' : 'Generate' }}</button>
       </div>
       <p v-if="note[s.name]" class="small" :class="note[s.name]!.ok ? 'ok-text' : 'error-text'" :role="note[s.name]!.ok ? 'status' : 'alert'" :data-note="s.name">{{ note[s.name]!.text }}</p>
+      <p v-for="(j, i) in jobsFor(s.name)" :key="j.id" class="job small" :class="j.state === 'failed' ? 'error-text' : j.state === 'done' ? 'ok-text' : ''" :role="j.state === 'failed' ? 'alert' : 'status'" :data-job="s.name">
+        <span v-if="j.state === 'queued' || j.state === 'running'" class="spinner" aria-hidden="true"></span>{{ jobLine(j, i + 1, jobsFor(s.name).length) }}
+      </p>
       <button v-if="offerTake[s.name]" type="button" class="btn" :disabled="busy" :aria-label="`Another take for ${s.name}`" @click="generate(s, true)">Another take (spends again)</button>
     </div>
 
-    <ul v-if="jobs.length" class="jobs" aria-live="polite">
-      <li v-for="j in jobs" :key="j.id">{{ j.slot }}: {{ j.state }}<template v-if="j.progress && j.state !== 'done'"> ({{ j.progress }})</template><template v-if="j.error"> · {{ j.error }}</template></li>
-    </ul>
     <p v-if="error" class="error-text" role="alert">{{ error }}</p>
     <p v-if="ledger" class="muted small">{{ ledger.done }} of {{ ledger.runs }} runs finished; estimated spend up to about ${{ ledger.estimated_usd.toFixed(2) }}<template v-if="ledger.repeats">, of which {{ ledger.repeats }} {{ ledger.repeats === 1 ? 'was a repeat' : 'were repeats' }} of a slot already generated (about ${{ ledger.repeat_usd.toFixed(2) }})</template><template v-if="ledger.unpriced">; {{ ledger.unpriced }} {{ ledger.unpriced === 1 ? 'run has' : 'runs have' }} no price and {{ ledger.unpriced === 1 ? 'is' : 'are' }} not counted</template>. {{ ledger.note }}</p>
   </section>
@@ -245,7 +262,10 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
 .slot { display: flex; flex-direction: column; gap: var(--gap-xs); padding-bottom: var(--gap); border-bottom: 1px solid var(--glass-border); }
 .controls { display: flex; flex-wrap: wrap; align-items: center; gap: var(--gap); }
 .controls input[type='number'] { width: 4rem; }
-.jobs { margin: 0; padding-left: 1.2rem; }
+.job { margin: 0; display: flex; align-items: center; gap: var(--gap-xs); }
+.spinner { flex: none; width: 0.9rem; height: 0.9rem; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: media-spin 0.9s linear infinite; }
+@keyframes media-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spinner { animation: none; border-right-color: currentColor; opacity: 0.6; } }
 .candidates { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: var(--gap); }
 .candidate { display: flex; flex-direction: column; gap: var(--gap-xs); }
 .group { margin: var(--gap) 0 0; font-size: var(--font-size-md, 1rem); }

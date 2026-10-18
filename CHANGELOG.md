@@ -13,6 +13,7 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 ### Fixed
 
 - The media panel's Generate buttons no longer sit dimmed and silent until the spending box is ticked: pressing one without it says what is missing and takes you to the box.
+- Generation progress now sits under the slot's own button: a spinner and a status line (waiting, generating with fal's progress text, finished, or the failure), and the button reads Generating… and stays off until it finishes. The list at the bottom of the panel is gone.
 
 ## [0.6.23] - 2026-10-18
 
