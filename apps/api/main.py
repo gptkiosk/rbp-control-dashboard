@@ -32,6 +32,7 @@ from routes import limits as limit_routes
 from routes import failures as failure_routes
 from routes import maintenance as maintenance_routes
 from routes import standards as standards_routes
+from routes import host_readiness as host_readiness_routes
 from routes import models as models_routes
 from routes import coordinator as coordinator_routes
 from routes import telemetry as telemetry_routes
@@ -261,6 +262,7 @@ def create_app() -> FastAPI:
     app.include_router(failure_routes.router)
     app.include_router(maintenance_routes.router)
     app.include_router(standards_routes.router)
+    app.include_router(host_readiness_routes.router)
     app.include_router(models_routes.router)
     app.include_router(coordinator_routes.router)
     app.include_router(telemetry_routes.router)

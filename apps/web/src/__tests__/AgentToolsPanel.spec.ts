@@ -227,3 +227,16 @@ it('resumes an existing helper, updates its log, retries a failed read and retai
   w.unmount()
   const stopped = reads; await tick(15000); expect(reads).toBe(stopped)
 })
+it('shows and copies the sign-in command with the tool’s full path when its folder is not on the shell PATH', async () => {
+  const installed = tool('codex', 'Codex CLI', { installed: true, installed_version: '0.162.1', path: '/home/pi/.local/share/rcd-agent-tools/bin/codex',
+    login_command: '/home/pi/.local/share/rcd-agent-tools/bin/codex login --device-auth', actions: { install: null, update: null, remove: [], rollback: null } })
+  stubFetch(url => url === '/api/agent-installs' ? { body: status({}, [installed]) } : undefined)
+  const writes: string[] = []
+  vi.stubGlobal('navigator', { clipboard: { writeText: async (t: string) => { writes.push(t) } } })
+  const w = mount(AgentToolsPanel, stubs); await flushPromises()
+  const login = w.get('[data-login="codex"]')
+  expect(login.text()).toContain('/home/pi/.local/share/rcd-agent-tools/bin/codex login --device-auth')
+  await login.get('button').trigger('click'); await flushPromises()
+  expect(writes).toEqual(['/home/pi/.local/share/rcd-agent-tools/bin/codex login --device-auth'])
+  w.unmount()
+})

@@ -11,6 +11,8 @@ The six steps cover:
 5. **Subscriptions:** ChatGPT/Codex and Claude apps, the corresponding CLIs, host subscription login and usage-limit confirmation. MCD executes the CLIs; desktop sign-in alone is not a CLI entitlement check.
 6. **Find your way:** all menu destinations, header Help chat, how-tos and a checklist of detected settings and operator confirmations.
 
+Step 1 also carries a **host readiness** checklist with one-click fixes (workspace folder, git identity, a GitHub SSH key) and a check for an agent that can write code; see [Host readiness](configuration/host-readiness.md).
+
 **Save & continue** and step selections save progress to the operator's profile. **Refresh checks** rechecks executable paths, allowed workspaces and Google session status. **Finish walkthrough** records that the guide was reviewed; missing items remain visible. It does not install software, run tasks, accept project artifacts, change routing or enable remote access.
 
 Setup progress is per profile and is excluded from portable preference exports. Importing preferences preserves the destination profile's setup state. Credentials are never stored in wizard progress or browser storage. Agent, Google and subscription configuration stays on the private host.

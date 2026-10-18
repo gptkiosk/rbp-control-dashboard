@@ -25,12 +25,13 @@ describe('how-to answers and deep links', () => {
     expect(findGuides('Why was my fal bill higher than the estimate and how do I avoid double generation?')[0]?.id).toBe('media-spend')
     expect(findGuides('fal will not let me add minimax to the allowed models')[0]?.id).toBe('fal-key')
     expect(findGuides('How do I use accept anyway on an unfinished story?')[0]?.id).toBe('accept-anyway')
+    expect(findGuides('Is my machine ready to build a project and push to GitHub?')[0]?.id).toBe('host-readiness')
     expect(findGuides('')).toEqual([])
   })
   it('covers every feature with resolvable local links and complete steps', () => {
     const router = createAppRouter(createMemoryHistory())
     expect(new Set(helpGuides.map(g => g.id)).size).toBe(helpGuides.length)
-    expect(helpGuides.length).toBe(39)
+    expect(helpGuides.length).toBe(40)
     expect(findGuides('Approve all project handoffs')[0]?.id).toBe('project-approvals')
     for (const guide of helpGuides) {
       expect(guide.steps.length).toBeGreaterThanOrEqual(3)
