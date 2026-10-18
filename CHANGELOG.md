@@ -10,6 +10,8 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.6.25] - 2026-10-18
+
 ### Added
 
 - A fix for tools the dashboard installed that a plain shell cannot find (typing `codex login --device-auth` on a Pi said *command not found*): the sign-in command shown on each installed tool now starts with its full path when its folder is not on the PATH, and Host readiness can put the installed tools on the PATH for new shells (**Put installed tools on my PATH**, idempotent, a marked block in `~/.profile` and `~/.bashrc`).
@@ -573,7 +575,8 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 - Claude Code stories may use web search and fetch without any shell, credential or publish permission.
 
 [0.3.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.0
-[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.24...HEAD
+[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.25...HEAD
+[0.6.25]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.25
 [0.6.24]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.24
 [0.6.23]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.23
 [0.6.22]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.22
