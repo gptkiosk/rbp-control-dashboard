@@ -72,7 +72,7 @@ class GenerateIn(BaseModel):
     tier: str = Field(default="standard", pattern="^(draft|standard|premium)$")
     model: str | None = Field(default=None, max_length=160)
     count: int = Field(default=1, ge=1, le=4)
-    aspect: str = Field(default="21:9", pattern=r"^\d{1,2}:\d{1,2}$")
+    aspect: str | None = Field(default=None, pattern=r"^\d{1,2}:\d{1,2}$")      # None: use the slot's own shape
     confirm_spend: bool = False
 
 

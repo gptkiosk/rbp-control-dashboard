@@ -10,6 +10,12 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.6.18] - 2026-10-17
+
+### Fixed
+
+- Generated stills are now made in the shape of their own slot. The media panel asked every image for a wide 21:9 frame, so the square property-card illustrations and the 16:9 About vignettes came out the wrong shape. The aspect ratio is now the supported one closest to the slot's width and height (a 1200 by 1200 card is 1:1, a 1600 by 900 vignette 16:9, a 2560 by 1100 hero 21:9), and an explicit choice still wins.
+
 ## [0.6.17] - 2026-10-17
 
 ### Fixed
@@ -494,7 +500,8 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 - Claude Code stories may use web search and fetch without any shell, credential or publish permission.
 
 [0.3.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.0
-[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.17...HEAD
+[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.18...HEAD
+[0.6.18]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.18
 [0.6.17]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.17
 [0.6.16]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.16
 [0.6.15]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.15

@@ -140,10 +140,24 @@ def endpoint_for(slot, tier, model=None):
     return video_endpoint(tier, mode)
 
 
-def build_request(root, slot, tier, model=None, aspect="21:9"):
+ASPECTS = {"21:9": 21 / 9, "16:9": 16 / 9, "3:2": 3 / 2, "4:3": 4 / 3, "5:4": 5 / 4, "1:1": 1.0, "4:5": 4 / 5, "3:4": 3 / 4, "2:3": 2 / 3, "9:16": 9 / 16}
+
+
+def aspect_for(slot):
+    """The supported aspect ratio closest to the slot's own width and height, so a square card is made square and a wide hero is made wide."""
+    try:
+        w, h = float(slot.get("width") or 1920), float(slot.get("height") or 1080)
+        ratio = w / h if w > 0 and h > 0 else 16 / 9
+    except (TypeError, ValueError):
+        ratio = 16 / 9
+    return min(ASPECTS, key=lambda name: abs(ASPECTS[name] - ratio) / ratio)
+
+
+def build_request(root, slot, tier, model=None, aspect=None):
     """(endpoint, input body) for a slot. Reads the reference and still images from the folder."""
     endpoint = endpoint_for(slot, tier, model)
     if slot["kind"] == "image":
+        aspect = aspect or aspect_for(slot)
         refs = [data_url(root, r) for r in slot.get("refs", [])]
         body = {"prompt": slot["prompt"], "aspect_ratio": aspect, "resolution": IMAGE_TIERS[tier][1], "output_format": "png", "num_images": 1}
         if refs:
