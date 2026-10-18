@@ -33,7 +33,7 @@ What the starter gives a plan:
 
 The guides behind it are plain text you can read and adapt: [Application security](../../packs/standards/security.md),
 [Development practices](../../packs/standards/practices.md), [Delivering a hosted web app](../../packs/standards/web-app-delivery.md) and
-[Delivering a packaged app](../../packs/standards/packaged-app-delivery.md) and [Delivering a containerized web app, local first](../../packs/standards/container-app-delivery.md), and [Making a stylized website that needs little adjustment](../../packs/standards/website-design-delivery.md) (one visual language, layout rules that broke before, the responsive review). The tables are in
+[Delivering a packaged app](../../packs/standards/packaged-app-delivery.md) and [Delivering a containerized web app, local first](../../packs/standards/container-app-delivery.md), and [Making a stylized website that needs little adjustment](../../packs/standards/website-design-delivery.md) (one visual language, layout rules that broke before, the responsive review) with [Spacing, sizing and timing settings](../../packs/standards/website-spacing-and-timing.md) (starting values for transitions, header, cards and breakpoints). The tables are in
 [starter.md](../../packs/standards/starter.md).
 
 ## Changing them
@@ -50,7 +50,7 @@ Delete your copy to go back. Two optional lines tune the rules:
 Nothing in these files can grant an agent a permission: they can raise a story's risk and add checks, never lower a risk or widen
 what an agent may run.
 
-The six guides can be copied to the same folder the same way (`practices.md`, `security.md`, `web-app-delivery.md`, `packaged-app-delivery.md`, `container-app-delivery.md`, `website-design-delivery.md`); the consultant and the planner read your copy. Your copies are kept across updates; see [What survives an update](upgrades-and-your-data.md).
+The seven guides can be copied to the same folder the same way (`practices.md`, `security.md`, `web-app-delivery.md`, `packaged-app-delivery.md`, `container-app-delivery.md`, `website-design-delivery.md`, `website-spacing-and-timing.md`); the consultant and the planner read your copy. Your copies are kept across updates; see [What survives an update](upgrades-and-your-data.md).
 
 ## Settings involved
 
