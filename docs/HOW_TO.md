@@ -471,6 +471,21 @@ Nobody should later read an accepted story as a clean pass: the handoff begins w
 
 [Open Projects](http://127.0.0.1:8800/projects) · [Open the task board](http://127.0.0.1:8800/tasks) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=accept-anyway)
 
+## Check that this machine is ready to build projects
+
+A checklist with one-click fixes for the workspace folder, git identity and GitHub access, and a look at which agents can write code.
+
+1. Open Setup wizard, step 1. The panel Is this machine ready to build? lists each check: the workspace folder, git, the git identity, GitHub access, agents that can write code, optional tools and free disk space. Checking changes nothing.
+2. Create the workspace folder if it is missing. Projects that must end in a GitHub repository should work in a clone of that repository inside this folder, never in a scratch folder (a scratch folder has no remote).
+3. Set the git identity (a name and an email) so commits are attributed. It is saved as the global git identity for this host user.
+4. Make a GitHub SSH key. The private half stays on this host; copy the public key shown, add it to your GitHub account (or to one repository’s Deploy keys with write access), then press Test GitHub access.
+5. Read Agents that build: Claude Code, Codex, OpenClaw and Grok can write code; Hermes plans and coordinates but does not. Install and sign in to a builder from Agent tools if none is listed. Sign-in is not verified here.
+6. Optional tools are only needed by some stories: Docker for container images, Node for JavaScript tests and the Playwright screenshot script, ffmpeg for media, gh for pull requests. Use Recheck with network test to confirm GitHub and your model provider are reachable.
+
+Fixes do one named thing each: create the folder, set the git identity, make or test the GitHub key. Nothing installs software, stores a token or runs project code, and the private key is never shown.
+
+[Open the setup wizard](http://127.0.0.1:8800/setup) · [Open Agent tools](http://127.0.0.1:8800/profile#agent-tools) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=host-readiness)
+
 ## Sign in and resolve a login problem
 
 Use an allowed Google account; RCD requests identity access only.

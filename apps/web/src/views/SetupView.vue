@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import RecommendedAgentMix from '@/components/RecommendedAgentMix.vue'
+import HostReadinessPanel from '@/components/HostReadinessPanel.vue'
 import MembershipPrerequisites from '@/components/MembershipPrerequisites.vue'
 import ReportStoragePanel from '@/components/ReportStoragePanel.vue'
 import GithubSettingsPanel from '@/components/GithubSettingsPanel.vue'
@@ -129,6 +130,7 @@ onBeforeUnmount(() => { key.value = '' })
           <label for="setup-workdir">Default working directory</label><AppSelect id="setup-workdir" v-model="workingDir" aria-label="Setup working directory"><option value="">Choose an allowed workspace…</option><option v-for="w in workdirs" :key="w.path" :value="w.path" :data-description="directoryDetail(w.path,w.branch)">{{ directoryName(w.path) }}</option></AppSelect>
           <button class="btn" :disabled="busy || !workingDir" @click="saveWorkspace">Save workspace</button>
           <p v-if="!workdirs.length" class="small muted">No workspace detected. Ask the Pi administrator to configure MAC_CONTROL_WORKDIR_ROOTS, then refresh checks.</p>
+          <HostReadinessPanel @changed="refresh" />
           <label class="check"><input type="checkbox" :checked="confirmed('host')" :disabled="busy" @change="confirm('host',$event)" />I have checked the Pi’s local installation and prerequisites.</label>
         </template>
         <template v-else-if="progress.step === 1">

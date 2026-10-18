@@ -10,6 +10,10 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+### Added
+
+- **Host readiness** in Setup wizard step 1: a checklist of what the machine needs to build and deliver projects (workspace folder, git, git identity, GitHub access, an agent that can write code, optional tools, disk, and an on-request network test) with one-click fixes that each do one named thing: create the workspace folder, set the git identity, make a GitHub SSH key (the private half stays on the host) and test it. Hermes is shown as a manager, not a builder. Built so a new Raspberry Pi can be made ready without hand configuration.
+
 ## [0.6.24] - 2026-10-18
 
 ### Fixed
