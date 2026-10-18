@@ -10,6 +10,8 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.6.26] - 2026-10-18
+
 ### Fixed
 
 - The Setup wizard's host step is tidier: the workspace controls are grouped with a compact Save button, and the host readiness panel is rebuilt as an even list of cards with status badges, aligned actions, a two-column git identity form, and a public-key block that wraps cleanly on a phone.
@@ -580,7 +582,8 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 - Claude Code stories may use web search and fetch without any shell, credential or publish permission.
 
 [0.3.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.0
-[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.25...HEAD
+[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.26...HEAD
+[0.6.26]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.26
 [0.6.25]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.25
 [0.6.24]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.24
 [0.6.23]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.23
