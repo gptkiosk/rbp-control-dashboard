@@ -10,6 +10,10 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+### Added
+
+- A website design guide ("Making a stylized website that needs little adjustment") that the website property type hands to its planner and agents: one visual language (the approved hero still is the style reference for every other picture), 16:9 photographic cards, wide establishing clips with the ambient loop as a texture, layout rules that broke on a real site, and a responsive review at eight widths in both themes. The type gained matching failure points, planner text and a plan check for the responsive review.
+
 ## [0.6.22] - 2026-10-18
 
 ### Added

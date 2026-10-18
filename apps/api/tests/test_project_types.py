@@ -19,8 +19,9 @@ GOOD_SITE = [
     story("b", "Restyle the pages", ["a"]),
     story("c", "Verification of the files and themes", ["b"], assignee="openclaw"),
     story("d", "Preview checkpoint on localhost", ["c"], assignee="claude"),
-    story("e", "Approve the look from the preview", ["d"], assignee="human"),
-    story("f", "Container and pipeline finish", ["e"]),
+    story("e", "Responsive and polish review in the preview", ["d"], assignee="human"),
+    story("e2", "Approve the look from the preview", ["e"], assignee="human"),
+    story("f", "Container and pipeline finish", ["e2"]),
     story("g", "Final local verification on Colima: docker compose up --build", ["f"], assignee="human"),
 ]
 
