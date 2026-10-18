@@ -1,9 +1,9 @@
 # Making a stylized website that needs little adjustment
 
-Lessons from building a two-theme site with generated media. Apply them before the first build story, not after the first review.
+Lessons from a two-theme site with generated media. Apply them before the first build story.
 
 ## Facts before copy
-- Put the owner's product facts in the brief: which products are live (with their real addresses) and which are beta. Never write "coming soon" for something live, and update the tests that encoded an old assumption.
+- Put the owner's product facts in the brief: which products are live (real addresses) and which are beta. Never write "coming soon" for something live; update tests that encoded the old assumption.
 
 ## One visual language
 - Pick one style per kind of picture and state it in DESIGN.md. Hero, cards and vignettes are all photographic stills from one world, or all illustration; never a mix. Generate the hero still first, approve it, then give it to every other slot as the style reference and say "same world as the hero image" in each prompt.
@@ -13,7 +13,8 @@ Lessons from building a two-theme site with generated media. Apply them before t
 - Never set an inline background-image without also setting size, position and repeat: it replaces the whole stack of layers a theme draws.
 - A grid's row template must follow its content. Do not hard-code a row count; let rows come from the children and span the art across them.
 - Theme sheets set display on the same classes a responsive rule hides, so the hide must outrank them (for example `:root[data-theme] .plaque`).
-- Decorative pieces that sit beside the nav (plaques, taglines) hide below the width where the brand column stops fitting them, measured not guessed.
+- Keep the header to wordmark, menu and one control. Plaques and taglines that repeat the hero are dropped, or hidden below the measured width where they stop fitting. Between phone and wide desktop the menu takes its own row.
+- Theme crossings run about 1.5 seconds; 1 second reads as rushed.
 - A rail, shadow or pseudo-element wider than its column adds sideways scroll on a phone; contain it when the layout is one column.
 - A label above a heading is a block, not an inline-block, or the heading slides up beside it.
 
