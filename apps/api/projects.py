@@ -1468,6 +1468,30 @@ def accept_story(s,p,card_id,data,actor):
     linked=list(s.scalars(select(ProjectTask.card_id).where(ProjectTask.project_id==p.id,ProjectTask.role=='story')))
     if all(s.get(Card,cid).column=='done' for cid in linked): p.state='complete'
 
+def accept_despite_report(s,p,card_id,data,actor):
+    """Accept a story whose latest run finished but reported unfinished work, on the operator's explicit say-so. The run stays failed in the history; the
+    handoff records the agent's own report plus the operator's reason, so nobody later reads it as a clean pass. Crashes and timeouts are not eligible."""
+    link=binding(s,card_id); c=s.get(Card,card_id)
+    if not link or link.project_id!=p.id or link.role!='story': fail('Story not found in this project.',404)
+    if p.state not in {'active','paused'}: fail('This project is not active.')
+    if c.assignee_type=='human': fail('A human story is decided, not accepted this way.',422)
+    if c.column=='done': return
+    if c.column!='failed': fail('Only a failed story can be accepted this way.')
+    if any(s.get(Card,dep).column!='done' for dep in cards.dependency_ids(s,c.id)): fail('Finish this story\'s prerequisites first.')
+    r=s.scalar(select(Run).where(Run.card_id==c.id).order_by(Run.id.desc()).limit(1))
+    if not r or r.id!=data.run_id or r.stage!='failed': fail('Accept the latest failed run of this story.')
+    if not project_outputs.incomplete_error(r) or not (r.result_text or '').strip():
+        fail('This run did not finish and report unfinished work (it crashed or timed out), so there is no report to accept. Retry it instead.')
+    reason=data.reason.strip()
+    report=(r.result_text or '').strip()
+    summary=('ACCEPTED BY THE OPERATOR DESPITE THE AGENT\'S UNFINISHED REPORT. Operator reason: '+reason+'\n\nThe agent\'s own report follows; its listed gaps remain open.\n\n'+report)[:11900]
+    memory(s,p,'decision',f'Operator accepted story #{c.id} despite its unfinished report. Reason: {reason}',actor,c.id,r.id)
+    memory(s,p,'handoff',summary,actor,c.id,r.id)
+    c.column='done';c.updated_at=now()
+    s.flush()
+    linked=list(s.scalars(select(ProjectTask.card_id).where(ProjectTask.project_id==p.id,ProjectTask.role=='story')))
+    if all(s.get(Card,cid).column=='done' for cid in linked): p.state='complete'
+
 def overlap(a,b):
     pa,pb=Path(a).resolve(),Path(b).resolve()
     return pa==pb or pa in pb.parents or pb in pa.parents

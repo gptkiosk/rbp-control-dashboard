@@ -2,10 +2,30 @@
   "id": "web-app",
   "label": "Web app (containerized, deployed to a cloud service)",
   "summary": "An application that runs as a web service, monetized or not, built as a container and deployed to a cloud service such as Cloud Run or Fargate. Examples: a subscription site, a free community site.",
-  "suggest": ["cloud run", "fargate", "\\bgcp\\b", "\\baws\\b", "containeri[sz]ed (web )?(service|app)", "\\bsaas\\b", "subscription", "stripe", "monetiz", "web service", "deploy(ed)? to (the )?cloud"],
-  "keys": ["agent", "github"],
-  "guides": ["web-app-delivery.md", "container-app-delivery.md", "security.md", "practices.md"],
-  "planner_text": "This is a hosted web app: a containerized service deployed to a cloud service. Plan the work as small stories on one branch with tests and CI. Agents write code, tests and infrastructure files; they cannot build or run containers (no container engine in their sandbox), and the operator keeps the cloud apply, secret values, DNS and anything that destroys data or spends money. Order the plan: code and tests first; then the CI and image pipeline files; then a human story to review and apply infrastructure; then a verification story that checks the live service for its version and commit and one behavior specific to the change; end with a rollback note. Schema changes are additive and ship before the code that needs them. If the app takes payments, the payment story is high risk, uses a subscription-grade model, and gets a human review story after it. If the app has screens a visitor sees, add a verification story and a preview checkpoint before a human sign-off on how it looks. Never plan a story that creates the repository, pushes to main, or handles secret values.",
+  "suggest": [
+    "cloud run",
+    "fargate",
+    "\\bgcp\\b",
+    "\\baws\\b",
+    "containeri[sz]ed (web )?(service|app)",
+    "\\bsaas\\b",
+    "subscription",
+    "stripe",
+    "monetiz",
+    "web service",
+    "deploy(ed)? to (the )?cloud"
+  ],
+  "keys": [
+    "agent",
+    "github"
+  ],
+  "guides": [
+    "web-app-delivery.md",
+    "container-app-delivery.md",
+    "security.md",
+    "practices.md"
+  ],
+  "planner_text": "This is a hosted web app: a containerized service deployed to a cloud service. Plan the work as small stories on one branch with tests and CI. Agents write code, tests and infrastructure files; they cannot build or run containers (no container engine in their sandbox), and the operator keeps the cloud apply, secret values, DNS and anything that destroys data or spends money. Order the plan: code and tests first; then the CI and image pipeline files; then a human story to review and apply infrastructure; then a verification story that checks the live service for its version and commit and one behavior specific to the change; end with a rollback note. Schema changes are additive and ship before the code that needs them. If the app takes payments, the payment story is high risk, uses a subscription-grade model, and gets a human review story after it. If the app has screens a visitor sees, add a verification story and a preview checkpoint before a human sign-off on how it looks. Never plan a story that creates the repository, pushes to main, or handles secret values. Never ask an agent story to render pages, check a browser console or take screenshots: agent sandboxes have no browser, so keep agent verification static and leave rendering to the human preview.",
   "failure_points": [
     "A story whose done condition needs a container image built, a compose stack started or a smoke test against a running container cannot be done by an agent; make it a human story or a CI step.",
     "Cloud applies, rolling a revision, DNS, secret values and destroying anything stay with the operator; do not hand them to an agent.",
@@ -13,14 +33,53 @@
     "Money paths (payments, billing, subscriptions) are high risk: use a strong model and put a human review story directly after.",
     "Verify in production by asking the live service for its release and commit, not by trusting a tool's exit status.",
     "Backend and frontend changes ship through separate pipelines; a feature that needs both must plan both rolls.",
-    "A deploy reads from the branch it is applied from; check the branch before committing and verify the roll landed where it is read."
+    "A deploy reads from the branch it is applied from; check the branch before committing and verify the roll landed where it is read.",
+    "A story that asks an agent to render pages, read a browser console or take screenshots cannot be done in an agent sandbox (no browser, no loopback server); it reports itself unfinished and blocks everything behind it. Agent verification is static (files, references, syntax, tests); rendering is checked by a person in the preview."
   ],
   "visual_checks": "Any story that changes what a visitor sees gets a file-level verification story, then a preview checkpoint with clickable pages, then the human sign-off.",
-  "human_signoffs": ["Review and apply infrastructure changes", "Payment or account-data stories (when monetized)", "Go-live: the explicit go for a high-risk release", "How a visitor-facing page looks (after a preview)"],
+  "human_signoffs": [
+    "Review and apply infrastructure changes",
+    "Payment or account-data stories (when monetized)",
+    "Go-live: the explicit go for a high-risk release",
+    "How a visitor-facing page looks (after a preview)"
+  ],
   "checks": [
-    {"id": "container-needs-human", "severity": "warn", "kind": "not_agent_for", "match": "docker (build|compose|run)|compose up|colima|smoke test (against|on) (a )?running|build the (container )?image", "message": "A story needs a container engine, which agents cannot run. Make it a human story or leave it to CI."},
-    {"id": "has-human-signoff", "severity": "warn", "kind": "has_story", "match": "", "assignee": "human", "message": "No human story. A hosted web app needs at least a human go for the release."},
-    {"id": "has-verification", "severity": "warn", "kind": "has_story", "match": "verif|live service|production check|smoke", "message": "No verification story. Add one that checks the running result, not just that files exist."},
-    {"id": "preview-before-look-signoff", "severity": "warn", "kind": "order", "first": "preview|verif", "then": "(approve|sign.?off|review).{0,40}(look|design|page|screen|ui|visual)", "message": "A human look sign-off comes before any verification or preview. Put a verification and preview story first."}
+    {
+      "id": "container-needs-human",
+      "severity": "warn",
+      "kind": "not_agent_for",
+      "match": "docker (build|compose|run)|compose up|colima|smoke test (against|on) (a )?running|build the (container )?image",
+      "message": "A story needs a container engine, which agents cannot run. Make it a human story or leave it to CI."
+    },
+    {
+      "id": "has-human-signoff",
+      "severity": "warn",
+      "kind": "has_story",
+      "match": "",
+      "assignee": "human",
+      "message": "No human story. A hosted web app needs at least a human go for the release."
+    },
+    {
+      "id": "has-verification",
+      "severity": "warn",
+      "kind": "has_story",
+      "match": "verif|live service|production check|smoke",
+      "message": "No verification story. Add one that checks the running result, not just that files exist."
+    },
+    {
+      "id": "preview-before-look-signoff",
+      "severity": "warn",
+      "kind": "order",
+      "first": "preview|verif",
+      "then": "(approve|sign.?off|review).{0,40}(look|design|page|screen|ui|visual)",
+      "message": "A human look sign-off comes before any verification or preview. Put a verification and preview story first."
+    },
+    {
+      "id": "browser-checks-need-a-person",
+      "severity": "warn",
+      "kind": "not_agent_for",
+      "match": "console errors|render(s|ed|ing)? (in|without|correctly)|in a browser|browser (render|check|test)|playwright|puppeteer|lighthouse|screenshot",
+      "message": "A story asks an agent to render pages or check a browser console, which no agent sandbox can do. It will report itself unfinished. Keep agent verification to static checks and move rendering to the human preview."
+    }
   ]
 }

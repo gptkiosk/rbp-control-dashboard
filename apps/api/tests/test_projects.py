@@ -1535,3 +1535,39 @@ def test_small_planner_slips_are_tidied_but_real_problems_are_still_refused(app)
         projects.proposal(doc,[phase,dict(agent,work_kind='nonsense')],settings)           # an unknown work kind is still refused
     with pytest.raises((HTTPException,ValidationError)):
         projects.proposal(doc,[phase,dict(agent,touches=['/etc/passwd'])],settings)        # a real path problem is still refused
+
+
+UNFINISHED='**Not verified.** The static checks passed but nothing could be rendered; the browser checks did not run.'
+
+def test_the_operator_can_accept_a_story_whose_agent_reported_it_unfinished_with_the_reason_recorded(app):
+    p=active(app,[node('a'),node('b',depends_on=['a'])])
+    c,s,wd,settings=app
+    ids={t['node_key']:t['card_id'] for t in p['tasks'] if t['role']=='story'}
+    rid=finish(app,ids['a'],UNFINISHED,stage='failed',error='The agent explicitly reported unfinished work or unmet story acceptance criteria.')
+    assert c.get(f'/api/cards/{ids["a"]}').json()['column']=='failed'
+    path=f'/api/projects/{p["id"]}/stories/{ids["a"]}/accept-despite-report'
+    assert c.post(path,json={'run_id':rid,'reason':'short'}).status_code==422                           # a real reason is required
+    assert c.post(path,json={'run_id':rid+99,'reason':'Rendering is checked in the preview.'}).status_code==409    # must be the latest failed run
+    r=c.post(path,json={'run_id':rid,'reason':'The browser checks cannot run in a sandbox; I will verify rendering in the preview.'})
+    assert r.status_code==200,r.text
+    assert c.get(f'/api/cards/{ids["a"]}').json()['column']=='done'
+    memory=c.get(f'/api/projects/{p["id"]}').json()['memory']
+    handoff=next(m['text'] for m in memory if m['kind']=='handoff' and m['card_id']==ids['a'])
+    assert handoff.startswith("ACCEPTED BY THE OPERATOR DESPITE THE AGENT'S UNFINISHED REPORT") and 'verify rendering in the preview' in handoff and 'nothing could be rendered' in handoff
+    assert any(m['kind']=='decision' and 'despite its unfinished report' in m['text'] for m in memory)
+    with s() as db: assert db.get(Run,rid).stage=='failed'                                              # the run history is not rewritten
+    advance(app)
+    assert c.get(f'/api/cards/{ids["b"]}').json()['column']=='queued'                                    # the dependent is released
+    assert c.post(path,json={'run_id':rid,'reason':'Already accepted, so this changes nothing.'}).status_code==200
+
+def test_only_a_run_that_finished_and_reported_unfinished_work_can_be_accepted_this_way(app):
+    p=active(app,[node('a'),node('b'),node('c',assignee='human')])
+    c,s,wd,settings=app
+    ids={t['node_key']:t['card_id'] for t in p['tasks'] if t['role']=='story'}
+    def accept(key,rid): return c.post(f'/api/projects/{p["id"]}/stories/{ids[key]}/accept-despite-report',json={'run_id':rid,'reason':'I am sure about this one.'})
+    crash=finish(app,ids['a'],'',stage='failed',error='timeout after 1800s')
+    assert accept('a',crash).status_code==409 and 'crashed or timed out' in accept('a',crash).text      # nothing to accept: retry it
+    ok=finish(app,ids['b'],'Verified artifact ready.',stage='succeeded')
+    assert accept('b',ok).status_code==409                                                              # not failed
+    assert c.post(f'/api/projects/{p["id"]}/stories/{ids["c"]}/accept-despite-report',json={'run_id':1,'reason':'A human story is decided.'}).status_code==422
+    assert c.post(f'/api/projects/{p["id"]}/stories/999/accept-despite-report',json={'run_id':1,'reason':'No such story here.'}).status_code==404

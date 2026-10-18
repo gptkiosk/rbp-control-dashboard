@@ -88,6 +88,28 @@ it('does not offer Delete on a live project',async()=>{
  expect(w.findAll('button').some(b=>b.text()==='Delete project…')).toBe(false)
  w.unmount()
 })
+it('offers Accept anyway only on a failed story whose agent reported it unfinished, and records the operator reason',async()=>{
+ const task:import('@/lib/projects').ProjectTask={card_id:5,node_key:'s',role:'story',revision:1,title:'Verification',column:'failed',run_id:42,run_stage:'failed',incomplete_reason:'The agent explicitly reported unfinished work.',agent:'codex',model:'m'} as never
+ const crash:import('@/lib/projects').ProjectTask={card_id:6,node_key:'t',role:'story',revision:1,title:'Crashed',column:'failed',run_id:43,run_stage:'failed',incomplete_reason:null,agent:'codex',model:'m'} as never
+ const {w}=await setup('active',[task,crash])
+ await flushPromises()
+ const inner=globalThis.fetch
+ const posted:{url:string,body:unknown}[]=[]
+ vi.stubGlobal('fetch',(url:string,init?:RequestInit)=>{
+  if(url.endsWith('/accept-despite-report')&&init?.method==='POST'){posted.push({url,body:JSON.parse(String(init.body))});return inner('/api/projects/1' as never)}        // answer with the project, as the real endpoint does
+  return inner(url as never,init)
+ })
+ const tab=w.findAll('nav.tabs button').find(b=>b.text()==='Stories & runs')!;await tab.trigger('click');await flushPromises()
+ const buttons=w.findAll('[data-testid=accept-anyway]')
+ expect(buttons).toHaveLength(1)                                                              // not on the story that crashed
+ const prompt=vi.spyOn(window,'prompt').mockReturnValueOnce('short').mockReturnValueOnce('Rendering is checked in the preview.')
+ await buttons[0]!.trigger('click');await flushPromises()
+ expect(posted).toEqual([])                                                                   // a short reason sends nothing
+ await buttons[0]!.trigger('click');await flushPromises()
+ expect(posted).toEqual([{url:'/api/projects/1/stories/5/accept-despite-report',body:{revision:1,run_id:42,reason:'Rendering is checked in the preview.'}}])
+ expect(prompt.mock.calls[0]![0]).toContain('The agent explicitly reported unfinished work.')
+ prompt.mockRestore();w.unmount()
+})
 it('shows a Media tab and a banner for a project with media slots, and the link opens that tab directly',async()=>{
  mediaProject={available:true,working_dir:'/tmp/project',summary:{published:4,skipped:0,pending:6,total:10,complete:false,text:'Media: 4 of 10 slots published, 6 still undecided.'}}
  const {w}=await setup('active')

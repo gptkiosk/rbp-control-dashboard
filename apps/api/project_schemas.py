@@ -100,6 +100,13 @@ class ContinueOutput(Strict):
 class Note(Strict):
     text: str = Field(min_length=1, max_length=12000)
 
+class AcceptDespiteReport(Strict):
+    """The operator accepts a story whose agent reported it unfinished, with the reason recorded. Only for a run that finished and said so."""
+    revision: int | None = Field(default=None, ge=1)
+    run_id: int
+    reason: str = Field(min_length=10, max_length=1000)
+
+
 class Accept(Strict):
     revision: int | None = Field(default=None, ge=1)
     run_id: int | None = None

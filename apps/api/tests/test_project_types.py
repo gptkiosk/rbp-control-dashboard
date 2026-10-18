@@ -112,3 +112,15 @@ def test_types_and_checks_are_available_through_the_api(app):  # noqa: F811
     result = c.get(f"/api/projects/{typed['id']}/checks").json()
     assert result["project_type"] == "website-property" and "container-needs-human" in {f["id"] for f in result["findings"]}
     assert c.post("/api/projects", json={"title": "Bad", "brief": "x", "working_dir": str(wd), "nodes": [], "project_type": "Bad Type!"}).status_code == 422
+
+
+def test_every_type_flags_an_agent_story_that_needs_a_browser_and_leaves_static_checks_alone():
+    needs_browser = [story("v", "Verification: both themes render without console errors", assignee="codex")]
+    static = [story("v", "Verification of the files: every referenced asset exists and no external requests", assignee="codex")]
+    for kind in ("website-property", "web-app", "packaged-app"):
+        flagged = {f["id"]: f["stories"] for f in pt.check(kind, needs_browser)}
+        assert flagged.get("browser-checks-need-a-person") == ["v"], kind
+        assert "browser-checks-need-a-person" not in ids(pt.check(kind, static)), kind
+        assert "Never ask an agent story to render pages" in pt.planner_section(kind)
+    human = [story("v", "Preview checkpoint: check both themes render without console errors", assignee="human")]
+    assert "browser-checks-need-a-person" not in ids(pt.check("website-property", human))             # a person can

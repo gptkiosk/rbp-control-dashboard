@@ -22,7 +22,7 @@
     "container-app-delivery.md",
     "practices.md"
   ],
-  "planner_text": "This is a website property: static pages in plain HTML, CSS and JavaScript that must look original and finished, not like a template. Plan these stories in this order. First a design direction story on a route that can look at images: it reads the concept images in the folder and writes DESIGN.md (palette tokens, page skeleton, type, ornament, motion, asset list). Then the build stories (theme and transitions, pages, art and icons as SVG and CSS, glass and overlays, wiring the media slots) which restyle the existing template rather than start over. Generated stills, illustrations and video come from the media pipeline run by the operator in MCD, never from an agent, so plan that as a human story after the wiring story; the site must look complete on its fallbacks before the files arrive. After the build, plan a verification story (mode read) that checks the files themselves: promised files exist and are not empty, every asset is referenced, no external requests, both themes render without console errors, reduced motion is honored. Then a preview checkpoint story (mode read) that serves the folder on localhost only and hands the operator clickable URLs per page and theme with the stop command; then a human story to approve the look, with changes going back through verification and preview. Container and pipeline files come after the pages exist and must copy the assets folder; building and running the image belongs only to a final human local verification story. A contact form handler stores only a redacted line and has a test that fails if the redaction is removed. Nothing in the folder may contain secrets or real visitor data, and no franchise names, logos or assets are used.",
+  "planner_text": "This is a website property: static pages in plain HTML, CSS and JavaScript that must look original and finished, not like a template. Plan these stories in this order. First a design direction story on a route that can look at images: it reads the concept images in the folder and writes DESIGN.md (palette tokens, page skeleton, type, ornament, motion, asset list). Then the build stories (theme and transitions, pages, art and icons as SVG and CSS, glass and overlays, wiring the media slots) which restyle the existing template rather than start over. Generated stills, illustrations and video come from the media pipeline run by the operator in MCD, never from an agent, so plan that as a human story after the wiring story; the site must look complete on its fallbacks before the files arrive. After the build, plan a verification story (mode read) that checks the files themselves: promised files exist and are not empty, every asset is referenced, no external requests, both themes render without console errors, reduced motion is honored. Then a preview checkpoint story (mode read) that serves the folder on localhost only and hands the operator clickable URLs per page and theme with the stop command; then a human story to approve the look, with changes going back through verification and preview. Container and pipeline files come after the pages exist and must copy the assets folder; building and running the image belongs only to a final human local verification story. A contact form handler stores only a redacted line and has a test that fails if the redaction is removed. Nothing in the folder may contain secrets or real visitor data, and no franchise names, logos or assets are used. Never ask an agent story to render pages, check a browser console or take screenshots: agent sandboxes have no browser, so keep agent verification static and leave rendering to the human preview.",
   "failure_points": [
     "A story's own report that art or media exists is not proof; generated files can be empty. Verify the files, then show them on a preview before asking a person to approve.",
     "A container or pipeline story planned before the pages exist cannot smoke-test anything; order it after the pages.",
@@ -31,7 +31,8 @@
     "A route that cannot view images cannot follow concept art; the design direction story must run on one that can.",
     "A human approval of how it looks has nothing to judge without a live preview and clickable URLs.",
     "Original art only: no names, logos or assets from the concept images or any franchise; reference images stay out of the container image.",
-    "Free models cannot be trusted with taste or motion work; use a strong model for design direction, the theme engine and the transitions."
+    "Free models cannot be trusted with taste or motion work; use a strong model for design direction, the theme engine and the transitions.",
+    "A story that asks an agent to render pages, read a browser console or take screenshots cannot be done in an agent sandbox (no browser, no loopback server); it reports itself unfinished and blocks everything behind it. Agent verification is static (files, references, syntax, tests); rendering is checked by a person in the preview."
   ],
   "visual_checks": "Always: a file-level verification story, then a localhost preview checkpoint with clickable URLs per page and theme, then the human look sign-off. Changes loop back through verification and preview.",
   "human_signoffs": [
@@ -101,6 +102,13 @@
       "kind": "not_agent_for",
       "match": "generate (the )?(video|clips?|stills?|images?|illustrations?|art)|make (the )?(video|clips?)",
       "message": "Generated media comes from the media pipeline run by the operator in MCD, not from an agent. Make it a human story."
+    },
+    {
+      "id": "browser-checks-need-a-person",
+      "severity": "warn",
+      "kind": "not_agent_for",
+      "match": "console errors|render(s|ed|ing)? (in|without|correctly)|in a browser|browser (render|check|test)|playwright|puppeteer|lighthouse|screenshot",
+      "message": "A story asks an agent to render pages or check a browser console, which no agent sandbox can do. It will report itself unfinished. Keep agent verification to static checks and move rendering to the human preview."
     }
   ]
 }
