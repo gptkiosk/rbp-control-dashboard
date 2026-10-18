@@ -9,7 +9,7 @@ Before a project can be built and delivered from this machine, the machine needs
 | Workspace folder | One of the allowed workspace folders (`MAC_CONTROL_WORKDIR_ROOTS`, by default `~/Projects` and the data directory's `workspaces`) exists and is writable. | **Create** the first allowed folder. Only an allowed folder can be created. |
 | git | `git` is installed. | None: install it with the system package manager. |
 | git identity | The global git `user.name` and `user.email` are set. | **Set the git identity** (name up to 100 characters, a valid email). |
-| GitHub access | A key made here (`~/.ssh/rcd-github`) exists. | **Make a GitHub SSH key**, then **Test GitHub access**. |
+| GitHub access | A key made here (`~/.ssh/rcd-github`) exists **and GitHub has accepted it** (the check shows a warning until **Test GitHub access** succeeds; only then is the machine "ready to deliver"). | **Make a GitHub SSH key**, then **Test GitHub access**. |
 | Installed tools on your shell PATH | Tools this dashboard installed (Codex, OpenClaw and the rest) live in their own `bin` folder, which a plain shell does not search, so `codex login` says *command not found*. Ready when that folder is on the PATH or already set up. | **Put installed tools on my PATH** adds a marked block to `~/.profile` and `~/.bashrc`; open a new terminal afterwards. |
 | Agents that build | At least one of Claude Code, Codex, OpenClaw or Grok is installed. Hermes plans and coordinates but does not write code, so it does not count. | None: install a builder from Agent tools and sign in. Sign-in is not verified. |
 | Optional tools | Docker (container images), Node (JavaScript tests, the Playwright screenshot script), ffmpeg (media), `gh` (pull requests from this host). | None. |
@@ -20,7 +20,7 @@ The summary line says whether the machine is **ready to build** (workspace, git,
 
 ## The GitHub key
 
-**Make a GitHub SSH key** creates an ed25519 key with no passphrase at `~/.ssh/rcd-github` (mode 600) and adds a marked block to `~/.ssh/config` so `github.com` uses it. The private key never leaves the host and is never shown or returned; only the public key is displayed. An existing key is never replaced. Add the public key to your GitHub account (one key then reaches every repository you can access) or to a single repository's **Deploy keys** with write access (the narrower choice, one repository per key). **Test GitHub access** asks GitHub whether it accepts the key; the first test records GitHub's host key (`accept-new`).
+**Make a GitHub SSH key** creates an ed25519 key with no passphrase at `~/.ssh/rcd-github` (mode 600) and adds a marked block to `~/.ssh/config` so `github.com` uses it. The private key never leaves the host and is never shown or returned; only the public key is displayed. An existing key is never replaced. Add the public key to your GitHub account (one key then reaches every repository you can access) or to a single repository's **Deploy keys** with write access (the narrower choice, one repository per key). **Test GitHub access** asks GitHub whether it accepts the key, ignoring the system ssh config so a hardened service cannot trip on it; the first test records GitHub's host key (`accept-new`), and a success is remembered next to the key.
 
 Agents push only through a project's git grant, never with this key directly. See [Branch-scoped git access](agent-git.md).
 
