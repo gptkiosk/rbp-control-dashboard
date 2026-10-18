@@ -30,7 +30,9 @@ it('groups slots by what needs you and keeps Generate off until spending is ackn
   expect(w.get('[data-slot=clip-d]').text()).toContain('price not listed')
   expect(w.get('[data-slot=clip-d]').text()).toContain('Waiting for the approved still')
   const go = buttons(w, 'Generate', '[data-slot=todo-a]')[0]!
-  expect(go.attributes('disabled')).toBeDefined()
+  expect(go.attributes('disabled')).toBeUndefined()                                         // never a silent dead button: pressing it says what is missing
+  await go.trigger('click'); await flushPromises()
+  expect(w.get('[data-note=todo-a]').text()).toContain('Tick "I understand each run spends')
   await w.get('input[type=checkbox]').setValue(true)
   expect(go.attributes('disabled')).toBeUndefined()
   expect(buttons(w, 'Generate', '[data-slot=clip-d]')[0]!.attributes('disabled')).toBeDefined()
@@ -136,7 +138,7 @@ function batchSetup() {
 }
 it('counts only what is not made yet and shows the batch price, flagging models with no listed price', async () => {
   vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] })
-  const { w } = batchSetup()
+  const { f, w } = batchSetup()
   await flushPromises()
   const box = w.get('[data-testid=batch]')
   expect(box.text()).toContain('3 ready')
@@ -145,7 +147,11 @@ it('counts only what is not made yet and shows the batch price, flagging models 
   expect(box.text()).toContain('about $0.16 plus 1 with no listed price')
   await box.get('select').setValue('draft')
   expect(box.text()).toContain('about $0.51')
-  expect(buttons(w, 'Generate all missing', '[data-testid=batch]')[0]!.attributes('disabled')).toBeDefined()
+  const all = buttons(w, 'Generate all missing', '[data-testid=batch]')[0]!
+  expect(all.attributes('disabled')).toBeUndefined()
+  await all.trigger('click'); await flushPromises()
+  expect(w.text()).toContain('Tick "I understand each run spends')
+  expect(calls(f, 'POST', '/api/media/generate')).toHaveLength(0)
   w.unmount()
 })
 it('asks once with the total, then makes one request per slot that is not made yet', async () => {

@@ -10,6 +10,10 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+### Fixed
+
+- The media panel's Generate buttons no longer sit dimmed and silent until the spending box is ticked: pressing one without it says what is missing and takes you to the box.
+
 ## [0.6.23] - 2026-10-18
 
 ### Fixed

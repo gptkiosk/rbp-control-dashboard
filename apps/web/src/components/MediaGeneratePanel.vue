@@ -53,8 +53,16 @@ const batch = computed(() => {
 })
 const unfinished = computed(() => jobs.value.filter(j => j.state === 'queued' || j.state === 'running').length)
 function queue(slot: string, ids: string[]) { for (const id of ids) jobs.value.push({ id, state: 'queued', progress: '', slot, error: null, files: [] }) }
+const confirmBox = ref<HTMLInputElement | null>(null)
+const CONFIRM_HINT = 'Tick "I understand each run spends from my fal account" at the top of this section first.'
+// A button that does nothing is the worst answer. Without the acknowledgement it says why and takes you to the box.
+function needConfirm(slot?: string) {
+  if (slot) note.value[slot] = { ok: false, text: CONFIRM_HINT } ; else error.value = CONFIRM_HINT
+  confirmBox.value?.scrollIntoView?.({ block: 'center' }); confirmBox.value?.focus()
+}
 async function generateAll() {
-  if (!confirm.value || busy.value || !eligible.value.length) return
+  if (busy.value || !eligible.value.length) return
+  if (!confirm.value) { needConfirm(); return }
   const n = eligible.value.length, tierName = batchTier.value === 'each' ? 'chosen' : batchTier.value
   const price = batch.value.unknown ? `about $${batch.value.total.toFixed(2)} plus ${batch.value.unknown} with no listed price` : `about $${batch.value.total.toFixed(2)}`
   if (!window.confirm(`Generate ${n} item${n === 1 ? '' : 's'} at the ${tierName} tier? Estimated cost ${price}. This spends from your fal account and cannot be undone; fal's invoice is the truth.`)) return
@@ -68,7 +76,8 @@ const candidateUrl = (name: string) => `/api/media/candidate?working_dir=${encod
 const isVideo = (name: string) => /\.(mp4|webm)$/i.test(name)
 function estimate(s: Slot) { const e = s.plans[tier.value[s.name] || 'standard'].estimate_usd; return e === null ? null : e * (count.value[s.name] || 1) }
 async function generate(s: Slot, anotherTake = false) {
-  if (!confirm.value || busy.value) return
+  if (busy.value) return
+  if (!confirm.value) { needConfirm(s.name); return }
   const n = count.value[s.name] || 1, price = money(estimate(s))
   if (!window.confirm(`Generate ${n} for ${s.name} at the ${tier.value[s.name] || 'standard'} tier? Estimated cost ${price}. This spends from your fal account.`)) return
   busy.value = true; offerTake.value[s.name] = false
@@ -139,7 +148,7 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
       </select>
     </label>
     <p v-if="!props.workingDir && folders.length === 0" class="muted small">No folder with <code>media/slots.json</code> was found in your allowed working directories.</p>
-    <label class="check"><input v-model="confirm" type="checkbox" /> I understand each run spends from my fal account. Estimates are shown, but fal's invoice is the truth, and nothing here limits spending.</label>
+    <label class="check"><input ref="confirmBox" v-model="confirm" type="checkbox" /> I understand each run spends from my fal account. Estimates are shown, but fal's invoice is the truth, and nothing here limits spending.</label>
     <p v-if="slots.length" class="small" role="status" data-testid="summary">
       {{ published.length }} published · {{ skipped.length }} skipped · {{ review.length }} waiting for your decision · {{ todo.length }} not made yet<template v-if="unfinished"> · <strong>{{ unfinished }} generating now</strong></template>
     </p>
@@ -150,7 +159,7 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
       <div class="controls">
         <select v-model="batchTier" class="input" aria-label="Tier for all"><option value="each">each slot's own tier</option><option value="draft">draft (cheapest)</option><option value="standard">standard</option><option value="premium">premium</option></select>
         <span class="small">{{ eligible.length ? (batch.unknown ? `about $${batch.total.toFixed(2)} plus ${batch.unknown} with no listed price` : `about $${batch.total.toFixed(2)}`) : 'nothing to generate' }}</span>
-        <button type="button" class="btn primary" :disabled="!keyOk || !confirm || busy || !eligible.length" @click="generateAll">Generate all missing</button>
+        <button type="button" class="btn primary" :disabled="!keyOk || busy || !eligible.length" @click="generateAll">Generate all missing</button>
       </div>
       <p class="muted small">Draft stills are too small to publish. Clips need their approved stills published first, so accept the stills, then run this again for the rest.</p>
     </div>
@@ -174,7 +183,7 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
         <select v-model="tier[s.name]" class="input" :aria-label="`${s.name} tier`"><option value="draft">draft (cheapest)</option><option value="standard">standard</option><option value="premium">premium</option></select>
         <input v-model.number="count[s.name]" class="input" type="number" min="1" max="4" :aria-label="`${s.name} how many`" />
         <span class="small">{{ money(estimate(s)) }}</span>
-        <button type="button" class="btn primary" :disabled="!keyOk || !confirm || busy" @click="generate(s)">Generate</button>
+        <button type="button" class="btn primary" :disabled="!keyOk || busy" @click="generate(s)">Generate</button>
       </div>
       <p v-if="note[s.name]" class="small" :class="note[s.name]!.ok ? 'ok-text' : 'error-text'" :role="note[s.name]!.ok ? 'status' : 'alert'" :data-note="s.name">{{ note[s.name]!.text }}</p>
       <button v-if="offerTake[s.name]" type="button" class="btn" :disabled="busy" :aria-label="`Another take for ${s.name}`" @click="generate(s, true)">Another take (spends again)</button>
@@ -191,7 +200,7 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
         <select v-model="tier[s.name]" class="input" :aria-label="`${s.name} tier`"><option value="draft">draft (cheapest)</option><option value="standard">standard</option><option value="premium">premium</option></select>
         <input v-model.number="count[s.name]" class="input" type="number" min="1" max="4" :aria-label="`${s.name} how many`" />
         <span class="small">{{ money(estimate(s)) }}</span>
-        <button type="button" class="btn primary" :disabled="!keyOk || !confirm || busy || s.waiting_for_stills.length > 0" @click="generate(s)">Generate</button>
+        <button type="button" class="btn primary" :disabled="!keyOk || busy || s.waiting_for_stills.length > 0" @click="generate(s)">Generate</button>
         <button type="button" class="btn" :disabled="working[s.name]" :aria-label="`Skip ${s.name}`" @click="decide(s, 'skip')">Skip: use the fallback</button>
       </div>
       <p v-if="note[s.name]" class="small" :class="note[s.name]!.ok ? 'ok-text' : 'error-text'" :role="note[s.name]!.ok ? 'status' : 'alert'" :data-note="s.name">{{ note[s.name]!.text }}</p>
@@ -217,7 +226,7 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
         <select v-model="tier[s.name]" class="input" :aria-label="`${s.name} tier`"><option value="draft">draft (cheapest)</option><option value="standard">standard</option><option value="premium">premium</option></select>
         <input v-model.number="count[s.name]" class="input" type="number" min="1" max="4" :aria-label="`${s.name} how many`" />
         <span class="small">{{ money(estimate(s)) }}</span>
-        <button type="button" class="btn primary" :disabled="!keyOk || !confirm || busy" @click="generate(s)">Generate</button>
+        <button type="button" class="btn primary" :disabled="!keyOk || busy" @click="generate(s)">Generate</button>
       </div>
       <p v-if="note[s.name]" class="small" :class="note[s.name]!.ok ? 'ok-text' : 'error-text'" :role="note[s.name]!.ok ? 'status' : 'alert'" :data-note="s.name">{{ note[s.name]!.text }}</p>
       <button v-if="offerTake[s.name]" type="button" class="btn" :disabled="busy" :aria-label="`Another take for ${s.name}`" @click="generate(s, true)">Another take (spends again)</button>
