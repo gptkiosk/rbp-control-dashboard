@@ -23,7 +23,9 @@ GOOD_SITE = [
     story("e2", "Approve the look from the preview", ["e"], assignee="human"),
     story("f", "Container and pipeline finish", ["e2"]),
     story("f2", "Push the project branch and open the pull request", ["f"]),
-    story("g", "Final local verification on Colima: docker compose up --build, and the pipeline result", ["f2"], assignee="human"),
+    story("f3", "README with the architecture diagram and a how-to for each page", ["f"]),
+    story("f4", "Capture the application screenshots with the Playwright script", ["f3"], assignee="human"),
+    story("g", "Final local verification on Colima: docker compose up --build, and the pipeline result", ["f2", "f4"], assignee="human"),
 ]
 
 
@@ -68,7 +70,8 @@ def test_web_app_and_packaged_app_checks():
     assert {"release-is-human", "has-install-test", "has-release-approval"} <= ids(pt.check("packaged-app", package))
     ok = [story("a", "Code and tests"), story("b", "Verify the package checksum signature and manifest", ["a"]),
           story("c", "Install and update test on the Pi", ["b"], assignee="human"), story("d", "Approve publishing the release", ["c"], assignee="human"),
-          story("e", "Push the branch and open the pull request, then read the pipeline result", ["a"])]
+          story("e", "Push the branch and open the pull request, then read the pipeline result", ["a"]),
+          story("f", "Write the README and how-tos with a data-flow diagram", ["a"]), story("g", "Capture the screenshots with Playwright", ["f"], assignee="human")]
     assert pt.check("packaged-app", ok) == []
 
 
@@ -150,7 +153,7 @@ def test_the_consultant_is_told_the_types_and_the_media_rules():
 
 def test_a_chosen_type_focuses_the_consultant_and_other_is_a_real_type():
     other = pt.load()["other"]
-    assert other["label"].startswith("Other") and other["suggest"] == [] and {c["id"] for c in other["checks"]} == {"container-needs-human", "browser-checks-need-a-person", "delivery-to-remote"}     # never suggested; only the limits and the delivery gate every project has
+    assert other["label"].startswith("Other") and other["suggest"] == [] and {c["id"] for c in other["checks"]} == {"container-needs-human", "browser-checks-need-a-person", "delivery-to-remote", "readme-story", "screenshots-by-a-person-or-ci"}     # never suggested; only the limits and the delivery and documentation gates every project has
     assert "most resembles" in other["planner_text"]
     text = pt.consultant_text(type_id="website-property")
     assert "The operator chose the project type Website property" in text and "A person signs off:" in text and "Known failure:" in text
@@ -176,3 +179,20 @@ def test_each_type_says_whether_its_repository_is_public_or_private():
     for type_id in ("web-app", "website-property"):
         assert "The repository is private" in load[type_id]["planner_text"] and "proprietary" in load[type_id]["planner_text"]
     assert "public for an MIT-licensed project" in load["other"]["planner_text"] and "private for anything proprietary" in load["other"]["planner_text"]
+
+
+def test_every_type_asks_for_a_readme_with_diagrams_and_screenshots_made_by_a_person_or_the_pipeline():
+    for type_id in ("web-app", "packaged-app", "website-property", "other"):
+        t = pt.load()[type_id]
+        assert "Mermaid architecture diagram" in t["planner_text"] and "Playwright" in t["planner_text"] and "no browser" in t["planner_text"]
+        assert "readme-and-docs.md" in t["guides"]
+        assert any("Mermaid" in fp and "Playwright" in fp for fp in t["failure_points"])
+        none = [story("a", "Code and tests")]
+        assert {"readme-story", "screenshots-by-a-person-or-ci"} <= ids(pt.check(type_id, none))
+        docs = [story("a", "Write the README with a Mermaid diagram and how-tos")]
+        assert "readme-story" not in ids(pt.check(type_id, docs)) and "screenshots-by-a-person-or-ci" in ids(pt.check(type_id, docs))
+        agent_shots = [story("a", "Capture the screenshots with Playwright", assignee="claude")]
+        assert "screenshots-by-a-person-or-ci" in ids(pt.check(type_id, agent_shots))             # an agent cannot make them: it still needs the human or CI story
+        assert "browser-checks-need-a-person" in ids(pt.check(type_id, agent_shots))
+        writes = [story("a", "Write the Playwright screenshot script and the README that uses its images", assignee="claude")]
+        assert "browser-checks-need-a-person" not in ids(pt.check(type_id, writes))                # writing the script is fine; running it is not

@@ -200,7 +200,7 @@ def starter(data_dir=None) -> dict:
             'message': 'No starter standards were found.', 'rules': {}, 'security_checks': []}
 
 
-GUIDES = ('practices.md', 'security.md', 'web-app-delivery.md', 'packaged-app-delivery.md', 'container-app-delivery.md', 'website-design-delivery.md', 'website-spacing-and-timing.md')
+GUIDES = ('practices.md', 'security.md', 'web-app-delivery.md', 'packaged-app-delivery.md', 'container-app-delivery.md', 'website-design-delivery.md', 'website-spacing-and-timing.md', 'readme-and-docs.md')
 
 
 def guide_text(name: str, data_dir=None, limit: int = 2200) -> str:
