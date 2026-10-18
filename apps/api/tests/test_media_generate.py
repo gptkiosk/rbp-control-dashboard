@@ -261,3 +261,23 @@ def test_every_endpoint_the_generator_can_choose_is_in_the_catalog():
     for slot in ({"kind": "image", "refs": ["a"]}, {"kind": "image"}, {"kind": "video", "from_still": "a"}, {"kind": "video", "first_still": "a", "last_still": "b"}, {"kind": "video"}):
         for tier in mg.TIERS:
             assert mg.endpoint_for(slot, tier) in ids, (slot, tier)
+
+
+def test_each_still_is_made_in_its_own_shape_unless_one_is_asked_for(env):
+    client, folder = env
+    slots = {"slots": [
+        {"name": "hero-still", "kind": "image", "prompt": "Wide scene.", "width": 2560, "height": 1100},
+        {"name": "card-x", "kind": "image", "prompt": "Square card.", "width": 1200, "height": 1200},
+        {"name": "about-x", "kind": "image", "prompt": "Vignette.", "width": 1600, "height": 900},
+        {"name": "tall-x", "kind": "image", "prompt": "Portrait.", "width": 900, "height": 1200},
+        {"name": "plain-x", "kind": "image", "prompt": "No size given."},
+    ]}
+    (folder / "media" / "slots.json").write_text(json.dumps(slots))
+    for name, expected in (("hero-still", "21:9"), ("card-x", "1:1"), ("about-x", "16:9"), ("tall-x", "3:4"), ("plain-x", "16:9")):
+        FakeFal.log = []
+        run_and_wait(client, {"working_dir": str(folder), "slot": name})
+        body = [e for e in FakeFal.log if e[0] == "POST"][0][3]
+        assert body["aspect_ratio"] == expected, (name, body["aspect_ratio"])
+    FakeFal.log = []
+    run_and_wait(client, {"working_dir": str(folder), "slot": "card-x", "aspect": "4:5"})
+    assert [e for e in FakeFal.log if e[0] == "POST"][0][3]["aspect_ratio"] == "4:5"                 # an explicit choice still wins
