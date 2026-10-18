@@ -339,7 +339,7 @@ def catalog_problems(raw: object, catalog_dir: Path | None = None) -> list[str]:
         need(set(comp) <= COMPONENT_KEYS, f"{where}: unknown keys {sorted(set(comp) - COMPONENT_KEYS)}")
         installer = comp.get("installer")
         need(installer in INSTALLERS, f"{where}: unknown installer {installer!r}")
-        need(runtime == (installer == "archive"), f"{where}: runtimes use the archive installer and tools do not")
+        need(not runtime or installer == "archive", f"{where}: a runtime uses the archive installer")
         need(isinstance(comp.get("name"), str) and 0 < len(comp["name"]) <= 60, f"{where}: needs a name")
         need(isinstance(comp.get("version"), str) and VERSION.match(comp["version"]), f"{where}: bad version")
         need(type(comp.get("size_mb")) is int and 0 < comp["size_mb"] < 100_000, f"{where}: size_mb must be a positive integer")
@@ -362,7 +362,7 @@ def catalog_problems(raw: object, catalog_dir: Path | None = None) -> list[str]:
                 names.append(entry["name"])
         need(len(names) == len(set(names)), f"{where}: duplicate command names")
         need(bool(names) == (not runtime), f"{where}: a tool needs at least one command and a runtime none")
-        if runtime:
+        if installer == "archive":
             archive = comp.get("archive")
             if not isinstance(archive, dict):
                 problems.append(f"{where}: archive must map platform keys to archives")
@@ -372,7 +372,7 @@ def catalog_problems(raw: object, catalog_dir: Path | None = None) -> list[str]:
             for plat, a in archive.items():
                 need(plat in platforms, f"{where}: archive for undeclared platform {plat}")
                 ok = (isinstance(a, dict) and set(a) <= {"url", "sha256", "size", "format", "root", "shasums_url"}
-                      and a.get("format") in ("tar.xz", "tar.gz") and _rel_ok(a.get("root"))
+                      and a.get("format") in ("tar.xz", "tar.gz", "zip") and _rel_ok(a.get("root"))
                       and isinstance(a.get("sha256"), str) and SHA256.match(a["sha256"])
                       and type(a.get("size")) is int and 0 < a["size"] < 2 * 1024 ** 3)
                 need(ok, f"{where}: bad archive entry for {plat}")
@@ -382,7 +382,7 @@ def catalog_problems(raw: object, catalog_dir: Path | None = None) -> list[str]:
                             why = url_problem(a[key])
                             need(why is None, f"{where}: {why}")
                     need("url" in a, f"{where}: archive needs a url")
-        else:
+        if not runtime:
             requires = comp.get("requires")
             need(isinstance(requires, list) and all(r in runtimes for r in requires), f"{where}: requires names unknown runtimes")
             login = comp.get("login")
@@ -1178,6 +1178,8 @@ def extract_archive(archive: Path, fmt: str, root: str, dest: Path) -> None:
     """
     if os.path.lexists(dest):
         raise ToolError(f"{dest} already exists")
+    if fmt == "zip":
+        return _extract_zip(archive, root, dest)
     mode = {"tar.xz": "r:xz", "tar.gz": "r:gz"}[fmt]
     os.mkdir(dest, 0o700)
     base = os.path.realpath(dest)
@@ -1226,6 +1228,49 @@ def extract_archive(archive: Path, fmt: str, root: str, dest: Path) -> None:
                 else:
                     raise ToolError(f"archive member type refused: {mem.name[:80]!r}")
     except (tarfile.TarError, OSError, EOFError) as exc:
+        raise ToolError(f"the archive could not be unpacked ({type(exc).__name__})") from None
+
+
+def _extract_zip(archive: Path, root: str, dest: Path) -> None:
+    """The zip counterpart of the tar rules above: plain files and folders only (no links, devices or odd types), every path under `root` and inside
+    `dest`, modes without setuid/setgid or group/other write, and bounded counts and sizes. Anything else aborts the whole unpack."""
+    import zipfile
+    os.mkdir(dest, 0o700)
+    base = os.path.realpath(dest)
+    count = total = 0
+    try:
+        with zipfile.ZipFile(archive) as zf:
+            for info in zf.infolist():
+                count += 1
+                if count > MAX_EXTRACT_MEMBERS:
+                    raise ToolError("the archive has too many members")
+                name = info.filename
+                parts = [p for p in name.split("/") if p not in ("", ".")]
+                if name.startswith("/") or "\\" in name or not parts or parts[0] != root or ".." in parts:
+                    raise ToolError(f"archive member refused: {name[:80]!r}")
+                rel = "/".join(parts[1:])
+                if not rel:
+                    continue
+                mode = (info.external_attr >> 16) & 0o177777
+                kind = stat.S_IFMT(mode) if mode else 0
+                if kind and kind not in (stat.S_IFREG, stat.S_IFDIR):
+                    raise ToolError(f"archive member type refused: {name[:80]!r}")
+                target = os.path.join(base, rel)
+                if os.path.commonpath([base, os.path.realpath(os.path.dirname(target))]) != base:
+                    raise ToolError(f"archive member leaves the folder: {name[:80]!r}")
+                if info.is_dir() or kind == stat.S_IFDIR:
+                    os.makedirs(target, mode=0o755, exist_ok=True)
+                    continue
+                os.makedirs(os.path.dirname(target), mode=0o755, exist_ok=True)
+                total += info.file_size
+                if total > MAX_EXTRACT_BYTES:
+                    raise ToolError("the archive unpacks to more than the limit")
+                perm = 0o755 if mode & 0o111 else 0o644
+                fd = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, perm)
+                with zf.open(info) as src, os.fdopen(fd, "wb") as out:
+                    shutil.copyfileobj(src, out, CHUNK)
+                os.chmod(target, perm)
+    except (zipfile.BadZipFile, OSError, EOFError, NotImplementedError, RuntimeError) as exc:
         raise ToolError(f"the archive could not be unpacked ({type(exc).__name__})") from None
 
 

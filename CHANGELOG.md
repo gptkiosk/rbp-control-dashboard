@@ -10,6 +10,15 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+### Added
+
+- **GitHub CLI (`gh`) in Agent tools**: a pinned, checksum-verified per-user install (no administrator rights) for Linux arm64 (tar.gz) and Apple Silicon (zip, with a new safe zip extractor that refuses links, devices and anything outside the folder). Its sign-in note warns that a signed-in `gh` stores a credential any full-shell agent can read; pushing a branch needs only the SSH key from Host readiness.
+- **Host readiness installs and updates tools**: each missing optional tool says how to get it (Agent tools for `gh` and Node; a copy-paste administrator command on Linux). On a Mac with Homebrew the wizard installs ffmpeg, python, docker and colima, starts Colima, and **Update tools with Homebrew** runs `brew update` and upgrades only its own packages, as a one-at-a-time job with a live log, a clean environment and a time limit. It checks Homebrew and Colima first and, without Homebrew, shows its official install command for you to run.
+
+### Fixed
+
+- The host readiness network check no longer reports OpenRouter as unreachable: Python's default client was refused with a 403 by OpenRouter, which is an answer from a reachable server. Any HTTP answer now counts as reachable, the check sends a normal User-Agent, and a real failure names its reason.
+
 ## [0.6.26] - 2026-10-18
 
 ### Fixed

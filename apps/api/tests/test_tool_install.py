@@ -96,6 +96,12 @@ class FakeOps:
         if binary:
             dest.write_bytes(script(f'echo "grok {binary["version"]}"'))
             return
+        tool_archive = next(((c, a) for c in self.catalog.raw["tools"].values() for a in c.get("archive", {}).values() if a["url"] == url), None)
+        if tool_archive:                                                        # a tool shipped as a release archive (the GitHub CLI)
+            comp, a = tool_archive
+            files = {"bin/gh": (script(f'echo "gh version {comp["version"]} (2026-10-01)"'), 0o755), "LICENSE": (b"mit", 0o644)}
+            make_tar(dest, a["root"], files, "w:xz" if a["format"] == "tar.xz" else "w:gz")
+            return
         comp, a = next((c, a) for c in self.catalog.raw["runtimes"].values() for a in c["archive"].values() if a["url"] == url)
         v = comp["version"]
         files = {"bin/node": (script(f'echo "v{v}"'), 0o755),
@@ -104,7 +110,8 @@ class FakeOps:
 
     def fetch_text(self, url):
         self.shasums.append(url)
-        return "".join(f"{a['sha256']}  {a['url'].rsplit('/', 1)[1]}\n" for c in self.catalog.raw["runtimes"].values() for a in c["archive"].values() if a.get("shasums_url") == url)
+        both = [*self.catalog.raw["runtimes"].values(), *(c for c in self.catalog.raw["tools"].values() if "archive" in c)]
+        return "".join(f"{a['sha256']}  {a['url'].rsplit('/', 1)[1]}\n" for c in both for a in c["archive"].values() if a.get("shasums_url") == url)
 
     def run(self, argv, cwd, env, timeout, log, label):
         self.ran.append((label, list(argv)))
@@ -176,7 +183,7 @@ def tree(path: Path) -> set:
 
 def test_the_shipped_catalog_is_valid_and_every_source_is_pinned():
     catalog = ti.load_catalog(API)
-    assert catalog.tool_ids() == ["claude-code", "codex", "openclaw", "hermes", "grok"] and list(catalog.raw["runtimes"]) == ["node"]
+    assert catalog.tool_ids() == ["claude-code", "codex", "openclaw", "hermes", "grok", "gh"] and list(catalog.raw["runtimes"]) == ["node"]
     raw = catalog.raw
     for cid in ("claude-code", "codex", "openclaw"):
         folder = API / raw["tools"][cid]["lock_dir"]
@@ -683,7 +690,7 @@ def test_remove_is_allowed_even_on_a_full_disk(cfg, catalog):
 
 def test_inspect_lists_each_tool_with_what_its_buttons_would_do(cfg, catalog):
     view = ti.inspect(cfg, catalog, facts())
-    assert [t["id"] for t in view["tools"]] == ["claude-code", "codex", "openclaw", "hermes", "grok"]
+    assert [t["id"] for t in view["tools"]] == ["claude-code", "codex", "openclaw", "hermes", "grok", "gh"]
     codex = view["tools"][1]
     assert codex["installed"] is False and codex["actions"]["install"] == [] and codex["actions"]["remove"] is None
     assert codex["actions"]["update"] is None and codex["actions"]["rollback"] is None
@@ -756,6 +763,60 @@ def test_extraction_strips_the_root_and_drops_setuid_and_group_write(tmp_path):
     assert os.readlink(dest / "bin" / "alias") == "tool"
     with pytest.raises(ti.ToolError, match="already exists"):
         ti.extract_archive(archive, "tar.gz", "root", dest)
+
+
+# --- zip archives (the GitHub CLI for macOS ships as a zip) ---------------------------------------
+
+
+def _zip(tmp_path, entries):
+    import zipfile
+    path = tmp_path / "a.zip"
+    with zipfile.ZipFile(path, "w") as zf:
+        for name, data, mode in entries:
+            info = zipfile.ZipInfo(name)
+            info.external_attr = (mode & 0o177777) << 16
+            zf.writestr(info, data)
+    return path
+
+
+@pytest.mark.parametrize("name,mode,why", [
+    ("root/../../escape", 0o100644, "refused"),
+    ("/etc/passwd", 0o100644, "refused"),
+    ("other/file", 0o100644, "refused"),
+    ("root/link", 0o120777, "type refused"),
+    ("root/dev", 0o020644, "type refused"),
+])
+def test_zip_extraction_refuses_unsafe_members(tmp_path, name, mode, why):
+    archive = _zip(tmp_path, [(name, b"x", mode)])
+    with pytest.raises(ti.ToolError, match=why):
+        ti.extract_archive(archive, "zip", "root", tmp_path / "out")
+    assert not (tmp_path / "etc").exists() and not (tmp_path / "escape").exists()
+
+
+def test_zip_extraction_strips_the_root_keeps_exec_and_drops_setuid_and_group_write(tmp_path):
+    archive = _zip(tmp_path, [("root/bin/gh", b"#!/bin/sh\n", 0o104775), ("root/LICENSE", b"mit", 0o100664)])
+    dest = tmp_path / "out"
+    ti.extract_archive(archive, "zip", "root", dest)
+    assert (dest / "bin" / "gh").stat().st_mode & 0o7777 == 0o755 and (dest / "LICENSE").stat().st_mode & 0o7777 == 0o644
+    with pytest.raises(ti.ToolError, match="already exists"):
+        ti.extract_archive(archive, "zip", "root", dest)
+
+
+def test_a_broken_zip_is_refused_not_half_unpacked(tmp_path):
+    bad = tmp_path / "bad.zip"
+    bad.write_bytes(b"not a zip at all")
+    with pytest.raises(ti.ToolError, match="could not be unpacked"):
+        ti.extract_archive(bad, "zip", "root", tmp_path / "out")
+
+
+def test_the_github_cli_is_a_pinned_archive_tool_for_both_platforms_checked_against_the_published_checksums():
+    gh = ti.load_catalog(API).raw["tools"]["gh"]
+    assert gh["installer"] == "archive" and gh["bins"] == [{"name": "gh", "argv": ["bin/gh"]}] and gh["requires"] == []
+    for plat, fmt in (("linux-arm64", "tar.gz"), ("darwin-arm64", "zip")):
+        a = gh["archive"][plat]
+        assert a["format"] == fmt and a["url"].startswith("https://github.com/cli/cli/releases/download/v2.102.0/") and len(a["sha256"]) == 64
+        assert a["shasums_url"].endswith("_checksums.txt") and a["root"].startswith("gh_2.102.0_")
+    assert "credential on this machine" in gh["login"]["note"]                    # the sign-in warns what it stores and who can read it
 
 
 # --- transport ------------------------------------------------------------------------------------
@@ -956,3 +1017,20 @@ def test_native_unknown_version_is_present_but_never_silently_downgraded(cfg,cat
     row=next(t for t in ti.inspect(cfg,catalog,facts(elsewhere={'codex':str(native)}))['tools'] if t['id']=='codex')
     assert row['installed'] and row['installed_version'] is None
     assert row['actions']['update'] is None and row['actions']['install'] is None
+
+
+def test_the_github_cli_installs_removes_and_reports_like_any_other_tool_without_node(cfg, catalog):
+    ops = FakeOps(catalog)
+    p = plan(cfg, catalog, "gh", "install")
+    assert p["refusals"] == [] and [s["op"] for s in p["steps"]][:3] == ["download", "verify_shasums", "extract"]
+    assert not any(s["op"] == "run" for s in p["steps"])                          # nothing is built or run to install it: a verified archive is unpacked
+    run(cfg, catalog, "gh", "install", ops=ops)
+    assert ops.fetched == ["https://github.com/cli/cli/releases/download/v2.102.0/gh_2.102.0_linux_arm64.tar.gz"]
+    assert ops.shasums == ["https://github.com/cli/cli/releases/download/v2.102.0/gh_2.102.0_checksums.txt"]      # checked against GitHub's published list
+    view = {t["id"]: t for t in ti.inspect(cfg, catalog, facts())["tools"]}["gh"]
+    assert view["installed"] is True and view["installed_version"] == "2.102.0" and view["path"] == str(cfg.bin / "gh")
+    assert (cfg.bin / "gh").is_file() and os.access(cfg.bin / "gh", os.X_OK)
+    assert (cfg.comp_dir("gh") / "current" / "bin" / "gh").is_file()
+    assert ti.managed_bin(cfg.root, "gh") == str(cfg.bin / "gh")                    # the app finds it without a restart
+    run(cfg, catalog, "gh", "remove")
+    assert not (cfg.bin / "gh").exists()

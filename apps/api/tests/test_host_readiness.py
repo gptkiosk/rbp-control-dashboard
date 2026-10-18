@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import os
+import sys
 import stat
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -28,8 +30,9 @@ def by_id(report):
     return {c["id"]: c for c in report["checks"]}
 
 
-def test_a_bare_machine_says_what_is_missing_and_offers_only_named_fixes(host):
+def test_a_bare_machine_says_what_is_missing_and_offers_only_named_fixes(host, monkeypatch):
     home, settings = host
+    monkeypatch.setattr(hr.sys, "platform", "linux")
     checks = by_id(hr.report(settings))
     assert checks["workspace"]["status"] == "missing" and checks["workspace"]["fix"]["action"] == "create_workspace"
     assert "scratch folder" in checks["workspace"]["detail"] and "clone the repository" in checks["workspace"]["detail"]
@@ -248,3 +251,256 @@ def test_tools_are_found_under_the_roots_the_settings_name_and_agents_the_way_th
     assert {t["id"]: t["installed"] for t in checks["tools"]["tools"]}["node"] is True
     assert checks["tools_path"]["status"] == "warn" and str(managed / "bin") in checks["tools_path"]["detail"]       # installed tools exist and the shell cannot see them
     assert {a["id"]: a["installed"] for a in checks["agents"]["agents"]}["claude"] is True                         # an agent installed after startup is found, as it is when a task runs
+
+
+def _serve(status):
+    import http.server
+    import threading
+
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def do_HEAD(self):
+            self.send_response(status)
+            self.end_headers()
+
+        def log_message(self, *a):
+            pass
+    server = http.server.HTTPServer(("127.0.0.1", 0), Handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    return server
+
+
+def test_a_service_that_refuses_unfamiliar_clients_with_403_is_still_reachable(monkeypatch):
+    import urllib.request
+    server = _serve(403)
+    real = urllib.request.urlopen
+    monkeypatch.setattr(urllib.request, "urlopen", lambda req, timeout=5: real(urllib.request.Request(f"http://127.0.0.1:{server.server_port}", method="HEAD", headers=dict(req.header_items())), timeout=timeout))
+    ok, why = hr._reachable("openrouter.ai")
+    server.shutdown()
+    assert ok is True and "403" in why
+
+
+def test_a_host_that_cannot_be_connected_to_is_unreachable_and_the_reason_is_named(monkeypatch):
+    import socket
+    import urllib.request
+    s = socket.socket()
+    s.bind(("127.0.0.1", 0))
+    port = s.getsockname()[1]
+    s.close()                                                     # nothing listens here now
+    real = urllib.request.urlopen
+    monkeypatch.setattr(urllib.request, "urlopen", lambda req, timeout=5: real(urllib.request.Request(f"http://127.0.0.1:{port}", method="HEAD"), timeout=timeout))
+    ok, why = hr._reachable("github.com")
+    assert ok is False and "URLError" in why
+    check = hr.check_network()
+    assert check["status"] == "warn" and "Cannot reach: github.com (" in check["detail"] and "openrouter.ai (" in check["detail"]
+
+
+def test_the_network_check_sends_a_real_user_agent_not_the_python_default(monkeypatch):
+    import urllib.request
+    seen = {}
+
+    class Done(Exception):
+        pass
+
+    def fake(req, timeout=5):
+        seen.update({k.lower(): v for k, v in req.header_items()})
+        raise Done()
+    monkeypatch.setattr(urllib.request, "urlopen", fake)
+    hr._reachable("github.com")
+    assert seen["user-agent"].startswith("dashboard-host-readiness") and "python-urllib" not in seen["user-agent"].lower()
+
+
+def test_each_missing_tool_says_how_to_get_it_and_the_dashboard_never_offers_to_run_a_sudo_command(host, monkeypatch):
+    home, settings = host
+    monkeypatch.setattr(hr.sys, "platform", "linux")
+    monkeypatch.setattr(hr, "_tool", lambda name, settings=None: None)                       # nothing is installed
+    tools = {t["id"]: t for t in by_id(hr.report(settings))["tools"]["tools"]}
+    assert tools["gh"]["get"]["kind"] == "agent_tools" and tools["gh"]["get"]["tool"] == "gh"
+    assert tools["node"]["get"]["kind"] == "agent_tools"
+    docker = tools["docker"]["get"]
+    assert docker["kind"] == "command" and "docker" in docker["command"] and "does not run it" in docker["note"]
+    assert tools["ffmpeg"]["get"]["kind"] == "command" and tools["python3"]["get"]["kind"] == "command"
+    monkeypatch.setattr(hr.sys, "platform", "linux")
+    assert "apt-get" in hr._how_to_get("docker")["command"] and "usermod" in hr._how_to_get("docker")["command"]
+    monkeypatch.setattr(hr.sys, "platform", "darwin")
+    assert hr._how_to_get("docker")["command"].startswith("brew install") and hr._how_to_get("unknown") is None
+
+
+def test_a_tool_that_is_present_carries_no_hint(host):
+    home, settings = host
+    present = [t for t in by_id(hr.report(settings))["tools"]["tools"] if t["installed"]]
+    assert present and all("get" not in t for t in present)
+
+
+def test_on_a_mac_hints_use_homebrew_and_colima_and_start_with_installing_homebrew_when_it_is_missing(host, monkeypatch):
+    home, settings = host
+    monkeypatch.setattr(hr.sys, "platform", "darwin")
+    present = set()
+    monkeypatch.setattr(hr, "_tool", lambda name, settings=None: f"/opt/{name}" if name in present else None)
+    monkeypatch.setattr(hr, "_colima_running", lambda: False)
+    tools = {t["id"]: t for t in by_id(hr.report(settings))["tools"]["tools"]}
+    assert {"brew", "colima"} <= set(tools)                                                         # Mac-only rows
+    assert tools["brew"]["get"]["command"].startswith("/bin/bash -c") and "asks for your password" in tools["brew"]["get"]["note"]
+    for name in ("docker", "ffmpeg", "python3"):
+        assert tools[name]["get"]["command"] == hr.BREW_INSTALL and "Homebrew is not installed" in tools[name]["get"]["note"]     # Homebrew first
+    present.add("brew")
+    tools = {t["id"]: t for t in by_id(hr.report(settings))["tools"]["tools"]}
+    assert tools["brew"]["installed"] is True and "get" not in tools["brew"]
+    assert tools["docker"]["get"]["command"] == "brew install colima docker docker-compose && colima start" and tools["ffmpeg"]["get"]["command"] == "brew install ffmpeg"
+    present.update({"docker", "colima"})
+    tools = {t["id"]: t for t in by_id(hr.report(settings))["tools"]["tools"]}
+    assert tools["colima"]["installed"] is False and tools["colima"]["stopped"] is True and tools["colima"]["get"]["command"] == "colima start"
+    assert "colima (stopped)" in by_id(hr.report(settings))["tools"]["detail"]
+    monkeypatch.setattr(hr, "_colima_running", lambda: True)
+    assert {t["id"]: t for t in by_id(hr.report(settings))["tools"]["tools"]}["colima"]["installed"] is True
+
+
+def test_on_linux_there_are_no_homebrew_or_colima_rows(host, monkeypatch):
+    home, settings = host
+    monkeypatch.setattr(hr.sys, "platform", "linux")
+    assert not ({"brew", "colima"} & {t["id"] for t in by_id(hr.report(settings))["tools"]["tools"]})
+
+
+# ---------------------------------------------------------------- Homebrew installs and Colima, run by the dashboard on a Mac
+
+
+@pytest.fixture
+def mac(host, tmp_path, monkeypatch):
+    home, settings = host
+    settings.data_dir = tmp_path / "data"
+    monkeypatch.setattr(hr.sys, "platform", "darwin")
+    hr.JOB["current"] = None
+    bin_dir = tmp_path / "fakebin"
+    bin_dir.mkdir()
+
+    def tool(name, body):
+        path = bin_dir / name
+        path.write_text("#!/bin/sh\n" + body + "\n")
+        path.chmod(0o755)
+        return str(path)
+    paths = {"brew": tool("brew", 'echo "brew $@"; env | grep -E "SECRET|TOKEN"; if [ "$1" = "list" ]; then printf "ffmpeg\\npython\\nwget\\n"; fi; sleep 0.2; exit $(cat "$0.exit" 2>/dev/null || echo 0)'),
+             "colima": tool("colima", 'echo "colima $@"; exit 0')}
+    present = {"brew", "colima"}
+    monkeypatch.setattr(hr, "_tool", lambda name, settings=None: paths.get(name) if name in present else None)
+    yield settings, present
+    hr.JOB["current"] = None
+
+
+def _wait_done(limit=8.0):
+    import time
+    end = time.time() + limit
+    while time.time() < end:
+        job = hr.current_job()
+        if job and job["state"] != "running":
+            return job
+        time.sleep(0.05)
+    raise AssertionError("the job did not finish")
+
+
+def test_a_homebrew_install_runs_only_whitelisted_formulae_with_a_clean_environment_and_shows_its_log(mac, monkeypatch):
+    settings, present = mac
+    monkeypatch.setenv("MY_SECRET_VALUE", "do-not-leak")
+    monkeypatch.setenv("GITHUB_TOKEN", "do-not-leak")
+    message = hr.apply(settings, "brew_install", tool="docker")
+    assert "brew install colima docker docker-compose" in message
+    job = _wait_done()
+    assert job["state"] == "done" and job["exit"] == 0 and job["label"] == "Installing docker with Homebrew"
+    log = " ".join(job["tail"])
+    assert "install colima docker docker-compose" in log and "do-not-leak" not in log                 # the host's secrets never reach the child
+    for tool, formulae in (("ffmpeg", "ffmpeg"), ("python3", "python"), ("colima", "colima")):
+        hr.apply(settings, "brew_install", tool=tool)
+        assert f"install {formulae}" in " ".join(_wait_done()["tail"])
+
+
+def test_a_failed_homebrew_install_is_reported_with_its_exit_code(mac, monkeypatch):
+    settings, present = mac
+    Path(hr._tool("brew") + ".exit").write_text("3")
+    hr.apply(settings, "brew_install", tool="ffmpeg")
+    job = _wait_done()
+    assert job["state"] == "failed" and job["exit"] == 3
+    assert hr._job_env().keys() >= {"HOME", "PATH"}
+
+
+def test_only_one_job_runs_at_a_time_and_unknown_tools_or_a_missing_brew_are_refused(mac):
+    settings, present = mac
+    hr.apply(settings, "brew_install", tool="ffmpeg")
+    with pytest.raises(hr.ReadinessError) as busy:
+        hr.apply(settings, "brew_install", tool="python3")
+    assert busy.value.status == 409 and "still running" in str(busy.value)
+    _wait_done()
+    with pytest.raises(hr.ReadinessError, match="Choose ffmpeg"):
+        hr.apply(settings, "brew_install", tool="rm")
+    present.discard("brew")
+    with pytest.raises(hr.ReadinessError) as nobrew:
+        hr.apply(settings, "brew_install", tool="ffmpeg")
+    assert nobrew.value.status == 409 and "Install it first" in str(nobrew.value)
+
+
+def test_homebrew_and_colima_actions_are_refused_off_a_mac(host, monkeypatch):
+    home, settings = host
+    monkeypatch.setattr(hr.sys, "platform", "linux")
+    for action, kwargs in (("brew_install", {"tool": "ffmpeg"}), ("colima_start", {})):
+        with pytest.raises(hr.ReadinessError) as refused:
+            hr.apply(settings, action, **kwargs)
+        assert refused.value.status == 409
+
+
+def test_colima_can_be_started_and_missing_tools_offer_the_matching_fix(mac, monkeypatch):
+    settings, present = mac
+    assert "colima start" in hr.apply(settings, "colima_start")
+    assert "colima start" in " ".join(_wait_done()["tail"])
+    monkeypatch.setattr(hr, "_colima_running", lambda: False)
+    present.update({"colima", "docker"})
+    tools = {t["id"]: t for t in by_id(hr.report(settings))["tools"]["tools"]}
+    assert tools["colima"]["get"]["fix"] == {"action": "colima_start", "label": "Start Colima"}
+    present.discard("docker")
+    present.discard("colima")
+    tools = {t["id"]: t for t in by_id(hr.report(settings))["tools"]["tools"]}
+    assert tools["docker"]["get"]["fix"] == {"action": "brew_install", "tool": "docker", "label": "Install docker with Homebrew"}
+    assert "fix" not in tools["gh"]["get"] and "fix" not in tools["brew"].get("get", {})                 # gh comes from Agent tools; Homebrew itself needs the person's password
+    present.discard("brew")
+    tools = {t["id"]: t for t in by_id(hr.report(settings))["tools"]["tools"]}
+    assert "fix" not in tools["docker"]["get"] and tools["docker"]["get"]["command"] == hr.BREW_INSTALL   # no Homebrew yet: install it first, no button
+
+
+def test_the_job_route_and_the_tool_field_are_validated(make_client, tmp_path, monkeypatch):
+    home = tmp_path / "jhome"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+    hr.JOB["current"] = None
+    c = make_client()
+    with c:
+        assert c.get("/api/host/readiness/job").json() == {"job": None}
+        assert c.post("/api/host/readiness/fix", json={"action": "brew_install", "tool": "rm -rf /"}).status_code == 422
+        refused = c.post("/api/host/readiness/fix", json={"action": "brew_install", "tool": "ffmpeg"})
+        assert refused.status_code == 409 if sys.platform != "darwin" else refused.status_code in (409, 200)
+
+
+def test_updating_homebrew_tools_runs_update_then_upgrades_only_the_managed_formulae_that_are_installed(mac):
+    settings, present = mac
+    assert "brew update, then brew upgrade ffmpeg python" in hr.apply(settings, "brew_update")        # wget is installed too but is not the wizard's tool
+    job = _wait_done()
+    log = "\n".join(job["tail"])
+    assert job["state"] == "done" and "$ " in log and "brew update" in log and "brew upgrade ffmpeg python" in log and "wget" not in log.split("upgrade")[-1]
+    tools = by_id(hr.report(settings))["tools"]
+    assert tools["fix"] == {"action": "brew_update", "label": "Update tools with Homebrew"}
+
+
+def test_a_failing_update_stops_before_upgrading_anything(mac):
+    settings, present = mac
+    Path(hr._tool("brew") + ".exit").write_text("1")
+    hr.apply(settings, "brew_update")
+    job = _wait_done()
+    assert job["state"] == "failed" and job["exit"] == 1
+    assert "brew upgrade" not in "\n".join(job["tail"])                                              # nothing is upgraded after a failed update
+
+
+def test_the_update_action_is_for_a_mac_with_homebrew_and_offered_nowhere_else(host, monkeypatch, mac):
+    settings, present = mac
+    present.discard("brew")
+    with pytest.raises(hr.ReadinessError, match="Install it first"):
+        hr.apply(settings, "brew_update")
+    assert by_id(hr.report(settings))["tools"]["fix"] is None                                           # no Homebrew: no update button
+    monkeypatch.setattr(hr.sys, "platform", "linux")
+    with pytest.raises(hr.ReadinessError, match="for a Mac"):
+        hr.apply(settings, "brew_update")
+    assert by_id(hr.report(settings))["tools"]["fix"] is None
