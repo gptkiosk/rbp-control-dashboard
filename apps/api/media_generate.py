@@ -408,3 +408,140 @@ def runtime(settings):
         ledger = Ledger(Path(settings.data_dir) / "media" / "ledger.jsonl")
         _state[key] = Jobs(ledger)
     return _state[key]
+
+
+# ---------------------------------------------------------------- publishing a picked candidate (MCD's own code; the folder's scripts are never run)
+
+CLIP_MAX_BYTES = 4 * 1024 * 1024
+ATTEMPTS = [(30, 1920), (34, 1920), (36, 1600), (38, 1280), (42, 1280)]      # (crf, max width), tried until the clip fits the size limit
+INVENTORY_BEGIN, INVENTORY_END = "<!-- media:begin -->", "<!-- media:end -->"
+VIDEO_SUFFIXES = {".mp4", ".mov", ".webm", ".mkv", ".m4v"}
+IMAGE_SUFFIXES_IN = {".png", ".jpg", ".jpeg", ".webp", ".avif", ".heic"}
+
+
+def inbox_file(root, slot):
+    """The one file waiting in media/inbox for a slot (a regular file named `<slot>.<ext>`), or None."""
+    folder = root / "media" / "inbox"
+    allowed = VIDEO_SUFFIXES if slot["kind"] == "video" else IMAGE_SUFFIXES_IN
+    if not folder.is_dir():
+        return None
+    for path in sorted(folder.glob(slot["name"] + ".*")):
+        try:
+            if path.suffix.lower() in allowed and not path.is_symlink() and path.is_file() and path.stat().st_size > 0 and path.resolve().parent == folder.resolve():
+                return path
+        except OSError:
+            continue
+    return None
+
+
+def _run(cmd):
+    try:
+        done = subprocess.run(cmd, capture_output=True, text=True, timeout=900)
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise MediaError(f"{cmd[0]} could not run: {exc}", 500) from None
+    if done.returncode:
+        lines = done.stderr.strip().splitlines()
+        raise MediaError(f"{cmd[0]} failed: {lines[-1] if lines else done.returncode}", 422)
+    return done.stdout
+
+
+def _probe(path):
+    if not shutil.which("ffprobe") or not shutil.which("ffmpeg"):
+        raise MediaError("ffmpeg and ffprobe must be installed on this machine to publish media (brew install ffmpeg).", 500)
+    try:
+        data = json.loads(_run(["ffprobe", "-v", "error", "-show_format", "-show_streams", "-of", "json", str(path)]))
+    except ValueError:
+        raise MediaError(f"{path.name} is not a readable media file.", 422) from None
+    video = next((s for s in data.get("streams", []) if s.get("codec_type") == "video"), None)
+    if not video or not video.get("width"):
+        raise MediaError(f"{path.name} has no picture.", 422)
+    return {"w": int(video["width"]), "seconds": float(data.get("format", {}).get("duration") or video.get("duration") or 0)}
+
+
+def _fit_image(src, slot, out_dir):
+    target = out_dir / f"{slot['name']}{'.png' if slot.get('transparent') else '.jpg'}"
+    width = int(slot.get("width", 1920))
+    _run(["ffmpeg", "-y", "-v", "error", "-i", str(src), "-vf", f"scale='min({width},iw)':-2:flags=lanczos", "-frames:v", "1"]
+         + ([] if slot.get("transparent") else ["-q:v", "3"]) + [str(target)])
+    return [target]
+
+
+def _fit_video(src, slot, info, out_dir, fade=0.6):
+    lo, hi = slot.get("seconds", [4, 8])
+    fade = min(fade, info["seconds"] / 4) if fade else 0
+    if info["seconds"] < lo + fade:
+        raise MediaError(f"{src.name} is {info['seconds']:.1f}s, too short for a {lo} to {hi}s clip.", 422)
+    looped = fade and slot.get("loop", True)
+    if looped:
+        d, f = info["seconds"], fade
+        graph = (f"[0:v]fps=24,split=3[v1][v2][v3];[v1]trim=start={f}:end={d - f},setpts=PTS-STARTPTS[body];[v2]trim=start={d - f}:end={d},setpts=PTS-STARTPTS[tail];"
+                 f"[v3]trim=start=0:end={f},setpts=PTS-STARTPTS[head];[tail][head]xfade=transition=fade:duration={f}:offset=0[x];[body][x]concat=n=2:v=1:a=0[o]")
+    produced = []
+    for fmt, codec in (("webm", ["-c:v", "libvpx-vp9", "-b:v", "0", "-row-mt", "1"]), ("mp4", ["-c:v", "libx264", "-preset", "slow", "-pix_fmt", "yuv420p", "-movflags", "+faststart"])):
+        target = out_dir / f"{slot['name']}.{fmt}"
+        for crf, width in ATTEMPTS:
+            scale = f"scale='min({width},iw)':-2:flags=lanczos"
+            cmd = ["ffmpeg", "-y", "-v", "error", "-i", str(src)]
+            cmd += ["-filter_complex", graph + f";[o]{scale}[out]", "-map", "[out]"] if looped else ["-vf", f"fps=24,{scale}"]
+            _run(cmd + codec + ["-crf", str(crf), "-an", str(target)])
+            if target.stat().st_size <= CLIP_MAX_BYTES:
+                break
+        else:
+            raise MediaError(f"{slot['name']}.{fmt} is still over 4 MB at the lowest quality; make a shorter or simpler clip.", 422)
+        produced.append(target)
+    poster = out_dir / f"{slot['name']}.jpg"
+    _run(["ffmpeg", "-y", "-v", "error", "-ss", "0.5", "-i", str(produced[1]), "-frames:v", "1", "-q:v", "3", str(poster)])
+    return produced + [poster]
+
+
+def _write_inventory(root, provenance):
+    rows = ["| Slot | Kind | File | Tool | Model | Terms | AI-generated | Date | Prompt |", "|---|---|---|---|---|---|---|---|---|"]
+    for _, p in sorted(provenance.items()):
+        rows.append("| " + " | ".join(str(p.get(k, "")).replace("|", "/").replace("\n", " ") for k in ("slot", "kind", "files", "tool", "model", "terms", "ai_generated", "date", "prompt")) + " |")
+    block = f"{INVENTORY_BEGIN}\nGenerated media (written by MCD or tools/media/media.py; edit media/provenance.json, not this table).\n\n" + "\n".join(rows) + f"\n{INVENTORY_END}\n"
+    path = root / "assets" / "ART-INVENTORY.md"
+    text = path.read_text() if path.exists() else "# Art and media inventory\n\nEvery asset, its source and its license.\n\n"
+    if INVENTORY_BEGIN in text and INVENTORY_END in text:
+        text = text[:text.index(INVENTORY_BEGIN)] + block + text[text.index(INVENTORY_END) + len(INVENTORY_END) + 1:]
+    else:
+        text = text.rstrip("\n") + "\n\n" + block
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text)
+
+
+def publish(root, slot, loop_fade=0.6):
+    """Validate, convert and record the file waiting in media/inbox for a slot, exactly as `tools/media/media.py ingest` does. Returns the files made."""
+    import datetime
+    import hashlib
+    src = inbox_file(root, slot)
+    if src is None:
+        raise MediaError("Nothing is waiting in the inbox for this slot. Use one of its candidates first.", 404)
+    side = src.with_suffix(".json")
+    try:
+        meta = json.loads(side.read_text()) if side.is_file() and not side.is_symlink() else {}
+    except (OSError, ValueError):
+        meta = {}
+    meta = meta if isinstance(meta, dict) else {}
+    tool = str(meta.get("tool") or "").strip()
+    if not tool:
+        raise MediaError("The picked file has no record of the tool that made it; the inventory records every generated asset. Generate it again or ingest it by hand with --tool.", 422)
+    info = _probe(src)
+    min_w = int(slot.get("min_width", 960))
+    if info["w"] < min_w:
+        raise MediaError(f"{src.name} is {info['w']}px wide and this slot needs at least {min_w}px (a draft is too small to publish; generate it at standard or premium).", 422)
+    out_dir = root / "assets" / ("video" if slot["kind"] == "video" else "img")
+    out_dir.mkdir(parents=True, exist_ok=True)
+    files = _fit_video(src, slot, info, out_dir, loop_fade) if slot["kind"] == "video" else _fit_image(src, slot, out_dir)
+    pfile = root / "media" / "provenance.json"
+    try:
+        provenance = json.loads(pfile.read_text()) if pfile.is_file() else {}
+    except (OSError, ValueError):
+        provenance = {}
+    provenance[slot["name"]] = {"slot": slot["name"], "kind": slot["kind"], "files": ", ".join(str(f.relative_to(root)) for f in files), "tool": tool,
+                                "model": str(meta.get("model") or ""), "terms": str(meta.get("terms") or "see tool terms"), "ai_generated": True,
+                                "date": datetime.date.today().isoformat(), "prompt": str(meta.get("prompt") or slot["prompt"]),
+                                "source_sha256": hashlib.sha256(src.read_bytes()).hexdigest()}
+    pfile.parent.mkdir(parents=True, exist_ok=True)
+    pfile.write_text(json.dumps(provenance, indent=2, sort_keys=True) + "\n")
+    _write_inventory(root, provenance)
+    return [{"path": str(f.relative_to(root)), "bytes": f.stat().st_size} for f in files]
