@@ -45,8 +45,13 @@ stories still require explicit scope; errors name the affected story and missing
 Invalid JSON, a failed run, or a changed revision cannot use this shortcut. The parser
 accepts no arbitrary trailing content; one redundant closing brace after a complete `nodes`
 object is tolerated, and the original run output remains available. **Retry planning**
-starts a new planning pipeline after its coordination review. Recovery never starts story
-execution or authorizes publication.
+starts a new planning pipeline after its coordination review. A failed coordinator, planner
+or plan-review run automatically retries the same read-only step on the next approved route
+that has not already failed. Configured free Hermes models/providers are kept as recovery
+routes; under free-only policy, paid candidates are excluded. No retry grants permission to
+spend, dispatch project stories or publish. If every eligible route fails, the project stays
+editable and can be retried after changing the planner route; it does not need to be deleted.
+Recovery never starts story execution or authorizes publication.
 
 ## Story assignment preference
 
