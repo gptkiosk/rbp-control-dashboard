@@ -718,7 +718,7 @@ def delegator_route(settings, action=None):
         if not agent:
             fail('No project Coordinator is configured. Install Hermes and apply its guidance in Settings → Agent roles.', 422)
         if action is not None and store.state.exists() and action.delegator_revision != store.status()['revision']:
-            fail('The project Coordinator setting changed. Review the current setting before approving this request.', 409)
+            fail('The project Coordinator assignment changed. Review the current setting before approving this request.', 409)
     except RoleError as exc:
         fail(str(exc), 422)
     model = (native_routes.read(settings).get(agent, {}).get('default') or '') if agent in {'hermes','openclaw'} else REGISTRY[agent].default_model() or ''
