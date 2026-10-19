@@ -648,7 +648,7 @@ CONSULTANT_CONTEXT_MAX = 20000
 
 
 def installation_text(s, settings):
-    """Which product this is and what it can run: the agent runtimes that are installed (and how each is billed), the Delegator, and the spending
+    """Which product this is and what it can run: the agent runtimes that are installed (and how each is billed), the current project Coordinator, and the spending
     policy. Configuration facts only: no keys, no paths and no account identities."""
     import platform
     accounts = billing.config(s)['accounts']
@@ -678,7 +678,7 @@ def installation_text(s, settings):
         lines.append('GitHub: ' + (f"{len(github.repos)} repositor{'y' if len(github.repos) == 1 else 'ies'} on this install's list; writes are {'enabled' if settings.github_writes_enabled else 'disabled'}; new repositories are always private and need the operator's approval." if github else 'not configured.'))
     except Exception:   # noqa: BLE001 - an unreadable GitHub config just leaves the line out
         pass
-    lines.append(f"Delegator (the coordinator): {delegator or 'none assigned'}.")
+    lines.append(f"Project Coordinator (current setting): {delegator or 'none assigned'}.")
     cap = billing.limits(s, settings)
     lines.append('Spending policy: ' + ('free routes only (paid routes are refused)' if settings.dispatch_free_only else 'paid routes allowed when approved')
                  + ('; per-run cap $' + format(cap['per_run_cap_usd'], 'g') if cap['per_run_cap_usd'] else '; no per-run dollar cap (set limits in Agents, Billing & rates)')
@@ -716,9 +716,9 @@ def delegator_route(settings, action=None):
     try:
         agent = store.delegator()
         if not agent:
-            fail('No Delegator is assigned. Assign an installed agent in Settings.', 422)
+            fail('No project Coordinator is configured. Install Hermes and apply its guidance in Settings → Agent roles.', 422)
         if action is not None and store.state.exists() and action.delegator_revision != store.status()['revision']:
-            fail('Delegator assignment changed. Review the current assignment before approving this request.', 409)
+            fail('The project Coordinator assignment changed. Review the current setting before approving this request.', 409)
     except RoleError as exc:
         fail(str(exc), 422)
     model = (native_routes.read(settings).get(agent, {}).get('default') or '') if agent in {'hermes','openclaw'} else REGISTRY[agent].default_model() or ''
@@ -738,7 +738,7 @@ def plan(s,p,action,settings,actor,subagents=None):
     check_revision(p,action.revision)
     if p.state=='planning': return
     if p.state in BUSY: fail('This project is already submitted or active.')
-    if not action.approve_coordination: fail('Approve Delegator coordination usage before requesting a plan.',422)
+    if not action.approve_coordination: fail('Approve project coordination usage before requesting a plan.',422)
     d=document(p)
     delegate = delegator_route(settings, action)
     agent=d['planner_agent']
@@ -841,7 +841,7 @@ def submit(s,p,action,settings,actor):
     for n in d['nodes']:
         if n['kind']=='story' and n['assignee']=='openclaw' and n['agent_target'] and n['agent_target'] not in configured_targets:
             fail('OpenClaw target is no longer configured: '+n['agent_target']+'. Review this assignment before submission.',422)
-    if not action.approve_coordination: fail('Approve Delegator coordination usage for story dispatch.',422)
+    if not action.approve_coordination: fail('Approve project coordination usage for story dispatch.',422)
     delegate = delegator_route(settings, action)
     paid=[n['title'] for n in d['nodes'] if n['kind']=='story' and n['assignee']!='human' and not subscription(s,n['assignee'])] + [n['title'] for n in d['nodes'] if n['kind']=='story' for r in n['routes'] if not subscription(s,r['agent'])]
     if paid and not action.approve_api_work: fail('Approve API story usage before submitting these agents: '+', '.join(paid),422)

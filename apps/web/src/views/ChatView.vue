@@ -9,7 +9,7 @@ import NewChatDialog from '@/components/NewChatDialog.vue'
 import { useNow } from '@/composables/useNow'
 import { usePolledJson } from '@/composables/usePolledJson'
 import type { ChatThread, ChatThreadsPayload } from '@/lib/api'
-import { agentLabel, isManagerAgent } from '@/lib/cards'
+import { agentLabel, isCoordinatorAgent } from '@/lib/cards'
 import { formatSince } from '@/lib/format'
 import { navIcon } from '@/router/routes'
 import { useGuideAction } from '@/composables/useGuideAction'
@@ -88,7 +88,7 @@ function preview(t: ChatThread): string {
               </span>
               <span class="row">
                 <ChipTag tone="accent">{{ agentLabel(t.agent) }}</ChipTag>
-                <ChipTag v-if="isManagerAgent(t.agent)" tone="muted">Manager</ChipTag>
+                <ChipTag v-if="isCoordinatorAgent(t.agent)" tone="muted">Coordinator</ChipTag>
                 <span class="muted small when">{{ formatSince(t.last_activity_at, now) }}</span>
               </span>
               <span class="muted small last">{{ preview(t) }}</span>

@@ -59,6 +59,81 @@ def save(body:profiles.Preferences,request:Request,s:Session=Depends(get_session
     if old.discord_channel_id!=body.discord_channel_id: row.discord_user_id=None;row.pair_hash=None;row.pair_expires=None
     row.preferences=body.model_dump_json();s.commit();return profiles.payload(s,identity)
 
+def _bootstrap_readiness(settings):
+    from agents import REGISTRY
+    from native_routes import read as read_native
+    from role_pack import RoleStore, RoleError
+    checks=[]
+    try:
+        installed=REGISTRY['hermes'].available(settings)
+    except Exception:
+        installed=False
+    checks.append({'id':'hermes','label':'Hermes is installed','ready':installed,'link':'/profile#agent-tools'})
+    try:
+        roles=RoleStore(settings).status()
+        coordinator=roles.get('delegator')=='hermes'
+        guidance=bool(roles.get('guidance_installed'))
+    except (RoleError,OSError,ValueError):
+        coordinator=False;guidance=False
+    checks.append({'id':'coordinator','label':'Hermes is the assigned Coordinator','ready':coordinator,'link':'/profile#agent-roles'})
+    checks.append({'id':'guidance','label':'Hermes Coordinator guidance is installed','ready':guidance,'link':'/profile#agent-roles'})
+    try:
+        model=read_native(settings).get('hermes',{}).get('default')
+    except Exception:
+        model=None
+    checks.append({'id':'model','label':'Hermes has a configured default model','ready':bool(model),'link':'/profile#agent-tools'})
+    return {'ready':all(item['ready'] for item in checks),'checks':checks}
+
+@router.get('/coordinator-bootstrap/readiness')
+def coordinator_bootstrap_readiness(request:Request):
+    profiles.owner(request)
+    return _bootstrap_readiness(get_settings())
+
+@router.post('/coordinator-bootstrap/start',status_code=201)
+def start_coordinator_bootstrap(request:Request,s:Session=Depends(get_session)):
+    """Create a reviewable setup project draft. This never starts a model run."""
+    identity=profiles.owner(request);settings=get_settings();readiness=_bootstrap_readiness(settings)
+    if not readiness['ready']:
+        missing=[item['label'] for item in readiness['checks'] if not item['ready']]
+        raise HTTPException(409,{'message':'Finish Hermes setup before starting agent configuration.','missing':missing,'checks':readiness['checks']})
+    pref=profiles.prefs(s,identity);choice=pref.coordinator_bootstrap
+    from pathlib import Path
+    import projects
+    working_dir=''
+    scratch=projects.scratch_root(settings)
+    if choice.project_workspaces and scratch is not None:
+        working_dir=str(scratch)
+    elif pref.working_dir:
+        working_dir=pref.working_dir
+    else:
+        working_dir=next((str(Path(root).expanduser()) for root in settings.workdir_roots if Path(root).expanduser().is_dir()),'')
+    if not working_dir:
+        raise HTTPException(409,{'message':'Choose or enable an allowed project workspace before starting setup.','checks':readiness['checks'],'link':'/profile#settings'})
+    platforms=', '.join(choice.platforms) or 'none selected'
+    roles=', '.join(choice.roles) or 'none selected'
+    memory='enabled' if choice.shared_project_memory else 'disabled unless needed and approved'
+    workspaces='enabled' if choice.project_workspaces else 'use existing allowed workspaces only'
+    model_policy='reuse each platform’s configured default; ask before any model change' if choice.model_policy=='ask_before_change' else 'reuse each platform’s configured default; do not change models without operator approval'
+    prefix=settings.product_short_name.lower()
+    brief=(f"Prepare this {settings.product_short_name} installation to receive and run projects using its installed agent platforms. "
+        "First inspect platform readiness and the existing agent configurations. Keep Hermes as the sole Coordinator for this setup. "
+        f"Consider only these operator-selected platforms: {platforms}. Configure these starter roles where supported: {roles}. "
+        f"For OpenClaw, create missing agents named {prefix}-oc-developer and {prefix}-oc-security when those roles are selected, and {prefix}-oc-reviewer only if reviewer is selected. Give each a focused SOUL.md and a concise starting prompt that explains its specialty and how it reports findings to Hermes. "
+        f"Shared project memory: {memory}. Project workspaces: {workspaces}. Model policy: {model_policy}. "
+        f"Security review policy: {choice.security_review}. Create missing role agents/configuration where safe, but preserve every existing user configuration and agent; never overwrite or delete existing files/agents. "
+        "Do not request or expose credentials, change billing, or execute actions that need operator approval. Identify unavailable platforms and model/sign-in prerequisites as human tasks with direct in-app links. "
+        "Use the normal project plan and approval workflow. Return a concise readiness summary, proposed changes, human actions, and a small validation plan. Do not claim setup is complete until each change is verified.")
+    from project_schemas import Document
+    from sqlalchemy import text
+    from native_routes import read as read_native
+    hermes_model=read_native(settings).get('hermes',{}).get('default') or ''
+    s.execute(text('BEGIN IMMEDIATE'))
+    doc=Document(title=f'{settings.product_short_name} agent platform bootstrap',brief=brief,
+        constraints='Hermes only for coordination. No agent work starts until the operator reviews and approves the project plan. Preserve existing configuration; create only missing role agents and guidance. Keep human-only sign-in, credentials, billing and permission changes as linked manual tasks.',
+        working_dir=working_dir,planner_agent='hermes',planner_model=hermes_model,planning_bias=pref.planning_bias,nodes=[])
+    project=projects.create(s,doc.model_dump(),settings,identity);s.commit()
+    return {'project_id':project.id,'title':doc.title,'state':'draft','readiness':readiness}
+
 @router.put('/credentials/{provider}')
 def secret(provider:str,body:SecretIn,request:Request,s:Session=Depends(get_session)):
     identity=profiles.owner(request);s.execute(text('BEGIN IMMEDIATE'))

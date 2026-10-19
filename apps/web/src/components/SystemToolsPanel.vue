@@ -55,6 +55,10 @@ async function checkHealth() {
   try {
     const r = await getJson<{ checks: (Health & { id: string })[] }>('/api/host/readiness/tools/health')
     health.value = Object.fromEntries(r.checks.map(c => [c.id, c])); healthRan.value = true
+    // Agent tools can be installed after this panel first loads. The health endpoint
+    // probes the current host state, so refresh the inventory too to avoid showing
+    // a passing version check beside a stale "missing" row.
+    await load(false)
   } catch (e) { error.value = e instanceof Error ? e.message : String(e) } finally { healthBusy.value = false }
 }
 async function copy(text: string, label: string) {

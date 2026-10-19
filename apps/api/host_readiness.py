@@ -215,9 +215,9 @@ def _how_to_get(tool, have_brew=True):
     if mac and not have_brew and tool in ("docker", "ffmpeg", "python3"):
         return {"kind": "command", "command": BREW_INSTALL, "note": "Homebrew is not installed, so install it first (run it yourself in Terminal; it asks for your password), then check again for the install command for " + tool + "."}
     commands = {
-        "docker": ("brew install colima docker docker-compose && colima start" if mac else "sudo apt-get update && sudo apt-get install -y docker.io docker-compose && sudo usermod -aG docker \"$USER\"",
+        "docker": ("brew install colima docker docker-compose && colima start" if mac else "sudo apt-get update && sudo apt-get install -y docker.io docker-compose && sudo usermod -aG docker \"$USER\" && sudo systemctl enable --now docker",
                    ("Colima provides the Docker engine on a Mac. " if mac else "Needs administrator rights, so the dashboard does not run it. ")
-                   + "Optional: container images can also be built by the pipeline." + ("" if mac else " Log out and in afterwards so the docker group applies.")),
+                   + "Optional: container images can also be built by the pipeline." + ("" if mac else " The command starts Docker now and at boot. Log out and back in, then run `systemctl --user restart rcd-api.service` before checking health.")),
         "ffmpeg": ("brew install ffmpeg" if mac else "sudo apt-get install -y ffmpeg", "The dashboard does not run it." if mac else "Needs administrator rights, so the dashboard does not run it."),
         "python3": ("brew install python" if mac else "sudo apt-get install -y python3", "The dashboard does not run it." if mac else "Needs administrator rights, so the dashboard does not run it."),
     }
@@ -541,8 +541,12 @@ def system_tools(settings=None, check_updates=False):
     else:
         packages = " ".join(APT_PACKAGES[m] for m in missing if m in APT_PACKAGES)
         body["apt_command"] = f"sudo apt-get update && sudo apt-get install -y {packages}" if packages else None
+        if body["apt_command"] and "docker" in missing:
+            body["apt_command"] += ' && sudo usermod -aG docker "$USER" && sudo systemctl enable --now docker'
         body["can_install_all"], body["can_upgrade_all"] = False, False
         body["note"] = "Installing system packages needs administrator rights, so the dashboard shows the command and never runs it. gh installs from Agent tools."
+        if "docker" in missing:
+            body["note"] += " The Docker command starts its service now and at boot. Log out and back in, then run `systemctl --user restart rcd-api.service` before checking health."
     return body
 
 
@@ -557,10 +561,16 @@ def system_tools_health(settings=None):
         if not ok:
             steps.append(f"{row['id']} did not report a version. Run it by hand in a terminal to see why.")
         if row["id"] == "docker" and ok:
-            code, _ = _run([row["path"], "info"], timeout=12, env=_job_env())
+            code, output = _run([row["path"], "info"], timeout=12, env=_job_env())
             if code != 0:
                 ok = False
-                steps.append("Docker is installed but its engine is not running. " + ("Start Colima with the button above, then check again." if mac else "Start the Docker service, then check again."))
+                if mac:
+                    steps.append("Docker is installed but its engine is not running. Start Colima with the button above, then check again.")
+                elif "permission denied" in output.lower():
+                    steps.append("Docker is running, but RCD cannot access it. Add the RCD user to the docker group, sign out and back in, then run `systemctl --user restart rcd-api.service` and check again.")
+                else:
+                    detail = " ".join(output.split())[:240]
+                    steps.append("Docker is installed, but its engine check failed. Start the Docker service, then check again." + (f" Docker said: {detail}" if detail else ""))
         if row["id"] == "colima" and ok and not _colima_running():
             ok = False
             steps.append("Colima is installed but stopped. Start Colima with the button above.")

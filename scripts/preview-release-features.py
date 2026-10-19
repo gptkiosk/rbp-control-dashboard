@@ -64,6 +64,14 @@ class FixtureRoles(RoleStore):
 fixture_roles=FixtureRoles(SimpleNamespace(data_dir=data,product_short_name=product.upper(),workdir_roots=[data]),home=data)
 @app.get('/api/roles')
 def role_status(): return fixture_roles.status()
+@app.get('/api/profile/coordinator-bootstrap/readiness')
+def bootstrap_readiness():
+ status=fixture_roles.status();installed='hermes' in status['available'];assigned=status.get('delegator')=='hermes'
+ checks=[{'id':'hermes','label':'Hermes is installed','ready':installed,'link':'/profile#agent-tools'},
+         {'id':'coordinator','label':'Hermes is the assigned Coordinator','ready':assigned,'link':'/profile#agent-roles'},
+         {'id':'guidance','label':'Hermes Coordinator guidance is installed','ready':bool(status.get('guidance_installed')),'link':'/profile#agent-roles'},
+         {'id':'model','label':'Hermes has a configured default model','ready':True,'link':'/profile#agent-tools'}]
+ return {'ready':all(item['ready'] for item in checks),'checks':checks}
 @app.post('/api/roles/preview')
 async def role_preview(request:Request):
  body=await request.json()

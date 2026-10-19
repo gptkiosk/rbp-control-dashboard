@@ -392,7 +392,7 @@ def test_the_consultant_and_the_planner_know_what_is_installed_and_the_spending_
     assert '## This installation and its configuration' in text and f'{settings.product_name} on' in text
     assert '- claude (' in text and ': installed' in text.split('- claude (')[1].split('\n')[0]
     assert 'not installed' in text.split('- codex (')[1].split('\n')[0]
-    assert 'free routes only (paid routes are refused)' in text and 'Delegator (the coordinator):' in text
+    assert 'free routes only (paid routes are refused)' in text and 'Project Coordinator (current setting):' in text
     for private in (str(wd), '/Users/', 'sk-', '@'):
         assert private not in text.split('## This installation and its configuration')[1].split('## Models')[0], private
     p = new(app, [])

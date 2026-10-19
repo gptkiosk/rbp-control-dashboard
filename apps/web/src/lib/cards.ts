@@ -64,7 +64,7 @@ export function agentLabel(id: string | null | undefined): string {
   return AGENT_LABELS[id as AgentId] ?? id
 }
 
-export function isManagerAgent(id: string | null | undefined): boolean {
+export function isCoordinatorAgent(id: string | null | undefined): boolean {
   return id === 'hermes'
 }
 

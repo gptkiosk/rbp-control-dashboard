@@ -144,7 +144,7 @@ function saved() {
         /></span>
         <span class="chips"
           ><ChipTag :tone="a.role === 'manager' ? 'accent' : 'muted'" data-testid="role-chip">{{
-            a.role === 'manager' ? 'Manager' : 'Worker'
+            a.role === 'manager' ? 'Coordinator' : 'Worker'
           }}</ChipTag
           ><ChipTag :tone="a.available ? 'ok' : 'danger'">{{
             a.available ? 'Installed' : 'Not found'
@@ -188,7 +188,7 @@ function saved() {
               class="input"
               @change="chooseAgent(($event.target as HTMLSelectElement).value as AgentId)"
             >
-              <option v-for="a in data?.agents" :key="a.id" :value="a.id" :data-description="a.role === 'manager' ? 'Manager' : 'Worker'">{{ a.name }}</option>
+              <option v-for="a in data?.agents" :key="a.id" :value="a.id" :data-description="a.role === 'manager' ? 'Coordinator' : 'Worker'">{{ a.name }}</option>
             </AppSelect></label
           ><label for="explorer-target"
             >Sub-agent / session<AppSelect id="explorer-target" v-model="target" class="input">

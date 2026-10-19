@@ -23,8 +23,8 @@ const fresh = defineModel<boolean>('fresh', { required: true })
 const emit = defineEmits<{ close: []; confirm: [] }>()
 
 const heading = computed(() => (props.mode === 'plan' ? 'Review planning request' : 'Review project submission'))
-const delegatorName = computed(() => props.delegator || 'The assigned Delegator')
-const planner = computed(() => (props.plannerAgent === 'auto' ? 'Installed subscription planner, or a reviewed free Delegator route' : `${agentLabel(props.plannerAgent)} · ${props.plannerModel || 'Agent default'}`))
+const delegatorName = computed(() => props.delegator || 'Hermes (Coordinator)')
+const planner = computed(() => (props.plannerAgent === 'auto' ? 'Installed subscription planner, or a reviewed free Hermes route' : `${agentLabel(props.plannerAgent)} · ${props.plannerModel || 'Agent default'}`))
 const problems = computed(() => (props.mode === 'submit' ? props.standardsCheck?.problems ?? [] : []))
 const blocked = computed(() => problems.value.length > 0)
 const unknownArea = computed(() => problems.value.some(p => p.includes("this repository's areas")))
@@ -81,10 +81,10 @@ const unknownArea = computed(() => problems.value.some(p => p.includes("this rep
         <RouteAdvice :project-id="projectId" :revision="revision" />
       </template>
 
-      <NoteFold label="Spending and billing"><p class="small">The selected Delegator uses its reviewed native route. Membership access and provider API billing are separate. Free models can hit limits, and a Google BYOK fallback can incur Google charges. Hermes and OpenClaw routing shares a $20 per month OpenRouter key cap that includes tracked BYOK usage; this does not cover your whole Google invoice or calls outside this key.</p><RouterLink to="/help?topic=project-models">Model routes and billing</RouterLink></NoteFold>
+      <NoteFold label="Spending and billing"><p class="small">The Coordinator uses its reviewed route; the Planner above is a separate choice. Membership access and provider API billing are separate. Free models can hit limits, and a Google BYOK fallback can incur Google charges. Hermes and OpenClaw routing shares a $20 per month OpenRouter key cap that includes tracked BYOK usage; this does not cover your whole Google invoice or calls outside this key.</p><RouterLink to="/help?topic=project-models">Model routes and billing</RouterLink></NoteFold>
 
       <div class="approvals">
-        <label class="check"><input v-model="coordination" type="checkbox" /><span>I approve this Delegator coordination request and its configured routing.</span></label>
+        <label class="check"><input v-model="coordination" type="checkbox" /><span>I approve this Coordinator coordination request and its configured routing.</span></label>
         <label v-if="mode === 'plan' && ['hermes', 'openclaw'].includes(plannerAgent)" class="check"><input v-model="paidPlanner" type="checkbox" /><span>I separately approve API model planning.</span></label>
         <label v-if="mode === 'submit' && needsPaidWork" class="check"><input v-model="paidWork" type="checkbox" /><span>I approve the API / BYOK routes assigned to these stories.</span></label>
       </div>

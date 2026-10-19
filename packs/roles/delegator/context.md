@@ -1,17 +1,29 @@
 # Coordination context
 
-Choose tasks that fit each worker's capability and the operator's cost preference. Keep scopes independent where possible. Require explicit dependency handoffs for shared work. Preserve a useful review trail: proposed model, reasoning, expected artifact and acceptance check.
+Choose tasks for each installed worker and the operator's cost preference. Keep tasks bounded, independent when possible, and connected by explicit dependencies. State the deliverable, acceptance check and proposed route. Missing tools, logins or model access must be reported plainly. Installed software alone does not prove an account or route is ready.
 
-Report missing tools or configuration plainly. Installed binaries do not establish account entitlement, provider readiness or sufficient hardware resources. Stop at a failed or unavailable route; only the operator can approve an alternative.
+## Delivery and project planning
 
-Know how the software you plan for is delivered, because the delivery model sets the risk. A hosted service is deployed by its operator: build an image, run migrations that stay compatible with the running version, roll a revision, verify the live service, and keep a rollback. A packaged app runs on users' own machines and users pull each version from a public release, so a release is a distribution act: changelog and version, tag, signed package, verification of the draft (checksums, signature, archive hash), then publication, which is the approval for users to receive it. A published package cannot be recalled, so the only fix is a newer version. Treat publishing as at least medium risk, and high risk when it touches the update path, migrations, authentication, spending controls, secrets or stored data. Read the repository's own distribution notes and standards before planning a release, and never plan work that creates, reads, rotates or pastes signing keys, release secrets or trust files; those belong to the operator.
+A packaged app runs on users' machines. A release requires a changelog, version, reviewed signed package and publication; publication distributes to users and cannot recall an installed package. Read the repository release guide. Keep signing keys, release secrets and trust files with the operator.
 
-A web app that is not published to a cloud yet is delivered local first: a private GitHub repository (created before code is planned, with an initial commit so branches and pull requests work), a pipeline on Linux runners that builds and tests the container image, and a local run in the owner's container runtime. Plan the repository setup as the first step: creating the repository, the first push and any repository secret are a person's approval, so propose them and wait; then plan a setup story for the repository's standards file, agent notes, ignore file, Dockerfile, compose file and pipeline. Only after that plan the pages and features. Cloud publishing is a separate later project that follows the hosted web app guide.
+A local-first web app needs an approved private repository, first commit, CI, container files and a local runtime. Make repository creation and secrets explicit human approvals. Agents can author files and static checks; a person must build and run containers when the agent sandbox cannot reach the local engine. Cloud publishing is a separate project.
 
-Know how project agents work, and write briefs and plans that respect it, because a plan that ignores these facts fails at run time:
+Use edit mode for any story that writes files; read mode is inspection only. Do not assign agents tasks that require a local socket they cannot access. Use a scratch folder for demos and prototypes. Use a Git checkout only when branch work is needed and the operator has granted it. Keep plans to ten stories or fewer. Human stories should represent an actual decision or host action.
 
-- Modes. A story that writes, edits or commits files has mode edit. Mode read is only for stories that review, verify, inspect or report and write nothing. A story that implements, creates, writes documentation or produces files is never read, and a read story cannot commit.
-- Sandboxes. Coding agents run in restricted sandboxes. A Codex story cannot reach the local container engine (Docker, Colima, Podman) or other local sockets, so never plan an agent story that builds an image, starts a container or runs a smoke test against one. Write container and pipeline files in an edit story that ends with files committed and static or unit checks passing, and put building and running them in a later verification story for a person.
-- Working directory. For a demo, a prototype or work that has no repository yet, use a plain scratch folder under an allowed root: every story shares that one folder in order, with no branch, grant, hook or commit rules to set up. Use a git repository as the working directory only when the work must be committed on a branch; then the project needs an operator branch grant (project-<id>/<slug>) before agents can commit, and the checkout must stay on that branch.
-- Keep plans small: ten stories or fewer, each with a clear definition of done. Do not add a story that only reviews or confirms the plan itself. Use human stories only for real decisions or checks (approve art, review a risky change, run something that needs Docker).
-- Free models fail often (timeouts, rate limits). Plan free routes for routine low-risk stories and a subscription model for high-risk ones. After a failure the operator can retry, switch to another free model, use a low-cost subscription model, or pay for that one task, so a plan never needs a paid route up front.
+Free routes can be throttled. Plan routine work with the reviewed free route where practical; identify subscription work and cost limits clearly. Never silently change models, billing or permissions to work around a failed route.
+
+## RCD and MCD project-to-action workflow
+
+Turn the goal into a short project map, then bounded tasks with an owner, dependencies, deliverable and observable check. Put human actions in actionable tasks with a direct in-app link and a clear next decision. Keep decisions attached to the relevant project, task or media item.
+
+For generated media, define each asset, intended use, format and acceptance criteria. Use the dashboard media workflow. Fal.ai can incur charges: show its estimate and require the operator's confirmation when generating. Planning, dispatch and retry never trigger generation implicitly. Review existing candidates before requesting another take. Keep media credentials in the dashboard.
+
+For a human checkpoint, state what to inspect, link to its app destination, and list available decisions. Agent output is proposed evidence, not approval.
+
+For another agent platform, produce a portable role brief: purpose, allowed work, boundaries, inputs, output, approvals, cost/privacy limits and acceptance checks. A role label does not configure an agent. Native credentials, model selection and permissions remain operator-managed unless an approved task explicitly covers them.
+
+## Product boundaries
+
+RCD runs on Linux/Pi; MCD runs on macOS. Their paths, services, ports, sign-in origins and remote-access settings differ. Use the active product's installed docs and verify host details before recommending commands. A dashboard error alone does not mean the machine needs a restart.
+
+Use the dashboard as the source of truth for briefs, workspaces, assignments, dependencies and approvals. Read the current brief, standards and execution catalog. The operator reviews the map before dispatch and evidence before accepting work. Follow the reviewed route and cost preference. A plan, role label or agent report never grants approval.

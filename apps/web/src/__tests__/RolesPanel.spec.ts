@@ -12,7 +12,8 @@ it('previews exact managed changes before applying or rolling back instructions'
   if(url==='/api/roles/apply') return {body:status}
  })
  const w=mount(RolesPanel,{attachTo:document.body});await flushPromises()
- await w.get('#role-hermes').setValue('worker');await w.get('#role-codex').setValue('delegator')
+ expect(w.find('#role-hermes').exists()).toBe(false)
+ expect(w.get('#role-codex').findAll('option').map(o=>o.attributes('value'))).toEqual(['worker','reviewer','security'])
  expect(f.mock.calls.filter(([,init])=>init?.method==='POST')).toHaveLength(0)
  await w.findAll('button').find(b=>b.text()==='Preview role changes')!.trigger('click');await flushPromises()
  expect(document.body.textContent).toContain('/synthetic/.codex/AGENTS.md')
@@ -20,6 +21,6 @@ it('previews exact managed changes before applying or rolling back instructions'
  expect(f.mock.calls.some(([url])=>url==='/api/roles/apply')).toBe(false)
  await w.findAll('button').find(b=>b.text()==='Confirm assignment and instructions')!.trigger('click');await flushPromises()
  const call=f.mock.calls.find(([url])=>url==='/api/roles/apply')!
- expect(JSON.parse(String(call[1]?.body))).toEqual({roles:{hermes:'worker',codex:'delegator'},workspace:'',plan_sha256:'b'.repeat(64),confirm:true})
+ expect(JSON.parse(String(call[1]?.body))).toEqual({roles:{hermes:'delegator',codex:'worker'},workspace:'',plan_sha256:'b'.repeat(64),confirm:true})
  w.unmount()
 })

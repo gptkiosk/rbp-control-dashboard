@@ -190,7 +190,9 @@ class RoleStore:
     def guidance(self):
         files = ['SOUL.md', 'context.md']
         text = '\n\n'.join(self.source(name) for name in files)
-        if re.search(r'/Users/|/home/|tailscale|tailnet|sk-[A-Za-z0-9]|BEGIN .*PRIVATE KEY', text, re.I):
+        # A short `sk-` match also catches ordinary words such as "task-state".
+        # Require a token-sized suffix while retaining the host-path and key checks.
+        if re.search(r'/Users/|/home/|tailscale|tailnet|sk-[A-Za-z0-9]{16,}|BEGIN .*PRIVATE KEY', text, re.I):
             raise RoleError('The starter pack contains private host or credential material.')
         return text + '\n\nInstalled agents: ' + ', '.join(self.available()) + '\n'
 

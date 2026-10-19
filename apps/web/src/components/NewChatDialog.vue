@@ -19,7 +19,7 @@ import {
   type Workdir,
   type WorkdirsPayload,
 } from '@/lib/api'
-import { isManagerAgent } from '@/lib/cards'
+import { isCoordinatorAgent } from '@/lib/cards'
 
 const emit = defineEmits<{ close: []; created: [thread: ChatThread] }>()
 
@@ -108,13 +108,13 @@ async function submit(): Promise<void> {
           <span class="chat-mark"><AppIcon name="chat" size="lg" /></span>
           <div>
             <h2 id="new-chat-title" class="section-title">New chat</h2>
-            <p class="hint">Choose an agent and a workspace.</p>
+            <p class="hint">Choose an agent and a workspace. This starts a chat with that agent; Hermes remains the fixed Coordinator for project plans.</p>
           </div>
         </div>
         <button type="button" class="btn close" aria-label="Close" @click="emit('close')"><AppIcon name="close" /></button>
       </header>
 
-      <p class="muted small">New AI work uses your profile defaults (OpenRouter free by default). <RouterLink to="/profile#ai-settings">Configure AI defaults</RouterLink>. Membership CLI sign-in and model approvals still apply. <RouterLink to="/help?topic=project-consultant">Model settings help</RouterLink></p>
+      <p class="muted small">New AI work uses your profile defaults (OpenRouter free by default). <RouterLink to="/profile#ai-settings">Configure AI defaults</RouterLink>. Membership CLI sign-in and model approvals still apply. <RouterLink to="/help?topic=agent-chat">Chat and agent setup help</RouterLink></p>
       <p v-if="loading" class="muted" role="status">Loading agents…</p>
       <p v-if="loadError" class="error-text" role="alert">
         Could not load agents or working directories: {{ loadError }}
@@ -124,8 +124,8 @@ async function submit(): Promise<void> {
         <div class="field">
           <label for="nchat-agent">Agent</label>
           <AppSelect id="nchat-agent" v-model="agentId" class="input" required data-autofocus>
-            <option v-for="a in agents" :key="a.id" :value="a.id" :disabled="!a.available" :data-label="a.name" :data-description="a.available ? (a.role === 'manager' ? 'Manager' : 'Worker') : 'Not installed'">
-              {{ a.name }}{{ isManagerAgent(a.id) ? ' (manager)' : ''
+            <option v-for="a in agents" :key="a.id" :value="a.id" :disabled="!a.available" :data-label="a.name" :data-description="a.available ? (a.role === 'manager' ? 'Coordinator' : 'Worker') : 'Not installed'">
+              {{ a.name }}{{ isCoordinatorAgent(a.id) ? ' (coordinator)' : ''
               }}{{ a.available ? '' : ' (not installed)' }}
             </option>
           </AppSelect>
