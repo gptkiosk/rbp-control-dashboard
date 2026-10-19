@@ -264,3 +264,32 @@ it('opens with the money at a glance: spent so far, what is left to make at the 
   expect(w.text()).toContain('nothing starts until you confirm')
   w.unmount()
 })
+
+it('shows what was already made as a gallery with the storage it takes, hides Regenerate under More, and clears unused takes only after a confirmation', async () => {
+  const stored = { published_bytes: 3 * 1048576, unused_bytes: 2 * 1048576, unused_count: 2 }
+  const f = stubFetch((u, init) => {
+    if (u === '/api/media/folders') return { body: { folders: [{ path: '/ws/site', name: 'site' }] } }
+    if (u.startsWith('/api/media/slots')) return { body: { working_dir: '/ws/site', slots: [slot({ name: 'hero-still', published: true, published_bytes: 1048576 }), slot({ name: 'hero-clip', kind: 'video', published: true, published_bytes: 2097152 })], cost: { spent_usd: 0, spent_runs: 0 }, storage: stored } }
+    if (u === '/api/media/ledger') return { body: { runs: 0, done: 0, estimated_usd: 0, unpriced: 0, repeats: 0, repeat_usd: 0, rows: [], note: 'n' } }
+    if (u === '/api/media/clear-unused' && init?.method === 'POST') return { body: { deleted: 2, freed_bytes: 2097152 } }
+    return undefined
+  })
+  const w = mount(MediaGeneratePanel, { props: { keySaved: true } })
+  await flushPromises()
+  const gallery = w.get('[data-testid=gallery]')
+  expect(gallery.find('img[src^="/api/media/published?"]').attributes('src')).toContain('name=hero-still')
+  expect(gallery.find('video[src^="/api/media/published?"]').attributes('src')).toContain('name=hero-clip')
+  expect(gallery.text()).toContain('1.0 MB')
+  expect(gallery.find('details.more-actions button[aria-label="Regenerate hero-still"]').exists()).toBe(true)      // out of the way, not gone
+  expect(w.get('[data-testid=storage]').text()).toContain('published 3.0 MB · unused takes 2.0 MB in 2 files')
+  const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
+  await w.get('[data-testid=clear-unused]').trigger('click'); await flushPromises()
+  expect(confirm).toHaveBeenCalledTimes(1)
+  expect(confirm.mock.calls[0]![0]).toContain('cannot be undone')
+  expect(calls(f, 'POST', '/api/media/clear-unused')).toHaveLength(0)                                               // declined: nothing deleted
+  confirm.mockReturnValue(true)
+  await w.get('[data-testid=clear-unused]').trigger('click'); await flushPromises()
+  expect(JSON.parse(String(calls(f, 'POST', '/api/media/clear-unused')[0]![1]!.body))).toEqual({ working_dir: '/ws/site', confirm: true })
+  expect(w.text()).toContain('Deleted 2 unused takes, freeing 2.0 MB.')
+  w.unmount()
+})

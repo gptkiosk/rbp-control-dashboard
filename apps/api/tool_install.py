@@ -69,7 +69,7 @@ PLAN_SCHEMA = "dashboard-tool-plan/v1"
 VERSION_RECEIPT = ".tool-receipt.json"
 WRAPPER_MARK = "# rcd-agent-tools wrapper for"
 
-ACTIONS = ("install", "update", "remove", "rollback")
+ACTIONS = ("install", "update", "remove", "rollback", "repair")
 COMPONENT_ID = re.compile(r"^[a-z][a-z0-9-]{1,30}$")
 BIN_NAME = re.compile(r"^[a-z][a-z0-9_-]{0,30}$")
 VID = re.compile(r"^[0-9A-Za-z][0-9A-Za-z.+_-]{0,95}$")
@@ -833,6 +833,8 @@ def _step_text(step: dict) -> str:
         return f"delete {step['dir']} and the wrapper(s) {', '.join(step['bins']) or '(none)'}"
     if op == "rollback":
         return f"point {step['link']} back at {step['to_vid']}"
+    if op == "repair":
+        return f"rewrite the command wrapper(s) {', '.join(step['bins'])} for the installed version (nothing is downloaded and the version does not change)"
     return op
 
 
@@ -1039,6 +1041,15 @@ def build_plan(cfg: ToolsConfig, catalog: Catalog, facts: HostFacts, cid: str, a
             warnings.append(f"Your {comp['name']} data in {cfg.hermes_home} (config, sessions, memories, and the Python, Node, ripgrep "
                             "and ffmpeg it downloaded for itself) is kept. Only the program is removed. Delete that folder "
                             "yourself if you want it gone.")
+    elif action == "repair":
+        report = system_package_report(catalog, facts, [], [])
+        if not mine["installed"]:
+            refusals.append(f"{comp['name']} was not installed by the dashboard, so there is nothing of its to repair.")
+        elif not wrapper_stale(cfg, catalog, cid):
+            refusals.append(f"The {comp['name']} command wrapper is already up to date.")
+        else:
+            to = mine["current"]["version"]
+            steps.append({"op": "repair", "c": cid, "link": str(cfg.comp_dir(cid) / "current"), "bins": [b["name"] for b in comp["bins"]]})
     else:  # rollback
         report = system_package_report(catalog, facts, [], [])
         prev = mine["previous"]
@@ -1442,6 +1453,17 @@ def render_wrapper(cfg: ToolsConfig, catalog: Catalog, cid: str, bin_entry: dict
         # operator sessions retain the native account home, including custom profiles.
         lines.append('HERMES_HOME="${HERMES_HOME:-$HOME/.hermes}"; export HERMES_HOME')
         lines.append(f'HERMES_RUNTIME_DIR="{cfg.hermes_home / "tools"}"; export HERMES_RUNTIME_DIR')
+        # Hermes keeps each install's dependency environment under the home that installed it (<home>/installs/<hash of the checkout path>). This run uses
+        # another home (yours), where nothing is committed for this checkout, so Hermes refuses to start: link that one folder in. A profile maps to its root.
+        iso = cfg.hermes_home
+        lines += [f'_hm="$HERMES_HOME"; case "$_hm" in */profiles/*) _hm="${{_hm%%/profiles/*}}";; esac',
+                  f'if [ "$_hm" != "{iso}" ]; then',
+                  f'  _dir=$(cd -P "{base}/hermes-agent" 2>/dev/null && pwd -P)',
+                  '  _key=$(printf %s "$_dir" | { shasum -a 256 2>/dev/null || sha256sum; } | cut -c1-16)',
+                  f'  if [ -n "$_dir" ] && [ -d "{iso}/installs/$_key" ] && [ ! -e "$_hm/installs/$_key" ] && [ ! -L "$_hm/installs/$_key" ]; then',
+                  f'    mkdir -p "$_hm/installs" 2>/dev/null && ln -s "{iso}/installs/$_key" "$_hm/installs/$_key" 2>/dev/null',
+                  '  fi',
+                  'fi']
     argv = " ".join(f'"{base / a}"' for a in bin_entry["argv"])
     lines.append(f'exec {argv} "$@"')
     return "\n".join(lines) + "\n"
@@ -1485,6 +1507,23 @@ def write_wrappers(cfg: ToolsConfig, catalog: Catalog, cid: str, base: Path, int
         dest = (into or cfg.bin) / entry["name"]
         write_atomic(dest, render_wrapper(cfg, catalog, cid, entry, base).encode(), mode=0o755)
         os.chmod(dest, 0o755)
+
+
+def wrapper_stale(cfg: ToolsConfig, catalog: Catalog, cid: str) -> bool:
+    """True when the command wrapper of the installed (current) version is not what this release would write, so Repair has something to do."""
+    current = cfg.comp_dir(cid) / "current"
+    if not os.path.islink(current):
+        return False
+    for entry in catalog.component(cid)["bins"]:
+        try:
+            text = read_regular(cfg.bin / entry["name"], 8192, "wrapper").decode("utf-8", "replace")
+        except ToolError:
+            return True
+        if WRAPPER_MARK not in text:
+            return False                      # someone else's command: never ours to rewrite
+        if text != render_wrapper(cfg, catalog, cid, entry, current):
+            return True
+    return False
 
 
 def remove_wrappers(cfg: ToolsConfig, names: list[str]) -> None:
@@ -1733,6 +1772,15 @@ class Executor:
         write_wrappers(self.cfg, self.catalog, cid, self.cfg.comp_dir(cid) / "current")
         prune(self.cfg, self.catalog, cid)
 
+    def do_repair(self, step, on_phase):
+        on_phase("rewriting the command wrapper")
+        cid = step["c"]
+        clash = wrapper_conflicts(self.cfg, step["bins"])
+        if clash:
+            raise ToolError(clash)
+        write_wrappers(self.cfg, self.catalog, cid, self.cfg.comp_dir(cid) / "current")
+        self.log.line(f"  rewrote {', '.join(step['bins'])}")
+
     def do_rollback(self, step, on_phase):
         on_phase("rolling back")
         cid, comp = step["c"], self.catalog.component(step["c"])
@@ -1839,7 +1887,8 @@ def run_action(cfg: ToolsConfig, catalog: Catalog, cid: str, action: str, *, exp
             ex.run_steps(plan["steps"], phase)
             detail = {"install": f"Installed {plan['name']} {plan['to']}.",
                       "update": f"Updated {plan['name']} {plan['from']} to {plan['to']}.",
-                      "remove": f"Removed {plan['name']}.", "rollback": f"Rolled {plan['name']} back to {plan['to']}."}[action]
+                      "remove": f"Removed {plan['name']}.", "rollback": f"Rolled {plan['name']} back to {plan['to']}.",
+                      "repair": f"Repaired {plan['name']}: its command wrapper was rewritten. Run Check health to confirm."}[action]
             _finish(cfg, state, "done", detail, check=ex.check_result)
             log.line("== done")
         except BaseException as exc:
@@ -1864,9 +1913,23 @@ def run_action(cfg: ToolsConfig, catalog: Catalog, cid: str, action: str, *, exp
 # --- status ----------------------------------------------------------------------------
 
 
+def _first_line(text: str) -> str:
+    return next((ln.strip()[:200] for ln in (text or "").splitlines() if ln.strip()), "")
+
+
+def _version_of_binary(path: str, env: dict, argv: list[str]) -> str | None:
+    try:
+        r = subprocess.run([path, *argv], stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=8, env=env)
+    except (OSError, subprocess.SubprocessError, UnicodeError):
+        return None
+    m = re.search(r"(?<![\w.])v?(\d+\.\d+\.\d+(?:[-+][A-Za-z0-9.-]+)?)", (r.stdout or r.stderr or "")[:4096]) if r.returncode == 0 else None
+    return m.group(1) if m else None
+
+
 def health(cfg: ToolsConfig, catalog: Catalog, facts: HostFacts | None = None, only: str | None = None) -> list[dict]:
-    """A follow-up check for every installed tool: does it run, which version answers, does the name in a new terminal reach it, and what to do next.
-    Read-only; it only asks each tool for its version, never signs in and never passes a key."""
+    """A follow-up check for every installed tool: does it run, which version answers, and what to do next.
+    `ok` says the tool itself works and is the version recorded. Advice about the shell (a copy earlier on the PATH, a missing PATH entry) is a tip,
+    not a failure: the dashboard always uses its own copy. Read-only; it only asks each tool for its version, never signs in and never passes a key."""
     facts = facts or detect_host(cfg.root, _tool_commands(catalog))
     rows = inspect(cfg, catalog, facts)["tools"]
     out = []
@@ -1877,33 +1940,47 @@ def health(cfg: ToolsConfig, catalog: Catalog, facts: HostFacts | None = None, o
         name, path = comp["bins"][0]["name"], row["path"]
         steps: list[str] = []
         ran, shown = False, None
+        env = {"HOME": str(cfg.home), "LANG": "C.UTF-8",
+               "PATH": os.pathsep.join([str(cfg.bin), str(cfg.root / "tools" / "node" / "current" / "bin"), "/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin"])}
+        argv = comp["check"]["argv"][1:]
         if path:
-            env = {"HOME": str(cfg.home), "LANG": "C.UTF-8",
-                   "PATH": os.pathsep.join([str(cfg.bin), str(cfg.root / "tools" / "node" / "current" / "bin"), "/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin"])}
             try:
-                result = subprocess.run([path, *comp["check"]["argv"][1:]], stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=15, env=env)
+                result = subprocess.run([path, *argv], stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=15, env=env)
                 text = (result.stdout or result.stderr or "").strip()
                 ran = result.returncode == 0
                 match = re.search(r"(?<![\w.])v?(\d+\.\d+\.\d+(?:[-+][A-Za-z0-9.-]+)?)", text[:4096])
                 shown = match.group(1) if match else None
                 if not ran:
-                    steps.append(f"It did not run. In a terminal try: {shlex.quote(path)} {' '.join(comp['check']['argv'][1:])}")
+                    said = _first_line(text)
+                    steps.append(f"It did not run{f' ({said})' if said else ''}. In a terminal try: {shlex.quote(path)} {' '.join(argv)}")
             except (OSError, subprocess.SubprocessError, UnicodeError):
                 steps.append("It did not answer within 15 seconds or could not start. Try it by hand in a terminal.")
-        on_path = shutil.which(name)
-        if ran and row["installation_source"] == "managed":
-            if not on_path:
-                steps.append(f"A new terminal cannot find {name}. Add {cfg.bin} to your PATH (the setup checklist has Add tools to PATH), or use the full path.")
-            elif os.path.realpath(on_path) != os.path.realpath(path):
-                steps.append(f"A new terminal runs {on_path}, not the managed copy. Put {cfg.bin} first on your PATH, or use {path}.")
         pinned, installed_version = row["pinned_version"], row["installed_version"]
+        mismatch = bool(ran and shown and installed_version and shown != installed_version)
+        if mismatch:
+            steps.append(f"The tool reports {shown} but {installed_version} is recorded. Run Upgrade again or restart anything that still runs the old copy.")
         if ran and installed_version and version_key(installed_version) and version_key(pinned) and version_key(installed_version) < version_key(pinned):
             steps.append(f"Upgrade to {pinned}.")
-        if ran and shown and installed_version and shown != installed_version:
-            steps.append(f"The tool reports {shown} but {installed_version} is recorded. Run Upgrade again or restart anything that still runs the old copy.")
+        if ran and row["installation_source"] == "managed":
+            on_path = shutil.which(name)
+            if not on_path:
+                steps.append(f"Tip: a new terminal cannot find {name} by name. Add {cfg.bin} to your PATH (the setup checklist has Add tools to PATH), or run {path}.")
+            elif os.path.realpath(on_path) != os.path.realpath(path):
+                theirs = _version_of_binary(on_path, env, argv)
+                mine = shown or installed_version
+                older = bool(theirs and mine and version_key(theirs) and version_key(mine) and version_key(theirs) < version_key(mine))
+                brewish = on_path.startswith(("/opt/homebrew/", "/usr/local/"))
+                tip = f"Tip: a new terminal runs {on_path}{f' ({theirs})' if theirs else ''}, not the copy the dashboard uses ({mine})."
+                if older and brewish:
+                    tip += f" Upgrade it with brew upgrade {name} (Optional system tools, Upgrade (All)), or"
+                else:
+                    tip += " To use the dashboard's copy,"
+                steps.append(tip + f" put {cfg.bin} first on your PATH.")
+        if row["installation_source"] == "managed" and wrapper_stale(cfg, catalog, row["id"]):
+            steps.insert(0, "Press Repair on this card: it rewrites the command wrapper for the installed version. Nothing is downloaded.")
         if ran and not steps:
             steps.append(f"Sign in yourself if you have not: {row.get('login_command') or row['login']['command']}")
-        out.append({"id": row["id"], "name": row["name"], "ok": bool(ran) and not any(x.startswith(("A new terminal", "The tool reports")) for x in steps),
+        out.append({"id": row["id"], "name": row["name"], "ok": bool(ran) and not mismatch,
                     "version": shown or installed_version, "path": path, "source": row["installation_source"], "next": steps})
     return out
 
@@ -1929,7 +2006,8 @@ def inspect(cfg: ToolsConfig, catalog: Catalog, facts: HostFacts | None = None) 
         else:
             default = None
         offered = {"install": not present, "update": default == "update",
-                   "remove": bool(view["installed"] or view["versions"]), "rollback": bool(view["previous"])}
+                   "remove": bool(view["installed"] or view["versions"]), "rollback": bool(view["previous"]),
+                   "repair": bool(view["installed"] and wrapper_stale(cfg, catalog, cid))}
         actions = {a: (build_plan(cfg, catalog, facts, cid, a)["refusals"] if offered[a] else None) for a in ACTIONS}
         tools.append({"id": cid, "name": comp["name"], "pinned_version": comp["version"], "installed": present, "installation_source": "managed" if current else "native" if native else None,
                       "installed_version": current["version"] if current else native["version"] if native else None,

@@ -10,6 +10,20 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.6.29] - 2026-10-19
+
+### Fixed
+
+- **A freshly installed managed Hermes could not start** under your own Hermes home: Hermes 0.22.0 keeps each install's dependency environment under the home that installed it, so the command wrapper (which runs with your `~/.hermes`) found none and stopped with "no dependency environment is committed". The wrapper now links that one per-install folder into the home in use (a profile maps to its root; an existing folder is never replaced).
+- **Health check** shows the tool's own error line when it cannot run, and no longer calls a working managed copy "needs attention" because an older copy (for example Homebrew's `gh`) comes first on your PATH: that is a tip, with the `brew upgrade` suggestion.
+
+### Added
+
+- **Repair** on an Agent tools card whose command wrapper is out of date (installs made by an earlier release): rewrites the wrapper for the installed version. Nothing is downloaded and the version does not change.
+
+||||||| 41540ed
+- **See what was already made, and manage what it costs to keep.** The Media studio now shows every published slot as a gallery (the picture, or the clip with its player) with its size, and tucks Regenerate under *More* once something is done. A **Storage** line says what the published media and the unused takes take up, and **Clear unused takes…** deletes the generated takes of slots you have already decided (published or skipped), after a confirmation. Takes still waiting for your decision and all published files are never touched. New operator-only routes: `GET /api/media/published` (one published file of a slot named in `media/slots.json`) and `POST /api/media/clear-unused`; `/api/media/slots` now returns `storage` and each slot's `published_bytes`.
+
 ## [0.6.28] - 2026-10-19
 
 ### Fixed
@@ -617,7 +631,8 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 - Claude Code stories may use web search and fetch without any shell, credential or publish permission.
 
 [0.3.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.0
-[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.28...HEAD
+[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.29...HEAD
+[0.6.29]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.29
 [0.6.28]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.28
 [0.6.27]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.27
 [0.6.26]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.26

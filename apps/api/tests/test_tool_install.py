@@ -1085,3 +1085,99 @@ def test_health_runs_each_installed_tool_and_says_what_to_do_next(cfg, catalog, 
     ti._NATIVE_VERSIONS.clear()
     broken = ti.health(cfg, catalog, host)
     assert [(r["id"], r["ok"]) for r in broken] == [("codex", False)] and broken[0]["next"][0].startswith("It did not run")
+
+
+def _managed_row(path, version="0.162.1"):
+    return {"id": "codex", "name": "Codex CLI", "installed": True, "installation_source": "managed", "path": str(path), "installed_version": version,
+            "pinned_version": "0.162.1", "login": {"command": "codex login"}, "login_command": "codex login"}
+
+
+def test_health_shows_the_tools_own_error_line_when_it_cannot_run(cfg, catalog, tmp_path, monkeypatch):
+    broken = tmp_path / "codex"
+    broken.write_text("#!/bin/sh\necho 'codex: no dependency environment is committed for this install; run codex pm repair' >&2\nexit 1\n")
+    broken.chmod(0o700)
+    monkeypatch.setattr(ti, "inspect", lambda *a, **k: {"tools": [_managed_row(broken)]})
+    row = ti.health(cfg, catalog, facts())[0]
+    assert row["ok"] is False
+    assert "no dependency environment is committed" in row["next"][0] and row["next"][0].startswith("It did not run (")
+
+
+def test_an_older_copy_earlier_on_the_path_is_a_tip_with_the_brew_upgrade_not_a_failure(cfg, catalog, tmp_path, monkeypatch):
+    good = tmp_path / "codex"
+    good.write_text('#!/bin/sh\necho "codex-cli 0.162.1"\n')
+    good.chmod(0o700)
+    monkeypatch.setattr(ti, "inspect", lambda *a, **k: {"tools": [_managed_row(good)]})
+    monkeypatch.setattr(ti.shutil, "which", lambda name: "/opt/homebrew/bin/codex")
+    monkeypatch.setattr(ti, "_version_of_binary", lambda path, env, argv: "0.100.0")
+    row = ti.health(cfg, catalog, facts())[0]
+    assert row["ok"] is True                                              # the dashboard's own copy works and is the recorded version
+    tip = row["next"][0]
+    assert tip.startswith("Tip: a new terminal runs /opt/homebrew/bin/codex (0.100.0)") and "brew upgrade codex" in tip and "Upgrade (All)" in tip
+
+
+def _hermes_layout(cfg, catalog, tmp_path):
+    """A fake managed Hermes: a launcher that reports which home it ran under, plus the isolated install home holding its committed state."""
+    import hashlib
+    base = tmp_path / "current"
+    launcher = base / "hermes-agent" / ".hermes" / "bin" / "hermes"
+    launcher.parent.mkdir(parents=True)
+    launcher.write_text('#!/bin/sh\necho "home=$HERMES_HOME"\nls "$HERMES_HOME/installs"\n')
+    launcher.chmod(0o755)
+    key = hashlib.sha256(os.path.realpath(base / "hermes-agent").encode()).hexdigest()[:16]
+    (cfg.hermes_home / "installs" / key).mkdir(parents=True)
+    (cfg.hermes_home / "installs" / key / "facts.json").write_text("{}")
+    entry = catalog.component("hermes")["bins"][0]
+    wrapper = tmp_path / "hermes"
+    wrapper.write_text(ti.render_wrapper(cfg, catalog, "hermes", entry, base))
+    wrapper.chmod(0o755)
+    return wrapper, key
+
+
+def test_the_hermes_wrapper_links_the_installs_state_into_the_home_in_use_so_hermes_can_find_its_dependencies(cfg, catalog, tmp_path):
+    import subprocess
+    wrapper, key = _hermes_layout(cfg, catalog, tmp_path)
+    home = tmp_path / "home"
+    (home / ".hermes").mkdir(parents=True)                                        # the operator's own Hermes home, with nothing committed for this checkout
+    env = {"HOME": str(home), "PATH": "/usr/bin:/bin"}
+    out = subprocess.run([str(wrapper)], env=env, capture_output=True, text=True, timeout=20).stdout
+    link = home / ".hermes" / "installs" / key
+    assert link.is_symlink() and link.resolve() == (cfg.hermes_home / "installs" / key).resolve()
+    assert key in out
+    subprocess.run([str(wrapper)], env=env, capture_output=True, text=True, timeout=20)      # a second run leaves it alone
+    assert link.is_symlink()
+
+
+def test_a_hermes_profile_home_gets_the_link_in_its_root_and_the_isolated_home_gets_none(cfg, catalog, tmp_path):
+    import subprocess
+    wrapper, key = _hermes_layout(cfg, catalog, tmp_path)
+    root = tmp_path / "root"
+    (root / "profiles" / "work").mkdir(parents=True)
+    subprocess.run([str(wrapper)], env={"HOME": str(tmp_path), "HERMES_HOME": str(root / "profiles" / "work"), "PATH": "/usr/bin:/bin"}, capture_output=True, text=True, timeout=20)
+    assert (root / "installs" / key).is_symlink() and not (root / "profiles" / "work" / "installs").exists()
+    subprocess.run([str(wrapper)], env={"HOME": str(tmp_path), "HERMES_HOME": str(cfg.hermes_home), "PATH": "/usr/bin:/bin"}, capture_output=True, text=True, timeout=20)
+    assert not (cfg.hermes_home / "installs" / key).is_symlink()                   # the installer's own home is never linked to itself
+
+
+def test_repair_rewrites_only_an_out_of_date_wrapper_and_changes_nothing_else(cfg, catalog):
+    run(cfg, catalog, "codex", "install")
+    before = ti.inspect(cfg, catalog, facts())["tools"]
+    assert next(t for t in before if t["id"] == "codex")["actions"]["repair"] is None          # a fresh install is already right
+    assert "up to date" in plan(cfg, catalog, "codex", "repair")["refusals"][0]
+    wrapper = cfg.bin / "codex"
+    new_text = wrapper.read_text()
+    wrapper.write_text(new_text.replace("exec ", "# written by an older release\nexec "))
+    row = next(t for t in ti.inspect(cfg, catalog, facts())["tools"] if t["id"] == "codex")
+    assert row["actions"]["repair"] == []                                                       # offered now, and allowed
+    p = plan(cfg, catalog, "codex", "repair")
+    assert p["refusals"] == [] and [s["op"] for s in p["steps"]] == ["repair"] and "nothing is downloaded" in p["commands"][0]
+    link_before = os.readlink(cfg.comp_dir("codex") / "current")
+    run(cfg, catalog, "codex", "repair")
+    assert wrapper.read_text() == new_text and os.readlink(cfg.comp_dir("codex") / "current") == link_before
+    assert ti.load_state(cfg)["last"]["detail"].startswith("Repaired Codex CLI")
+
+
+def test_repair_leaves_a_command_it_did_not_write_alone_and_is_refused_for_a_native_install(cfg, catalog, tmp_path):
+    native = tmp_path / "native-codex"
+    native.write_text('#!/bin/sh\necho "codex-cli 0.100.0"\n')
+    native.chmod(0o700)
+    assert "nothing of its to repair" in plan(cfg, catalog, "codex", "repair", facts(elsewhere={"codex": str(native)}))["refusals"][0]

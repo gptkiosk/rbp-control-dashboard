@@ -423,10 +423,11 @@ Open the Media studio from the project (or from a human media story), see what i
 1. Save a fal key first in Profile, Private credentials. The guide Create or replace the fal key lists the models it needs.
 2. Open the project’s Media studio tab (a project whose folder has media/slots.json gets one). A human story about media, and a banner while slots are unresolved, link straight to it and say what is left to spend. The studio opens with three numbers: spent so far, left to make at the chosen tiers, and waiting for your review. Tick the spending acknowledgement under them; pressing Generate without it tells you what is missing and takes you to the box.
 3. Each slot starts on a tier from its project type: a website’s clips start on the cheapest video tier (MiniMax H3 Max Turbo) and images on standard. Standard clips use MiniMax H3 Max and premium uses Veo 3.1. Change the tier or how many, read the estimate, press Generate and confirm.
-4. Watch progress under that slot’s button: a spinner, waiting or generating text, then finished or the failure. The button reads Generating… until it ends.
-5. Review each candidate as a thumbnail or video. Accept and publish the one you want (RCD converts and records it), choose None of these to make another, or Skip to keep the site’s drawn fallback.
-6. To keep the bill small, give each slot in media/slots.json only the resolution it needs: "resolution": "1K" for a picture shown small, "480P" for a retro or VHS-look clip (it costs 0.625 of 768p). The estimate on the slot follows it.
-7. A slot with generations still waiting for review is not generated again unless you choose Another take, so a double click never pays twice. A published slot is only regenerated when you choose Regenerate.
+4. Everything already published appears as a gallery at the bottom, with its size. The Storage line shows what the media and the unused takes take up; Clear unused takes… deletes the generated takes of slots you have decided (never published files, never takes waiting for review) after you confirm.
+5. Watch progress under that slot’s button: a spinner, waiting or generating text, then finished or the failure. The button reads Generating… until it ends.
+6. Review each candidate as a thumbnail or video. Accept and publish the one you want (RCD converts and records it), choose None of these to make another, or Skip to keep the site’s drawn fallback.
+7. To keep the bill small, give each slot in media/slots.json only the resolution it needs: "resolution": "1K" for a picture shown small, "480P" for a retro or VHS-look clip (it costs 0.625 of 768p). The estimate on the slot follows it.
+8. A slot with generations still waiting for review is not generated again unless you choose Another take, so a double click never pays twice. A published slot is only regenerated when you choose Regenerate.
 
 A clip starts from a published, approved still. A draft still is too small to publish; make stills at standard or premium. Agents never receive the fal key and cannot generate media.
 
@@ -509,7 +510,8 @@ Settings, Updates & installs: one card per agent CLI with its version, an Instal
 3. Watch the progress bar and open the log if you want the detail. Only one install runs at a time.
 4. When it finishes the health check runs by itself: it asks the tool for its version, checks that a new terminal reaches the managed copy, and lists next steps. Press Check health to run it again.
 5. A tool you installed yourself (native, for example Hermes or gh from Homebrew) is offered a reviewed upgrade that installs a managed copy beside it; your own copy and account settings are kept. Put the tools folder first on your PATH if the health check says a different copy answers.
-6. Sign in yourself with the command on the card. API keys go in Private credentials, never on this page.
+6. If the health check says the tool did not run, press Repair when the card offers it: it rewrites the command wrapper without downloading anything. Then press Check health again.
+7. Sign in yourself with the command on the card. API keys go in Private credentials, never on this page.
 
 Roll back switches to the version kept on this host. Remove deletes the program but keeps your tool data, for example ~/.hermes.
 
