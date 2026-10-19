@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import NoteFold from '@/components/NoteFold.vue'
 import { onMounted, ref } from 'vue'
 import BarList from '@/components/BarList.vue'
 import { getJson } from '@/lib/api'
@@ -20,7 +21,7 @@ onMounted(load)
 <template>
   <section v-if="data" class="scorecard" aria-label="Coordinator scorecard">
     <h2 class="section-title">Coordinator scorecard</h2>
-    <p class="muted small">{{ data.note }} Fixed checks cover the plan schema, the job envelope, estimates against size, checkable acceptance criteria, bounded scope, dependencies, route reasons, the standards and a review for high-risk work. {{ data.briefs }} fixed briefs are available to score any plan against.</p>
+    <NoteFold label="What is scored"><p class="muted small">{{ data.note }} Fixed checks cover the plan schema, the job envelope, estimates against size, checkable acceptance criteria, bounded scope, dependencies, route reasons, the standards and a review for high-risk work. {{ data.briefs }} fixed briefs are available to score any plan against.</p></NoteFold>
     <p v-if="!data.plans.length" class="muted small">No approved plans in this period yet. Each plan you approve is scored and appears here.</p>
     <div v-else class="grid">
       <BarList title="Plan score by planner" :items="bars(data.by_planner)" />

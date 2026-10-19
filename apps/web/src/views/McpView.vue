@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import AppIcon from '@/components/AppIcon.vue'
+import PageHead from '@/components/PageHead.vue'
 import ChipTag from '@/components/ChipTag.vue'
 import ReportedValue from '@/components/ReportedValue.vue'
 import RequestServerDialog from '@/components/RequestServerDialog.vue'
@@ -164,9 +165,7 @@ async function reject(c: McpChange): Promise<void> {
 
 <template>
   <section class="page" aria-labelledby="mcp-title">
-    <header class="head">
-      <h1 id="mcp-title" class="page-title has-icon"><AppIcon :name="navIcon('mcp')" size="lg" />MCP</h1>
-      <div class="head-actions">
+    <PageHead id="mcp-title" title="MCP" :icon="navIcon('mcp')" sub="Tool servers your agents can use." help="mcp">
         <button type="button" class="btn" :disabled="refreshing" :aria-busy="refreshing" @click="loadServers(true)">
           <AppIcon name="refresh" :class="{ spin: refreshing }" />
           {{ refreshing ? 'Checking servers…' : 'Refresh' }}
@@ -175,8 +174,7 @@ async function reject(c: McpChange): Promise<void> {
           <AppIcon name="plus" />
           Request a server
         </button>
-      </div>
-    </header>
+    </PageHead>
 
     <AgentAccessPanel />
     <p class="rule has-icon" data-testid="mcp-note">

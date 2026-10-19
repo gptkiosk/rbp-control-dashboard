@@ -1864,6 +1864,50 @@ def run_action(cfg: ToolsConfig, catalog: Catalog, cid: str, action: str, *, exp
 # --- status ----------------------------------------------------------------------------
 
 
+def health(cfg: ToolsConfig, catalog: Catalog, facts: HostFacts | None = None, only: str | None = None) -> list[dict]:
+    """A follow-up check for every installed tool: does it run, which version answers, does the name in a new terminal reach it, and what to do next.
+    Read-only; it only asks each tool for its version, never signs in and never passes a key."""
+    facts = facts or detect_host(cfg.root, _tool_commands(catalog))
+    rows = inspect(cfg, catalog, facts)["tools"]
+    out = []
+    for row in rows:
+        if not row["installed"] or (only and row["id"] != only):
+            continue
+        comp = catalog.component(row["id"])
+        name, path = comp["bins"][0]["name"], row["path"]
+        steps: list[str] = []
+        ran, shown = False, None
+        if path:
+            env = {"HOME": str(cfg.home), "LANG": "C.UTF-8",
+                   "PATH": os.pathsep.join([str(cfg.bin), str(cfg.root / "tools" / "node" / "current" / "bin"), "/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin"])}
+            try:
+                result = subprocess.run([path, *comp["check"]["argv"][1:]], stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=15, env=env)
+                text = (result.stdout or result.stderr or "").strip()
+                ran = result.returncode == 0
+                match = re.search(r"(?<![\w.])v?(\d+\.\d+\.\d+(?:[-+][A-Za-z0-9.-]+)?)", text[:4096])
+                shown = match.group(1) if match else None
+                if not ran:
+                    steps.append(f"It did not run. In a terminal try: {shlex.quote(path)} {' '.join(comp['check']['argv'][1:])}")
+            except (OSError, subprocess.SubprocessError, UnicodeError):
+                steps.append("It did not answer within 15 seconds or could not start. Try it by hand in a terminal.")
+        on_path = shutil.which(name)
+        if ran and row["installation_source"] == "managed":
+            if not on_path:
+                steps.append(f"A new terminal cannot find {name}. Add {cfg.bin} to your PATH (the setup checklist has Add tools to PATH), or use the full path.")
+            elif os.path.realpath(on_path) != os.path.realpath(path):
+                steps.append(f"A new terminal runs {on_path}, not the managed copy. Put {cfg.bin} first on your PATH, or use {path}.")
+        pinned, installed_version = row["pinned_version"], row["installed_version"]
+        if ran and installed_version and version_key(installed_version) and version_key(pinned) and version_key(installed_version) < version_key(pinned):
+            steps.append(f"Upgrade to {pinned}.")
+        if ran and shown and installed_version and shown != installed_version:
+            steps.append(f"The tool reports {shown} but {installed_version} is recorded. Run Upgrade again or restart anything that still runs the old copy.")
+        if ran and not steps:
+            steps.append(f"Sign in yourself if you have not: {row.get('login_command') or row['login']['command']}")
+        out.append({"id": row["id"], "name": row["name"], "ok": bool(ran) and not any(x.startswith(("A new terminal", "The tool reports")) for x in steps),
+                    "version": shown or installed_version, "path": path, "source": row["installation_source"], "next": steps})
+    return out
+
+
 def inspect(cfg: ToolsConfig, catalog: Catalog, facts: HostFacts | None = None) -> dict:
     """Everything the panel shows before any button is pressed. Read-only."""
     facts = facts or detect_host(cfg.root, _tool_commands(catalog))

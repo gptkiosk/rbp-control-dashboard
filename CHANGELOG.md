@@ -10,6 +10,28 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.6.28] - 2026-10-19
+
+### Fixed
+
+- **Upgrading a tool you installed yourself (Hermes, `gh` from Homebrew) was always refused** with "The native version could not be verified". The tools helper put the macOS sandbox up before it re-read the tool's version, and the sandbox hides the home folder, so Hermes (in `~/.hermes`) could not run and every Upgrade was refused with nothing shown. The version is now read first and the plan reuses it. A test reproduces the sandbox.
+
+### Changed
+
+- **Settings is reorganised into three tabs**: *Settings* (preferences, Hermes on Discord, private credentials), *Updates & installs* (dashboard, agent tools, optional system tools) and *Maintenance & access* (housekeeping, report storage, bug reports, roles, GitHub). Old links such as `/profile#agent-tools` or `#github-settings` open the right tab. Explanations moved out to How-to links, hover text and the docs; controls are switches, a segmented appearance control and one compact row per credential instead of paragraphs and checkboxes.
+- **One card for every installable thing**, the same one the setup checklist uses: a status mark, the version (`installed → latest`), one line of state, the buttons, a progress bar while it works, the log, and a **health check** with next steps. The dashboard update, each agent tool and each optional system tool use it.
+- **Private credentials** are one list of cards (signed-in agent, OpenRouter, fal.ai, Discord bot, GitHub) merging the old key guide and the input fields: saved or not, one line on what it is for, a Get a key link, and Save, Remove, share and spending controls on the same card.
+- **Tasks lanes are cards**: each status (In progress, Needs approval, Queued, Backlog, Failed, Done) is its own bordered card with a coloured edge, the status pill, a count badge and a one-line description, so the lanes are easy to tell apart. An empty lane drops its column header.
+- **Every menu page opens the same way**: icon and title, one line saying what the page is, a **How-to** link into the documentation, and the page's actions on the right. Long explanations that did not need to be on screen (Agent access, billing and rate notes, model facts, ops trend, media, GitHub) are folded behind a quiet **Notes** line; the safety warnings in confirmation dialogs are unchanged. Projects trims its explanatory text and shows the four-step workflow as tiles. New How-to: *Read jobs and telemetry*.
+- **Media: the studio and the price list are separate, and human media stories link to the studio with the cost up front.** The project's *Media* tab is now the **Media studio** (spent so far, left to make at the chosen tiers, waiting for review, and the spending acknowledgement in a bordered box). Agents → *Media* became **Media prices**, a price list; generating for a folder that is not a project moved into a folded section there. A human story about media (in the task row, the decision box and the card panel) shows a callout: published slots, about what is left to spend, what has been spent, and **Open media studio**. `GET /api/media/project/{id}` and `/api/media/slots` now return `cost` (estimates from the ledger and the slots' prices; fal's invoice is the truth).
+- **Screen audit pass over every page in RCD and RCD**: Settings' Maintenance & access panels (Housekeeping, Bug reports, Agent roles, GitHub actions) get the same header as the rest, with a status pill and How-to link, and environment-variable instructions folded behind a Notes line; Services shows seven columns that fit (PID sits with the state, run counts share one column); Help and the Pi health page use the shared page header; Ops reports drops a duplicate list of report folders and folds its fleet-health notes; the by-hand update steps are folded; Projects loses a stray hint and punctuates the media banner. New How-to: *Keep the dashboard tidy*.
+
+### Added
+
+- **Agent tool health check** (`GET /api/agent-installs/health`): runs each installed tool's version command, says whether a new terminal reaches the managed copy, and lists next steps (upgrade, sign in, fix the PATH). It runs by itself after every install or upgrade.
+- **Optional system tools in Settings**: **Install (All)** and **Upgrade (All)** for Python, ffmpeg, Docker (with Colima) and `gh` through Homebrew, as one job with a progress bar and log, the Homebrew prerequisite and its install command shown first, **Check for updates** (what Homebrew reports outdated), **Start Colima**, and a health check (`/api/host/readiness/tools`, `/tools/health`). On Linux it shows one `apt` command to copy and never runs it.
+- Two How-to guides, *Install or upgrade the agent tools* and *Install or upgrade the optional system tools*.
+
 ## [0.6.27] - 2026-10-18
 
 ### Fixed
@@ -595,7 +617,8 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 - Claude Code stories may use web search and fetch without any shell, credential or publish permission.
 
 [0.3.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.0
-[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.27...HEAD
+[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.28...HEAD
+[0.6.28]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.28
 [0.6.27]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.27
 [0.6.26]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.26
 [0.6.25]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.25

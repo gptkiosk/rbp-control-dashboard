@@ -127,7 +127,7 @@ onMounted(load)
   <component :is="wizard ? 'div' : 'details'" class="card github-panel" :open="wizard ? undefined : status?.state !== 'ready' ? true : undefined">
     <component :is="wizard ? 'h3' : 'summary'">GitHub (optional) · repositories, pull requests and issues</component>
     <p class="status" role="status">{{ summary }}</p>
-    <p class="muted">Turn this on only if you want this dashboard to show open pull requests and issues. While it is off or unfinished, no background GitHub calls are made. Settings here apply to everyone using this installation; changes need operator sign-in.</p>
+    <p class="muted small">Optional. Shows open pull requests and issues; no GitHub calls while off. Operator sign-in required.</p>
     <p v-if="error" class="notice-warn" role="alert">{{ error }}</p>
     <p v-if="notice" role="status">{{ notice }}</p>
     <p v-if="login" class="muted" role="status">{{ login.available ? `Active gh login: ${login.account}.` : 'No active gh login was detected on the host. Sign in there with “gh auth login”, then refresh.' }}</p>
@@ -135,7 +135,7 @@ onMounted(load)
       <label class="check"><input v-model="enabled" type="checkbox" />Enable GitHub</label>
       <template v-if="enabled">
         <label>GitHub account<input v-model="account" class="input" autocomplete="off" spellcheck="false" placeholder="your-github-login" @input="accountTyped" @blur="accountDone" @keydown.enter.prevent="accountDone" /></label>
-        <p class="muted small">The account must be the one already signed in with <code>gh</code> on the host. The dashboard uses that existing login and never asks for, reads or stores a token.</p>
+        <p class="muted small">Uses the account already signed in with <code>gh</code>; no token is read or stored.</p>
         <fieldset class="repo-list" :aria-busy="listState === 'loading'">
           <legend>Repositories to show</legend>
           <p v-if="listState === 'idle' && !selected.length" class="muted small">Enter the account above and its repositories appear here to tick.</p>

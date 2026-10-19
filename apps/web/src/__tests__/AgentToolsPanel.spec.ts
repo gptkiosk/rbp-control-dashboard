@@ -150,7 +150,7 @@ it('offers Update, Roll back and Remove for an installed tool and names the vers
     actions: { install: null, update: [], remove: [], rollback: [] } })
   stubFetch(url => url === '/api/agent-installs' ? { body: status({}, [installed]) } : undefined)
   const w = mount(AgentToolsPanel, stubs); await flushPromises()
-  expect(w.findAll('button').map(b => b.text()).filter(t => !t.startsWith('Copy'))).toEqual(['Upgrade 0.162.1', 'Roll back to 0.161.0', 'Remove'])
+  expect(w.findAll('button').map(b => b.text()).filter(t => !t.startsWith('Copy') && t !== 'Check health')).toEqual(['Upgrade 0.162.1', 'Roll back to 0.161.0', 'Remove'])
   expect(w.get('[data-test="state"]').text()).toContain('Installed 0.162.0. Latest verified: 0.162.1.')
   w.unmount()
 })
@@ -238,5 +238,24 @@ it('shows and copies the sign-in command with the tool’s full path when its fo
   expect(login.text()).toContain('/home/pi/.local/share/rcd-agent-tools/bin/codex login --device-auth')
   await login.get('button').trigger('click'); await flushPromises()
   expect(writes).toEqual(['/home/pi/.local/share/rcd-agent-tools/bin/codex login --device-auth'])
+  w.unmount()
+})
+
+it('shows each installed tool as a card with its version, runs a read-only health check on request and lists the next steps', async () => {
+  const installed = tool('hermes', 'Hermes', { installed: true, installed_version: '0.21.5', installation_source: 'native', path: '/home/pi/.local/bin/hermes', actions: { install: null, update: [], remove: null, rollback: null }, pinned_version: '0.22.0' })
+  const f = stubFetch(url => {
+    if (url === '/api/agent-installs') return { body: status({}, [installed, tool('grok', 'Grok Build')]) }
+    if (url.startsWith('/api/agent-installs/health')) return { body: { checks: [{ id: 'hermes', ok: false, version: '0.21.5', next: ['Upgrade to 0.22.0.'] }] } }
+    return undefined
+  })
+  const w = mount(AgentToolsPanel, stubs); await flushPromises()
+  const card = w.get('[data-tool="hermes"]')
+  expect(card.get('[data-test="version"]').text()).toBe('0.21.5 → 0.22.0')
+  expect(card.get('[data-test="word"]').text()).toBe('update available')
+  expect(w.find('[data-tool="grok"] [data-action="health"]').exists()).toBe(false)             // nothing to check until it is installed
+  await card.get('[data-action="health"]').trigger('click'); await flushPromises()
+  expect(calls(f, 'GET', '/api/agent-installs/health')[0]![0]).toBe('/api/agent-installs/health?tool=hermes')
+  expect(card.get('[data-test="health"]').text()).toContain('needs attention')
+  expect(card.get('[data-test="health"]').text()).toContain('Upgrade to 0.22.0.')
   w.unmount()
 })

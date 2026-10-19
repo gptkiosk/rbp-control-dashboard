@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import AppIcon from '@/components/AppIcon.vue'
+import PageHead from '@/components/PageHead.vue'
 import AppSelect from '@/components/AppSelect.vue'
 import BarList from '@/components/BarList.vue'
 import DonutChart from '@/components/DonutChart.vue'
@@ -39,8 +40,7 @@ onMounted(load)
 </script>
 <template>
   <section class="page" aria-labelledby="telemetry-title">
-    <h1 id="telemetry-title" class="page-title has-icon"><AppIcon name="activity" size="lg" />Jobs &amp; telemetry</h1>
-    <p class="muted lead">How work is going across jobs and stories: who it is assigned to (a person or an agent), the agent and model that ran it, time, and cost. A job is one approved plan revision.</p>
+    <PageHead id="telemetry-title" title="Jobs &amp; telemetry" icon="activity" sub="Assignee, agent, model, time and cost per job and story. A job is one approved plan revision." help="jobs-telemetry" />
     <p v-if="error" class="notice-warn" role="alert">{{ error }}</p>
 
     <form class="card filters" aria-label="Filters" @submit.prevent="load">

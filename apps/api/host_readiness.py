@@ -7,6 +7,7 @@ test the key) and returns the fresh report. The private key never leaves the hos
 """
 from __future__ import annotations
 
+import json
 import os
 import re
 import shutil
@@ -384,7 +385,7 @@ def add_tools_to_path(settings=None):
 BREW_TOOLS = {"ffmpeg": ("ffmpeg",), "python3": ("python",), "docker": ("colima", "docker", "docker-compose"), "colima": ("colima",)}
 JOB_LOCK = threading.Lock()
 JOB = {"current": None}                       # the one running or last finished job; the dashboard runs only one at a time
-JOB_LIMITS = {"brew_install": 1800, "brew_update": 3600, "colima_start": 600}
+JOB_LIMITS = {"brew_install": 1800, "brew_update": 3600, "colima_start": 600, "brew_install_all": 3600, "brew_upgrade_all": 3600}
 
 
 def _job_env():
@@ -483,6 +484,121 @@ def colima_start(settings):
     return "Started: colima start. The first start downloads a small VM, so it can take a few minutes."
 
 
+# The system tools panel in Settings: every optional tool with its version, Install (All) and Upgrade (All), and a health check. Homebrew formulae per tool on a Mac.
+SYSTEM_TOOLS = {"python3": ("python",), "node": (), "ffmpeg": ("ffmpeg",), "docker": ("colima", "docker", "docker-compose"), "colima": ("colima",), "gh": ("gh",)}
+SYSTEM_TOOL_NOTES = {"python3": "tests and scripts", "node": "JavaScript tests and the Playwright screenshot script", "ffmpeg": "publishing generated media",
+                     "docker": "building and running container images", "colima": "the Docker engine on a Mac", "gh": "pull requests from this host"}
+APT_PACKAGES = {"python3": "python3", "ffmpeg": "ffmpeg", "docker": "docker.io docker-compose"}
+VERSION_ARGS = {"ffmpeg": ("-version",)}
+PRIMARY_FORMULA = {"python3": "python", "docker": "docker"}          # the formula whose version is the tool's own; docker also pulls colima and docker-compose
+VERSION_RE = re.compile(r"(?<![\w.])v?(\d+(?:\.\d+){1,3})")
+
+
+def _version_of(path, args=("--version",)):
+    code, out = _run([path, *args], timeout=8, env=_job_env())
+    match = VERSION_RE.search(out[:2000]) if code == 0 else None
+    return match.group(1) if match else None
+
+
+def _outdated(brew):
+    """Formula name -> newest version, from `brew outdated`. Reads Homebrew's local index only; `brew update` (Upgrade all) refreshes it."""
+    code, out = _run([brew, "outdated", "--formula", "--json=v2"], timeout=60, env=_job_env())
+    if code != 0:
+        return None
+    try:
+        return {f["name"]: f.get("current_version") for f in json.loads(out).get("formulae", [])}
+    except (ValueError, AttributeError, TypeError):
+        return None
+
+
+def system_tools(settings=None, check_updates=False):
+    mac = _is_mac()
+    brew = _tool("brew") if mac else None
+    outdated = _outdated(brew) if (brew and check_updates) else None
+    rows = []
+    for tid, formulae in SYSTEM_TOOLS.items():
+        if tid == "colima" and not mac:
+            continue
+        path = _tool(tid, settings)
+        row = {"id": tid, "label": tid, "needed_for": SYSTEM_TOOL_NOTES[tid], "installed": bool(path), "version": _version_of(path, VERSION_ARGS.get(tid, ("--version",))) if path else None,
+               "path": path, "latest": None, "outdated": None, "formulae": list(formulae) if mac else [],
+               "stopped": bool(tid == "colima" and path and not _colima_running())}
+        if outdated is not None and path:
+            primary = PRIMARY_FORMULA.get(tid, tid)
+            row["outdated"] = primary in outdated if formulae else None
+            row["latest"] = outdated.get(primary) or row["version"] if formulae else None
+        rows.append(row)
+    missing = [r["id"] for r in rows if not r["installed"]]
+    have = [r["id"] for r in rows if r["installed"]]
+    brewable = lambda ids: [i for i in ids if SYSTEM_TOOLS[i]]                 # node arrives with an agent tool, not Homebrew
+    body = {"platform": "mac" if mac else "linux", "tools": rows, "missing": missing, "updates_checked": outdated is not None,
+            "outdated": [r["id"] for r in rows if r["outdated"]], "job": current_job()}
+    if mac:
+        body["brew"] = {"installed": bool(brew), "path": brew, "version": _version_of(brew) if brew else None, "install_command": BREW_INSTALL,
+                        "prerequisite": "Homebrew installs and upgrades these. Install it yourself in Terminal (it asks for your password); the dashboard never runs that command."}
+        body["can_install_all"] = bool(brew) and bool(brewable(missing))
+        body["can_upgrade_all"] = bool(brew) and bool(brewable(have))
+    else:
+        packages = " ".join(APT_PACKAGES[m] for m in missing if m in APT_PACKAGES)
+        body["apt_command"] = f"sudo apt-get update && sudo apt-get install -y {packages}" if packages else None
+        body["can_install_all"], body["can_upgrade_all"] = False, False
+        body["note"] = "Installing system packages needs administrator rights, so the dashboard shows the command and never runs it. gh installs from Agent tools."
+    return body
+
+
+def system_tools_health(settings=None):
+    """Follow-up check after an install or upgrade: each present tool answers, Docker can reach its engine, and what to do next."""
+    mac = _is_mac()
+    checks = []
+    for row in system_tools(settings)["tools"]:
+        if not row["installed"]:
+            continue
+        steps, ok = [], row["version"] is not None
+        if not ok:
+            steps.append(f"{row['id']} did not report a version. Run it by hand in a terminal to see why.")
+        if row["id"] == "docker" and ok:
+            code, _ = _run([row["path"], "info"], timeout=12, env=_job_env())
+            if code != 0:
+                ok = False
+                steps.append("Docker is installed but its engine is not running. " + ("Start Colima with the button above, then check again." if mac else "Start the Docker service, then check again."))
+        if row["id"] == "colima" and ok and not _colima_running():
+            ok = False
+            steps.append("Colima is installed but stopped. Start Colima with the button above.")
+        checks.append({"id": row["id"], "ok": ok, "version": row["version"], "next": steps})
+    return {"checks": checks}
+
+
+def brew_install_all(settings):
+    if not _is_mac():
+        raise ReadinessError("Homebrew installs are for a Mac. On Linux the dashboard cannot install system packages (they need administrator rights).", 409)
+    brew = _tool("brew")
+    if not brew:
+        raise ReadinessError("Homebrew is not installed. Install it first with the command shown, then try again.", 409)
+    missing = [r["id"] for r in system_tools(settings)["tools"] if not r["installed"]]
+    formulae = sorted({f for m in missing for f in SYSTEM_TOOLS[m]})
+    if not formulae:
+        raise ReadinessError("Every optional tool is already installed.", 409)
+    _start_job(settings, "brew_install_all", "Installing optional tools with Homebrew", [[brew, "install", *formulae]])
+    return f"Started: brew install {' '.join(formulae)}. It can take several minutes; progress shows below."
+
+
+def brew_upgrade_all(settings):
+    """`brew update`, then upgrade the optional tools that are installed through Homebrew. Nothing else on the Mac is touched."""
+    if not _is_mac():
+        raise ReadinessError("Homebrew updates are for a Mac.", 409)
+    brew = _tool("brew")
+    if not brew:
+        raise ReadinessError("Homebrew is not installed. Install it first with the command shown, then try again.", 409)
+    code, out = _run([brew, "list", "--formula"], timeout=20, env=_job_env())
+    have = set(out.split()) if code == 0 else set()
+    managed = sorted({f for formulae in SYSTEM_TOOLS.values() for f in formulae} & have)
+    if not managed:
+        raise ReadinessError("None of the optional tools are installed with Homebrew, so there is nothing for it to upgrade.", 409)
+    _start_job(settings, "brew_upgrade_all", "Upgrading optional tools with Homebrew", [[brew, "update"], [brew, "upgrade", *managed]])
+    return f"Started: brew update, then brew upgrade {' '.join(managed)}. Progress shows below."
+
+
+
 def apply(settings, action, name=None, email=None, path=None, tool=None):
     if action == "create_workspace":
         return create_workspace(settings, path)
@@ -500,4 +616,8 @@ def apply(settings, action, name=None, email=None, path=None, tool=None):
         return colima_start(settings)
     if action == "brew_update":
         return brew_update(settings)
+    if action == "brew_install_all":
+        return brew_install_all(settings)
+    if action == "brew_upgrade_all":
+        return brew_upgrade_all(settings)
     raise ReadinessError("Unknown fix.")

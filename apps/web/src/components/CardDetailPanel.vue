@@ -5,6 +5,8 @@ import { computed, reactive, ref } from 'vue'
 import TaskFields, { type TaskFieldValues } from '@/components/TaskFields.vue'
 import TagPill from '@/components/TagPill.vue'
 import TaskApprovalAction from '@/components/TaskApprovalAction.vue'
+import MediaCallout from '@/components/MediaCallout.vue'
+import { useProjectMedia } from '@/composables/useProjectMedia'
 import AppIcon from '@/components/AppIcon.vue'
 import ChipTag from '@/components/ChipTag.vue'
 import ModalShell from '@/components/ModalShell.vue'
@@ -76,6 +78,7 @@ const busy = ref(false)
 const moveValue = ref('')
 
 const human = computed(() => !!card.value && isHuman(card.value))
+const { media: projectMedia, link: mediaLink } = useProjectMedia(card)      // a human story about media shows what the studio will cost before it is opened
 const running = computed(() => card.value?.column === 'running')
 const locked = computed(() => (running.value && !human.value) || !!card.value?.project)
 const taskFields = ref<TaskFieldValues>({
@@ -389,7 +392,8 @@ async function save(): Promise<void> {
           <ChipTag v-else-if="card.approved_at" tone="ok">Approved</ChipTag>
         </div>
 
-        <TaskApprovalAction v-if="card.project" :card="card" @changed="afterChange" />
+        <MediaCallout v-if="card.project" :media="projectMedia" :link="mediaLink" />
+        <TaskApprovalAction v-if="card.project" :card="card" hide-media-link @changed="afterChange" />
         <div
           v-if="message"
           class="message"

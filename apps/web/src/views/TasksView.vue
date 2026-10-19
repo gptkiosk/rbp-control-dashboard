@@ -2,6 +2,7 @@
 import { computed, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppIcon from '@/components/AppIcon.vue'
+import PageHead from '@/components/PageHead.vue'
 import CardDetailPanel from '@/components/CardDetailPanel.vue'
 import TaskGroup from '@/components/TaskGroup.vue'
 import NewCardDialog from '@/components/NewCardDialog.vue'
@@ -159,17 +160,9 @@ async function quickAdd(title: string, column: CardColumn): Promise<void> {
 
 <template>
   <section class="page" aria-labelledby="tasks-title">
-    <header class="head">
-      <div>
-        <h1 id="tasks-title" class="page-title has-icon">
-          <AppIcon :name="navIcon('tasks')" size="lg" />Tasks
-        </h1>
-        <p class="muted hint">Your work and your agents’ work, grouped by status.</p>
-      </div>
-      <button type="button" class="btn primary" @click="showNewCard = true">
-        <AppIcon name="plus" />New task
-      </button>
-    </header>
+    <PageHead id="tasks-title" title="Tasks" :icon="navIcon('tasks')" sub="Your work and your agents’ work, grouped by status." help="agent-tasks">
+      <button type="button" class="btn primary" @click="showNewCard = true"><AppIcon name="plus" />New task</button>
+    </PageHead>
     <div id="board-controls" class="toolbar">
       <label class="search"
         ><AppIcon name="search" /><span class="sr-only">Search tasks</span

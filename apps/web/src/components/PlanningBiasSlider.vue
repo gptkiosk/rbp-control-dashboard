@@ -1,21 +1,21 @@
 <script setup lang="ts">
 import { computed, useId } from 'vue'
 import { planningBiasLabel, planningBiasHint } from '@/lib/projects'
-const props = defineProps<{ modelValue: number; disabled?: boolean; mapped?: boolean }>()
+const props = defineProps<{ modelValue: number; disabled?: boolean; mapped?: boolean; compact?: boolean }>()
 const emit = defineEmits<{ 'update:modelValue': [value: number] }>()
 const id = useId()
 const label = computed(() => planningBiasLabel(props.modelValue))
 </script>
 
 <template>
-  <div class="planning-preference" :class="{ disabled }">
+  <div class="planning-preference" :class="{ disabled, compact }">
     <div class="preference-heading"><label :for="id">Story assignment preference</label><output :for="id">{{ label }}</output></div>
     <input :id="id" type="range" min="0" max="100" step="25" :value="modelValue" :disabled="disabled"
-      :aria-valuetext="label" :aria-describedby="`${id}-hint ${id}-note`"
+      :aria-valuetext="label" :aria-describedby="compact ? `${id}-hint` : `${id}-hint ${id}-note`"
       :style="{ '--bias-fill': `${modelValue}%` }" @input="emit('update:modelValue', Number(($event.target as HTMLInputElement).value))" />
     <div class="preference-endpoints" aria-hidden="true"><span><strong>Economy</strong><small>OpenClaw first</small></span><span class="midpoint"><strong>Balanced</strong><small>Haiku/Luna first</small></span><span><strong>Capability</strong><small>Claude & Codex first</small></span></div>
     <p :id="`${id}-hint`" class="preference-hint">{{ planningBiasHint(modelValue) }}</p>
-    <p :id="`${id}-note`" class="preference-note">{{ mapped ? 'Save and replan to use a new preference. Existing story assignments stay as edited; new stories use this default.' : 'Sets initial recommendations. You can edit each story’s agent and model on the map.' }} Subscription fees stay fixed; OpenClaw uses free-first cloud routes with capped BYOK fallback.</p>
+    <p v-if="!compact" :id="`${id}-note`" class="preference-note">{{ mapped ? 'Save and replan to use a new preference. Existing story assignments stay as edited; new stories use this default.' : 'Sets initial recommendations. You can edit each story’s agent and model on the map.' }} Subscription fees stay fixed; OpenClaw uses free-first cloud routes with capped BYOK fallback.</p>
   </div>
 </template>
 
@@ -38,6 +38,8 @@ input:focus-visible { outline: var(--focus-ring-width) solid var(--focus-ring); 
 .preference-hint, .preference-note { margin: var(--gap-xs) 0 0; line-height: var(--line-height); }
 .preference-note { margin-top: var(--gap); }
 .preference-hint { font-size: var(--font-size-sm); color: var(--text); }
+.compact { margin-top: var(--gap); }
+.compact .preference-endpoints small { display: none; }
 .disabled { opacity: var(--disabled-opacity); }
 input:disabled { cursor: default; }
 </style>

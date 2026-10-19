@@ -41,7 +41,7 @@ describe('ServicesView', () => {
     expect(rows).toHaveLength(4)
     expect(rows[0]!.attributes('data-severity')).toBe('2')
     expect(rows[1]!.attributes('data-severity')).toBe('1')
-    expect(w.findAll('th[scope="col"]').length).toBe(9)   // the Actions column is the ninth
+    expect(w.findAll('th[scope="col"]').length).toBe(7)   // the Actions column is the seventh: PID sits with the state, and the run counts share one column
     w.unmount()
   })
 

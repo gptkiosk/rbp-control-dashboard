@@ -104,7 +104,7 @@ function onBlur(): void {
 
     <div v-if="!collapsed" :id="bodyId" class="group-body">
       <div role="table" class="table" :aria-label="`${group.label} tasks`">
-        <div class="row head-row" role="row">
+        <div v-if="cards.length" class="row head-row" role="row">
           <div class="cell" role="columnheader">Name</div>
           <div class="cell" role="columnheader">Assignee</div>
           <div class="cell" role="columnheader">Model</div>
@@ -166,8 +166,16 @@ function onBlur(): void {
   display: flex;
   flex-direction: column;
   gap: var(--gap-xs);
-  padding-bottom: var(--gap);
+  padding: var(--gap) var(--gap) var(--gap-xs);
+  border: 1px solid var(--surface-border);
+  border-left: 4px solid var(--pill-color);
   border-radius: var(--radius);
+  background: var(--panel);
+  min-width: 0;
+}
+
+.group[data-collapsed='true'] {
+  padding-bottom: var(--gap);
 }
 
 .group[data-group='running'] {
@@ -202,6 +210,7 @@ function onBlur(): void {
 
 .group-head {
   display: flex;
+  padding-bottom: var(--gap-xs);
   align-items: center;
   gap: var(--gap-sm);
   position: sticky;
@@ -248,9 +257,14 @@ function onBlur(): void {
 }
 
 .count {
-  color: var(--text-muted);
+  min-width: 1.6rem;
+  padding: 0 var(--gap-sm);
+  border-radius: var(--radius-pill);
+  background: var(--pill-bg);
+  color: var(--pill-color);
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-strong);
+  text-align: center;
 }
 
 .subtitle {

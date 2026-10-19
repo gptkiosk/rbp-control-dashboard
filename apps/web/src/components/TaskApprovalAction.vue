@@ -3,25 +3,17 @@ import { computed, onMounted, ref, watch } from 'vue'
 import AppIcon from '@/components/AppIcon.vue'
 import ModalShell from '@/components/ModalShell.vue'
 import { getJson, postJson, type Card } from '@/lib/api'
+import MediaCallout from '@/components/MediaCallout.vue'
+import { useProjectMedia } from '@/composables/useProjectMedia'
 import { awaitsApproval } from '@/lib/cards'
 import type { Project } from '@/lib/projects'
 
-const props = defineProps<{ card: Card }>()
+const props = defineProps<{ card: Card; hideMediaLink?: boolean }>()
 const emit = defineEmits<{ changed: [] }>()
 const busy = ref(false), error = ref(''), decisionOpen = ref(false), decision = ref('')
 const option = ref(''), decisionId = ref('')
-// A human story about media goes straight to the media review, with where the slots stand.
-interface MediaSummary { published: number; skipped: number; pending: number; total: number; complete: boolean; text: string }
-const media = ref<{ available: boolean; summary?: MediaSummary } | null>(null)
-const mediaStory = computed(() => /\b(media|stills?|clips?|video|illustrations?|art|images?)\b/i.test(`${props.card.title} ${props.card.body || ''}`))
-const mediaLink = computed(() => (props.card.project ? `/projects?project=${props.card.project.id}&view=media` : ''))
-async function loadMedia() {
-  media.value = null
-  if (!props.card.project || props.card.assignee_type !== 'human' || !mediaStory.value) return
-  try { media.value = await getJson(`/api/media/project/${props.card.project.id}`) } catch { media.value = null }
-}
-onMounted(() => { void loadMedia() })
-watch(() => props.card.id, () => { void loadMedia() })
+// A human story about media goes straight to the media studio, with where the slots stand and what is left to spend.
+const { media, link: mediaLink } = useProjectMedia(() => props.card)
 const gate = computed(() => props.card.last_run?.approval)
 const kind = computed(() => {
   const c = props.card
@@ -91,7 +83,7 @@ async function approve(reject = false) {
     <button type="button" class="btn primary approval-button" :disabled="busy || !!card.last_run?.decision_pending" :title="explanation" @click="approve()">
       <AppIcon name="approval" size="sm" />{{ busy ? 'Approving…' : label }}
     </button>
-    <RouterLink v-if="kind === 'decision' && media?.available" :to="mediaLink" class="media-link" data-testid="media-link" @click.stop>Open media review<template v-if="media.summary"> ({{ media.summary.published }} of {{ media.summary.total }} published)</template> →</RouterLink>
+    <MediaCallout v-if="kind === 'decision' && !hideMediaLink" :media="media" :link="mediaLink" compact />
     <p v-if="kind === 'run' && card.approval_reasons.length" class="approval-reason">{{ card.approval_reasons.join('; ') }}</p>
     <p v-if="error && !decisionOpen" class="error-text" role="alert">{{ error }} <RouterLink v-if="card.project" :to="`/projects?project=${card.project.id}&view=work&story=${card.id}&action=review`">Open project review</RouterLink></p>
     <ModalShell class="decision-dialog" v-if="decisionOpen" :labelledby="`decision-title-${card.id}`" @close="decisionOpen=false">
@@ -103,7 +95,7 @@ async function approve(reject = false) {
         <label v-if="kind === 'gate' && gate?.options?.length">Choose an option<select v-model="option" class="input"><option value="">Select…</option><option v-for="o in gate.options" :key="o.id" :value="o.id">{{ o.label }}</option></select></label>
         <p v-if="card.acceptance" class="instructions muted">Definition of done: {{ card.acceptance }}</p>
         <p v-if="media?.available" class="media-box" data-testid="media-box">
-          <RouterLink :to="mediaLink" @click="decisionOpen = false">Open the media review →</RouterLink>
+          <RouterLink :to="mediaLink" @click="decisionOpen = false">Open the media studio →</RouterLink>
           <template v-if="media.summary"><br />{{ media.summary.text }}<br /><button type="button" class="btn" @click="decision = media.summary!.text">Use this as my decision</button></template>
         </p>
         <label :for="`decision-${card.id}`">Your decision</label>
@@ -119,7 +111,6 @@ async function approve(reject = false) {
 .task-approval { width:100%; }
 .decision-dialog :deep(.modal-panel) { padding:var(--gap-lg); }
 .approval-button { display:inline-flex; align-items:center; justify-content:center; gap:var(--gap-xs); max-width:100%; font-size:var(--font-size-sm); white-space:normal; text-align:center; }
-.media-link { display:inline-block; margin-top:var(--gap-xs); font-size:var(--font-size-sm); }
 .media-box { font-size:var(--font-size-sm); }
 .approval-reason,.error-text { font-size:var(--font-size-xs); margin:var(--gap-xs) 0 0; overflow-wrap:anywhere; }
 .decision-form { display:grid; gap:var(--gap); }

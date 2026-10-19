@@ -418,19 +418,19 @@ Types guide planning. They never block a plan and never run model output. A Webs
 
 ## Make site art and video for a project (fal)
 
-Generate stills and clips from the project’s Media tab, review them, and publish the ones you choose.
+Open the Media studio from the project (or from a human media story), see what it will cost, generate stills and clips, review them and publish the ones you choose.
 
 1. Save a fal key first in Profile, Private credentials. The guide Create or replace the fal key lists the models it needs.
-2. Open the project’s Media tab (a project whose folder has media/slots.json gets one, and a banner while slots are unresolved). Tick the spending acknowledgement at the top of the panel; pressing Generate without it tells you what is missing and takes you to the box.
+2. Open the project’s Media studio tab (a project whose folder has media/slots.json gets one). A human story about media, and a banner while slots are unresolved, link straight to it and say what is left to spend. The studio opens with three numbers: spent so far, left to make at the chosen tiers, and waiting for your review. Tick the spending acknowledgement under them; pressing Generate without it tells you what is missing and takes you to the box.
 3. Each slot starts on a tier from its project type: a website’s clips start on the cheapest video tier (MiniMax H3 Max Turbo) and images on standard. Standard clips use MiniMax H3 Max and premium uses Veo 3.1. Change the tier or how many, read the estimate, press Generate and confirm.
 4. Watch progress under that slot’s button: a spinner, waiting or generating text, then finished or the failure. The button reads Generating… until it ends.
-5. Review each candidate as a thumbnail or video. Accept and publish the one you want (MCD converts and records it), choose None of these to make another, or Skip to keep the site’s drawn fallback.
+5. Review each candidate as a thumbnail or video. Accept and publish the one you want (RCD converts and records it), choose None of these to make another, or Skip to keep the site’s drawn fallback.
 6. To keep the bill small, give each slot in media/slots.json only the resolution it needs: "resolution": "1K" for a picture shown small, "480P" for a retro or VHS-look clip (it costs 0.625 of 768p). The estimate on the slot follows it.
 7. A slot with generations still waiting for review is not generated again unless you choose Another take, so a double click never pays twice. A published slot is only regenerated when you choose Regenerate.
 
 A clip starts from a published, approved still. A draft still is too small to publish; make stills at standard or premium. Agents never receive the fal key and cannot generate media.
 
-[Open Projects](http://127.0.0.1:8800/projects) · [Media models and prices](http://127.0.0.1:8800/agents?action=billing) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=project-media)
+[Open Projects](http://127.0.0.1:8800/projects) · [Media prices (what it costs)](http://127.0.0.1:8800/agents?action=billing) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=project-media)
 
 ## Check media spend and avoid paying twice
 
@@ -471,6 +471,64 @@ Accept anyway records the agent’s report and your reason, keeps the run failed
 Nobody should later read an accepted story as a clean pass: the handoff begins with the operator’s acceptance and keeps the agent’s list of gaps.
 
 [Open Projects](http://127.0.0.1:8800/projects) · [Open the task board](http://127.0.0.1:8800/tasks) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=accept-anyway)
+
+## Read jobs and telemetry
+
+See how work is going across approved plans and stories: who it is assigned to, which agent and model ran it, how long it took and what it cost.
+
+1. Open Jobs & telemetry. Pick a period and, if you like, filter by job, kind, risk, size, tier, assignee, agent or model.
+2. The tiles count unassigned work, work in progress, work waiting for you, what finished in the period, work missing an estimate and failures.
+3. The charts break work down by status, route, property, assignee, job, model and kind, with completed work per week and median time per kind.
+4. Cost shows what was reported and the API-equivalent estimate. Runs that could not be priced are counted, not guessed.
+5. Open Jobs: the numbers for the table behind the charts. A job is one approved plan revision.
+
+Telemetry only reads what the dashboard already recorded. It changes nothing.
+
+[Open Jobs & telemetry](http://127.0.0.1:8800/telemetry) · [Price an unrecognised model](http://127.0.0.1:8800/help?topic=model-rates) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=jobs-telemetry)
+
+## Keep the dashboard tidy: housekeeping, bug reports, roles and GitHub
+
+Settings, Maintenance & access holds the cleanup scan, bug-report intake, agent roles, report folders and the GitHub settings and actions.
+
+1. Housekeeping scans for leftovers by fixed rules, with no model involved. Press Scan now, read the findings and approve only what you want removed. Hermes may propose a cleanup but can never change anything itself. After hours cleanup is off unless the host enables it (the Notes line says how).
+2. Bug reports shows whether intake is on and when GitHub was last checked. A maintainer labels an issue bug-report and accepted to make it a Backlog task. Press Check GitHub now to look immediately.
+3. Agent roles sets who coordinates (the Delegator, Hermes is recommended) and who works or reviews. Preview role changes shows exactly what will be written before anything is.
+4. Report storage sets the folders the Ops reports page reads. Reports are read-only.
+5. GitHub settings turns on repository, pull request and issue views for the repositories you choose, using the account already signed in with gh. GitHub actions waiting for you lists anything drafted that would write to GitHub: read the exact request, confirm, and it runs once.
+
+Nothing here changes anything until you approve it. Agents can draft, never approve.
+
+[Open Maintenance & access](http://127.0.0.1:8800/profile#housekeeping) · [Ops reports](http://127.0.0.1:8800/reports) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=maintenance)
+
+## Install or upgrade the agent tools
+
+Settings, Updates & installs: one card per agent CLI with its version, an Install or Upgrade button, a progress bar, the install log and a health check.
+
+1. Open Settings, then Updates & installs. Each agent tool is a card showing the version installed and the version this release has verified.
+2. Press Install or Upgrade. A confirmation lists the versions, downloads, commands and what stays unchanged. Tick it to run. Nothing needs sudo and nothing signs in.
+3. Watch the progress bar and open the log if you want the detail. Only one install runs at a time.
+4. When it finishes the health check runs by itself: it asks the tool for its version, checks that a new terminal reaches the managed copy, and lists next steps. Press Check health to run it again.
+5. A tool you installed yourself (native, for example Hermes or gh from Homebrew) is offered a reviewed upgrade that installs a managed copy beside it; your own copy and account settings are kept. Put the tools folder first on your PATH if the health check says a different copy answers.
+6. Sign in yourself with the command on the card. API keys go in Private credentials, never on this page.
+
+Roll back switches to the version kept on this host. Remove deletes the program but keeps your tool data, for example ~/.hermes.
+
+[Open Updates & installs](http://127.0.0.1:8800/profile#agent-tools) · [Check the machine in the setup wizard](http://127.0.0.1:8800/setup) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=agent-tools)
+
+## Install or upgrade the optional system tools
+
+Install (All) and Upgrade (All) for Docker, ffmpeg, Python and gh, with a log and a health check. Homebrew on a Mac; a command to copy on Linux.
+
+1. Open Settings, then Updates & installs, then Optional system tools. Each tool shows its version; Check for updates asks Homebrew which are outdated.
+2. On a Mac, Homebrew comes first. If it is missing the card shows the one command to run yourself in Terminal (it asks for your password; the dashboard never runs it). Press Check again afterwards.
+3. Install (All) runs one brew install for everything missing. Upgrade (All) runs brew update and then upgrades only these tools. The log shows every command.
+4. Docker needs its engine: Colima provides it on a Mac. If the health check says the engine is stopped, press Start Colima.
+5. On Linux installing packages needs administrator rights, so the card shows one apt command to copy and run in a terminal. gh and Node install from Agent tools.
+6. When a job finishes, the health check runs by itself and lists next steps for anything that did not answer.
+
+Only the named tools are installed or upgraded. Nothing else on the machine is touched, and each job runs with a clean environment: no keys or tokens.
+
+[Open optional system tools](http://127.0.0.1:8800/profile#system-tools) · [Setup wizard checklist](http://127.0.0.1:8800/setup) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=system-tools)
 
 ## Check that this machine is ready to build projects
 

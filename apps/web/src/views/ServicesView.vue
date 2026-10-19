@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import AppIcon from '@/components/AppIcon.vue'
+import PageHead from '@/components/PageHead.vue'
 import ChipTag from '@/components/ChipTag.vue'
 import ServiceActions from '@/components/ServiceActions.vue'
 import { usePolledJson } from '@/composables/usePolledJson'
@@ -26,8 +27,7 @@ function runs24(s: ServiceInfo): string {
 
 <template>
   <section class="page" aria-labelledby="services-title">
-    <h1 id="services-title" class="page-title has-icon"><AppIcon :name="navIcon('services')" size="lg" />Services</h1>
-    <p class="muted small note">Crash loop = restarts in 24 h beyond what the job's schedule explains.</p>
+    <PageHead id="services-title" title="Services" :icon="navIcon('services')" sub="Most severe first. Crash loop = restarts in 24 h beyond what the job's schedule explains." help="services" />
 
     <p v-if="error" class="error" role="alert">Could not load services: {{ error }}</p>
     <p v-else-if="pending" class="muted" role="status">Collecting service state…</p>
@@ -41,9 +41,7 @@ function runs24(s: ServiceInfo): string {
             <th scope="col">Service</th>
             <th scope="col">Schedule</th>
             <th scope="col">State</th>
-            <th scope="col">PID</th>
-            <th scope="col">Runs (total)</th>
-            <th scope="col">Runs in 24 h</th>
+            <th scope="col">Runs</th>
             <th scope="col">Last exit</th>
             <th scope="col">Flags</th>
             <th scope="col">Actions</th>
@@ -58,10 +56,9 @@ function runs24(s: ServiceInfo): string {
             <td data-label="Schedule">{{ s.schedule }}</td>
             <td data-label="State">
               <ChipTag :tone="s.state === 'running' ? 'ok' : 'muted'">{{ s.state }}</ChipTag>
+              <span v-if="s.pid" class="muted small pid"> PID {{ num(s.pid) }}</span>
             </td>
-            <td data-label="PID" class="num">{{ num(s.pid) }}</td>
-            <td data-label="Runs (total)" class="num">{{ num(s.runs) }}</td>
-            <td data-label="Runs in 24 h" class="num">{{ runs24(s) }}</td>
+            <td data-label="Runs">{{ num(s.runs) }} total · {{ runs24(s) }} in 24 h</td>
             <td data-label="Last exit">{{ s.last_exit ?? DASH }}</td>
             <td data-label="Flags">
               <div class="flags">

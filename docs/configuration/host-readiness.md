@@ -18,6 +18,10 @@ Before a project can be built and delivered from this machine, the machine needs
 
 The summary line says whether the machine is **ready to build** (workspace, git, identity and a builder) and **ready to deliver to GitHub** (and a GitHub key).
 
+## Later: Settings, Updates & installs
+
+After the wizard, the same cards live in **Settings, Updates & installs**: the dashboard, each agent tool and the optional system tools, each with its version, an Install or Upgrade button, a progress bar, the log and a health check. **Optional system tools** adds **Install (All)** and **Upgrade (All)** (Homebrew on a Mac, with the Homebrew install command shown first when it is missing; one `apt` command to copy on Linux), **Check for updates**, **Start Colima** and a health check.
+
 ## The GitHub key
 
 **Make a GitHub SSH key** creates an ed25519 key with no passphrase at `~/.ssh/rcd-github` (mode 600) and adds a marked block to `~/.ssh/config` so `github.com` uses it. The private key never leaves the host and is never shown or returned; only the public key is displayed. An existing key is never replaced. Add the public key to your GitHub account (one key then reaches every repository you can access) or to a single repository's **Deploy keys** with write access (the narrower choice, one repository per key). **Test GitHub access** asks GitHub whether it accepts the key, ignoring the system ssh config so a hardened service cannot trip on it; the first test records GitHub's host key (`accept-new`), and a success is remembered next to the key.

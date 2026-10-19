@@ -114,7 +114,7 @@ it('shows a Media tab and a banner for a project with media slots, and the link 
  mediaProject={available:true,working_dir:'/tmp/project',summary:{published:4,skipped:0,pending:6,total:10,complete:false,text:'Media: 4 of 10 slots published, 6 still undecided.'}}
  const {w}=await setup('active')
  await flushPromises()
- expect(w.findAll('nav.tabs button').map(b=>b.text())).toContain('Media')
+ expect(w.findAll('nav.tabs button').map(b=>b.text())).toContain('Media studio')
  expect(w.get('[data-testid=media-banner]').text()).toContain('4 of 10 published, 6 waiting for your decision')
  await w.get('[data-testid=media-banner] button').trigger('click');await flushPromises()
  expect(w.find('.media-tab').exists()).toBe(true)
@@ -128,7 +128,7 @@ it('shows a Media tab and a banner for a project with media slots, and the link 
 it('has no Media tab for a project without media slots',async()=>{
  const {w}=await setup('active')
  await flushPromises()
- expect(w.findAll('nav.tabs button').map(b=>b.text())).not.toContain('Media')
+ expect(w.findAll('nav.tabs button').map(b=>b.text())).not.toContain('Media studio')
  expect(w.find('[data-testid=media-banner]').exists()).toBe(false)
  w.unmount()
 })

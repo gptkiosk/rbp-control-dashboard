@@ -52,7 +52,22 @@ it('never exports the sharing switch with portable preferences',async()=>{
   const {w}=await setup()
   const blobs:Blob[]=[]
   vi.stubGlobal('URL',{...URL,createObjectURL:(b:Blob)=>{blobs.push(b);return 'blob:x'},revokeObjectURL:()=>{}})
-  await w.findAll('button').find(b=>b.text()==='Export preferences')!.trigger('click');await flushPromises()
+  await w.findAll('button').find(b=>b.text()==='Export')!.trigger('click');await flushPromises()
   expect(blobs.length).toBeGreaterThan(0)
   expect(await blobs[0]!.text()).not.toContain('use_saved_openrouter_key')
+})
+
+it('keeps Settings first and opens the group that holds a linked section, so old #agent-tools links still land',async()=>{
+  const {w}=await setup()
+  const panel=(label:string)=>w.get(`[role="tabpanel"][aria-label="${label}"]`)
+  expect(w.get('[data-tab="settings"]').attributes('aria-selected')).toBe('true')
+  expect(panel('Updates and installs').attributes('style')).toContain('display: none')
+  await w.get('[data-tab="updates"]').trigger('click')
+  expect(panel('Updates and installs').attributes('style')??'').not.toContain('display: none')
+  expect(panel('Settings').attributes('style')).toContain('display: none')
+  w.unmount()
+  window.location.hash='#github-settings'
+  const again=await setup()
+  expect(again.w.get('[data-tab="maintenance"]').attributes('aria-selected')).toBe('true')
+  again.w.unmount();window.location.hash=''
 })

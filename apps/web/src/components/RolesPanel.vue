@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import NoteFold from '@/components/NoteFold.vue'
+import PanelHead from '@/components/PanelHead.vue'
 import { onMounted, ref } from 'vue'
 import { getJson, postJson } from '@/lib/api'
 import ModalShell from '@/components/ModalShell.vue'
@@ -16,13 +18,13 @@ onMounted(()=>action(load))
 </script>
 <template>
 <section id="agent-roles" class="card">
-  <h2>Agent roles</h2>
-  <p>Hermes is the recommended Delegator. Assign one installed agent to coordinate and review projects; other agents can be Workers, Reviewers or Security reviewers. Role instructions do not grant execution permission or change billing.</p>
+  <PanelHead id="agent-roles-title" title="Agent roles" :status="state ? (state.delegator ? `Delegator: ${state.delegator}` : 'No Delegator') : undefined" :tone="state?.delegator ? 'ok' : 'warn'" help="maintenance" />
+  <p class="muted small">Hermes is the recommended Delegator. Role instructions do not grant execution permission or change billing.</p>
   <template v-if="state">
     <p>Current Delegator: <strong>{{state.delegator ? state.delegator + (state.available.includes(state.delegator) ? '' : ' (unavailable — reassign below)') : 'None — assign an installed agent'}}</strong>. {{state.guidance_installed?'Managed starter guidance installed.':'Starter guidance has not been installed.'}}</p>
     <div v-for="agent in Object.keys(roles)" :key="agent" class="role-row"><label :for="`role-${agent}`">{{agent}}{{ state.available.includes(agent) ? '' : ' (not installed)' }}</label><select :id="`role-${agent}`" v-model="roles[agent]" :disabled="busy"><option value="worker">Worker</option><option value="delegator" :disabled="!state.available.includes(agent)">Delegator</option><option value="reviewer">Reviewer</option><option value="security">Security</option></select></div>
     <label class="workspace">Agent workspace for Grok or OpenClaw<input v-model="workspace" placeholder="An existing directory inside an allowed workspace root" :disabled="busy" /></label>
-    <p class="small muted">Reviewers and Security roles describe assignments; they do not add automatic review jobs. A new Delegator applies to new planning/submission requests. In-progress pipelines retain their approved agent and model. Native instruction targets are shown in the preview.</p>
+    <NoteFold label="What roles do"><p class="small muted">Reviewers and Security roles describe assignments; they do not add automatic review jobs. A new Delegator applies to new planning/submission requests. In-progress pipelines retain their approved agent and model. Native instruction targets are shown in the preview.</p></NoteFold>
     <button v-if="state.recovery_required" class="btn" :disabled="busy" @click="recover">Recover interrupted assignment</button>
     <button class="btn" :disabled="busy || state.recovery_required" @click="review">Preview role changes</button>
     <button v-if="state.rollback_available" class="btn" :disabled="busy" @click="rollback=true">Roll back last assignment</button>
