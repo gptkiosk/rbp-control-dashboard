@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import NoteFold from '@/components/NoteFold.vue'
+import PanelHead from '@/components/PanelHead.vue'
 import { computed, onMounted, ref } from 'vue'
 import { ApiError, getJson, postJson } from '@/lib/api'
 
@@ -49,12 +51,12 @@ onMounted(load)
 </script>
 <template>
   <section id="housekeeping" class="card housekeeping" aria-labelledby="housekeeping-title">
-    <h2 id="housekeeping-title" class="section-title">Housekeeping</h2>
-    <p v-if="data?.auto" class="small" data-testid="after-hours">
+    <PanelHead id="housekeeping-title" title="Housekeeping" :status="data?.auto ? (data.auto.enabled ? 'After hours: on' : 'After hours: off') : undefined" :tone="data?.auto?.enabled ? 'ok' : 'muted'" help="maintenance" />
+    <NoteFold v-if="data?.auto" label="After hours cleanup"><p v-if="data?.auto" class="small" data-testid="after-hours">
       <strong>After hours:</strong>&nbsp;
       <template v-if="data.auto.enabled">cleans up {{ data.auto.classes.map(c => KIND[c] ?? c).join(', ') }} between {{ data.auto.window }}, once a day. Last run: {{ when(data.auto.last_run) }}{{ data.auto.last_summary ? ` (${data.auto.last_summary})` : '' }}.</template>
       <template v-else>off. To have the safe kinds cleaned up for you overnight, set <code>MAC_CONTROL_HOUSEKEEPING_AUTO</code> (for example <code>stale_update_helper</code>). Finished update helpers are also unloaded automatically a few minutes after an update.</template>
-    </p>
+    </p></NoteFold>
     <p class="muted small">Leftovers found by fixed rules. Nothing changes until you approve it. Hermes can propose but cannot change anything itself.</p>
     <p v-if="error" class="notice-warn" role="alert">{{ error }}</p>
     <p v-if="notice" class="note" role="status">{{ notice }}</p>

@@ -72,7 +72,7 @@ defineExpose({ refresh })
     <p v-if="!loaded" role="status" class="muted">Loading fleet health…</p>
     <template v-else-if="status">
       <p v-if="status.error" role="alert" class="notice-warn">{{ status.error }}</p>
-      <p v-if="!status.enabled" class="muted">Automatic checks are off on this host. Refresh still runs the configured checks on demand.</p>
+      <NoteFold v-if="!status.enabled" label="Automatic checks are off"><p v-if="!status.enabled" class="muted">Automatic checks are off on this host. Refresh still runs the configured checks on demand.</p></NoteFold>
       <p v-if="staleCount" role="status" class="notice-warn">{{ staleCount }} {{ staleCount === 1 ? 'check has' : 'checks have' }} no recent result.</p>
 
       <div class="trend">

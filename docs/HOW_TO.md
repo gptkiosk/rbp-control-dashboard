@@ -486,6 +486,20 @@ Telemetry only reads what the dashboard already recorded. It changes nothing.
 
 [Open Jobs & telemetry](http://127.0.0.1:8800/telemetry) · [Price an unrecognised model](http://127.0.0.1:8800/help?topic=model-rates) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=jobs-telemetry)
 
+## Keep the dashboard tidy: housekeeping, bug reports, roles and GitHub
+
+Settings, Maintenance & access holds the cleanup scan, bug-report intake, agent roles, report folders and the GitHub settings and actions.
+
+1. Housekeeping scans for leftovers by fixed rules, with no model involved. Press Scan now, read the findings and approve only what you want removed. Hermes may propose a cleanup but can never change anything itself. After hours cleanup is off unless the host enables it (the Notes line says how).
+2. Bug reports shows whether intake is on and when GitHub was last checked. A maintainer labels an issue bug-report and accepted to make it a Backlog task. Press Check GitHub now to look immediately.
+3. Agent roles sets who coordinates (the Delegator, Hermes is recommended) and who works or reviews. Preview role changes shows exactly what will be written before anything is.
+4. Report storage sets the folders the Ops reports page reads. Reports are read-only.
+5. GitHub settings turns on repository, pull request and issue views for the repositories you choose, using the account already signed in with gh. GitHub actions waiting for you lists anything drafted that would write to GitHub: read the exact request, confirm, and it runs once.
+
+Nothing here changes anything until you approve it. Agents can draft, never approve.
+
+[Open Maintenance & access](http://127.0.0.1:8800/profile#housekeeping) · [Ops reports](http://127.0.0.1:8800/reports) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=maintenance)
+
 ## Install or upgrade the agent tools
 
 Settings, Updates & installs: one card per agent CLI with its version, an Install or Upgrade button, a progress bar, the install log and a health check.

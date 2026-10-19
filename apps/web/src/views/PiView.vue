@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import AppIcon from '@/components/AppIcon.vue'
+import PageHead from '@/components/PageHead.vue'
 import TimeSeriesChart, { type ChartLine } from '@/components/TimeSeriesChart.vue'
 import ChipTag from '@/components/ChipTag.vue'
 import { usePolledJson } from '@/composables/usePolledJson'
@@ -134,8 +135,8 @@ function lastSeen(iso: string | null): string {
 
 <template>
   <section class="page" aria-labelledby="pi-title">
-    <div class="heading">
-      <h1 id="pi-title" class="page-title has-icon"><AppIcon :name="navIcon('pi')" size="lg" />Pi health</h1>
+    <PageHead id="pi-title" title="Pi health" :icon="navIcon('pi')" help="hardware">
+      <template #sub><span v-if="m" data-testid="sample-age">Sample taken {{ formatAge(m.sample_age_s) }}</span><span v-else>Temperature, throttling, power and memory of this Pi.</span></template>
       <div class="ranges" role="group" aria-label="Time range">
         <button
           v-for="r in RANGES"
@@ -148,9 +149,7 @@ function lastSeen(iso: string | null): string {
           {{ r }}
         </button>
       </div>
-    </div>
-
-    <p v-if="m" class="muted small" data-testid="sample-age">Sample taken {{ formatAge(m.sample_age_s) }}</p>
+    </PageHead>
     <p v-if="current.error.value" class="error" role="alert">Could not load current readings: {{ current.error.value }}</p>
 
     <div v-if="m" class="tiles" data-testid="pi-tiles">

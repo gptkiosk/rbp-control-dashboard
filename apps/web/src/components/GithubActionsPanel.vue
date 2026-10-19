@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import NoteFold from '@/components/NoteFold.vue'
+import PanelHead from '@/components/PanelHead.vue'
 import { onMounted, ref } from 'vue'
 import { ApiError, getJson, postJson } from '@/lib/api'
 
@@ -38,10 +40,10 @@ onMounted(load)
 
 <template>
   <section id="github-actions" class="card github-actions" aria-labelledby="github-actions-title">
-    <h2 id="github-actions-title" class="section-title">GitHub actions waiting for you</h2>
+    <PanelHead id="github-actions-title" title="GitHub actions waiting for you" :status="!writesEnabled ? 'Writes off' : actions.length ? `${actions.length} waiting` : undefined" :tone="!writesEnabled ? 'muted' : 'warn'" help="maintenance" />
     <p class="muted small">Writes to GitHub wait here. Read the request, confirm, run once. Agents can draft, never approve.</p>
     <p v-if="error" class="notice-warn" role="alert">{{ error }}</p>
-    <p v-if="!writesEnabled" class="small" data-testid="writes-off">GitHub writes are off on this install (<code>MAC_CONTROL_GITHUB_WRITES_ENABLED</code>), so nothing here can run.</p>
+    <NoteFold v-if="!writesEnabled" label="Why writes are off"><p v-if="!writesEnabled" class="small" data-testid="writes-off">GitHub writes are off on this install (<code>MAC_CONTROL_GITHUB_WRITES_ENABLED</code>), so nothing here can run.</p></NoteFold>
     <p v-if="done" class="note" role="status" data-testid="action-done">Done. <a v-if="safe(done.url)" :href="done.url!" target="_blank" rel="noopener noreferrer">View it on GitHub</a></p>
     <p v-if="!actions.length" class="muted small">Nothing is waiting.</p>
     <article v-for="a in actions" :key="a.id" class="pending" :data-testid="`action-${a.id}`">

@@ -43,7 +43,6 @@ function refreshAll() { refresh(); health.value?.refresh(); if (selected.value) 
   <section aria-labelledby="reports-title">
     <PageHead id="reports-title" title="Ops reports" icon="logs" sub="Hermes and local reports, latest first." help="reports"><button class="btn" @click="refreshAll">Refresh</button></PageHead>
     <ReportStoragePanel @changed="refreshAll" />
-    <ul v-if="data?.sources" class="muted"><li v-for="source in data.sources" :key="source.id">{{ source.id === 'ops' ? 'Ops reports' : 'Hermes archive' }} · {{ source.mode }} · {{ source.available ? 'available' : 'unavailable' }} · <code>{{ source.root || 'No folder selected' }}</code></li></ul>
     <OpsHealthPanel ref="health" :reports="reports" />
     <p v-if="error || data?.error" role="status" class="notice-warn">{{ error || data?.error }}</p>
     <p v-if="!loaded" role="status" class="muted">Loading reports…</p>

@@ -347,9 +347,7 @@ onBeforeUnmount(() => { alive = false; if (timer) clearTimeout(timer) })
     <template v-if="status">
       <p v-if="!managed" class="status" role="status">{{ summary }}</p>
       <template v-if="!managed">
-        <ul v-if="status.manual_instructions.length" class="updates">
-          <li v-for="step in status.manual_instructions" :key="step">{{ step }}</li>
-        </ul>
+        <details v-if="status.manual_instructions.length" class="manual"><summary>Update by hand</summary><ol class="updates"><li v-for="step in status.manual_instructions" :key="step">{{ step }}</li></ol></details>
         <p v-for="problem in status.problems" :key="problem" class="muted small">{{ problem }}</p>
       </template>
       <template v-else>

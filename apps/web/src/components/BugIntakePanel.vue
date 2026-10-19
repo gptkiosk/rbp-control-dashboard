@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import NoteFold from '@/components/NoteFold.vue'
+import PanelHead from '@/components/PanelHead.vue'
 import { onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import { ApiError, getJson, postJson } from '@/lib/api'
@@ -32,10 +34,10 @@ onMounted(load)
 
 <template>
   <section id="bug-reports" class="card bug-intake" aria-labelledby="bug-intake-title">
-    <h2 id="bug-intake-title" class="section-title">Bug reports</h2>
+    <PanelHead id="bug-intake-title" title="Bug reports" :status="data ? (data.enabled ? 'Intake on' : 'Intake off') : undefined" :tone="data?.enabled ? 'ok' : 'muted'" help="maintenance" />
     <p class="muted small">Bug-icon reports arrive as GitHub issues on {{ data?.repository ?? 'the official repository' }}. A maintainer labels one <code>bug-report</code> and <code>accepted</code> to make it a Backlog task.</p>
     <p v-if="error" class="notice-warn" role="alert">{{ error }}</p>
-    <p v-if="data && !data.enabled" class="small" data-testid="intake-off">Intake is off. To have accepted reports turned into tasks, set <code>MAC_CONTROL_BUG_INTAKE_ENABLED=true</code> and restart the service.</p>
+    <NoteFold v-if="data && !data.enabled" label="How to turn intake on"><p v-if="data && !data.enabled" class="small" data-testid="intake-off">Intake is off. To have accepted reports turned into tasks, set <code>MAC_CONTROL_BUG_INTAKE_ENABLED=true</code> and restart the service.</p></NoteFold>
     <template v-if="data?.enabled">
       <p class="small" data-testid="intake-status">Last checked: {{ when(data.checked_at) }}. {{ data.created.length }} new task{{ data.created.length === 1 ? '' : 's' }} this pass, {{ data.already }} already handled.</p>
       <p v-if="data.error" class="notice-warn" role="alert">{{ data.error }}</p>
