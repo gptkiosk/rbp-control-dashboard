@@ -300,6 +300,22 @@ export const helpGuides: HelpGuide[] = [
     note: 'Nobody should later read an accepted story as a clean pass: the handoff begins with the operator’s acceptance and keeps the agent’s list of gaps.',
   },
   {
+    id: 'agent-tools', title: 'Install or upgrade the agent tools', area: 'Settings',
+    summary: 'Settings, Updates & installs: one card per agent CLI with its version, an Install or Upgrade button, a progress bar, the install log and a health check.',
+    keywords: ['agent tools','install','upgrade','update','claude','codex','openclaw','hermes','grok','gh','github cli','native','managed','health check','version'],
+    steps: ['Open Settings, then Updates & installs. Each agent tool is a card showing the version installed and the version this release has verified.', 'Press Install or Upgrade. A confirmation lists the versions, downloads, commands and what stays unchanged. Tick it to run. Nothing needs sudo and nothing signs in.', 'Watch the progress bar and open the log if you want the detail. Only one install runs at a time.', 'When it finishes the health check runs by itself: it asks the tool for its version, checks that a new terminal reaches the managed copy, and lists next steps. Press Check health to run it again.', 'A tool you installed yourself (native, for example Hermes or gh from Homebrew) is offered a reviewed upgrade that installs a managed copy beside it; your own copy and account settings are kept. Put the tools folder first on your PATH if the health check says a different copy answers.', 'Sign in yourself with the command on the card. API keys go in Private credentials, never on this page.'],
+    links: [{ label: 'Open Updates & installs', to: '/profile#agent-tools' }, { label: 'Check the machine in the setup wizard', to: '/setup' }],
+    note: 'Roll back switches to the version kept on this host. Remove deletes the program but keeps your tool data, for example ~/.hermes.',
+  },
+  {
+    id: 'system-tools', title: 'Install or upgrade the optional system tools', area: 'Settings',
+    summary: 'Install (All) and Upgrade (All) for Docker, ffmpeg, Python and gh, with a log and a health check. Homebrew on a Mac; a command to copy on Linux.',
+    keywords: ['system tools','optional tools','homebrew','brew','docker','colima','ffmpeg','python','gh','upgrade all','install all','apt','prerequisite'],
+    steps: ['Open Settings, then Updates & installs, then Optional system tools. Each tool shows its version; Check for updates asks Homebrew which are outdated.', 'On a Mac, Homebrew comes first. If it is missing the card shows the one command to run yourself in Terminal (it asks for your password; the dashboard never runs it). Press Check again afterwards.', 'Install (All) runs one brew install for everything missing. Upgrade (All) runs brew update and then upgrades only these tools. The log shows every command.', 'Docker needs its engine: Colima provides it on a Mac. If the health check says the engine is stopped, press Start Colima.', 'On Linux installing packages needs administrator rights, so the card shows one apt command to copy and run in a terminal. gh and Node install from Agent tools.', 'When a job finishes, the health check runs by itself and lists next steps for anything that did not answer.'],
+    links: [{ label: 'Open optional system tools', to: '/profile#system-tools' }, { label: 'Setup wizard checklist', to: '/setup' }],
+    note: 'Only the named tools are installed or upgraded. Nothing else on the machine is touched, and each job runs with a clean environment: no keys or tokens.',
+  },
+  {
     id: 'host-readiness', title: 'Check that this machine is ready to build projects', area: 'Start here',
     summary: 'A checklist with one-click fixes for the workspace folder, git identity and GitHub access, and a look at which agents can write code.',
     keywords: ['readiness','ready to build','setup','workspace','git identity','github','ssh key','deploy key','agents','build host','pi','prerequisites','push'],

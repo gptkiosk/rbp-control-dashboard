@@ -13,7 +13,7 @@ router = APIRouter(prefix="/api/host/readiness", tags=["host"])
 
 class FixIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    action: str = Field(pattern="^(create_workspace|set_git_identity|make_github_key|test_github_ssh|add_tools_to_path|brew_install|brew_update|colima_start)$")
+    action: str = Field(pattern="^(create_workspace|set_git_identity|make_github_key|test_github_ssh|add_tools_to_path|brew_install|brew_update|colima_start|brew_install_all|brew_upgrade_all)$")
     name: str | None = Field(default=None, max_length=120)
     email: str | None = Field(default=None, max_length=254)
     path: str | None = Field(default=None, max_length=500)
@@ -41,3 +41,16 @@ def fix(body: FixIn, request: Request):
 def job(request: Request):
     profiles.owner(request)
     return {"job": hr.current_job()}
+
+
+@router.get("/tools")
+def tools(request: Request, check_updates: bool = False):
+    """The optional system tools with versions; `check_updates` also asks Homebrew what is outdated (slower, local index only)."""
+    profiles.owner(request)
+    return hr.system_tools(get_settings(), check_updates=check_updates)
+
+
+@router.get("/tools/health")
+def tools_health(request: Request):
+    profiles.owner(request)
+    return hr.system_tools_health(get_settings())

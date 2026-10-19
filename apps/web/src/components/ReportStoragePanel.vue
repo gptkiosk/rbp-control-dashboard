@@ -32,7 +32,7 @@ onMounted(load)
 <template>
   <details class="card storage-panel">
     <summary>Host report storage · configure folders</summary>
-    <p class="muted">These settings apply to everyone using this installation. Reports are read-only. Folder changes require operator sign-in.</p>
+    <p class="muted small">Shared by everyone here. Reports are read-only; folder changes need operator sign-in.</p>
     <p v-if="error || data?.error" class="notice-warn" role="alert">{{ error || data?.error }}</p>
     <p v-if="notice" role="status">{{ notice }}</p>
     <template v-if="data">

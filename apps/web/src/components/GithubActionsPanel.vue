@@ -39,7 +39,7 @@ onMounted(load)
 <template>
   <section id="github-actions" class="card github-actions" aria-labelledby="github-actions-title">
     <h2 id="github-actions-title" class="section-title">GitHub actions waiting for you</h2>
-    <p class="muted lead">Anything that would write to GitHub is drafted first, by you, Hermes or a form, and waits here. Read the exact request, tick the confirmation, then run it once. Hermes and other agents can draft but cannot approve.</p>
+    <p class="muted small">Writes to GitHub wait here. Read the request, confirm, run once. Agents can draft, never approve.</p>
     <p v-if="error" class="notice-warn" role="alert">{{ error }}</p>
     <p v-if="!writesEnabled" class="small" data-testid="writes-off">GitHub writes are off on this install (<code>MAC_CONTROL_GITHUB_WRITES_ENABLED</code>), so nothing here can run.</p>
     <p v-if="done" class="note" role="status" data-testid="action-done">Done. <a v-if="safe(done.url)" :href="done.url!" target="_blank" rel="noopener noreferrer">View it on GitHub</a></p>

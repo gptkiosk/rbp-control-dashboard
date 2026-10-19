@@ -15,12 +15,12 @@ export interface GroupDef {
 
 /** The six status groups, in the order they stack on screen. */
 export const GROUPS: readonly GroupDef[] = [
-  { id: 'running', label: 'IN PROGRESS', name: 'In progress', icon: 'run' },
+  { id: 'running', label: 'IN PROGRESS', name: 'In progress', icon: 'run', subtitle: 'Agents working now' },
   { id: 'review', label: 'NEEDS APPROVAL', name: 'Needs approval', icon: 'approval', subtitle: 'Waiting for your approval' },
-  { id: 'queued', label: 'QUEUED', name: 'Queued', icon: 'clock' },
-  { id: 'backlog', label: 'BACKLOG', name: 'Backlog', icon: 'tasks' },
-  { id: 'failed', label: 'FAILED', name: 'Failed', icon: 'alert' },
-  { id: 'done', label: 'DONE', name: 'Done', icon: 'check' },
+  { id: 'queued', label: 'QUEUED', name: 'Queued', icon: 'clock', subtitle: 'Waiting for a free slot' },
+  { id: 'backlog', label: 'BACKLOG', name: 'Backlog', icon: 'tasks', subtitle: 'Not started yet' },
+  { id: 'failed', label: 'FAILED', name: 'Failed', icon: 'alert', subtitle: 'Needs a look or a retry' },
+  { id: 'done', label: 'DONE', name: 'Done', icon: 'check', subtitle: 'Finished' },
 ]
 
 /** Groups collapsed until the operator opens them. */

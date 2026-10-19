@@ -504,3 +504,61 @@ def test_the_update_action_is_for_a_mac_with_homebrew_and_offered_nowhere_else(h
     with pytest.raises(hr.ReadinessError, match="for a Mac"):
         hr.apply(settings, "brew_update")
     assert by_id(hr.report(settings))["tools"]["fix"] is None
+
+
+# ---------------------------------------------------------------- the Settings panel: every optional tool, Install (All), Upgrade (All) and a health check
+
+
+def test_the_system_tools_panel_lists_versions_and_offers_install_all_only_with_homebrew(mac):
+    settings, present = mac
+    body = hr.system_tools(settings)
+    rows = {r["id"]: r for r in body["tools"]}
+    assert body["platform"] == "mac" and body["brew"]["installed"] and body["can_install_all"] and body["can_upgrade_all"]
+    assert rows["colima"]["installed"] and rows["docker"]["installed"] is False and rows["docker"]["version"] is None
+    assert set(body["missing"]) == {"python3", "node", "ffmpeg", "docker", "gh"}
+    present.discard("brew")
+    nobrew = hr.system_tools(settings)
+    assert nobrew["brew"]["installed"] is False and nobrew["brew"]["install_command"] == hr.BREW_INSTALL
+    assert not nobrew["can_install_all"] and not nobrew["can_upgrade_all"]                     # Homebrew first, and the panel says so
+
+
+def test_install_all_runs_one_brew_install_for_everything_missing_and_shows_the_log(mac):
+    settings, present = mac
+    assert "brew install colima docker docker-compose ffmpeg gh python" in hr.apply(settings, "brew_install_all")      # Docker needs Colima; brew skips what is already installed
+    job = _wait_done()
+    log = "\n".join(job["tail"])
+    assert job["state"] == "done" and job["label"] == "Installing optional tools with Homebrew"
+    assert "install colima docker docker-compose ffmpeg gh python" in log
+
+
+def test_upgrade_all_updates_homebrew_then_upgrades_only_the_optional_tools_that_are_installed(mac):
+    settings, present = mac
+    assert "brew update, then brew upgrade ffmpeg python" in hr.apply(settings, "brew_upgrade_all")
+    job = _wait_done()
+    assert job["state"] == "done" and "brew upgrade ffmpeg python" in "\n".join(job["tail"]) and job["label"] == "Upgrading optional tools with Homebrew"
+
+
+def test_install_all_and_upgrade_all_are_refused_without_homebrew_or_off_a_mac(mac, monkeypatch):
+    settings, present = mac
+    present.discard("brew")
+    for action in ("brew_install_all", "brew_upgrade_all"):
+        with pytest.raises(hr.ReadinessError, match="Install it first"):
+            hr.apply(settings, action)
+    monkeypatch.setattr(hr.sys, "platform", "linux")
+    body = hr.system_tools(settings)
+    assert body["platform"] == "linux" and not body["can_install_all"] and "sudo apt-get install -y" in (body["apt_command"] or "")
+    for action in ("brew_install_all", "brew_upgrade_all"):
+        with pytest.raises(hr.ReadinessError, match="for a Mac"):
+            hr.apply(settings, action)
+
+
+def test_the_health_check_reports_a_stopped_docker_engine_with_the_next_step(mac, tmp_path, monkeypatch):
+    settings, present = mac
+    docker = tmp_path / "fakebin" / "docker"
+    docker.write_text('#!/bin/sh\nif [ "$1" = "info" ]; then exit 1; fi\necho "Docker version 29.3.0, build x"\n')
+    docker.chmod(0o755)
+    real = hr._tool
+    monkeypatch.setattr(hr, "_tool", lambda name, settings=None: str(docker) if name == "docker" else real(name, settings))
+    checks = {c["id"]: c for c in hr.system_tools_health(settings)["checks"]}
+    assert checks["docker"]["ok"] is False and checks["docker"]["version"] == "29.3.0"
+    assert any("Start Colima" in step for step in checks["docker"]["next"])

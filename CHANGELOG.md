@@ -10,6 +10,23 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+### Fixed
+
+- **Upgrading a tool you installed yourself (Hermes, `gh` from Homebrew) was always refused** with "The native version could not be verified". The tools helper put the macOS sandbox up before it re-read the tool's version, and the sandbox hides the home folder, so Hermes (in `~/.hermes`) could not run and every Upgrade was refused with nothing shown. The version is now read first and the plan reuses it. A test reproduces the sandbox.
+
+### Changed
+
+- **Settings is reorganised into three tabs**: *Settings* (preferences, Hermes on Discord, private credentials), *Updates & installs* (dashboard, agent tools, optional system tools) and *Maintenance & access* (housekeeping, report storage, bug reports, roles, GitHub). Old links such as `/profile#agent-tools` or `#github-settings` open the right tab. Explanations moved out to How-to links, hover text and the docs; controls are switches, a segmented appearance control and one compact row per credential instead of paragraphs and checkboxes.
+- **One card for every installable thing**, the same one the setup checklist uses: a status mark, the version (`installed → latest`), one line of state, the buttons, a progress bar while it works, the log, and a **health check** with next steps. The dashboard update, each agent tool and each optional system tool use it.
+- **Private credentials** are one list of cards (signed-in agent, OpenRouter, fal.ai, Discord bot, GitHub) merging the old key guide and the input fields: saved or not, one line on what it is for, a Get a key link, and Save, Remove, share and spending controls on the same card.
+- **Tasks lanes are cards**: each status (In progress, Needs approval, Queued, Backlog, Failed, Done) is its own bordered card with a coloured edge, the status pill, a count badge and a one-line description, so the lanes are easy to tell apart. An empty lane drops its column header.
+
+### Added
+
+- **Agent tool health check** (`GET /api/agent-installs/health`): runs each installed tool's version command, says whether a new terminal reaches the managed copy, and lists next steps (upgrade, sign in, fix the PATH). It runs by itself after every install or upgrade.
+- **Optional system tools in Settings**: **Install (All)** and **Upgrade (All)** for Python, ffmpeg, Docker (with Colima) and `gh` through Homebrew, as one job with a progress bar and log, the Homebrew prerequisite and its install command shown first, **Check for updates** (what Homebrew reports outdated), **Start Colima**, and a health check (`/api/host/readiness/tools`, `/tools/health`). On Linux it shows one `apt` command to copy and never runs it.
+- Two How-to guides, *Install or upgrade the agent tools* and *Install or upgrade the optional system tools*.
+
 ## [0.6.27] - 2026-10-18
 
 ### Fixed

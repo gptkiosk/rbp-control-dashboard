@@ -55,7 +55,7 @@ onMounted(load)
       <template v-if="data.auto.enabled">cleans up {{ data.auto.classes.map(c => KIND[c] ?? c).join(', ') }} between {{ data.auto.window }}, once a day. Last run: {{ when(data.auto.last_run) }}{{ data.auto.last_summary ? ` (${data.auto.last_summary})` : '' }}.</template>
       <template v-else>off. To have the safe kinds cleaned up for you overnight, set <code>MAC_CONTROL_HOUSEKEEPING_AUTO</code> (for example <code>stale_update_helper</code>). Finished update helpers are also unloaded automatically a few minutes after an update.</template>
     </p>
-    <p class="muted lead">Leftovers the server finds by fixed rules, with no model involved. Nothing changes until you approve it. Hermes can read this list and propose a fix for you to decide, but it cannot change anything itself.</p>
+    <p class="muted small">Leftovers found by fixed rules. Nothing changes until you approve it. Hermes can propose but cannot change anything itself.</p>
     <p v-if="error" class="notice-warn" role="alert">{{ error }}</p>
     <p v-if="notice" class="note" role="status">{{ notice }}</p>
 

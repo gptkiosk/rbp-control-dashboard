@@ -33,6 +33,8 @@ Confirming a native upgrade stages a managed copy for dashboard use; it preserve
 
 ## From the setup wizard
 
+Settings, Updates & installs shows one card per tool: version (`installed → latest`), Install or Upgrade, a progress bar while the helper runs, the helper log, and a **health check** that runs by itself afterwards. The check asks the tool for its version, confirms a new terminal reaches the managed copy (not an older native one earlier on the PATH) and lists next steps. It is read-only: `GET /api/agent-installs/health[?tool=id]`. The helper reads a native tool's version *before* it applies the macOS sandbox, which hides the home folder (an earlier release refused every native Hermes upgrade as unverifiable because of this).
+
 The Coordinator & workers step links directly to Settings → Agent tools. “Executable not found” is a detection result, not a request to configure an absent program. Install Hermes first, then add your chosen workers. In Agent tools choose Install, review its version, downloads, supporting runtime requirements and host resource checks, and confirm the exact plan. Existing native installations show their versions and offer Upgrade when applicable.
 
 When installation finishes, run the displayed setup/sign-in command in a terminal on the machine hosting the dashboard (an SSH session works when browsing remotely). Google dashboard sign-in grants access to the installer; each agent still needs its own provider configuration or eligible membership login. Installing a desktop application alone does not supply a worker CLI.

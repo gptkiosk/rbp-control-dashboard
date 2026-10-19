@@ -33,7 +33,7 @@ onMounted(load)
 <template>
   <section id="bug-reports" class="card bug-intake" aria-labelledby="bug-intake-title">
     <h2 id="bug-intake-title" class="section-title">Bug reports</h2>
-    <p class="muted lead">Reports from the bug icon arrive as GitHub issues on {{ data?.repository ?? 'the official repository' }}. An issue becomes a Backlog task only when a maintainer labels it <code>bug-report</code> and <code>accepted</code>; add <code>break-fix</code> when it blocks people and needs a release now, otherwise it is staged for the next release.</p>
+    <p class="muted small">Bug-icon reports arrive as GitHub issues on {{ data?.repository ?? 'the official repository' }}. A maintainer labels one <code>bug-report</code> and <code>accepted</code> to make it a Backlog task.</p>
     <p v-if="error" class="notice-warn" role="alert">{{ error }}</p>
     <p v-if="data && !data.enabled" class="small" data-testid="intake-off">Intake is off. To have accepted reports turned into tasks, set <code>MAC_CONTROL_BUG_INTAKE_ENABLED=true</code> and restart the service.</p>
     <template v-if="data?.enabled">

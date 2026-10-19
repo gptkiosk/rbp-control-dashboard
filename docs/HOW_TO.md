@@ -472,6 +472,36 @@ Nobody should later read an accepted story as a clean pass: the handoff begins w
 
 [Open Projects](http://127.0.0.1:8800/projects) · [Open the task board](http://127.0.0.1:8800/tasks) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=accept-anyway)
 
+## Install or upgrade the agent tools
+
+Settings, Updates & installs: one card per agent CLI with its version, an Install or Upgrade button, a progress bar, the install log and a health check.
+
+1. Open Settings, then Updates & installs. Each agent tool is a card showing the version installed and the version this release has verified.
+2. Press Install or Upgrade. A confirmation lists the versions, downloads, commands and what stays unchanged. Tick it to run. Nothing needs sudo and nothing signs in.
+3. Watch the progress bar and open the log if you want the detail. Only one install runs at a time.
+4. When it finishes the health check runs by itself: it asks the tool for its version, checks that a new terminal reaches the managed copy, and lists next steps. Press Check health to run it again.
+5. A tool you installed yourself (native, for example Hermes or gh from Homebrew) is offered a reviewed upgrade that installs a managed copy beside it; your own copy and account settings are kept. Put the tools folder first on your PATH if the health check says a different copy answers.
+6. Sign in yourself with the command on the card. API keys go in Private credentials, never on this page.
+
+Roll back switches to the version kept on this host. Remove deletes the program but keeps your tool data, for example ~/.hermes.
+
+[Open Updates & installs](http://127.0.0.1:8800/profile#agent-tools) · [Check the machine in the setup wizard](http://127.0.0.1:8800/setup) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=agent-tools)
+
+## Install or upgrade the optional system tools
+
+Install (All) and Upgrade (All) for Docker, ffmpeg, Python and gh, with a log and a health check. Homebrew on a Mac; a command to copy on Linux.
+
+1. Open Settings, then Updates & installs, then Optional system tools. Each tool shows its version; Check for updates asks Homebrew which are outdated.
+2. On a Mac, Homebrew comes first. If it is missing the card shows the one command to run yourself in Terminal (it asks for your password; the dashboard never runs it). Press Check again afterwards.
+3. Install (All) runs one brew install for everything missing. Upgrade (All) runs brew update and then upgrades only these tools. The log shows every command.
+4. Docker needs its engine: Colima provides it on a Mac. If the health check says the engine is stopped, press Start Colima.
+5. On Linux installing packages needs administrator rights, so the card shows one apt command to copy and run in a terminal. gh and Node install from Agent tools.
+6. When a job finishes, the health check runs by itself and lists next steps for anything that did not answer.
+
+Only the named tools are installed or upgraded. Nothing else on the machine is touched, and each job runs with a clean environment: no keys or tokens.
+
+[Open optional system tools](http://127.0.0.1:8800/profile#system-tools) · [Setup wizard checklist](http://127.0.0.1:8800/setup) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=system-tools)
+
 ## Check that this machine is ready to build projects
 
 A checklist with one-click fixes for the workspace folder, git identity and GitHub access, and a look at which agents can write code.

@@ -1,6 +1,5 @@
 <script setup lang="ts">
-import RecommendedAgentMix from '@/components/RecommendedAgentMix.vue'
-import MembershipPrerequisites from './MembershipPrerequisites.vue'
+import ManagedItem, { type Health } from '@/components/ManagedItem.vue'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { ApiError, getJson, postJson } from '@/lib/api'
 
@@ -44,6 +43,15 @@ const watching = ref<{ tool: string; action: Action; beforeTx: string | null; sa
 let timer: ReturnType<typeof setTimeout> | undefined
 let disposed = false, authRefused = false
 const updatedAt = ref('')
+const health = ref<Record<string, Health>>({}), healthBusy = ref(false)
+// Read-only follow-up: does each installed tool run, is it the copy a new terminal reaches, what to do next.
+async function checkHealth(tool?: string) {
+  healthBusy.value = true
+  try {
+    const r = await getJson<{ checks: (Health & { id: string })[] }>(`/api/agent-installs/health${tool ? `?tool=${encodeURIComponent(tool)}` : ''}`)
+    health.value = { ...health.value, ...Object.fromEntries(r.checks.map(c => [c.id, c])) }
+  } catch (e) { error.value = refusal(e, 'The health check could not run.') } finally { healthBusy.value = false }
+}
 
 const progressTool = computed(() => status.value?.tx?.tool ?? watching.value?.tool ?? null)
 const logTool = computed(() => status.value?.tx?.tool ?? status.value?.last?.tool ?? null)
@@ -64,6 +72,9 @@ const confirmTitle = computed(() => plan.value ? `${VERB[plan.value.action]} ${p
 const canAct = (t: Tool, a: Action) => !busy.value && !working.value && t.actions[a] !== null && t.actions[a] !== undefined
 const offered = (t: Tool) => ACTIONS.filter(a => t.actions[a] !== null && t.actions[a] !== undefined)
 const reasons = (t: Tool) => ACTIONS.flatMap(a => (t.actions[a] ?? []).map(r => ({ a, r }))).filter((x, i, all) => all.findIndex(y => y.r === x.r) === i)
+const markOf = (t: Tool): 'ok' | 'warn' | 'missing' | 'info' => !t.installed ? 'info' : health.value[t.id] && !health.value[t.id]!.ok ? 'warn' : !t.installed_version || t.installed_version !== t.pinned_version ? 'warn' : 'ok'
+const wordOf = (t: Tool) => workingOn(t.id) ? 'working' : !t.installed ? 'not installed' : !t.installed_version ? 'version unknown' : t.installed_version === t.pinned_version ? 'up to date' : 'update available'
+const workingOn = (id: string) => working.value && progressTool.value === id
 const stateText = (t: Tool) => !t.installed ? `Not installed. Latest verified: ${t.pinned_version}.`
   : !t.installed_version ? `Installed${t.installation_source === 'native' ? ' outside the dashboard' : ''}; version unavailable. Latest verified: ${t.pinned_version}.`
   : `Installed ${t.installed_version}${t.installation_source === 'native' ? ' (native)' : ''}. ${t.installed_version === t.pinned_version ? 'Up to date.' : `Latest verified: ${t.pinned_version}.`}${t.previous_version ? ` Previous ${t.previous_version} kept for roll back.` : ''}`
@@ -161,6 +172,7 @@ function finish() {
   const last = status.value?.last
   watching.value = null
   if (!last) return stop('The helper finished, but no outcome was recorded.')
+  void checkHealth(last.tool ?? undefined)
   if (last.outcome === 'done') notice.value = last.detail
   else error.value = `Not completed (${last.outcome}): ${last.detail}`
 }
@@ -175,53 +187,44 @@ onBeforeUnmount(() => { disposed = true; if (timer) clearTimeout(timer) })
 </script>
 <template>
   <section id="agent-tools" class="card agent-tools" aria-labelledby="agent-tools-title">
-    <h2 id="agent-tools-title">Agent tools</h2><p>Following the setup wizard? Install the runtimes you selected here, then use the displayed native setup or sign-in commands on this host. Installation and account configuration are separate steps.</p><div class="actions"><RouterLink to="/setup?step=2" class="btn">Return to coordinator setup</RouterLink><RouterLink to="/setup?step=4" class="btn">Return to membership setup</RouterLink></div><p class="muted small">In the wizard, choose Refresh checks after installing. An installed executable does not by itself verify provider access or enable task dispatch.</p>
-    <p class="muted">Install Claude Code, Codex CLI, Grok Build, OpenClaw and Hermes on this host, for this user only. Every version is pinned and hash-checked in this release. Nothing needs sudo, nothing is installed without your confirmation, and nothing here signs in to a tool or touches a key.</p>
-    <RecommendedAgentMix platform="pi" />
-    <MembershipPrerequisites />
+    <header class="head">
+      <h3 id="agent-tools-title">Agent tools</h3>
+      <RouterLink to="/help?topic=agent-tools" class="small">How-to</RouterLink>
+    </header>
+    <p class="muted small">Install or upgrade the agent CLIs for this user only: pinned, hash-checked, no sudo, nothing signed in and nothing that touches a key (so nothing here signs in to a tool or touches a key).</p>
     <p v-if="error" ref="errorEl" tabindex="-1" class="notice-warn" role="alert">{{ error }}</p>
     <p v-if="notice" ref="noticeEl" tabindex="-1" role="status">{{ notice }}</p>
     <template v-if="status">
       <p class="muted small" data-test="host">{{ hostLine }} · installs under {{ status.root }}</p>
       <p v-if="updatedAt" class="muted small" role="status">Last checked {{ updatedAt }} · {{ working ? 'refreshing every 3 seconds' : 'refreshing every 15 seconds' }}</p>
 
-      <ul class="tools">
-        <li v-for="t in status.tools" :key="t.id" class="tool" :data-tool="t.id">
-          <div class="head">
-            <h3>{{ t.name }}</h3>
-            <span class="state" data-test="state">{{ stateText(t) }}</span>
-          </div>
-          <p class="muted small">About {{ mb(t.size_mb) }} on disk. Command{{ t.commands.length > 1 ? 's' : '' }}: <code>{{ t.commands.join(', ') }}</code><template v-if="t.path"> · <code>{{ t.path }}</code></template></p>
-          <p v-if="status.notes[t.id]" class="muted small">{{ status.notes[t.id] }}</p>
-          <div class="actions">
-            <button v-for="a in offered(t)" :key="a" class="btn" :class="{ primary: a === 'install' || a === 'update' }" :disabled="!canAct(t, a) || (t.actions[a] ?? []).length > 0" :data-action="a"
-              @click="ask(t, a)">{{ VERB[a] }}{{ a === 'install' || a === 'update' ? ` ${t.pinned_version}` : a === 'rollback' && t.previous_version ? ` to ${t.previous_version}` : '' }}</button>
-          </div>
-          <div v-if="progressTool === t.id || (status.log.length && showToolLog(t.id))" class="install-output" :data-output="t.id">
-            <p v-if="working && progressTool === t.id" class="status" role="status" data-test="progress">{{ progress }}</p>
-            <details v-if="status.log.length && showToolLog(t.id)" :open="working && progressTool === t.id">
-              <summary>{{ t.name }} helper log (last {{ status.log.length }} lines)</summary>
-              <pre class="log log-window">{{ status.log.join('\n') }}</pre>
-            </details>
-          </div>
-          <ul v-if="reasons(t).length" class="why" aria-label="Why a button is off"><li v-for="x in reasons(t)" :key="x.r" class="muted small">{{ VERB[x.a] }}: {{ x.r }}</li></ul>
-          <div v-if="t.installed" class="login" :data-login="t.id">
-            <p class="small"><strong>Sign in yourself.</strong> This panel never signs in. In a terminal on this host run:</p>
-            <p class="cmd"><code>{{ t.login_command || t.login.command }}</code> <button class="btn small-btn" @click="copy(t.login_command || t.login.command, t.id)">{{ copied === t.id ? 'Copied' : 'Copy' }}</button></p>
-            <p class="muted small">{{ t.login.note }} Put API keys in <RouterLink to="/profile#credentials-profile">Private credentials</RouterLink> (write-only); never paste a key into this page.</p>
-          </div>
-        </li>
+      <ul class="items">
+        <ManagedItem v-for="t in status.tools" :key="t.id" :data-tool="t.id" :name="t.name" :mark="markOf(t)" :word="wordOf(t)"
+          :version="t.installed_version" :latest="t.pinned_version" :detail="stateText(t)" :busy="workingOn(t.id)"
+          :progress="workingOn(t.id) ? progress : ''" :log="status.log.length && showToolLog(t.id) ? status.log : []" :log-title="`${t.name} log`"
+          :health="health[t.id] ?? null" :health-busy="healthBusy" :health-disabled="!t.installed" :data-output="t.id" @health="checkHealth(t.id)">
+          <button v-for="a in offered(t)" :key="a" class="btn" :class="{ primary: a === 'install' || a === 'update' }" :disabled="!canAct(t, a) || (t.actions[a] ?? []).length > 0" :data-action="a"
+            @click="ask(t, a)">{{ VERB[a] }}{{ a === 'install' || a === 'update' ? ` ${t.pinned_version}` : a === 'rollback' && t.previous_version ? ` to ${t.previous_version}` : '' }}</button>
+          <template #more>
+            <span v-if="t.installed" class="login" :data-login="t.id">
+              <span class="muted small">Sign in yourself:</span> <code>{{ t.login_command || t.login.command }}</code>
+              <button type="button" class="btn small-btn" @click="copy(t.login_command || t.login.command, t.id)">{{ copied === t.id ? 'Copied' : 'Copy' }}</button>
+              <RouterLink to="/profile#credentials-profile" class="small" :title="t.login.note">Keys: Private credentials</RouterLink>
+            </span>
+            <span v-if="status.notes[t.id]" class="muted small">{{ status.notes[t.id] }}</span>
+          </template>
+        </ManagedItem>
       </ul>
 
       <section v-if="status.system_packages.apt_command" class="packages" aria-labelledby="pkg-title">
-        <h3 id="pkg-title">Optional system packages</h3>
-        <p class="small">Some of these make the tools faster or fuller. The dashboard never runs this command: copy it into a terminal if you want them.</p>
+        <h4 id="pkg-title">Optional system packages</h4>
+        <p class="small">The dashboard never runs this command: copy it into a terminal if you want them.</p>
         <p class="cmd" data-test="apt"><code>{{ status.system_packages.apt_command }}</code> <button class="btn small-btn" @click="copy(status.system_packages.apt_command!, 'apt')">{{ copied === 'apt' ? 'Copied' : 'Copy' }}</button></p>
         <ul class="muted small"><li v-for="(why, name) in status.system_packages.details" :key="name"><strong>{{ name }}</strong>: {{ why }}</li></ul>
       </section>
 
       <section v-if="plan" ref="confirmEl" tabindex="-1" class="confirm" aria-labelledby="agent-confirm-title" data-test="confirm">
-        <h3 id="agent-confirm-title">{{ confirmTitle }}</h3>
+        <h4 id="agent-confirm-title">{{ confirmTitle }}</h4>
         <dl class="facts">
           <dt>Version</dt><dd>{{ plan.from ?? 'not installed' }} → {{ plan.to ?? 'removed' }}</dd>
           <dt>Host</dt><dd>{{ plan.host.os }} · {{ plan.host.machine }} · {{ plan.host.bits }}-bit</dd>
@@ -247,23 +250,25 @@ onBeforeUnmount(() => { disposed = true; if (timer) clearTimeout(timer) })
         </div>
       </section>
 
+      <ul v-if="status.tools.some(t => reasons(t).length)" class="why muted small" aria-label="Why a button is off">
+        <template v-for="t in status.tools" :key="t.id"><li v-for="x in reasons(t)" :key="t.id + x.r"><strong>{{ t.name }}</strong> · {{ VERB[x.a] }}: {{ x.r }}</li></template>
+      </ul>
       <p v-if="status.last && !working" class="muted small" data-test="last">Last operation: {{ status.last.detail }} ({{ status.last.outcome }})</p>
-      <p class="muted small">Pinned versions checked {{ status.catalog_checked }}. Roll back switches to the previous version kept on this host; Remove deletes the program but keeps your tool data (for example ~/.hermes).</p>
+      <p class="muted small">Pinned versions checked {{ status.catalog_checked }}. Roll back switches to the version kept on this host; Remove deletes the program but keeps your tool data.</p>
     </template>
   </section>
 </template>
 <style scoped>
-.agent-tools { margin: var(--gap-lg) 0; display: grid; gap: var(--gap-sm); }
-h2, h3, h4 { margin: 0; }
+.agent-tools { display: grid; gap: var(--gap-sm); }
+h3, h4 { margin: 0; }
+.head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--gap); }
 .small { font-size: var(--font-size-xs); margin: 0; }
-.status { font-weight: 600; margin: 0; }
-.tools { display: grid; gap: var(--gap); padding: 0; margin: 0; list-style: none; }
-.tool, .confirm, .packages { display: grid; gap: var(--gap-sm); border: 1px solid var(--surface-border); border-radius: var(--radius); padding: var(--gap); justify-items: start; }
-.head { display: flex; gap: var(--gap); flex-wrap: wrap; align-items: baseline; }
-.state { font-size: var(--font-size-sm); }
+.items { display: grid; gap: var(--gap-sm); padding: 0; margin: 0; list-style: none; }
+.confirm, .packages { display: grid; gap: var(--gap-sm); border: 1px solid var(--surface-border); border-radius: var(--radius); padding: var(--gap); justify-items: start; }
 .actions { display: flex; gap: var(--gap); flex-wrap: wrap; align-items: center; }
 .why { margin: 0; padding-left: var(--gap); }
 .cmd { display: flex; gap: var(--gap-sm); align-items: center; flex-wrap: wrap; margin: 0; }
+.login { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--gap-xs) var(--gap-sm); }
 code, .mono { font-family: var(--font-mono, ui-monospace, monospace); font-size: var(--font-size-xs); overflow-wrap: anywhere; }
 .facts { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: var(--gap-xs) var(--gap); margin: 0; font-size: var(--font-size-sm); }
 .facts dt { color: var(--text-muted); }
@@ -273,6 +278,5 @@ code, .mono { font-family: var(--font-mono, ui-monospace, monospace); font-size:
 .warn { margin: 0; padding: 0; list-style: none; display: grid; gap: var(--gap-xs); }
 .check { display: flex; align-items: flex-start; gap: var(--gap-sm); }
 .check input { flex: none; margin-top: var(--gap-xs); accent-color: var(--accent); }
-.login { display: grid; gap: var(--gap-xs); }
 .small-btn { padding: 0 var(--gap-sm); }
 </style>

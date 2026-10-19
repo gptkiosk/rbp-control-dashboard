@@ -67,6 +67,9 @@ def main(argv: list[str] | None = None) -> int:
             result = ti.build_plan(cfg, catalog, ti.detect_host(root, ti._tool_commands(catalog)), args.tool, args.action)
         else:
             ti.prepare_layout(cfg)
+            # A tool installed outside the tools root (Hermes under ~/.hermes, say) cannot run once the macOS sandbox hides the home
+            # folder, so its version is read now and the plan below reuses it; otherwise every native upgrade is refused as unverifiable.
+            ti.native_install(cfg, catalog, ti.detect_host(root, ti._tool_commands(catalog)), args.tool)
             if not ti.harden_process(cfg):
                 raise ti.ToolError("This host could not restrict the installer from gaining privileges (Linux no_new_privs / macOS Seatbelt), "
                                    "so nothing was installed.")

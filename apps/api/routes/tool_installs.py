@@ -15,7 +15,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, ConfigDict, Field
 
 import tool_install as ti
@@ -74,6 +74,17 @@ def status(request: Request):
     body["log"] = _log_tail(cfg)
     body["notes"] = {tid: catalog.component(tid).get("note") for tid in catalog.tool_ids()}
     return body
+
+
+@router.get("/health")
+def health(request: Request, tool: str | None = Query(default=None, pattern=r"^[a-z][a-z0-9-]{1,30}$")):
+    """Read-only follow-up check of every installed tool: runs, which version answers, reachable by name, next steps."""
+    operator(request)
+    cfg, catalog, facts = _context()
+    try:
+        return {"checks": ti.health(cfg, catalog, facts, tool)}
+    except ti.ToolError as exc:
+        raise HTTPException(409, {"message": "Install state is unreadable.", "problems": exc.problems}) from None
 
 
 @router.post("/plan")
