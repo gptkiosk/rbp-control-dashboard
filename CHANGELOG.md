@@ -20,6 +20,7 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 - **One card for every installable thing**, the same one the setup checklist uses: a status mark, the version (`installed → latest`), one line of state, the buttons, a progress bar while it works, the log, and a **health check** with next steps. The dashboard update, each agent tool and each optional system tool use it.
 - **Private credentials** are one list of cards (signed-in agent, OpenRouter, fal.ai, Discord bot, GitHub) merging the old key guide and the input fields: saved or not, one line on what it is for, a Get a key link, and Save, Remove, share and spending controls on the same card.
 - **Tasks lanes are cards**: each status (In progress, Needs approval, Queued, Backlog, Failed, Done) is its own bordered card with a coloured edge, the status pill, a count badge and a one-line description, so the lanes are easy to tell apart. An empty lane drops its column header.
+- **Every menu page opens the same way**: icon and title, one line saying what the page is, a **How-to** link into the documentation, and the page's actions on the right. Long explanations that did not need to be on screen (Agent access, billing and rate notes, model facts, ops trend, media, GitHub) are folded behind a quiet **Notes** line; the safety warnings in confirmation dialogs are unchanged. Projects trims its explanatory text and shows the four-step workflow as tiles. New How-to: *Read jobs and telemetry*.
 
 ### Added
 

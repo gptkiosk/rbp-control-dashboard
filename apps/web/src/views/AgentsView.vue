@@ -4,6 +4,7 @@ import OpenRouterSpend from '@/components/OpenRouterSpend.vue'
 import { computed, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import AppIcon from '@/components/AppIcon.vue'
+import PageHead from '@/components/PageHead.vue'
 import ChipTag from '@/components/ChipTag.vue'
 import ReportedValue from '@/components/ReportedValue.vue'
 import AgentBillingDialog from '@/components/AgentBillingDialog.vue'
@@ -114,11 +115,7 @@ function saved() {
 </script>
 <template>
   <section class="page agents-page" aria-labelledby="agents-title">
-    <header class="page-head">
-      <div>
-        <h1 id="agents-title" class="page-title has-icon"><AppIcon name="agents" size="lg" />Agents</h1>
-        <p class="muted">Your agent fleet, sub-agents, activity and model usage.</p>
-      </div>
+    <PageHead id="agents-title" title="Agents" icon="agents" sub="Your agent fleet, sub-agents, activity and model usage." help="agent-explorer">
       <div class="toolbar">
         <label class="sr-only" for="usage-period">Usage period</label
         ><AppSelect id="usage-period" v-model="period" class="input">
@@ -128,7 +125,7 @@ function saved() {
         ><button class="btn" @click="billingFocus = null; billingOpen = true"><AppIcon name="cost" />Billing & rates</button
         ><button class="btn" data-testid="media-button" @click="billingFocus = 'media'; billingOpen = true"><AppIcon name="cost" />Media</button>
       </div>
-    </header>
+    </PageHead>
     <p v-if="error" class="error-text" role="alert">Could not load agents: {{ error }}</p>
     <p v-if="usageError" class="error-text" role="alert">Could not load usage: {{ usageError }}</p>
     <div v-if="data" class="fleet">

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import NoteFold from '@/components/NoteFold.vue'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { getJson, postJson } from '@/lib/api'
 interface Plan { endpoint: string; estimate_usd: number | null }
@@ -144,10 +145,10 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
 <template>
   <section class="media-gen" aria-labelledby="media-gen-title">
     <h3 id="media-gen-title">Generate media with your saved fal key</h3>
-    <p class="muted small">
+    <NoteFold label="How media is made"><p class="muted small">
       MCD makes the call with your saved key, which never reaches an agent or the project folder. The folder's <code>media/slots.json</code> only supplies prompts and file names; no code from it is run.
       Make it, look at it, <strong>Accept</strong> the one you like, and it is published into the site. Published items stay out of the way.
-    </p>
+    </p></NoteFold>
     <p v-if="!keyOk" class="small" role="status">Save your fal key first (Profile, Private credentials).</p>
     <label v-if="!props.workingDir">Project folder
       <select v-model="folder" class="input" aria-label="Project folder" @change="loadSlots">

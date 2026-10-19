@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import NoteFold from '@/components/NoteFold.vue'
 import { computed, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 import AppSelect from '@/components/AppSelect.vue'
@@ -78,7 +79,7 @@ defineExpose({ refresh })
         <div class="bars" aria-hidden="true">
           <span v-for="(n, i) in trend" :key="i" class="bar" :style="{ height: `${Math.round((n / trendMax) * 100)}%` }" />
         </div>
-        <p class="muted small">Fleet health reports per day, last 7 days (oldest first): {{ trend.join(', ') }}. A report is written only when a check changes, so a quiet day shows 0.</p>
+        <NoteFold label="About this trend"><p class="muted small">Fleet health reports per day, last 7 days (oldest first): {{ trend.join(', ') }}. A report is written only when a check changes, so a quiet day shows 0.</p></NoteFold>
       </div>
 
       <div class="filters">

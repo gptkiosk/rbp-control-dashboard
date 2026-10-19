@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppIcon from '@/components/AppIcon.vue'
+import PageHead from '@/components/PageHead.vue'
 import ChatConversation from '@/components/ChatConversation.vue'
 import ChipTag from '@/components/ChipTag.vue'
 import NewChatDialog from '@/components/NewChatDialog.vue'
@@ -61,13 +62,9 @@ function preview(t: ChatThread): string {
 
 <template>
   <section class="page" aria-labelledby="chat-title">
-    <header class="head">
-      <h1 id="chat-title" class="page-title has-icon"><AppIcon :name="navIcon('chat')" size="lg" />Chat</h1>
-      <button type="button" class="btn primary" @click="showNew = true">
-        <AppIcon name="plus" />
-        New chat
-      </button>
-    </header>
+    <PageHead id="chat-title" title="Chat" :icon="navIcon('chat')" sub="Talk to an agent." help="agent-chat">
+      <button type="button" class="btn primary" @click="showNew = true"><AppIcon name="plus" />New chat</button>
+    </PageHead>
 
     <div class="chat" :data-open="selectedId !== null ? 'true' : 'false'">
       <nav class="list" aria-label="Chat threads">

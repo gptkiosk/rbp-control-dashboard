@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import NoteFold from '@/components/NoteFold.vue'
 import MembershipPrerequisites from '@/components/MembershipPrerequisites.vue'
 import AppSelect from '@/components/AppSelect.vue'
 import MediaGeneratePanel from '@/components/MediaGeneratePanel.vue'
@@ -117,11 +118,11 @@ async function save() {
           ×
         </button>
       </header>
-      <p class="muted small">
+      <NoteFold label="How savings are counted"><p class="muted small">
         Savings use captured usage for the current calendar month in
         {{ settings?.timezone || 'America/Los_Angeles' }}, less the full monthly subscription. Each
         subscription is counted once per agent, across its sub-agents.
-      </p>
+      </p></NoteFold>
       <p v-if="!settings && !error" role="status">Loading billing settings…</p>
       <div v-if="settings" class="accounts">
         <div v-for="a in agents" :key="a.id" class="account">
@@ -155,11 +156,11 @@ async function save() {
       </div>
       <fieldset v-if="settings" class="limits">
         <legend>Spending &amp; limits</legend>
-        <p class="muted small">
+        <NoteFold label="About spend limits"><p class="muted small">
           Nothing here is on by default. Without a limit, a paid route spends against your own provider account or
           key, so set a credit limit with your provider too (for example a key limit on your OpenRouter key). MCD
           shows its cost estimates but does not stop a run on spend unless you turn a limit on.
-        </p>
+        </p></NoteFold>
         <label class="check"
           ><input v-model="limits.require_reviewed_pricing" type="checkbox" /> Require a reviewed price before a run
           starts</label
@@ -181,12 +182,12 @@ async function save() {
       </fieldset>
       <details v-if="media" ref="mediaSection" class="media-models" :open="props.focus === 'media'">
         <summary>Media models (fal.ai) · image and video generation</summary>
-        <p class="muted small">
+        <NoteFold label="About media prices"><p class="muted small">
           Listed prices are fal's published list prices from {{ media.models[0]?.price_verified }} and are approximate; resolution, duration and
           audio change the final cost. A blank price means fal's pricing page did not list the model: run the media tool's <code>price</code>
           command for the live figure, or enter your own. Prices you enter replace the listed ones for display. Nothing here limits spending.
           fal key: <strong>{{ media.fal_key_saved ? 'saved (Profile, Private credentials)' : 'not saved' }}</strong>.
-        </p>
+        </p></NoteFold>
         <div v-for="m in media.models" :key="m.id" class="media-row">
           <div>
             <strong>{{ m.label }}</strong>
@@ -217,13 +218,13 @@ async function save() {
       </details>
       <details v-if="settings" class="rate-settings">
         <summary>Model rates · USD per million tokens</summary>
-        <p class="muted small">
+        <NoteFold label="How rates are applied"><p class="muted small">
           Source-reported cost takes precedence. Models whose name ends in :free cost 0. Other missing rates stay
           unpriced. Default estimates use standard published rates, with long-context tiers where the provider
           has one, verified October 13, 2026; tools, taxes and speed/residency surcharges are
           excluded. Requests above a configured input limit stay unpriced. A custom rate applies uniformly up
           to that limit.
-        </p>
+        </p></NoteFold>
         <label
           >Model ID<AppSelect v-model="model" class="input" editable aria-label="Model ID" placeholder="Choose or enter the exact model ID">
             <option v-for="m in modelOptions" :key="m" :value="m">{{ m }}</option>

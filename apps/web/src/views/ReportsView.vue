@@ -5,6 +5,7 @@ import ReportFindings from '@/components/ReportFindings.vue'
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppIcon from '@/components/AppIcon.vue'
+import PageHead from '@/components/PageHead.vue'
 import AppSelect from '@/components/AppSelect.vue'
 import { usePolledJson } from '@/composables/usePolledJson'
 import { bytesLabel, dateLabel, type Reports, type ReportContent } from '@/lib/operations'
@@ -40,8 +41,7 @@ function refreshAll() { refresh(); health.value?.refresh(); if (selected.value) 
 </script>
 <template>
   <section aria-labelledby="reports-title">
-    <div class="page-header"><h1 id="reports-title" class="page-title has-icon"><AppIcon name="logs" size="lg" />Ops reports</h1><button class="btn" @click="refreshAll">Refresh</button></div>
-    <p class="muted">Hermes reports and configured local report folders. Latest first, checked every minute.</p>
+    <PageHead id="reports-title" title="Ops reports" icon="logs" sub="Hermes and local reports, latest first." help="reports"><button class="btn" @click="refreshAll">Refresh</button></PageHead>
     <ReportStoragePanel @changed="refreshAll" />
     <ul v-if="data?.sources" class="muted"><li v-for="source in data.sources" :key="source.id">{{ source.id === 'ops' ? 'Ops reports' : 'Hermes archive' }} · {{ source.mode }} · {{ source.available ? 'available' : 'unavailable' }} · <code>{{ source.root || 'No folder selected' }}</code></li></ul>
     <OpsHealthPanel ref="health" :reports="reports" />

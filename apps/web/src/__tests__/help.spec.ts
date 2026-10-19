@@ -31,7 +31,7 @@ describe('how-to answers and deep links', () => {
   it('covers every feature with resolvable local links and complete steps', () => {
     const router = createAppRouter(createMemoryHistory())
     expect(new Set(helpGuides.map(g => g.id)).size).toBe(helpGuides.length)
-    expect(helpGuides.length).toBe(42)
+    expect(helpGuides.length).toBe(43)
     expect(findGuides('Approve all project handoffs')[0]?.id).toBe('project-approvals')
     for (const guide of helpGuides) {
       expect(guide.steps.length).toBeGreaterThanOrEqual(3)

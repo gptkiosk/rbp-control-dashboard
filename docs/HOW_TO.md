@@ -472,6 +472,20 @@ Nobody should later read an accepted story as a clean pass: the handoff begins w
 
 [Open Projects](http://127.0.0.1:8800/projects) · [Open the task board](http://127.0.0.1:8800/tasks) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=accept-anyway)
 
+## Read jobs and telemetry
+
+See how work is going across approved plans and stories: who it is assigned to, which agent and model ran it, how long it took and what it cost.
+
+1. Open Jobs & telemetry. Pick a period and, if you like, filter by job, kind, risk, size, tier, assignee, agent or model.
+2. The tiles count unassigned work, work in progress, work waiting for you, what finished in the period, work missing an estimate and failures.
+3. The charts break work down by status, route, property, assignee, job, model and kind, with completed work per week and median time per kind.
+4. Cost shows what was reported and the API-equivalent estimate. Runs that could not be priced are counted, not guessed.
+5. Open Jobs: the numbers for the table behind the charts. A job is one approved plan revision.
+
+Telemetry only reads what the dashboard already recorded. It changes nothing.
+
+[Open Jobs & telemetry](http://127.0.0.1:8800/telemetry) · [Price an unrecognised model](http://127.0.0.1:8800/help?topic=model-rates) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=jobs-telemetry)
+
 ## Install or upgrade the agent tools
 
 Settings, Updates & installs: one card per agent CLI with its version, an Install or Upgrade button, a progress bar, the install log and a health check.

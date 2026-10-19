@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import { RouterLink } from 'vue-router'
 import AppIcon from '@/components/AppIcon.vue'
+import PageHead from '@/components/PageHead.vue'
 import StatTile from '@/components/StatTile.vue'
 import ChipTag from '@/components/ChipTag.vue'
 import OverviewAgents from '@/components/OverviewAgents.vue'
@@ -55,13 +56,9 @@ function usedOf(used: number | null | undefined, total: number | null | undefine
 
 <template>
   <section class="page" aria-labelledby="overview-title">
-    <div class="heading">
-      <h1 id="overview-title" class="page-title has-icon">
-        <AppIcon :name="navIcon('overview')" size="lg" />
-        Overview
-      </h1>
-      <p v-if="m" class="muted small" data-testid="sample-age">Sample taken {{ formatAge(m.sample_age_s) }}</p>
-    </div>
+    <PageHead id="overview-title" title="Overview" :icon="navIcon('overview')" help="overview">
+      <template #sub><span v-if="m" data-testid="sample-age">Sample taken {{ formatAge(m.sample_age_s) }}</span><span v-else>Live Pi and agent status.</span></template>
+    </PageHead>
 
     <p v-if="current.pending.value" class="notice muted" role="status">Collecting first samples…</p>
     <p v-else-if="current.error.value" class="notice error" role="alert">

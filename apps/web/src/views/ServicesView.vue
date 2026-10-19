@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import AppIcon from '@/components/AppIcon.vue'
+import PageHead from '@/components/PageHead.vue'
 import ChipTag from '@/components/ChipTag.vue'
 import ServiceActions from '@/components/ServiceActions.vue'
 import { usePolledJson } from '@/composables/usePolledJson'
@@ -26,8 +27,7 @@ function runs24(s: ServiceInfo): string {
 
 <template>
   <section class="page" aria-labelledby="services-title">
-    <h1 id="services-title" class="page-title has-icon"><AppIcon :name="navIcon('services')" size="lg" />Services</h1>
-    <p class="muted small note">Crash loop = restarts in 24 h beyond what the job's schedule explains.</p>
+    <PageHead id="services-title" title="Services" :icon="navIcon('services')" sub="Most severe first. Crash loop = restarts in 24 h beyond what the job's schedule explains." help="services" />
 
     <p v-if="error" class="error" role="alert">Could not load services: {{ error }}</p>
     <p v-else-if="pending" class="muted" role="status">Collecting service state…</p>

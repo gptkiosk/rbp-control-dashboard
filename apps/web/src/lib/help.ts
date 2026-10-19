@@ -300,6 +300,14 @@ export const helpGuides: HelpGuide[] = [
     note: 'Nobody should later read an accepted story as a clean pass: the handoff begins with the operator’s acceptance and keeps the agent’s list of gaps.',
   },
   {
+    id: 'jobs-telemetry', title: 'Read jobs and telemetry', area: 'Costs',
+    summary: 'See how work is going across approved plans and stories: who it is assigned to, which agent and model ran it, how long it took and what it cost.',
+    keywords: ['telemetry','jobs','stories','cost','velocity','first pass','assignee','model','filters','period'],
+    steps: ['Open Jobs & telemetry. Pick a period and, if you like, filter by job, kind, risk, size, tier, assignee, agent or model.', 'The tiles count unassigned work, work in progress, work waiting for you, what finished in the period, work missing an estimate and failures.', 'The charts break work down by status, route, property, assignee, job, model and kind, with completed work per week and median time per kind.', 'Cost shows what was reported and the API-equivalent estimate. Runs that could not be priced are counted, not guessed.', 'Open Jobs: the numbers for the table behind the charts. A job is one approved plan revision.'],
+    links: [{ label: 'Open Jobs & telemetry', to: '/telemetry' }, { label: 'Price an unrecognised model', to: '/help?topic=model-rates' }],
+    note: 'Telemetry only reads what the dashboard already recorded. It changes nothing.',
+  },
+  {
     id: 'agent-tools', title: 'Install or upgrade the agent tools', area: 'Settings',
     summary: 'Settings, Updates & installs: one card per agent CLI with its version, an Install or Upgrade button, a progress bar, the install log and a health check.',
     keywords: ['agent tools','install','upgrade','update','claude','codex','openclaw','hermes','grok','gh','github cli','native','managed','health check','version'],

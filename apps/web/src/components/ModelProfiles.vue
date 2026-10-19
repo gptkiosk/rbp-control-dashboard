@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import NoteFold from '@/components/NoteFold.vue'
 import { computed, onMounted, ref } from 'vue'
 import StackedBars from '@/components/StackedBars.vue'
 import { ApiError, deleteJson, getJson, postJson } from '@/lib/api'
@@ -38,7 +39,7 @@ onMounted(load)
 <template>
   <section v-if="data" class="models" aria-label="Models">
     <h2 class="section-title">Models</h2>
-    <p class="muted small">Facts come from the price catalog and OpenRouter's public list; observed numbers come from your own runs; notes are only ever people's, with a source and a date. A model with fewer than {{ data.proven_runs }} runs of a kind is unproven for it.</p>
+    <NoteFold label="Where these numbers come from"><p class="muted small">Facts come from the price catalog and OpenRouter's public list; observed numbers come from your own runs; notes are only ever people's, with a source and a date. A model with fewer than {{ data.proven_runs }} runs of a kind is unproven for it.</p></NoteFold>
     <p v-if="error" class="notice-warn" role="alert">{{ error }}</p>
 
     <StackedBars title="Observed success by model" :parts="[{ key: 'ok', label: 'Succeeded', color: 'var(--ok)' }, { key: 'bad', label: 'Did not succeed', color: 'var(--danger)' }]"
