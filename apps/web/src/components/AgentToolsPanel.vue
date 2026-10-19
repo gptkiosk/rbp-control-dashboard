@@ -3,8 +3,8 @@ import ManagedItem, { type Health } from '@/components/ManagedItem.vue'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { ApiError, getJson, postJson } from '@/lib/api'
 
-type Action = 'install' | 'update' | 'remove' | 'rollback'
-const ACTIONS: Action[] = ['install', 'update', 'rollback', 'remove']
+type Action = 'install' | 'update' | 'remove' | 'rollback' | 'repair'
+const ACTIONS: Action[] = ['install', 'update', 'repair', 'rollback', 'remove']
 const POLL_MS = 3000, NOT_STARTED_POLLS = 10, MAX_POLLS = 1000 // about 50 minutes; 30 seconds before "never started"
 
 interface Tool {
@@ -34,7 +34,7 @@ interface Plan {
   refusals: string[]; warnings: string[]
 }
 
-const VERB: Record<Action, string> = { install: 'Install', update: 'Upgrade', remove: 'Remove', rollback: 'Roll back' }
+const VERB: Record<Action, string> = { install: 'Install', update: 'Upgrade', remove: 'Remove', rollback: 'Roll back', repair: 'Repair' }
 const status = ref<Status | null>(null), plan = ref<Plan | null>(null)
 const confirmed = ref(false), busy = ref(false), copied = ref('')
 const confirmEl = ref<HTMLElement | null>(null), noticeEl = ref<HTMLElement | null>(null), errorEl = ref<HTMLElement | null>(null)
@@ -203,7 +203,7 @@ onBeforeUnmount(() => { disposed = true; if (timer) clearTimeout(timer) })
           :version="t.installed_version" :latest="t.pinned_version" :detail="stateText(t)" :busy="workingOn(t.id)"
           :progress="workingOn(t.id) ? progress : ''" :log="status.log.length && showToolLog(t.id) ? status.log : []" :log-title="`${t.name} log`"
           :health="health[t.id] ?? null" :health-busy="healthBusy" :health-disabled="!t.installed" :data-output="t.id" @health="checkHealth(t.id)">
-          <button v-for="a in offered(t)" :key="a" class="btn" :class="{ primary: a === 'install' || a === 'update' }" :disabled="!canAct(t, a) || (t.actions[a] ?? []).length > 0" :data-action="a"
+          <button v-for="a in offered(t)" :key="a" class="btn" :class="{ primary: a === 'install' || a === 'update' || a === 'repair' }" :disabled="!canAct(t, a) || (t.actions[a] ?? []).length > 0" :data-action="a"
             @click="ask(t, a)">{{ VERB[a] }}{{ a === 'install' || a === 'update' ? ` ${t.pinned_version}` : a === 'rollback' && t.previous_version ? ` to ${t.previous_version}` : '' }}</button>
           <template #more>
             <span v-if="t.installed" class="login" :data-login="t.id">

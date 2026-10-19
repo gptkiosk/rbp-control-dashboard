@@ -10,6 +10,15 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+### Fixed
+
+- **A freshly installed managed Hermes could not start** under your own Hermes home: Hermes 0.22.0 keeps each install's dependency environment under the home that installed it, so the command wrapper (which runs with your `~/.hermes`) found none and stopped with "no dependency environment is committed". The wrapper now links that one per-install folder into the home in use (a profile maps to its root; an existing folder is never replaced).
+- **Health check** shows the tool's own error line when it cannot run, and no longer calls a working managed copy "needs attention" because an older copy (for example Homebrew's `gh`) comes first on your PATH: that is a tip, with the `brew upgrade` suggestion.
+
+### Added
+
+- **Repair** on an Agent tools card whose command wrapper is out of date (installs made by an earlier release): rewrites the wrapper for the installed version. Nothing is downloaded and the version does not change.
+
 ## [0.6.28] - 2026-10-19
 
 ### Fixed

@@ -509,7 +509,8 @@ Settings, Updates & installs: one card per agent CLI with its version, an Instal
 3. Watch the progress bar and open the log if you want the detail. Only one install runs at a time.
 4. When it finishes the health check runs by itself: it asks the tool for its version, checks that a new terminal reaches the managed copy, and lists next steps. Press Check health to run it again.
 5. A tool you installed yourself (native, for example Hermes or gh from Homebrew) is offered a reviewed upgrade that installs a managed copy beside it; your own copy and account settings are kept. Put the tools folder first on your PATH if the health check says a different copy answers.
-6. Sign in yourself with the command on the card. API keys go in Private credentials, never on this page.
+6. If the health check says the tool did not run, press Repair when the card offers it: it rewrites the command wrapper without downloading anything. Then press Check health again.
+7. Sign in yourself with the command on the card. API keys go in Private credentials, never on this page.
 
 Roll back switches to the version kept on this host. Remove deletes the program but keeps your tool data, for example ~/.hermes.
 

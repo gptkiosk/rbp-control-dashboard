@@ -259,3 +259,20 @@ it('shows each installed tool as a card with its version, runs a read-only healt
   expect(card.get('[data-test="health"]').text()).toContain('Upgrade to 0.22.0.')
   w.unmount()
 })
+
+it('offers Repair for a managed tool whose command wrapper is out of date, and asks for the plan with that action', async () => {
+  const hermes = tool('hermes', 'Hermes', { installed: true, installed_version: '0.22.0', installation_source: 'managed', path: '/home/pi/.local/share/rcd-agent-tools/bin/hermes', pinned_version: '0.22.0',
+    actions: { install: null, update: null, remove: [], rollback: null, repair: [] } })
+  const f = stubFetch((url, init) => {
+    if (url === '/api/agent-installs') return { body: status({}, [hermes]) }
+    if (url === '/api/agent-installs/plan' && init?.method === 'POST') return { body: plan({ tool: 'hermes', name: 'Hermes', action: 'repair', from: '0.22.0', to: '0.22.0', commands: ['rewrite the command wrapper(s) hermes for the installed version (nothing is downloaded and the version does not change)'], downloads: [], runtimes: [] }) }
+    return undefined
+  })
+  const w = mount(AgentToolsPanel, stubs); await flushPromises()
+  const repair = w.get('[data-tool="hermes"] [data-action="repair"]')
+  expect(repair.text()).toBe('Repair')
+  await repair.trigger('click'); await flushPromises()
+  expect(JSON.parse(String(calls(f, 'POST', '/api/agent-installs/plan')[0]![1]!.body))).toEqual({ tool: 'hermes', action: 'repair' })
+  expect(w.get('[data-test="confirm"]').text()).toContain('nothing is downloaded')
+  w.unmount()
+})

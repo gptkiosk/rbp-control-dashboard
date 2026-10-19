@@ -31,7 +31,7 @@ LOG_LINES = 60
 class PlanIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
     tool: str = Field(pattern=r"^[a-z][a-z0-9-]{1,30}$")
-    action: str = Field(pattern=r"^(install|update|remove|rollback)$")
+    action: str = Field(pattern=r"^(install|update|remove|rollback|repair)$")
 
 
 class RunIn(PlanIn):
