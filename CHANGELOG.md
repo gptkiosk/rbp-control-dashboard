@@ -8,7 +8,13 @@ the section of the version being released, and a release cannot be built without
 
 Internal operator notes, private hostnames and personal identifiers are omitted by policy.
 
-## [Unreleased]
+## [0.6.30] - 2026-10-19
+
+### Changed
+
+- **Project and media actions:** human-assigned stories link to task details, their project Media studio, and approval guidance. The media flow keeps slot costs, estimates, and the explicit generation and review gates visible.
+- **Clearer navigation:** project planning and approval dialogs link to in-app how-tos; missing fal credentials link to Settings; media prices link back to Projects; the setup prompt appears on Overview only.
+- **Simpler operational pages:** Services, Agents, telemetry, Help, and Settings use shorter summaries and expandable technical details.
 
 ## [0.6.29] - 2026-10-19
 
@@ -631,7 +637,7 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 - Claude Code stories may use web search and fetch without any shell, credential or publish permission.
 
 [0.3.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.0
-[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.29...HEAD
+[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.30...HEAD
 [0.6.29]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.29
 [0.6.28]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.28
 [0.6.27]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.27
@@ -691,3 +697,4 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 - Recorded Linux ARM64 UI preview as temporary test evidence, without claiming Pi hardware or live-provider certification.
 
 [0.3.1]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.1
+[0.6.30]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.30

@@ -127,7 +127,7 @@ onMounted(load)
   <component :is="wizard ? 'div' : 'details'" class="card github-panel" :open="wizard ? undefined : status?.state !== 'ready' ? true : undefined">
     <component :is="wizard ? 'h3' : 'summary'">GitHub (optional) · repositories, pull requests and issues</component>
     <p class="status" role="status">{{ summary }}</p>
-    <p class="muted small">Optional. Shows open pull requests and issues; no GitHub calls while off. Operator sign-in required.</p>
+    <p class="muted small">Optional. Reads selected repositories when enabled; requires operator sign-in.</p>
     <p v-if="error" class="notice-warn" role="alert">{{ error }}</p>
     <p v-if="notice" role="status">{{ notice }}</p>
     <p v-if="login" class="muted" role="status">{{ login.available ? `Active gh login: ${login.account}.` : 'No active gh login was detected on the host. Sign in there with “gh auth login”, then refresh.' }}</p>

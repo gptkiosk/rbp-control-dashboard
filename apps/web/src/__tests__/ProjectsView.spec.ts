@@ -9,9 +9,9 @@ import { stubFetch } from './helpers'
 import { vi } from 'vitest'
 let mediaProject:unknown={available:false}
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); document.body.innerHTML=''; mediaProject={available:false} })
-async function setup(state='draft', tasks: import('@/lib/projects').ProjectTask[] = [], proposedOutput: {path:string;markdown:string;sha256:string} | null = null, url='/projects?project=1', unarranged=false) {
+async function setup(state='draft', tasks: import('@/lib/projects').ProjectTask[] = [], proposedOutput: {path:string;markdown:string;sha256:string} | null = null, url='/projects?project=1', unarranged=false, humanStory=false) {
  const phase=newNode('phase',0);phase.title='Architecture'
- const story=newNode('story',1,phase.key);story.title='Bounded implementation';story.model='gpt-6.1-sol';story.routes=[{agent:'claude',model:'claude-sonnet-5-5'}]
+ const story=newNode('story',1,phase.key);story.title='Bounded implementation';if(humanStory) story.assignee='human';story.model='gpt-6.1-sol';story.routes=[{agent:'claude',model:'claude-sonnet-5-5'}]
  const doc={...emptyProject('/tmp/project'),title:'Reviewed project',brief:'An approved goal',nodes:unarranged ? [phase,story].map(n=>({...n,x:0,y:0})) : arrange([phase,story])}
  let p={model_lock:false,id:1,document:doc,revision:1,state,can_resume_plan:state==='planning_failed',approved_revision:null,pipeline:null,error:null,updated_at:1,handoff_approval:{mode:'manual' as 'manual'|'automatic',manifest_hash:'b'.repeat(64),eligible:[{card_id:5,title:'Routine document',column:'review'}],excluded:[{card_id:6,title:'Repository publication',reason:'Publication requires individual review'}]},tasks,memory:[],workspaces:{},artifacts:{}}
  const f=stubFetch((url,init) => {
@@ -124,6 +124,17 @@ it('shows a Media tab and a banner for a project with media slots, and the link 
  await flushPromises()
  expect(direct.w.find('.media-tab').exists()).toBe(true)                      // arriving from the story's link lands on the tab
  direct.w.unmount()
+})
+it('routes a human-assigned project story to its media action and approval guide',async()=>{
+ mediaProject={available:true,working_dir:'/tmp/project',summary:{published:0,skipped:0,pending:0,total:1,complete:false,text:'Media needs review.'}}
+ const {w}=await setup('draft',[],null,'/projects?project=1',false,true)
+ await w.get('[aria-label="story: Bounded implementation"]').trigger('click')
+ expect(w.get('.human-action').text()).toContain('This task needs your action')
+ expect(w.get('.human-action').get('button').text()).toBe('Open media studio')
+ expect(w.find('.human-action a[href="/help?topic=project-approvals"]').exists()).toBe(true)
+ await w.get('.human-action button').trigger('click');await flushPromises()
+ expect(w.find('.media-tab').exists()).toBe(true)
+ w.unmount()
 })
 it('has no Media tab for a project without media slots',async()=>{
  const {w}=await setup('active')

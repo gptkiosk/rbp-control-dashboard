@@ -40,9 +40,11 @@ it('shows the tiles, who work is assigned to (people and agents), the agent and 
   w.unmount()
 })
 
-it('shows charts at a glance (donuts and stacked bars) with the tables folded away until asked for', async () => {
+it('keeps charts and filters available under compact disclosures, with tables folded away', async () => {
   stubFetch(url => url.startsWith('/api/telemetry') ? { body: body() } : undefined)
   const w = mount(TelemetryView); await flushPromises()
+  expect(w.get('.filter-fold').attributes('open')).toBeUndefined()
+  expect(w.get('.trends').attributes('open')).toBeUndefined()
   const status = w.get('[aria-label="Workload by status"]')
   expect(status.find('svg').exists()).toBe(true)
   expect(status.text()).toContain('done')

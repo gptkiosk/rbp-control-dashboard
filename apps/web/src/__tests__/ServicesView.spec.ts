@@ -31,7 +31,9 @@ describe('ServicesView', () => {
     const w = mount(ServicesView)
     await flushPromises()
 
-    expect(w.text()).toContain("Crash loop = restarts in 24 h beyond what the job's schedule explains.")
+    expect(w.text()).toContain('Most severe first.')
+    expect(w.text()).not.toContain("Crash loop = restarts in 24 h beyond what the job's schedule explains.")
+    expect(w.findAll('details summary').some(x => x.text() === 'Program location')).toBe(true)
     expect(w.text()).toContain('Crash loop')
     expect(w.text()).toContain('Stopped by signal 9')
     expect(w.text()).toContain('Last exit 1')

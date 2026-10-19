@@ -2,6 +2,7 @@
 import { ref, computed, onBeforeUnmount } from 'vue'
 import ChatConversation from '@/components/ChatConversation.vue'
 import AppSelect from '@/components/AppSelect.vue'
+import NoteFold from '@/components/NoteFold.vue'
 import ProjectTypePicker from '@/components/ProjectTypePicker.vue'
 import { getJson, postJson, type ChatThread, type ChatThreadDetail } from '@/lib/api'
 import type { Preferences } from '@/lib/profile'
@@ -68,8 +69,9 @@ async function review() {
   <div class="consultant-entry"><button class="btn" :aria-expanded="open" @click="open=!open">{{open?'Hide project consultant':'Refine with project consultant'}}</button>
     <section v-if="open" class="consultant-glass" aria-labelledby="consultant-title">
       <h3 id="consultant-title">Project consultant</h3>
-      <p>Describe what you want to build. The consultant answers, asks what it needs to know, and keeps going until you say that is enough. Then it writes up the plan for you to review and send to the coordinator, which creates the stories.</p>
-      <p class="muted">New conversations use {{agent}} · {{model}}. Free OpenRouter is the default (for Hermes and OpenClaw it means the free model they are set up with) and can throttle or time out. Membership routes use your native CLI account; API routes can incur charges. <RouterLink to="/profile#ai-settings">Configure AI defaults</RouterLink> · <RouterLink to="/help?topic=project-consultant">Consultant help</RouterLink></p>
+      <p>Shape the brief together, then review it before anything reaches planning. <RouterLink to="/help?topic=project-consultant">How-to</RouterLink></p>
+      <p class="muted small">New chats: {{agent}} · {{model}} · <RouterLink to="/profile#ai-settings">AI defaults</RouterLink></p>
+      <NoteFold label="Route and billing"><p class="small">Free routes can throttle or time out. Membership routes use your native CLI account; API routes can incur charges. <RouterLink to="/help?topic=project-models">Model routes and billing</RouterLink>.</p></NoteFold>
       <p v-if="!available && !threadId" role="status">The configured consultant runtime is unavailable. <RouterLink to="/profile#agent-tools">Install an agent runtime</RouterLink> or change AI defaults.</p>
       <p v-if="error" role="alert">{{error}}</p>
       <p v-if="busy && threadId" role="status" class="muted">Sending your goal to the consultant…</p>
@@ -80,7 +82,7 @@ async function review() {
         <ProjectTypePicker v-model="projectType" :text="title + ' ' + goal" required @loaded="typeCount=$event" />
         <button class="btn primary" :disabled="busy || !available">Start consultant conversation</button>
       </form>
-      <template v-else><p>Conversation #{{threadId}} keeps its original agent/model. Changed defaults apply to new conversations.</p><div class="conversation"><ChatConversation :thread-id="threadId" embedded @deleted="threadId=0; emit('started',0)" @back="open=false" /></div><p v-if="drafting" role="status" class="muted">Writing up the plan from this conversation…</p><div class="actions"><button class="btn primary" :disabled="busy || drafting" @click="draft">That’s enough, write up the plan</button><button class="btn" :disabled="busy || drafting" @click="review">Review brief &amp; submit to the coordinator</button></div><p class="muted">“Write up the plan” asks the consultant for the brief and opens it for you to edit. Nothing reaches the coordinator until you confirm there, and stories run only after their separate project approval. If the last reply already is the brief, use the second button.</p></template>
+      <template v-else><p class="small muted">Conversation #{{threadId}} · route stays with this chat.</p><div class="conversation"><ChatConversation :thread-id="threadId" embedded @deleted="threadId=0; emit('started',0)" @back="open=false" /></div><p v-if="drafting" role="status" class="muted">Writing up the plan…</p><div class="actions"><button class="btn primary" :disabled="busy || drafting" @click="draft">Write up the plan</button><button class="btn" :disabled="busy || drafting" @click="review">Review existing brief</button></div><NoteFold label="Before submitting"><p class="small">The brief opens for you to edit. Nothing reaches the coordinator until you confirm there, and stories need a separate project approval before they run. Use Review existing brief when the last reply is already complete.</p><p class="small"><RouterLink to="/help?topic=project-consultant">Consultant how-to</RouterLink> · <RouterLink to="/help?topic=project-approvals">Project approvals</RouterLink></p></NoteFold></template>
     </section>
   </div>
 </template>

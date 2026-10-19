@@ -167,7 +167,7 @@ function saved() {
             · {{ unpricedModels(overview(a.id)?.unpriced_models) }}</template
           ></span
         >
-        <span v-if="!a.available" class="small muted binary">{{ a.binary }}</span>
+        <span v-if="!a.available" class="small muted binary" :title="a.binary">Command: {{ a.binary.split('/').pop() }}</span>
       </button>
     </div>
     <OpenRouterSpend :data="usage?.openrouter" :agent="selectedId" />
@@ -469,7 +469,7 @@ function saved() {
           </table>
         </div>
       </section>
-      <p class="muted small">{{ usage?.note }}</p>
+      <details class="note-fold"><summary>About usage data</summary><p class="muted small">{{ usage?.note }}</p><p class="muted small">{{ selected.notes }}</p></details>
       <p class="muted small">{{ selected.notes }}</p>
     </article>
     <AgentBillingDialog

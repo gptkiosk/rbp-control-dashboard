@@ -178,7 +178,7 @@ it('asks once with the total, then makes one request per slot that is not made y
 it('asks for the key first when none is saved', async () => {
   const { w } = setup(() => [slot({ name: 'a' })], () => undefined, false)
   await flushPromises()
-  expect(w.text()).toContain('Save your fal key first')
+  expect(w.text()).toContain('Add fal key in Settings')
   await w.get('input[type=checkbox]').setValue(true)
   expect(buttons(w, 'Generate', '[data-slot=a]')[0]!.attributes('disabled')).toBeDefined()
   w.unmount()

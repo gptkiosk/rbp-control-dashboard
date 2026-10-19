@@ -182,7 +182,7 @@ async function save() {
       </fieldset>
       <details v-if="media" ref="mediaSection" class="media-models" :open="props.focus === 'media'">
         <summary>Media prices (fal.ai) · what image and video generation costs</summary>
-        <p class="muted small">This is a price list. To make and preview media for a project, open it in Projects and choose <strong>Media studio</strong>.</p>
+        <p class="muted small">This is a price list. <RouterLink to="/projects">Open Projects</RouterLink> to make and review media. <RouterLink to="/help?topic=project-media">Media how-to</RouterLink></p>
         <NoteFold label="About media prices"><p class="muted small">
           Listed prices are fal's published list prices from {{ media.models[0]?.price_verified }} and are approximate; resolution, duration and
           audio change the final cost. A blank price means fal's pricing page did not list the model: run the media tool's <code>price</code>
