@@ -10,6 +10,8 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.6.28] - 2026-10-19
+
 ### Fixed
 
 - **Upgrading a tool you installed yourself (Hermes, `gh` from Homebrew) was always refused** with "The native version could not be verified". The tools helper put the macOS sandbox up before it re-read the tool's version, and the sandbox hides the home folder, so Hermes (in `~/.hermes`) could not run and every Upgrade was refused with nothing shown. The version is now read first and the plan reuses it. A test reproduces the sandbox.
@@ -615,7 +617,8 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 - Claude Code stories may use web search and fetch without any shell, credential or publish permission.
 
 [0.3.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.0
-[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.27...HEAD
+[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.28...HEAD
+[0.6.28]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.28
 [0.6.27]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.27
 [0.6.26]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.26
 [0.6.25]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.25
