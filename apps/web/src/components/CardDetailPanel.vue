@@ -41,7 +41,7 @@ import {
   approvalNotice,
   awaitsApproval,
   columnLabel,
-  isManagerAgent,
+  isCoordinatorAgent,
   moveCard,
   stageLabel,
   stageTone,
@@ -384,7 +384,7 @@ async function save(): Promise<void> {
           <ChipTag tone="muted">{{ columnLabel(card.column) }}</ChipTag>
           <ChipTag tone="accent">{{ human ? 'You' : agentLabel(card.agent) }}</ChipTag>
           <ChipTag v-if="card.created_by === 'hermes'" tone="muted">Created by Hermes</ChipTag>
-          <ChipTag v-if="isManagerAgent(card.agent)" tone="muted">Manager</ChipTag>
+          <ChipTag v-if="isCoordinatorAgent(card.agent)" tone="muted">Coordinator</ChipTag>
           <ChipTag v-if="!human" :tone="card.mode === 'edit' ? 'warn' : 'muted'">{{
             card.mode === 'edit' ? 'Edit' : 'Read'
           }}</ChipTag>

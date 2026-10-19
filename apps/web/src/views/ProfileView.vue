@@ -10,25 +10,28 @@ import HousekeepingPanel from '@/components/HousekeepingPanel.vue'
 import BugIntakePanel from '@/components/BugIntakePanel.vue'
 import GithubActionsPanel from '@/components/GithubActionsPanel.vue'
 import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import AppIcon from '@/components/AppIcon.vue'
 import AppSelect from '@/components/AppSelect.vue'
 import PlanningBiasSlider from '@/components/PlanningBiasSlider.vue'
 import ToggleSwitch from '@/components/ToggleSwitch.vue'
 import { getJson, putJson, postJson, deleteJson } from '@/lib/api'
-import type { Profile, Preferences } from '@/lib/profile'
+import type { Profile, Preferences, CoordinatorBootstrapPreferences } from '@/lib/profile'
 import { directoryName, directoryDetail } from '@/lib/selectLabels'
 import { useThemeStore } from '@/stores/theme'
-const profile = ref<Profile | null>(null), preferences = ref<Preferences | null>(null)
+const profile = ref<Profile | null>(null), preferences = ref<(Preferences & {coordinator_bootstrap: CoordinatorBootstrapPreferences}) | null>(null)
 const workdirs = ref<{ path: string; branch: string | null }[]>([]), origins = ref<string[]>([])
 const error = ref(''), notice = ref(''), busy = ref(false), pairing = ref('')
 const guide = ref<InstanceType<typeof CredentialsPanel> | null>(null)
 const secrets = ref<Record<string,string>>({ openrouter: '', discord: '', fal: '' })
 const spending = ref<Record<string, number | string | boolean | null> | null>(null)
 const theme = useThemeStore()
-// Three groups so settings are not buried under updates and maintenance. An old link such as /profile#agent-tools opens the group that holds it.
-const TABS = [{ id: 'settings', label: 'Settings' }, { id: 'updates', label: 'Updates & installs' }, { id: 'maintenance', label: 'Maintenance & access' }] as const
+const router = useRouter()
+const bootstrapReadiness = ref<{ ready: boolean; checks: {id:string;label:string;ready:boolean;link:string}[] } | null>(null)
+// Keep coordinator bootstrap choices in their own profile section; old hash links still open the right group.
+const TABS = [{ id: 'settings', label: 'Settings' }, { id: 'coordinator', label: 'Coordinator setup' }, { id: 'updates', label: 'Updates & installs' }, { id: 'maintenance', label: 'Maintenance & access' }] as const
 type Tab = typeof TABS[number]['id']
-const HOME: Record<string, Tab> = { updates: 'updates', 'agent-tools': 'updates', 'system-tools': 'updates', housekeeping: 'maintenance', 'github-settings': 'maintenance', 'github-actions': 'maintenance', 'bug-intake': 'maintenance', roles: 'maintenance', reports: 'maintenance' }
+const HOME: Record<string, Tab> = { 'coordinator-bootstrap': 'coordinator', updates: 'updates', 'agent-tools': 'updates', 'system-tools': 'updates', 'agent-roles': 'maintenance', housekeeping: 'maintenance', 'github-settings': 'maintenance', 'github-actions': 'maintenance', 'bug-intake': 'maintenance', roles: 'maintenance', reports: 'maintenance' }
 const THEMES = [{ id: 'system', label: 'Device' }, { id: 'light', label: 'Light' }, { id: 'dark', label: 'Dark' }] as const
 const tab = ref<Tab>('settings')
 function fromHash() {
@@ -41,7 +44,8 @@ function pick(id: Tab) { tab.value = id; history.replaceState(null, '', `${windo
 onMounted(fromHash)
 window.addEventListener('hashchange', fromHash)
 onBeforeUnmount(() => window.removeEventListener('hashchange', fromHash))
-function apply(p: Profile) { profile.value = p; preferences.value = {ai_agent:'hermes',ai_model:'openrouter/free',...structuredClone(p.preferences)} }
+const BOOTSTRAP_DEFAULTS = { platforms: ['openclaw','claude','codex','grok'] as ('openclaw'|'claude'|'codex'|'grok')[], roles: ['developer','security'] as ('developer'|'security'|'reviewer')[], shared_project_memory: true, project_workspaces: true, model_policy: 'reuse_configured_default' as const, security_review: 'risk_based' as const }
+function apply(p: Profile) { profile.value = p; preferences.value = {ai_agent:'hermes',ai_model:'openrouter/free',...structuredClone(p.preferences),coordinator_bootstrap:{...BOOTSTRAP_DEFAULTS,...p.preferences.coordinator_bootstrap}} }
 async function action(fn: () => Promise<void>) {
   if (busy.value) return
   busy.value = true; error.value = ''; notice.value = ''
@@ -51,10 +55,22 @@ onMounted(() => { void action(async () => {
   const p = await getJson<Profile>('/api/profile'); apply(p); origins.value = p.origins ?? []
   if (preferences.value && !preferences.value.discord_channel_id) preferences.value.discord_channel_id = p.suggested_discord_channel ?? ''
   workdirs.value = (await getJson<{ workdirs: typeof workdirs.value }>('/api/workdirs')).workdirs
+  bootstrapReadiness.value = await getJson('/api/profile/coordinator-bootstrap/readiness')
 }) })
 async function save() { await action(async () => {
   apply(await putJson<Profile>('/api/profile', preferences.value)); theme.choose(profile.value!.preferences.theme)
-  notice.value = 'Profile saved. New projects use these defaults.'
+  notice.value = tab.value === 'coordinator' ? 'Coordinator bootstrap preferences saved.' : 'Profile saved. New projects use these defaults.'
+}) }
+async function startCoordinatorBootstrap() { await action(async () => {
+  // Persist the current choices before the server snapshots them into the setup brief.
+  apply(await putJson<Profile>('/api/profile', preferences.value))
+  const result = await postJson<{project_id:number}>('/api/profile/coordinator-bootstrap/start')
+  notice.value = 'Setup draft created. Review it in Projects; Hermes has not started work.'
+  await router.push({ path: '/projects', query: { project: String(result.project_id) } })
+}) }
+async function refreshCoordinatorReadiness() { await action(async () => {
+  bootstrapReadiness.value = await getJson<{ ready:boolean; checks:{id:string;label:string;ready:boolean;link:string}[] }>('/api/profile/coordinator-bootstrap/readiness')
+  notice.value = bootstrapReadiness.value.ready ? 'Hermes is ready to prepare the setup draft.' : 'Readiness updated. Complete the linked setup items first.'
 }) }
 async function saveKey(provider: string) { await action(async () => {
   const key = secrets.value[provider]
@@ -91,7 +107,7 @@ async function importPreferences(event: Event) { await action(async () => {
   if (file.size > 16000) throw new Error('Choose a small RCD preferences file.')
   const data = JSON.parse(await file.text())
   if (data.version !== 1 || !data.preferences || typeof data.preferences !== 'object' || Object.keys(data).some(k => !['version','preferences'].includes(k)) || Object.keys(data.preferences).some(k => !Object.keys(profile.value!.preferences).includes(k))) throw new Error('Invalid preferences file.')
-  preferences.value = { ...data.preferences, setup: profile.value!.preferences.setup, use_saved_openrouter_key: profile.value!.preferences.use_saved_openrouter_key }; notice.value = 'Preferences loaded for review. Save to apply; Discord will need pairing on a new installation.'
+  preferences.value = { ...data.preferences, coordinator_bootstrap: { ...BOOTSTRAP_DEFAULTS, ...data.preferences.coordinator_bootstrap }, setup: profile.value!.preferences.setup, use_saved_openrouter_key: profile.value!.preferences.use_saved_openrouter_key }; notice.value = 'Preferences loaded for review. Save to apply; Discord will need pairing on a new installation.'
 }) }
 </script>
 
@@ -162,6 +178,29 @@ async function importPreferences(event: Event) { await action(async () => {
         </section>
       </div>
     </div>
+
+    <form v-if="profile && preferences" v-show="tab === 'coordinator'" id="coordinator-bootstrap" class="card bootstrap-card" role="tabpanel" aria-labelledby="bootstrap-title" @submit.prevent="save">
+      <header class="card-head"><div><h2 id="bootstrap-title">Coordinator bootstrap</h2><p class="muted small">Set the starting assumptions Hermes uses to prepare agent setup work.</p></div><RouterLink to="/help?topic=maintenance" class="small">How-to</RouterLink></header>
+      <fieldset class="choice-group"><legend>Platforms to consider</legend><p class="small muted">Ready platforms become setup candidates. Anything that needs sign-in or a model choice becomes a human task with a direct settings link.</p>
+        <label v-for="item in [{id:'openclaw',name:'OpenClaw'},{id:'claude',name:'Claude Code'},{id:'codex',name:'Codex'},{id:'grok',name:'Grok Build'}]" :key="item.id" class="choice"><input v-model="preferences.coordinator_bootstrap.platforms" type="checkbox" :value="item.id" /><span>{{ item.name }}</span></label>
+      </fieldset>
+      <fieldset class="choice-group"><legend>Starter roles</legend><p class="small muted">Create only missing agents for these roles. Existing agents are preserved.</p>
+        <label v-for="item in [{id:'developer',name:'Developer'},{id:'security',name:'Security reviewer'},{id:'reviewer',name:'Acceptance reviewer'}]" :key="item.id" class="choice"><input v-model="preferences.coordinator_bootstrap.roles" type="checkbox" :value="item.id" /><span>{{ item.name }}</span></label>
+      </fieldset>
+      <div class="switches" role="group" aria-label="Workspace and memory setup">
+        <ToggleSwitch v-model="preferences.coordinator_bootstrap.shared_project_memory" label="Shared project memory" hint="Prepare project-scoped notes and handoffs agents can share." />
+        <ToggleSwitch v-model="preferences.coordinator_bootstrap.project_workspaces" label="Project workspaces" hint="Prepare an allowed project area for agent work." />
+      </div>
+      <label class="row bootstrap-model"><span class="name">Model setup</span><AppSelect v-model="preferences.coordinator_bootstrap.model_policy" aria-label="Bootstrap model policy"><option value="reuse_configured_default">Reuse each platform’s configured default</option><option value="ask_before_change">Ask me before changing a model</option></AppSelect></label>
+      <label class="row bootstrap-model"><span class="name">Security review</span><AppSelect v-model="preferences.coordinator_bootstrap.security_review" aria-label="Security review policy"><option value="risk_based">Include for security-sensitive or high-risk work</option><option value="every_project">Include in every project</option><option value="by_request">Include when I request it</option></AppSelect></label>
+      <aside class="bootstrap-note"><strong>Ready to configure?</strong> Check that Hermes is installed, assigned as Coordinator, has its guidance and a default model. Starting setup creates a project draft from these choices. Review its plan before any agent work begins.</aside>
+      <ul v-if="bootstrapReadiness" class="readiness-list" aria-label="Hermes readiness">
+        <li v-for="check in bootstrapReadiness.checks" :key="check.id" :class="check.ready ? 'ready' : 'missing'">
+          <span aria-hidden="true">{{ check.ready ? '✓' : '!' }}</span><span>{{ check.label }}</span><RouterLink v-if="!check.ready" :to="check.link">Fix</RouterLink>
+        </li>
+      </ul>
+      <div class="actions"><button class="btn primary" type="button" :disabled="busy || !bootstrapReadiness?.ready" @click="startCoordinatorBootstrap">{{ busy ? 'Checking…' : 'Start agent setup' }}</button><button class="btn" type="button" :disabled="busy" @click="refreshCoordinatorReadiness">Recheck readiness</button><button class="btn" :disabled="busy">Save coordinator setup</button><RouterLink to="/agents" class="btn">Review installed agents</RouterLink></div>
+    </form>
   </section>
 </template>
 
@@ -173,6 +212,22 @@ async function importPreferences(event: Event) { await action(async () => {
 .group { display:grid; gap:var(--gap-lg); margin-top:var(--gap); } .group > :deep(.card), .group > :deep(section) { margin:0; }
 .profile-grid { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.2fr); gap:var(--gap-lg); align-items:start; margin-top:var(--gap-lg); }
 .profile-stack { display:grid; gap:var(--gap-lg); min-width:0; } .card { background:var(--agent-glass); min-width:0; display:grid; gap:var(--gap); align-content:start; }
+.bootstrap-card { max-width:70rem; margin:var(--gap-lg) auto 0; }
+.bootstrap-card .card-head { justify-content:space-between; }
+.bootstrap-card .card-head p { margin:var(--gap-xs) 0 0; }
+.choice-group { display:flex; flex-wrap:wrap; gap:var(--gap-sm) var(--gap); border:1px solid var(--surface-border); border-radius:var(--radius); padding:var(--gap); margin:0; }
+.choice-group legend { color:var(--text); font-weight:var(--font-weight-strong); padding:0 var(--gap-xs); }
+.choice-group p { flex-basis:100%; margin:0; }
+.choice { display:flex; align-items:center; gap:var(--gap-xs); color:var(--text); }
+.choice input { accent-color:var(--accent); }
+.bootstrap-model { max-width:42rem; }
+.bootstrap-note { border:1px solid var(--surface-border); border-radius:var(--radius); padding:var(--gap); color:var(--text-muted); }
+.readiness-list { display:grid; gap:var(--gap-xs); list-style:none; padding:0; margin:0; }
+.readiness-list li { display:flex; align-items:center; gap:var(--gap-sm); border:1px solid var(--surface-border); border-radius:var(--radius); padding:var(--gap-sm) var(--gap); }
+.readiness-list li span:first-child { font-weight:var(--font-weight-strong); }
+.readiness-list .ready span:first-child { color:var(--ok); }
+.readiness-list .missing span:first-child { color:var(--warning, #d99a22); }
+.readiness-list a { margin-left:auto; }
 h2 { font-size:var(--font-size-lg); margin:0; }
 .card-head { display:flex; align-items:center; flex-wrap:wrap; gap:var(--gap-sm); } .card-head h2 { flex:1 1 auto; }
 .owner { overflow-wrap:anywhere; } .small { font-size:var(--font-size-xs); }

@@ -5,7 +5,7 @@ import ChipTag from '@/components/ChipTag.vue'
 import TaskApprovalAction from '@/components/TaskApprovalAction.vue'
 import { useNow } from '@/composables/useNow'
 import type { Card } from '@/lib/api'
-import { agentLabel, awaitsApproval, isManagerAgent, stageLabel, stageTone } from '@/lib/cards'
+import { agentLabel, awaitsApproval, isCoordinatorAgent, stageLabel, stageTone } from '@/lib/cards'
 import { formatDuration } from '@/lib/format'
 
 const props = defineProps<{ card: Card; selected?: boolean; dragging?: boolean }>()
@@ -39,7 +39,7 @@ const elapsed = computed(() => {
     </h3>
     <div class="chips">
       <ChipTag tone="accent">{{ agentLabel(card.agent) }}</ChipTag>
-      <ChipTag v-if="isManagerAgent(card.agent)" tone="muted">Manager</ChipTag>
+      <ChipTag v-if="isCoordinatorAgent(card.agent)" tone="muted">Coordinator</ChipTag>
       <ChipTag :tone="card.mode === 'edit' ? 'warn' : 'muted'">{{ card.mode === 'edit' ? 'Edit' : 'Read' }}</ChipTag>
       <ChipTag v-if="awaitsApproval(card)" tone="warn">Needs approval</ChipTag>
       <ChipTag v-else-if="card.approved_at" tone="ok">Approved</ChipTag>

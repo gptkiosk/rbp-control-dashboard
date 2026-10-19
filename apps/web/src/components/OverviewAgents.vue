@@ -70,7 +70,7 @@ function detail(id: AgentId, target?: string) {
           <RouterLink :to="detail(a.id)" class="agent-name">{{ a.name }}</RouterLink>
           <ChipTag :tone="status(a).tone">{{ status(a).label }}</ChipTag>
         </header>
-        <p class="small muted">{{ a.role === 'manager' ? 'Manager' : 'Worker' }} · {{ a.subagents?.processes.length ?? '—' }} observed processes</p>
+        <p class="small muted">{{ a.role === 'manager' ? 'Coordinator' : 'Worker' }} · {{ a.subagents?.processes.length ?? '—' }} observed processes</p>
         <p v-if="a.failed_24h" class="warning-text small">{{ a.failed_24h }} failed RCD {{ a.failed_24h === 1 ? 'run' : 'runs' }} · last 24h</p>
         <div class="work">
           <template v-if="a.current.length">

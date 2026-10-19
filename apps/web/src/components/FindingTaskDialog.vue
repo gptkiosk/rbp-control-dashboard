@@ -107,7 +107,7 @@ async function submit(): Promise<void> {
         <div class="field">
           <label for="ft-agent">Agent</label>
           <AppSelect id="ft-agent" v-model="agentId" class="input" required>
-            <option v-for="a in agents" :key="a.id" :value="a.id" :disabled="!a.available" :data-label="a.name" :data-description="a.available ? (a.role === 'manager' ? 'Manager' : 'Worker') : 'Not installed'">
+            <option v-for="a in agents" :key="a.id" :value="a.id" :disabled="!a.available" :data-label="a.name" :data-description="a.available ? (a.role === 'manager' ? 'Coordinator' : 'Worker') : 'Not installed'">
               {{ a.name }}{{ a.available ? '' : ' (not installed)' }}
             </option>
           </AppSelect>

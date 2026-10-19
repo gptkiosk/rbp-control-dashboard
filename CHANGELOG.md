@@ -8,6 +8,25 @@ the section of the version being released, and a release cannot be built without
 
 Internal operator notes, private hostnames and personal identifiers are omitted by policy.
 
+## [Unreleased]
+
+## [0.6.31] - 2026-10-19
+
+### Added
+
+- **Coordinator setup kickoff:** Profile checks that Hermes is installed, assigned as Coordinator, guided and has a default model. When ready, it creates and opens a reviewable agent-platform setup project draft from the saved preferences; it does not start model work or alter platform configuration.
+
+### Changed
+
+- **Agent setup guidance:** Hermes is shown as the fixed Coordinator, while worker, reviewer and security labels remain configurable for other installed platforms.
+- **Packaged Hermes guidance** now explains the in-app setup-draft flow, platform readiness checks, preservation of existing agent files, and human-only setup steps.
+
+### Fixed
+
+- **Manual Docker setup on Linux** now enables and starts the Docker service, adds the current user to its group, and shows the sign-out/sign-in and RCD service restart steps needed for a clean health check.
+- **Docker health checks** distinguish socket permission errors from engine failures and show a short engine diagnostic.
+- **Hermes health checks** recognize the installed pinned source commit when Hermes reports its upstream git-describe version.
+
 ## [0.6.30] - 2026-10-19
 
 ### Changed
@@ -698,3 +717,4 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 
 [0.3.1]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.1
 [0.6.30]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.30
+[0.6.31]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.31

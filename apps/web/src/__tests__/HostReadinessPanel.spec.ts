@@ -15,12 +15,12 @@ function setup(extra?: (u: string, init?: RequestInit) => { status?: number; bod
   const f = stubFetch((u, init) => (u.startsWith('/api/host/readiness') && !init?.method ? { body: bare() } : extra?.(u, init)))
   return { f, w: mount(HostReadinessPanel, { attachTo: document.body, global: { stubs: { RouterLink: { props: ['to'], template: '<a :href="to"><slot /></a>' } } } }) }
 }
-it('lists each check with its state, shows builders versus managers, and offers one named fix per gap', async () => {
+it('lists each check with its state, shows builders versus coordinators, and offers one named fix per gap', async () => {
   const { w } = setup(); await flushPromises()
   expect(w.get('[data-testid=readiness-summary]').text()).toContain('Ready to build: not yet')
   expect(w.get('[data-check=workspace]').text()).toContain('needs attention')
   expect(w.get('[data-check=agents]').text()).toContain('openclaw (not installed)')
-  expect(w.get('[data-check=agents]').text()).toContain('hermes · manager')
+  expect(w.get('[data-check=agents]').text()).toContain('hermes · coordinator')
   expect(w.get('[data-check=tools]').text()).toContain('docker (missing)')
   expect(w.get('[data-check=tools]').text()).toContain('colima (stopped)')
   expect(w.get('[data-how=gh] a').attributes('href')).toBe('/profile#agent-tools')                        // gh: a link to install it from Agent tools

@@ -68,7 +68,7 @@ async function mountChat(srv: ReturnType<typeof server>, url = '/chat') {
 }
 
 describe('Chat view', () => {
-  it('lists threads with agent chip, Manager chip, preview and a busy dot', async () => {
+  it('lists threads with agent chip, Coordinator chip, preview and a busy dot', async () => {
     const srv = server({
       threads: [
         thread(),
@@ -80,10 +80,10 @@ describe('Chat view', () => {
     expect(items).toHaveLength(2)
     expect(items[0]!.text()).toContain('Live memory test')
     expect(items[0]!.text()).toContain('Hermes')
-    expect(items[0]!.text()).toContain('Manager')
+    expect(items[0]!.text()).toContain('Coordinator')
     expect(items[0]!.text()).toContain('PELICAN')
     expect(items[0]!.find('[data-testid="busy-dot"]').exists()).toBe(false)
-    expect(items[1]!.text()).not.toContain('Manager')
+    expect(items[1]!.text()).not.toContain('Coordinator')
     expect(items[1]!.text()).toContain('You: do it')
     expect(items[1]!.find('[data-testid="busy-dot"]').exists()).toBe(true)
     expect(w.text()).toContain('New chat')

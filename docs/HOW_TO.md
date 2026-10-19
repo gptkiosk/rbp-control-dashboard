@@ -395,7 +395,7 @@ Talk your idea through, say when it is enough, then send the plan to the coordin
 2. Choose an allowed workspace, enter a project name and goal, and choose a project type (the closest fit, or Other if nothing fits exactly). The type is required here so it is always part of the plan. The consultant is told the type’s planning guidance and says if your goal does not fit it.
 3. New AI conversations use Hermes with openrouter/free unless you changed Profile → AI defaults. Install and configure the selected native agent first.
 4. The consultant answers, then asks what it needs to know. Keep talking until you are satisfied; you never have to read its instructions.
-5. Choose That’s enough, write up the plan. The brief opens for you to edit. Confirm the working directory and approve coordination; the assigned Delegator then creates the project map and stories.
+5. Choose That’s enough, write up the plan. The brief opens for you to edit. Confirm the working directory and approve coordination; Hermes creates the project map and stories using the planner you selected.
 6. Review the returned project map before separately approving story execution.
 
 Free routes can throttle or fail. Profile → AI defaults also supplies new chat, task and planning forms; existing work keeps its routes. Native membership accounts and API billing are separate. The built-in help chat uses local guides and makes no model calls.
@@ -493,7 +493,7 @@ Settings, Maintenance & access holds the cleanup scan, bug-report intake, agent 
 
 1. Housekeeping scans for leftovers by fixed rules, with no model involved. Press Scan now, read the findings and approve only what you want removed. Hermes may propose a cleanup but can never change anything itself. After hours cleanup is off unless the host enables it (the Notes line says how).
 2. Bug reports shows whether intake is on and when GitHub was last checked. A maintainer labels an issue bug-report and accepted to make it a Backlog task. Press Check GitHub now to look immediately.
-3. Agent roles sets who coordinates (the Delegator, Hermes is recommended) and who works or reviews. Preview role changes shows exactly what will be written before anything is.
+3. Agent roles identifies Hermes as the fixed Coordinator. Use the card to label other installed agents as Workers, Reviewers or Security; it does not let you assign another Coordinator. Preview role changes shows the exact guidance and files before anything is written.
 4. Report storage sets the folders the Ops reports page reads. Reports are read-only.
 5. GitHub settings turns on repository, pull request and issue views for the repositories you choose, using the account already signed in with gh. GitHub actions waiting for you lists anything drafted that would write to GitHub: read the exact request, confirm, and it runs once.
 

@@ -20,7 +20,7 @@ Open **Telemetry** and find **Coordinator scorecard**. Each time a plan revision
    applicable checks that passed.
 2. **Compares it with what the coordinator returned**: how many nodes a person added, removed or changed before approving. Moving a node on
    the map does not count as an edit.
-3. **Records who planned it** (the planner and the Delegator) and **which coordinator wording was in effect**: the shipped version (`v2`), `+custom`
+3. **Records who planned it** (the planner and Hermes, the fixed Coordinator) and **which coordinator wording was in effect**: the shipped version (`v2`), `+custom`
    when you use your own copies, and a short hash. Plans made under different wording can be compared.
 
 The page shows plan score by planner and by wording (with edits per plan and first-pass completion), and a table of each scored plan behind a

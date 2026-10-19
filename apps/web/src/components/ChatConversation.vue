@@ -7,7 +7,7 @@ import ChipTag from '@/components/ChipTag.vue'
 import { useNow } from '@/composables/useNow'
 import { usePolledJson } from '@/composables/usePolledJson'
 import { deleteJson, postJson, type ChatMessage, type ChatThreadDetail } from '@/lib/api'
-import { agentLabel, isManagerAgent } from '@/lib/cards'
+import { agentLabel, isCoordinatorAgent } from '@/lib/cards'
 
 const props = defineProps<{ threadId: number; embedded?: boolean }>()
 const emit = defineEmits<{ back: []; deleted: [id: number]; changed: [] }>()
@@ -210,7 +210,7 @@ async function remove(): Promise<void> {
         </div>
         <div class="chips">
           <ChipTag tone="accent">{{ agentLabel(data.agent) }}</ChipTag>
-          <ChipTag v-if="isManagerAgent(data.agent)" tone="muted">Manager</ChipTag>
+          <ChipTag v-if="isCoordinatorAgent(data.agent)" tone="muted">Coordinator</ChipTag>
           <ChipTag :tone="data.mode === 'edit' ? 'warn' : 'muted'">{{ data.mode === 'edit' ? 'Edit' : 'Read' }}</ChipTag>
           <span class="has-icon-inline small"><AppIcon name="model" size="sm" />{{ data.model ?? 'default' }}</span>
         </div>

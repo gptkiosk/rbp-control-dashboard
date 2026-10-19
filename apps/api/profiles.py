@@ -29,6 +29,23 @@ class GithubPreferences(BaseModel):
         if len(set(value))!=len(value) or any(not re.fullmatch(r'[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+',item) for item in value):raise ValueError('Invalid GitHub repository selection.')
         return value
 
+class CoordinatorBootstrapPreferences(BaseModel):
+    """Operator choices Hermes should use when preparing the first agent-platform setup project."""
+    model_config = ConfigDict(extra='forbid')
+    platforms: list[Literal['openclaw','claude','codex','grok']] = Field(default_factory=lambda: ['openclaw','claude','codex','grok'], max_length=4)
+    roles: list[Literal['developer','security','reviewer']] = Field(default_factory=lambda: ['developer','security'], max_length=3)
+    shared_project_memory: bool = True
+    project_workspaces: bool = True
+    model_policy: Literal['reuse_configured_default','ask_before_change'] = 'reuse_configured_default'
+    security_review: Literal['risk_based','every_project','by_request'] = 'risk_based'
+
+    @field_validator('platforms','roles')
+    @classmethod
+    def unique_choices(cls, value):
+        if len(value) != len(set(value)):
+            raise ValueError('Choose each platform and role at most once.')
+        return value
+
 class Preferences(BaseModel):
     model_config = ConfigDict(extra='forbid', hide_input_in_errors=True)
     theme: Literal['system','light','dark'] = 'system'
@@ -47,6 +64,7 @@ class Preferences(BaseModel):
     allow_discord_maintenance: bool = False   # Hermes may read housekeeping findings and propose fixes; only the operator's approval acts
     allow_discord_repositories: bool = False  # Hermes may propose a new private GitHub repository for a project; only the operator's approval creates it
     github: GithubPreferences = Field(default_factory=GithubPreferences)
+    coordinator_bootstrap: CoordinatorBootstrapPreferences = Field(default_factory=CoordinatorBootstrapPreferences)
     setup: SetupProgress = Field(default_factory=SetupProgress)
 
     @classmethod

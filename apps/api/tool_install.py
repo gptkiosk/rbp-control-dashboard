@@ -1926,6 +1926,21 @@ def _version_of_binary(path: str, env: dict, argv: list[str]) -> str | None:
     return m.group(1) if m else None
 
 
+def _reported_version_matches(comp: dict, shown: str, installed_version: str) -> bool:
+    """Accept a source build when its embedded Git revision is the pinned commit.
+
+    Hermes currently reports its upstream package version plus a git-describe suffix
+    (for example, 0.21.5+10713.ge06df9c) even when installed from a later pinned tag.
+    The recorded version is the catalog tag (0.22.0), so compare the embedded commit
+    as well before declaring the managed install stale.
+    """
+    if shown == installed_version:
+        return True
+    commit = comp.get("commit")
+    match = re.search(r"(?:^|[.+-])g([0-9a-f]{7,40})(?:$|[.+-])", shown, re.IGNORECASE)
+    return bool(commit and match and str(commit).lower().startswith(match.group(1).lower()))
+
+
 def health(cfg: ToolsConfig, catalog: Catalog, facts: HostFacts | None = None, only: str | None = None) -> list[dict]:
     """A follow-up check for every installed tool: does it run, which version answers, and what to do next.
     `ok` says the tool itself works and is the version recorded. Advice about the shell (a copy earlier on the PATH, a missing PATH entry) is a tip,
@@ -1956,7 +1971,7 @@ def health(cfg: ToolsConfig, catalog: Catalog, facts: HostFacts | None = None, o
             except (OSError, subprocess.SubprocessError, UnicodeError):
                 steps.append("It did not answer within 15 seconds or could not start. Try it by hand in a terminal.")
         pinned, installed_version = row["pinned_version"], row["installed_version"]
-        mismatch = bool(ran and shown and installed_version and shown != installed_version)
+        mismatch = bool(ran and shown and installed_version and not _reported_version_matches(comp, shown, installed_version))
         if mismatch:
             steps.append(f"The tool reports {shown} but {installed_version} is recorded. Run Upgrade again or restart anything that still runs the old copy.")
         if ran and installed_version and version_key(installed_version) and version_key(pinned) and version_key(installed_version) < version_key(pinned):

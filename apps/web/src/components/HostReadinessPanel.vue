@@ -78,7 +78,7 @@ onMounted(() => void load())
             <span class="state small">{{ word[c.status] }}</span>
           </div>
           <p class="detail small">{{ c.detail }}</p>
-          <ul v-if="c.agents" class="chips" aria-label="Agents"><li v-for="a in c.agents" :key="a.id" :class="{ off: !a.installed }">{{ a.id }}{{ a.installed ? '' : ' (not installed)' }}{{ a.writes_code ? '' : ' · manager' }}</li></ul>
+          <ul v-if="c.agents" class="chips" aria-label="Agents"><li v-for="a in c.agents" :key="a.id" :class="{ off: !a.installed }">{{ a.id }}{{ a.installed ? '' : ' (not installed)' }}{{ a.writes_code ? '' : ' · coordinator' }}</li></ul>
           <ul v-if="c.tools" class="chips" aria-label="Tools"><li v-for="t in c.tools" :key="t.id" :class="{ off: !t.installed }" :title="t.needed_for">{{ t.id }}{{ t.installed ? '' : t.stopped ? ' (stopped)' : ' (missing)' }}</li></ul>
           <ul v-if="howList(c).length" class="how" aria-label="How to get the missing tools">
             <li v-for="t in howList(c)" :key="t.id" :data-how="t.id">

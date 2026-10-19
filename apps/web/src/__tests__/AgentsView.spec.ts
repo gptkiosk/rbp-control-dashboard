@@ -75,7 +75,7 @@ describe('Agents explorer', () => {
     await router.isReady()
     const w = mount(AgentsView, { global: { plugins: [router] } })
     await flushPromises()
-    expect(w.get('[data-agent="hermes"] [data-testid="role-chip"]').text()).toBe('Manager')
+    expect(w.get('[data-agent="hermes"] [data-testid="role-chip"]').text()).toBe('Coordinator')
     expect(w.get('[data-agent="openclaw"]').text()).toContain('1 live processes · 0 RCD runs')
     expect(w.get('.detail').text()).toContain('Telemetry: ready')
     expect(w.get('#process-select-native').text()).toContain('gateway · PID 12')

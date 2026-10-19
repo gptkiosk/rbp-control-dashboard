@@ -4,11 +4,12 @@ import PanelHead from '@/components/PanelHead.vue'
 import { onMounted, ref } from 'vue'
 import { getJson, postJson } from '@/lib/api'
 import ModalShell from '@/components/ModalShell.vue'
+import ChipTag from '@/components/ChipTag.vue'
 type Status = {roles: Record<string,string>; workspace:string; available:string[]; delegator:string|null; rollback_available:boolean; guidance_installed:boolean; recovery_required:boolean; revision:string}
 type Preview = {roles:Record<string,string>; workspace:string; plan_sha256:string; changes:{path:string;diff:string}[]; notice:string}
 const state = ref<Status|null>(null), roles = ref<Record<string,string>>({}), workspace = ref(''), preview = ref<Preview|null>(null)
 const busy = ref(false), error = ref(''), rollback = ref(false)
-async function load() { state.value = await getJson<Status>('/api/roles'); roles.value = Object.fromEntries([...new Set([...Object.keys(state.value.roles),...state.value.available])].map(agent=>[agent,state.value!.roles[agent] || 'worker'])); workspace.value=state.value.workspace }
+async function load() { state.value = await getJson<Status>('/api/roles'); const next = Object.fromEntries([...new Set([...Object.keys(state.value.roles),...state.value.available])].map(agent=>[agent,state.value!.roles[agent] || 'worker'])); for (const agent of Object.keys(next)) if (agent !== 'hermes' && next[agent] === 'delegator') next[agent] = 'worker'; next.hermes = state.value.available.includes('hermes') ? 'delegator' : 'worker'; roles.value = next; workspace.value=state.value.workspace }
 async function action(fn:()=>Promise<void>) {busy.value=true;error.value='';try {await fn()} catch(e) {error.value=e instanceof Error?e.message:'Role action failed'} finally {busy.value=false}}
 async function review() {await action(async()=>{preview.value=await postJson<Preview>('/api/roles/preview',{roles:roles.value,workspace:workspace.value})})}
 async function apply() {const plan=preview.value;if(!plan)return;await action(async()=>{await postJson('/api/roles/apply',{roles:plan.roles,workspace:plan.workspace,plan_sha256:plan.plan_sha256,confirm:true});preview.value=null;await load()})}
@@ -18,13 +19,13 @@ onMounted(()=>action(load))
 </script>
 <template>
 <section id="agent-roles" class="card">
-  <PanelHead id="agent-roles-title" title="Agent roles" :status="state ? (state.delegator ? `Delegator: ${state.delegator}` : 'No Delegator') : undefined" :tone="state?.delegator ? 'ok' : 'warn'" help="maintenance" />
-  <p class="muted small">Roles guide assignments. They do not grant tool access or change billing.</p>
+  <PanelHead id="agent-roles-title" title="Agent roles" :status="state ? (state.available.includes('hermes') ? 'Coordinator: Hermes' : 'Coordinator not installed') : undefined" :tone="state?.available.includes('hermes') ? 'ok' : 'warn'" help="maintenance" />
+  <p class="muted small">The Coordinator is fixed as Hermes. This card assigns worker, reviewer and security roles; role labels do not grant tool access or change billing.</p>
   <template v-if="state">
-    <p>Current Delegator: <strong>{{state.delegator ? state.delegator + (state.available.includes(state.delegator) ? '' : ' (unavailable — reassign below)') : 'None — assign an installed agent'}}</strong>. {{state.guidance_installed?'Managed starter guidance installed.':'Starter guidance has not been installed.'}}</p>
-    <div v-for="agent in Object.keys(roles)" :key="agent" class="role-row"><label :for="`role-${agent}`">{{agent}}{{ state.available.includes(agent) ? '' : ' (not installed)' }}</label><select :id="`role-${agent}`" v-model="roles[agent]" :disabled="busy"><option value="worker">Worker</option><option value="delegator" :disabled="!state.available.includes(agent)">Delegator</option><option value="reviewer">Reviewer</option><option value="security">Security</option></select></div>
+    <p>Coordinator: <strong>Hermes{{state.available.includes('hermes') ? '' : ' (not installed)'}}</strong>. {{state.guidance_installed && state.roles.hermes === 'delegator' ? 'Managed starter guidance installed.':'Starter guidance has not been installed.'}}</p>
+    <div v-for="agent in Object.keys(roles)" :key="agent" class="role-row"><label :for="`role-${agent}`">{{agent}}{{ state.available.includes(agent) ? '' : ' (not installed)' }}</label><ChipTag v-if="agent === 'hermes'" tone="accent">Coordinator</ChipTag><select v-else :id="`role-${agent}`" v-model="roles[agent]" :disabled="busy"><option value="worker">Worker</option><option value="reviewer">Reviewer</option><option value="security">Security</option></select></div>
     <label class="workspace">Agent workspace for Grok or OpenClaw<input v-model="workspace" placeholder="An existing directory inside an allowed workspace root" :disabled="busy" /></label>
-    <NoteFold label="What roles do"><p class="small muted">Reviewers and Security roles describe assignments; they do not add automatic review jobs. A new Delegator applies to new planning/submission requests. In-progress pipelines retain their approved agent and model. Native instruction targets are shown in the preview.</p></NoteFold>
+    <NoteFold label="What roles do"><p class="small muted">Coordinator is fixed as Hermes. Reviewers and Security roles describe assignments; they do not add automatic review jobs. In-progress pipelines retain their approved agent and model. Native instruction targets are shown in the preview.</p></NoteFold>
     <button v-if="state.recovery_required" class="btn" :disabled="busy" @click="recover">Recover interrupted assignment</button>
     <button class="btn" :disabled="busy || state.recovery_required" @click="review">Preview role changes</button>
     <button v-if="state.rollback_available" class="btn" :disabled="busy" @click="rollback=true">Roll back last assignment</button>
