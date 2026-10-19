@@ -10,6 +10,12 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.6.32] - 2026-10-19
+
+### Fixed
+
+- **Coordinator setup readiness** now tells the operator to apply Hermes guidance when it is missing and links directly to Agent roles.
+
 ## [0.6.31] - 2026-10-19
 
 ### Added
@@ -718,3 +724,4 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 [0.3.1]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.1
 [0.6.30]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.30
 [0.6.31]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.31
+[0.6.32]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.32

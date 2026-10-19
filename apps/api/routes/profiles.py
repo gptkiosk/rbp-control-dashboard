@@ -76,7 +76,7 @@ def _bootstrap_readiness(settings):
     except (RoleError,OSError,ValueError):
         coordinator=False;guidance=False
     checks.append({'id':'coordinator','label':'Hermes is the assigned Coordinator','ready':coordinator,'link':'/profile#agent-roles'})
-    checks.append({'id':'guidance','label':'Hermes Coordinator guidance is installed','ready':guidance,'link':'/profile#agent-roles'})
+    checks.append({'id':'guidance','label':'Hermes Coordinator guidance is installed' if guidance else 'Apply Hermes Coordinator guidance','ready':guidance,'link':'/profile#agent-roles'})
     try:
         model=read_native(settings).get('hermes',{}).get('default')
     except Exception:

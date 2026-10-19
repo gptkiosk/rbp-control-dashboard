@@ -196,7 +196,7 @@ async function importPreferences(event: Event) { await action(async () => {
       <aside class="bootstrap-note"><strong>Ready to configure?</strong> Check that Hermes is installed, assigned as Coordinator, has its guidance and a default model. Starting setup creates a project draft from these choices. Review its plan before any agent work begins.</aside>
       <ul v-if="bootstrapReadiness" class="readiness-list" aria-label="Hermes readiness">
         <li v-for="check in bootstrapReadiness.checks" :key="check.id" :class="check.ready ? 'ready' : 'missing'">
-          <span aria-hidden="true">{{ check.ready ? '✓' : '!' }}</span><span>{{ check.label }}</span><RouterLink v-if="!check.ready" :to="check.link">Fix</RouterLink>
+          <span aria-hidden="true">{{ check.ready ? '✓' : '!' }}</span><span>{{ check.label }}</span><RouterLink v-if="!check.ready" :to="check.link">{{ check.id === 'guidance' ? 'Open Agent roles' : 'Fix' }}</RouterLink>
         </li>
       </ul>
       <div class="actions"><button class="btn primary" type="button" :disabled="busy || !bootstrapReadiness?.ready" @click="startCoordinatorBootstrap">{{ busy ? 'Checking…' : 'Start agent setup' }}</button><button class="btn" type="button" :disabled="busy" @click="refreshCoordinatorReadiness">Recheck readiness</button><button class="btn" :disabled="busy">Save coordinator setup</button><RouterLink to="/agents" class="btn">Review installed agents</RouterLink></div>
