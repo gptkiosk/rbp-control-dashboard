@@ -3,7 +3,8 @@ import NoteFold from '@/components/NoteFold.vue'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { getJson, postJson } from '@/lib/api'
 interface Plan { endpoint: string; estimate_usd: number | null }
-interface Slot { name: string; kind: 'image' | 'video'; world: string | null; purpose: string; prompt: string; published: boolean; skipped?: boolean; history?: { ts: number; event: string; detail: string }[]; inbox?: string | null; candidates: string[]; waiting_for_stills: string[]; plans: Record<Tier, Plan> }
+interface Slot { name: string; kind: 'image' | 'video'; world: string | null; purpose: string; prompt: string; published: boolean; published_bytes?: number; skipped?: boolean; history?: { ts: number; event: string; detail: string }[]; inbox?: string | null; candidates: string[]; waiting_for_stills: string[]; plans: Record<Tier, Plan> }
+interface Storage { published_bytes: number; unused_bytes: number; unused_count: number }
 interface Summary { published: number; skipped: number; pending: number; total: number; complete: boolean; text: string }
 interface Job { id: string; state: 'queued' | 'running' | 'done' | 'failed'; progress: string; slot: string; error: string | null; files: { path: string; bytes: number }[] }
 type Tier = 'draft' | 'standard' | 'premium'
@@ -12,6 +13,7 @@ const props = withDefaults(defineProps<{ keySaved?: boolean; workingDir?: string
 const keyOk = ref(props.keySaved ?? false)
 const summary = ref<Summary | null>(null)
 const cost = ref<{ spent_usd: number; spent_runs: number } | null>(null)
+const storage = ref<Storage | null>(null)
 const folders = ref<{ path: string; name: string }[]>([])
 const folder = ref('')
 const slots = ref<Slot[]>([])
@@ -35,6 +37,7 @@ async function loadSlots() {
     slots.value = data.slots
     summary.value = data.summary ?? null
     cost.value = (data as { cost?: { spent_usd: number; spent_runs: number } }).cost ?? null
+    storage.value = (data as { storage?: Storage }).storage ?? null
     for (const s of data.slots) { tier.value[s.name] ||= data.default_tiers?.[s.kind] || 'standard'; count.value[s.name] ||= 1 }
   } catch (e) { error.value = e instanceof Error ? e.message : String(e); slots.value = [] }
 }
@@ -62,6 +65,7 @@ const left = computed(() => {
 })
 const leftLine = computed(() => todo.value.length === 0 ? 'nothing left' : `about $${left.value.total.toFixed(2)}${left.value.unknown ? ` + ${left.value.unknown} unpriced` : ''}`)
 const spentLine = computed(() => cost.value && cost.value.spent_runs ? `about $${cost.value.spent_usd.toFixed(2)}` : 'nothing yet')
+const clearNote = ref('')
 const jobsFor = (slot: string) => jobs.value.filter(j => j.slot === slot)
 const activeFor = (slot: string) => jobs.value.some(j => j.slot === slot && (j.state === 'queued' || j.state === 'running'))
 function jobLine(j: Job, n: number, of: number) {
@@ -90,6 +94,19 @@ async function generateAll() {
     for (const s of eligible.value) queue(s.name, (await postJson<{ jobs: string[] }>('/api/media/generate', { working_dir: folder.value, slot: s.name, tier: tierFor(s), count: 1, confirm_spend: true })).jobs)
     poll()
   } catch (e) { error.value = e instanceof Error ? e.message : String(e); if (jobs.value.length) poll() } finally { busy.value = false }
+}
+const publishedUrl = (name: string) => `/api/media/published?working_dir=${encodeURIComponent(folder.value)}&name=${encodeURIComponent(name)}`
+const bytes = (n: number) => n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : n >= 1024 ? `${Math.round(n / 1024)} KB` : `${n} B`
+async function clearUnused() {
+  const st = storage.value
+  if (!st || !st.unused_count || busy.value) return
+  if (!window.confirm(`Delete ${st.unused_count} unused take${st.unused_count === 1 ? '' : 's'} (${bytes(st.unused_bytes)})? Published media and takes waiting for your decision are kept. This cannot be undone, and they cost money to make.`)) return
+  busy.value = true; error.value = ''
+  try {
+    const r = await postJson<{ deleted: number; freed_bytes: number }>('/api/media/clear-unused', { working_dir: folder.value, confirm: true })
+    clearNote.value = `Deleted ${r.deleted} unused take${r.deleted === 1 ? '' : 's'}, freeing ${bytes(r.freed_bytes)}.`
+    await loadSlots()
+  } catch (e) { error.value = e instanceof Error ? e.message : String(e) } finally { busy.value = false }
 }
 const candidateUrl = (name: string) => `/api/media/candidate?working_dir=${encodeURIComponent(folder.value)}&name=${encodeURIComponent(name)}`
 const isVideo = (name: string) => /\.(mp4|webm)$/i.test(name)
@@ -160,6 +177,11 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
       <div><span class="k">Spent so far</span><strong>{{ spentLine }}</strong><small>estimate from finished runs</small></div>
       <div><span class="k">Left to make</span><strong>{{ leftLine }}</strong><small>{{ todo.length }} {{ todo.length === 1 ? 'item' : 'items' }} at the chosen tiers</small></div>
       <div><span class="k">To review</span><strong>{{ review.length }}</strong><small>waiting for your decision</small></div>
+    </div>
+    <div v-if="storage && slots.length" class="storage" data-testid="storage">
+      <span class="small"><strong>Storage</strong> · published {{ bytes(storage.published_bytes) }} · unused takes {{ storage.unused_count ? `${bytes(storage.unused_bytes)} in ${storage.unused_count} file${storage.unused_count === 1 ? '' : 's'}` : 'none' }}</span>
+      <button v-if="storage.unused_count" type="button" class="btn small-btn" :disabled="busy" data-testid="clear-unused" @click="clearUnused">Clear unused takes…</button>
+      <span v-if="clearNote" class="ok-text small" role="status">{{ clearNote }}</span>
     </div>
     <NoteFold label="How media is made"><p class="muted small">
       MCD makes the call with your saved key, which never reaches an agent or the project folder. The folder's <code>media/slots.json</code> only supplies prompts and file names; no code from it is run.
@@ -251,22 +273,31 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
     </div>
 
     <h4 v-if="published.length" class="group">Published ({{ published.length }})</h4>
-    <div v-for="s in published" :key="s.name" class="slot done" :data-slot="s.name">
-      <div class="controls">
-        <span><strong>{{ s.name }}</strong> <span class="muted small">· {{ s.kind }}</span> <span class="ok-text small">✓ published</span><span v-if="lastEvent(s)" class="muted small"> · last: {{ lastEvent(s) }}</span></span>
-        <button type="button" class="btn" :aria-label="`Regenerate ${s.name}`" @click="more[s.name] = !more[s.name]">{{ more[s.name] ? 'Cancel' : 'Regenerate…' }}</button>
-      </div>
-      <div v-if="more[s.name]" class="controls">
-        <select v-model="tier[s.name]" class="input" :aria-label="`${s.name} tier`"><option value="draft">draft (cheapest)</option><option value="standard">standard</option><option value="premium">premium</option></select>
-        <input v-model.number="count[s.name]" class="input" type="number" min="1" max="4" :aria-label="`${s.name} how many`" />
-        <span class="small">{{ money(estimate(s)) }}</span>
-        <button type="button" class="btn primary" :disabled="!keyOk || busy || activeFor(s.name)" @click="generate(s)">{{ activeFor(s.name) ? 'Generating…' : 'Generate' }}</button>
-      </div>
-      <p v-if="note[s.name]" class="small" :class="note[s.name]!.ok ? 'ok-text' : 'error-text'" :role="note[s.name]!.ok ? 'status' : 'alert'" :data-note="s.name">{{ note[s.name]!.text }}</p>
-      <p v-for="(j, i) in jobsFor(s.name)" :key="j.id" class="job small" :class="j.state === 'failed' ? 'error-text' : j.state === 'done' ? 'ok-text' : ''" :role="j.state === 'failed' ? 'alert' : 'status'" :data-job="s.name">
-        <span v-if="j.state === 'queued' || j.state === 'running'" class="spinner" aria-hidden="true"></span>{{ jobLine(j, i + 1, jobsFor(s.name).length) }}
-      </p>
-      <button v-if="offerTake[s.name]" type="button" class="btn" :disabled="busy" :aria-label="`Another take for ${s.name}`" @click="generate(s, true)">Another take (spends again)</button>
+    <div v-if="published.length" class="gallery" data-testid="gallery">
+      <figure v-for="s in published" :key="s.name" class="piece slot done" :data-slot="s.name">
+        <video v-if="s.kind === 'video'" :src="publishedUrl(s.name)" class="thumb" controls muted loop preload="metadata" :aria-label="`Preview of ${s.name}`" />
+        <a v-else :href="publishedUrl(s.name)" target="_blank" rel="noopener" :aria-label="`Open ${s.name} full size`"><img :src="publishedUrl(s.name)" class="thumb" loading="lazy" :alt="`Published ${s.name}`" /></a>
+        <figcaption>
+          <strong>{{ s.name }}</strong>
+          <span class="muted small">{{ s.kind }}<template v-if="s.published_bytes"> · {{ bytes(s.published_bytes) }}</template> <span class="ok-text">✓ published</span></span>
+        </figcaption>
+        <details class="more-actions">
+          <summary class="small muted">More</summary>
+          <p v-if="lastEvent(s)" class="muted small">Last: {{ lastEvent(s) }}</p>
+          <button type="button" class="btn" :aria-label="`Regenerate ${s.name}`" @click="more[s.name] = !more[s.name]">{{ more[s.name] ? 'Cancel' : 'Regenerate…' }}</button>
+          <div v-if="more[s.name]" class="controls">
+            <select v-model="tier[s.name]" class="input" :aria-label="`${s.name} tier`"><option value="draft">draft (cheapest)</option><option value="standard">standard</option><option value="premium">premium</option></select>
+            <input v-model.number="count[s.name]" class="input" type="number" min="1" max="4" :aria-label="`${s.name} how many`" />
+            <span class="small">{{ money(estimate(s)) }}</span>
+            <button type="button" class="btn primary" :disabled="!keyOk || busy || activeFor(s.name)" @click="generate(s)">{{ activeFor(s.name) ? 'Generating…' : 'Generate' }}</button>
+          </div>
+        </details>
+        <p v-if="note[s.name]" class="small" :class="note[s.name]!.ok ? 'ok-text' : 'error-text'" :role="note[s.name]!.ok ? 'status' : 'alert'" :data-note="s.name">{{ note[s.name]!.text }}</p>
+        <p v-for="(j, i) in jobsFor(s.name)" :key="j.id" class="job small" :class="j.state === 'failed' ? 'error-text' : j.state === 'done' ? 'ok-text' : ''" :role="j.state === 'failed' ? 'alert' : 'status'" :data-job="s.name">
+          <span v-if="j.state === 'queued' || j.state === 'running'" class="spinner" aria-hidden="true"></span>{{ jobLine(j, i + 1, jobsFor(s.name).length) }}
+        </p>
+        <button v-if="offerTake[s.name]" type="button" class="btn" :disabled="busy" :aria-label="`Another take for ${s.name}`" @click="generate(s, true)">Another take (spends again)</button>
+      </figure>
     </div>
 
     <p v-if="error" class="error-text" role="alert">{{ error }}</p>
@@ -274,6 +305,13 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
   </section>
 </template>
 <style scoped>
+.storage { display: flex; align-items: center; flex-wrap: wrap; gap: var(--gap-sm); padding: var(--gap-xs) var(--gap-sm); border: 1px solid var(--surface-border); border-radius: var(--radius); }
+.small-btn { padding: 0 var(--gap-sm); }
+.gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr)); gap: var(--gap); }
+.piece { display: grid; gap: var(--gap-xs); align-content: start; margin: 0; padding: var(--gap-sm); border: 1px solid var(--surface-border); border-radius: var(--radius); background: var(--panel); min-width: 0; }
+.piece .thumb { width: 100%; height: auto; max-height: 11rem; object-fit: cover; border-radius: var(--radius-sm); background: var(--bg); }
+.piece figcaption { display: grid; gap: var(--gap-xs); }
+.more-actions summary { cursor: pointer; width: fit-content; }
 .cost-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap: var(--gap-sm); }
 .cost-strip > div { display: grid; gap: var(--gap-xs); padding: var(--gap-sm) var(--gap); border: 1px solid var(--surface-border); border-radius: var(--radius); background: var(--panel); }
 .cost-strip .k { color: var(--text-muted); font-size: var(--font-size-xs); }

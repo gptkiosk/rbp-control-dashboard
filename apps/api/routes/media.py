@@ -70,6 +70,42 @@ class FolderQuery(BaseModel):
     working_dir: str = Field(max_length=500)
 
 
+def published_files(root, slot):
+    """The files a published slot made inside the project (an image, or a clip with its WebM and poster). Never a path outside the folder."""
+    name = slot["name"]
+    rels = [f"assets/video/{name}.mp4", f"assets/video/{name}.webm", f"assets/video/{name}.jpg"] if slot["kind"] == "video" else [f"assets/img/{name}.jpg"]
+    return [p for p in (mg.inside(root, r) for r in rels) if p is not None]
+
+
+def unused_takes(root, slots_):
+    """Generated takes that are no longer needed: the candidate files (and their notes) of slots you have already decided, published or skipped.
+    A slot with takes still waiting for your decision is never listed."""
+    folder = root / "media" / "candidates"
+    if not folder.is_dir():
+        return []
+    decided = {name for name, slot in slots_.items() if mg.is_published(root, slot) or media_state.entry(root, name)["skipped"]}
+    found = []
+    for path in sorted(folder.iterdir()):
+        try:
+            if path.is_symlink() or not path.is_file() or path.resolve().parent != folder.resolve():
+                continue
+        except OSError:
+            continue
+        if path.suffix == ".json":                       # a take's note sits beside it with the same name
+            owned = any(mg.candidate_of(slot, path.stem + ext) for slot in decided for ext in mg.CANDIDATE_SUFFIXES)
+        else:
+            owned = any(mg.candidate_of(slot, path.name) for slot in decided)
+        if owned:
+            found.append(path)
+    return found
+
+
+def folder_storage(root, slots_):
+    published = sum(p.stat().st_size for slot in slots_.values() if mg.is_published(root, slot) for p in published_files(root, slot))
+    unused = unused_takes(root, slots_)
+    return {"published_bytes": published, "unused_bytes": sum(p.stat().st_size for p in unused), "unused_count": len([p for p in unused if p.suffix != ".json"])}
+
+
 def folder_cost(s, settings, root, slots_, tiers):
     """What a folder's media has cost so far (the ledger's estimates for finished runs) and what the slots still to make would cost at the project's default tiers.
     Estimates only: fal's invoice is the truth. A slot with candidates waiting for review needs no new spend, so it is not counted as left to make."""
@@ -109,12 +145,13 @@ def slots(working_dir: str, request: Request, s: Session = Depends(get_session))
         waiting = [n for n in needs if mg.inside(root, f"assets/img/{n}.jpg") is None]
         decision = media_state.entry(root, slot["name"])
         out.append({"name": slot["name"], "kind": slot["kind"], "skipped": decision["skipped"], "history": decision["history"], "world": slot.get("world"), "purpose": slot.get("purpose", ""), "prompt": slot["prompt"],
-                    "published": published, "candidates": candidates, "inbox": (lambda f: f.name if f else None)(mg.inbox_file(root, slot)), "waiting_for_stills": waiting,
+                    "published": published, "published_bytes": sum(p.stat().st_size for p in published_files(root, slot)) if published else 0, "candidates": candidates, "inbox": (lambda f: f.name if f else None)(mg.inbox_file(root, slot)), "waiting_for_stills": waiting,
                     "plans": {tier: mg.quick_plan(s, slot, tier) for tier in mg.TIERS}})
     summary = media_state.summary(out, lambda x: x["published"])
     owner = project_of(s, root)
     tiers = project_types.media_default_tiers(projects.document(owner).get("project_type") if owner else None, settings)
-    return {"working_dir": str(root), "slots": out, "summary": summary, "default_tiers": tiers, "cost": folder_cost(s, settings, root, items, tiers)}
+    return {"working_dir": str(root), "slots": out, "summary": summary, "default_tiers": tiers, "cost": folder_cost(s, settings, root, items, tiers),
+            "storage": folder_storage(root, items)}
 
 
 class GenerateIn(BaseModel):
@@ -204,6 +241,53 @@ def candidate(working_dir: str, name: str, request: Request):
     if path is None:
         raise HTTPException(404, "No such candidate.")
     return FileResponse(path, media_type=mg.CANDIDATE_TYPES[path.suffix], headers={"Cache-Control": "private, max-age=300", "Content-Disposition": "inline"})
+
+
+@router.get("/published")
+def published(working_dir: str, name: str, request: Request):
+    """The published file of a slot, so the studio can show what was made. Operator-only; only a slot named in media/slots.json that is published."""
+    operator(request)
+    try:
+        root = mg.project_root(get_settings(), working_dir)
+        slot = mg.load_slots(root).get(name) if mg.SLOT_RE.fullmatch(name) else None
+    except mg.MediaError as exc:
+        fail(exc)
+    files = published_files(root, slot) if slot else []
+    path = next((p for p in files if p.suffix in (".mp4", ".jpg")), None)
+    if path is None:
+        raise HTTPException(404, "That slot is not published.")
+    return FileResponse(path, media_type="video/mp4" if path.suffix == ".mp4" else "image/jpeg", headers={"Cache-Control": "private, max-age=60", "Content-Disposition": "inline"})
+
+
+class ClearIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    working_dir: str = Field(max_length=500)
+    confirm: bool = False
+
+
+@router.post("/clear-unused")
+def clear_unused(body: ClearIn, request: Request, s: Session = Depends(get_session)):
+    """Delete the generated takes of slots you have already decided. Published files, the project's other files and takes waiting for review are never touched."""
+    identity = operator(request)
+    if not body.confirm:
+        raise HTTPException(422, "Confirm the deletion first. It cannot be undone, and the takes cost money to make.")
+    try:
+        root = mg.project_root(get_settings(), body.working_dir)
+        slots_ = mg.load_slots(root)
+    except mg.MediaError as exc:
+        fail(exc)
+    doomed = unused_takes(root, slots_)
+    freed = 0
+    for path in doomed:
+        try:
+            size = path.stat().st_size
+            path.unlink()
+            freed += size
+        except OSError:
+            continue
+    count = len([p for p in doomed if p.suffix != ".json"])
+    project_note(s, root, f"Cleared {count} unused media take{'' if count == 1 else 's'} ({freed // 1024} KB). Published media and takes waiting for review were kept.", identity)
+    return {"deleted": count, "freed_bytes": freed}
 
 
 class PublishIn(BaseModel):
