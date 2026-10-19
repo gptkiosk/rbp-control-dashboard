@@ -69,7 +69,7 @@ def bootstrap_readiness():
  status=fixture_roles.status();installed='hermes' in status['available'];assigned=status.get('delegator')=='hermes'
  checks=[{'id':'hermes','label':'Hermes is installed','ready':installed,'link':'/profile#agent-tools'},
          {'id':'coordinator','label':'Hermes is the assigned Coordinator','ready':assigned,'link':'/profile#agent-roles'},
-         {'id':'guidance','label':'Hermes Coordinator guidance is installed','ready':bool(status.get('guidance_installed')),'link':'/profile#agent-roles'},
+         {'id':'guidance','label':'Hermes Coordinator guidance is installed' if status.get('guidance_installed') else 'Apply Hermes Coordinator guidance','ready':bool(status.get('guidance_installed')),'link':'/profile#agent-roles'},
          {'id':'model','label':'Hermes has a configured default model','ready':True,'link':'/profile#agent-tools'}]
  return {'ready':all(item['ready'] for item in checks),'checks':checks}
 @app.post('/api/roles/preview')

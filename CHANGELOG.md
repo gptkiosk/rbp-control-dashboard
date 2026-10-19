@@ -10,6 +10,12 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.6.32] - 2026-10-19
+
+### Fixed
+
+- **Coordinator setup readiness** now tells the operator to apply Hermes guidance when it is missing and links directly to Agent roles.
+
 ## [0.6.31] - 2026-10-19
 
 ### Added
