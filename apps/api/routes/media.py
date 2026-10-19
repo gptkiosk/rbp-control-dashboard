@@ -70,6 +70,27 @@ class FolderQuery(BaseModel):
     working_dir: str = Field(max_length=500)
 
 
+def folder_cost(s, settings, root, slots_, tiers):
+    """What a folder's media has cost so far (the ledger's estimates for finished runs) and what the slots still to make would cost at the project's default tiers.
+    Estimates only: fal's invoice is the truth. A slot with candidates waiting for review needs no new spend, so it is not counted as left to make."""
+    left, unknown, remaining = 0, 0, 0.0
+    cand_dir = root / "media" / "candidates"
+    for name, slot in slots_.items():
+        if mg.is_published(root, slot) or media_state.entry(root, name)["skipped"]:
+            continue
+        if cand_dir.is_dir() and any(mg.candidate_of(name, f.name) for f in cand_dir.iterdir()):
+            continue
+        left += 1
+        estimate = mg.quick_plan(s, slot, tiers.get(slot["kind"], "standard"))["estimate_usd"]
+        if estimate is None:
+            unknown += 1
+        else:
+            remaining += estimate
+    done = [r for r in mg.runtime(settings).ledger.rows() if r.get("status") == "done" and r.get("folder") == str(root)]
+    return {"remaining_usd": round(remaining, 2), "remaining_items": left, "unpriced": unknown,
+            "spent_usd": round(sum(r.get("estimate_usd") or 0 for r in done), 2), "spent_runs": len(done)}
+
+
 @router.get("/slots")
 def slots(working_dir: str, request: Request, s: Session = Depends(get_session)):
     operator(request)
@@ -93,7 +114,7 @@ def slots(working_dir: str, request: Request, s: Session = Depends(get_session))
     summary = media_state.summary(out, lambda x: x["published"])
     owner = project_of(s, root)
     tiers = project_types.media_default_tiers(projects.document(owner).get("project_type") if owner else None, settings)
-    return {"working_dir": str(root), "slots": out, "summary": summary, "default_tiers": tiers}
+    return {"working_dir": str(root), "slots": out, "summary": summary, "default_tiers": tiers, "cost": folder_cost(s, settings, root, items, tiers)}
 
 
 class GenerateIn(BaseModel):
@@ -253,7 +274,9 @@ def project_media(project_id: int, request: Request, s: Session = Depends(get_se
         return {"available": False}
     rows = [{"name": n, "skipped": media_state.entry(root, n)["skipped"]} for n in slots_]
     summary = media_state.summary(rows, lambda x: mg.is_published(root, slots_[x["name"]]))
-    return {"available": True, "working_dir": str(root), "summary": summary}
+    settings = get_settings()
+    tiers = project_types.media_default_tiers(projects.document(p).get("project_type"), settings)
+    return {"available": True, "working_dir": str(root), "summary": summary, "cost": folder_cost(s, settings, root, slots_, tiers)}
 
 
 class PickIn(BaseModel):

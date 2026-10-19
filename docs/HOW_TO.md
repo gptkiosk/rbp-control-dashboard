@@ -418,19 +418,19 @@ Types guide planning. They never block a plan and never run model output. A Webs
 
 ## Make site art and video for a project (fal)
 
-Generate stills and clips from the project’s Media tab, review them, and publish the ones you choose.
+Open the Media studio from the project (or from a human media story), see what it will cost, generate stills and clips, review them and publish the ones you choose.
 
 1. Save a fal key first in Profile, Private credentials. The guide Create or replace the fal key lists the models it needs.
-2. Open the project’s Media tab (a project whose folder has media/slots.json gets one, and a banner while slots are unresolved). Tick the spending acknowledgement at the top of the panel; pressing Generate without it tells you what is missing and takes you to the box.
+2. Open the project’s Media studio tab (a project whose folder has media/slots.json gets one). A human story about media, and a banner while slots are unresolved, link straight to it and say what is left to spend. The studio opens with three numbers: spent so far, left to make at the chosen tiers, and waiting for your review. Tick the spending acknowledgement under them; pressing Generate without it tells you what is missing and takes you to the box.
 3. Each slot starts on a tier from its project type: a website’s clips start on the cheapest video tier (MiniMax H3 Max Turbo) and images on standard. Standard clips use MiniMax H3 Max and premium uses Veo 3.1. Change the tier or how many, read the estimate, press Generate and confirm.
 4. Watch progress under that slot’s button: a spinner, waiting or generating text, then finished or the failure. The button reads Generating… until it ends.
-5. Review each candidate as a thumbnail or video. Accept and publish the one you want (MCD converts and records it), choose None of these to make another, or Skip to keep the site’s drawn fallback.
+5. Review each candidate as a thumbnail or video. Accept and publish the one you want (RCD converts and records it), choose None of these to make another, or Skip to keep the site’s drawn fallback.
 6. To keep the bill small, give each slot in media/slots.json only the resolution it needs: "resolution": "1K" for a picture shown small, "480P" for a retro or VHS-look clip (it costs 0.625 of 768p). The estimate on the slot follows it.
 7. A slot with generations still waiting for review is not generated again unless you choose Another take, so a double click never pays twice. A published slot is only regenerated when you choose Regenerate.
 
 A clip starts from a published, approved still. A draft still is too small to publish; make stills at standard or premium. Agents never receive the fal key and cannot generate media.
 
-[Open Projects](http://127.0.0.1:8800/projects) · [Media models and prices](http://127.0.0.1:8800/agents?action=billing) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=project-media)
+[Open Projects](http://127.0.0.1:8800/projects) · [Media prices (what it costs)](http://127.0.0.1:8800/agents?action=billing) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=project-media)
 
 ## Check media spend and avoid paying twice
 

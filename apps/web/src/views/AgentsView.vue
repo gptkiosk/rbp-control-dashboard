@@ -123,7 +123,7 @@ function saved() {
           <option value="24h">Last 24 hours</option>
           <option value="7d">Last 7 days</option></AppSelect
         ><button class="btn" @click="billingFocus = null; billingOpen = true"><AppIcon name="cost" />Billing & rates</button
-        ><button class="btn" data-testid="media-button" @click="billingFocus = 'media'; billingOpen = true"><AppIcon name="cost" />Media</button>
+        ><button class="btn" data-testid="media-button" @click="billingFocus = 'media'; billingOpen = true"><AppIcon name="cost" />Media prices</button>
       </div>
     </PageHead>
     <p v-if="error" class="error-text" role="alert">Could not load agents: {{ error }}</p>

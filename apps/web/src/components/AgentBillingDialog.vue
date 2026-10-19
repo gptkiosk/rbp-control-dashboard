@@ -181,7 +181,8 @@ async function save() {
         >
       </fieldset>
       <details v-if="media" ref="mediaSection" class="media-models" :open="props.focus === 'media'">
-        <summary>Media models (fal.ai) · image and video generation</summary>
+        <summary>Media prices (fal.ai) · what image and video generation costs</summary>
+        <p class="muted small">This is a price list. To make and preview media for a project, open it in Projects and choose <strong>Media studio</strong>.</p>
         <NoteFold label="About media prices"><p class="muted small">
           Listed prices are fal's published list prices from {{ media.models[0]?.price_verified }} and are approximate; resolution, duration and
           audio change the final cost. A blank price means fal's pricing page did not list the model: run the media tool's <code>price</code>
@@ -206,7 +207,7 @@ async function save() {
               :aria-label="`${m.label} price per ${m.unit}`"
           /></label>
         </div>
-        <MediaGeneratePanel :key-saved="media.fal_key_saved" />
+        <details class="folder-media"><summary class="muted small">Make media for a folder that is not a project</summary><MediaGeneratePanel :key-saved="media.fal_key_saved" /></details>
         <p class="muted small">
           Create the fal key with the <strong>{{ media.key_rules.preset }}</strong> preset and restrict its allowed models to:
           <code>{{ media.key_rules.allowed_models.join('  ') }}</code>

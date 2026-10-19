@@ -3,6 +3,7 @@ import KeyGateDialog, { type MissingKey } from '@/components/KeyGateDialog.vue'
 import ProjectTypePicker from '@/components/ProjectTypePicker.vue'
 import PlanChecks from '@/components/PlanChecks.vue'
 import MediaGeneratePanel from '@/components/MediaGeneratePanel.vue'
+import { costWords, type ProjectMedia } from '@/composables/useProjectMedia'
 import { computed, ref, watch, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import ProjectConsultant from '@/components/ProjectConsultant.vue'
@@ -96,7 +97,7 @@ watch(remote, value => {
   apply(value)
 })
 // Media: a project whose folder has media slots gets a Media tab, and a banner while slots still need a decision.
-const projectMedia = ref<{ available: boolean; summary?: { published: number; skipped: number; pending: number; total: number; complete: boolean; text: string } } | null>(null)
+const projectMedia = ref<ProjectMedia | null>(null)
 async function loadProjectMedia() {
   const id = project.value?.id
   if (!id) { projectMedia.value = null; return }
@@ -392,8 +393,8 @@ function human(task: ProjectTask) { return draft.value.nodes.find(n => n.key ===
           <p v-else class="muted small">Review the plan here when ready. <RouterLink to="/profile#discord-profile">Link Discord in your profile</RouterLink> for plan notifications.</p>
           <p v-if="readyDelivery?.error" class="muted">{{ readyDelivery.error }}</p>
         </section>
-        <nav class="tabs" aria-label="Project sections"><button v-for="t in (projectMedia?.available ? ['map','memory','work','media'] : ['map','memory','work']) as ('map' | 'memory' | 'work' | 'media')[]" :key="t" class="btn" :class="{ active: tab === t }" :aria-pressed="tab === t" @click="tab = t">{{ t === 'map' ? (locked ? 'Live map' : 'Planning map') : t === 'memory' ? 'Shared memory' : t === 'media' ? 'Media' : 'Stories & runs' }}</button></nav>
-        <p v-if="projectMedia?.available && projectMedia.summary && !projectMedia.summary.complete && tab !== 'media'" class="notice-warn media-banner" role="status" data-testid="media-banner">Media for this project: {{ projectMedia.summary.published }} of {{ projectMedia.summary.total }} published, {{ projectMedia.summary.pending }} waiting for your decision. <button type="button" class="btn" @click="tab = 'media'">Open media review</button></p>
+        <nav class="tabs" aria-label="Project sections"><button v-for="t in (projectMedia?.available ? ['map','memory','work','media'] : ['map','memory','work']) as ('map' | 'memory' | 'work' | 'media')[]" :key="t" class="btn" :class="{ active: tab === t }" :aria-pressed="tab === t" @click="tab = t">{{ t === 'map' ? (locked ? 'Live map' : 'Planning map') : t === 'memory' ? 'Shared memory' : t === 'media' ? 'Media studio' : 'Stories & runs' }}</button></nav>
+        <p v-if="projectMedia?.available && projectMedia.summary && !projectMedia.summary.complete && tab !== 'media'" class="notice-warn media-banner" role="status" data-testid="media-banner">Media for this project: {{ projectMedia.summary.published }} of {{ projectMedia.summary.total }} published, {{ projectMedia.summary.pending }} waiting for your decision. <template v-if="projectMedia.cost"> {{ costWords(projectMedia.cost).left }}.</template> <button type="button" class="btn" @click="tab = 'media'">Open media studio</button></p>
         <div v-if="tab === 'media' && projectMedia?.available" class="card media-tab"><MediaGeneratePanel :working-dir="project.document.working_dir" /></div>
         <template v-if="tab === 'map'">
           <ProjectGitAccess v-if="project" :project-id="project.id" />

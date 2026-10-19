@@ -4,6 +4,8 @@ import AppIcon from '@/components/AppIcon.vue'
 import ChipTag from '@/components/ChipTag.vue'
 import TagPill from '@/components/TagPill.vue'
 import TaskApprovalAction from '@/components/TaskApprovalAction.vue'
+import MediaCallout from '@/components/MediaCallout.vue'
+import { useProjectMedia } from '@/composables/useProjectMedia'
 import { useNow } from '@/composables/useNow'
 import type { Card } from '@/lib/api'
 import {
@@ -33,6 +35,7 @@ const emit = defineEmits<{
 }>()
 
 const now = useNow()
+const { media, link: mediaLink } = useProjectMedia(() => props.card)      // only a human story about media, in a project with media slots, ever asks
 
 const human = computed(() => isHuman(props.card))
 const draggable = computed(() => canDrag(props.card))
@@ -86,6 +89,7 @@ const elapsed = computed(() => {
         <AppIcon name="link" size="sm" />Blocked by
         {{ idList(card.blocked_by) }}
       </ChipTag>
+      <MediaCallout :media="media" :link="mediaLink" chip />
     </div>
 
     <div class="cell" role="cell" data-col="assignee">
@@ -146,7 +150,7 @@ const elapsed = computed(() => {
         <span v-if="elapsed" class="timer" data-testid="elapsed">{{ elapsed }}</span>
       </template>
       <span v-else class="muted" data-missing="true">{{ DASH }}</span>
-      <TaskApprovalAction :card="card" @changed="emit('changed')" />
+      <TaskApprovalAction :card="card" hide-media-link @changed="emit('changed')" />
     </div>
   </div>
 </template>

@@ -602,3 +602,17 @@ def test_a_resolution_that_does_not_fit_the_kind_of_slot_is_refused(env, kind, r
     (folder / "media" / "slots.json").write_text(json.dumps({"slots": [{"name": "x", "kind": kind, "prompt": "p", "resolution": resolution}]}))
     r = client.get("/api/media/slots", params={"working_dir": str(folder)})
     assert r.status_code == 422 and "invalid resolution" in r.text
+
+
+def test_the_project_route_says_what_media_has_cost_and_what_is_left_to_make(env):
+    client, folder = env
+    pid = make_project(client, folder)
+    cost = client.get(f"/api/media/project/{pid}").json()["cost"]
+    assert cost["remaining_items"] == 2 and cost["spent_usd"] == 0 and cost["spent_runs"] == 0      # hero-clip and plate are not made; hero-still is published
+    assert cost["remaining_usd"] >= 0 and cost["unpriced"] in (0, 1, 2)
+    for name in ("hero-clip", "plate"):
+        client.post("/api/media/decision", json={"working_dir": str(folder), "slot": name, "event": "skip"})
+    after = client.get(f"/api/media/project/{pid}").json()["cost"]
+    assert after["remaining_items"] == 0 and after["remaining_usd"] == 0                              # skipped slots cost nothing
+    slots_cost = client.get("/api/media/slots", params={"working_dir": str(folder)}).json()["cost"]
+    assert slots_cost == after

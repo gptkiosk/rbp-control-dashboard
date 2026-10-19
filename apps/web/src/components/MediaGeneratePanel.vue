@@ -11,6 +11,7 @@ type Tier = 'draft' | 'standard' | 'premium'
 const props = withDefaults(defineProps<{ keySaved?: boolean; workingDir?: string }>(), { keySaved: undefined, workingDir: undefined })
 const keyOk = ref(props.keySaved ?? false)
 const summary = ref<Summary | null>(null)
+const cost = ref<{ spent_usd: number; spent_runs: number } | null>(null)
 const folders = ref<{ path: string; name: string }[]>([])
 const folder = ref('')
 const slots = ref<Slot[]>([])
@@ -33,6 +34,7 @@ async function loadSlots() {
     const data = await getJson<{ slots: Slot[]; summary?: Summary; default_tiers?: Partial<Record<'image' | 'video', Tier>> }>(`/api/media/slots?working_dir=${encodeURIComponent(folder.value)}`)
     slots.value = data.slots
     summary.value = data.summary ?? null
+    cost.value = (data as { cost?: { spent_usd: number; spent_runs: number } }).cost ?? null
     for (const s of data.slots) { tier.value[s.name] ||= data.default_tiers?.[s.kind] || 'standard'; count.value[s.name] ||= 1 }
   } catch (e) { error.value = e instanceof Error ? e.message : String(e); slots.value = [] }
 }
@@ -52,6 +54,14 @@ const batch = computed(() => {
   for (const s of eligible.value) { const e = s.plans[tierFor(s)].estimate_usd; if (e === null) unknown++; else total += e }
   return { total, unknown }
 })
+// The money, at a glance: what is already spent (the ledger's estimates for this folder) and what the slots not yet made would cost at the tiers chosen now.
+const left = computed(() => {
+  let total = 0, unknown = 0
+  for (const s of todo.value) { const e = s.plans[tier.value[s.name] || 'standard'].estimate_usd; if (e === null) unknown++; else total += e * (count.value[s.name] || 1) }
+  return { total, unknown }
+})
+const leftLine = computed(() => todo.value.length === 0 ? 'nothing left' : `about $${left.value.total.toFixed(2)}${left.value.unknown ? ` + ${left.value.unknown} unpriced` : ''}`)
+const spentLine = computed(() => cost.value && cost.value.spent_runs ? `about $${cost.value.spent_usd.toFixed(2)}` : 'nothing yet')
 const jobsFor = (slot: string) => jobs.value.filter(j => j.slot === slot)
 const activeFor = (slot: string) => jobs.value.some(j => j.slot === slot && (j.state === 'queued' || j.state === 'running'))
 function jobLine(j: Job, n: number, of: number) {
@@ -144,7 +154,13 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
 </script>
 <template>
   <section class="media-gen" aria-labelledby="media-gen-title">
-    <h3 id="media-gen-title">Generate media with your saved fal key</h3>
+    <h3 id="media-gen-title">Media studio</h3>
+    <p class="muted small">Make, preview and publish site art and video. Each run spends from your fal account, and nothing starts until you confirm.</p>
+    <div v-if="slots.length" class="cost-strip" data-testid="cost-strip" role="group" aria-label="Media cost">
+      <div><span class="k">Spent so far</span><strong>{{ spentLine }}</strong><small>estimate from finished runs</small></div>
+      <div><span class="k">Left to make</span><strong>{{ leftLine }}</strong><small>{{ todo.length }} {{ todo.length === 1 ? 'item' : 'items' }} at the chosen tiers</small></div>
+      <div><span class="k">To review</span><strong>{{ review.length }}</strong><small>waiting for your decision</small></div>
+    </div>
     <NoteFold label="How media is made"><p class="muted small">
       MCD makes the call with your saved key, which never reaches an agent or the project folder. The folder's <code>media/slots.json</code> only supplies prompts and file names; no code from it is run.
       Make it, look at it, <strong>Accept</strong> the one you like, and it is published into the site. Published items stay out of the way.
@@ -157,7 +173,7 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
       </select>
     </label>
     <p v-if="!props.workingDir && folders.length === 0" class="muted small">No folder with <code>media/slots.json</code> was found in your allowed working directories.</p>
-    <label class="check"><input ref="confirmBox" v-model="confirm" type="checkbox" /> I understand each run spends from my fal account. Estimates are shown, but fal's invoice is the truth, and nothing here limits spending.</label>
+    <label class="check approve"><input ref="confirmBox" v-model="confirm" type="checkbox" /> I understand each run spends from my fal account. Estimates are shown, but fal's invoice is the truth, and nothing here limits spending.</label>
     <p v-if="slots.length" class="small" role="status" data-testid="summary">
       {{ published.length }} published · {{ skipped.length }} skipped · {{ review.length }} waiting for your decision · {{ todo.length }} not made yet<template v-if="unfinished"> · <strong>{{ unfinished }} generating now</strong></template>
     </p>
@@ -258,6 +274,12 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
   </section>
 </template>
 <style scoped>
+.cost-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap: var(--gap-sm); }
+.cost-strip > div { display: grid; gap: var(--gap-xs); padding: var(--gap-sm) var(--gap); border: 1px solid var(--surface-border); border-radius: var(--radius); background: var(--panel); }
+.cost-strip .k { color: var(--text-muted); font-size: var(--font-size-xs); }
+.cost-strip strong { font-size: var(--font-size-lg); }
+.cost-strip small { color: var(--text-muted); font-size: var(--font-size-xs); }
+.approve { padding: var(--gap-sm) var(--gap); border: 1px solid var(--warn); border-radius: var(--radius); }
 .media-gen { display: flex; flex-direction: column; gap: var(--gap); padding-top: var(--gap); border-top: 1px solid var(--glass-border); }
 .batch { display: flex; flex-direction: column; gap: var(--gap-xs); padding: var(--gap); border: 1px solid var(--glass-border); border-radius: var(--radius, 8px); }
 .slot { display: flex; flex-direction: column; gap: var(--gap-xs); padding-bottom: var(--gap); border-bottom: 1px solid var(--glass-border); }

@@ -11,7 +11,7 @@ type S = ReturnType<typeof slot>
 function setup(getSlots: () => S[], extra: (u: string, init?: RequestInit) => { status?: number; body: unknown } | undefined = () => undefined, keySaved = true, defaultTiers?: Record<string, string>) {
   const f = stubFetch((u, init) => {
     if (u === '/api/media/folders') return { body: { folders: [{ path: '/ws/site', name: 'site' }] } }
-    if (u.startsWith('/api/media/slots')) return { body: { working_dir: '/ws/site', slots: getSlots(), ...(defaultTiers ? { default_tiers: defaultTiers } : {}) } }
+    if (u.startsWith('/api/media/slots')) return { body: { working_dir: '/ws/site', slots: getSlots(), cost: { spent_usd: 1.1, spent_runs: 3 }, ...(defaultTiers ? { default_tiers: defaultTiers } : {}) } }
     if (u === '/api/media/ledger') return { body: { runs: 3, done: 2, estimated_usd: 0.16, unpriced: 0, repeats: 0, repeat_usd: 0, rows: [], note: 'Estimates are not invoices.' } }
     return extra(u, init)
   })
@@ -248,4 +248,19 @@ it('does not pay for a slot twice by accident: the refusal is shown beside the s
   expect(takes).toBe(1)
   expect(calls(f, 'POST', '/api/media/generate').map(c => JSON.parse(String(c[1]?.body)).another_take)).toEqual([undefined, true])
   ok.mockRestore(); w.unmount()
+})
+
+it('opens with the money at a glance: spent so far, what is left to make at the chosen tiers, and what waits for review', async () => {
+  const { w } = setup(() => [slot({ name: 'todo-a' }), slot({ name: 'clip-b', kind: 'video', plans: veo }), slot({ name: 'review-c', candidates: ['review-c-1.png'] })])
+  await flushPromises()
+  const strip = w.get('[data-testid=cost-strip]')
+  expect(strip.text()).toContain('Spent so far')
+  expect(strip.text()).toContain('about $1.10')
+  expect(strip.text()).toContain('about $0.08 + 1 unpriced')                 // todo-a at standard; clip-b's standard price is not listed
+  expect(strip.text()).toContain('2 items at the chosen tiers')
+  expect(strip.text()).toContain('1')                                         // one slot waits for a decision
+  await w.get('[data-slot=todo-a] select').setValue('premium')
+  expect(w.get('[data-testid=cost-strip]').text()).toContain('about $0.15 + 1 unpriced')   // the strip follows the tier choice
+  expect(w.text()).toContain('nothing starts until you confirm')
+  w.unmount()
 })
