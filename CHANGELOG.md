@@ -10,6 +10,10 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+### Added
+
+- **See what was already made, and manage what it costs to keep.** The Media studio now shows every published slot as a gallery (the picture, or the clip with its player) with its size, and tucks Regenerate under *More* once something is done. A **Storage** line says what the published media and the unused takes take up, and **Clear unused takes…** deletes the generated takes of slots you have already decided (published or skipped), after a confirmation. Takes still waiting for your decision and all published files are never touched. New operator-only routes: `GET /api/media/published` (one published file of a slot named in `media/slots.json`) and `POST /api/media/clear-unused`; `/api/media/slots` now returns `storage` and each slot's `published_bytes`.
+
 ## [0.6.28] - 2026-10-19
 
 ### Fixed

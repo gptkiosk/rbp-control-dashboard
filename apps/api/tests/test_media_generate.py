@@ -616,3 +616,35 @@ def test_the_project_route_says_what_media_has_cost_and_what_is_left_to_make(env
     assert after["remaining_items"] == 0 and after["remaining_usd"] == 0                              # skipped slots cost nothing
     slots_cost = client.get("/api/media/slots", params={"working_dir": str(folder)}).json()["cost"]
     assert slots_cost == after
+
+
+def test_a_published_slot_can_be_viewed_and_nothing_else_can(env):
+    client, folder = env
+    ok = client.get("/api/media/published", params={"working_dir": str(folder), "name": "hero-still"})
+    assert ok.status_code == 200 and ok.headers["content-type"] == "image/jpeg" and ok.content == (folder / "assets" / "img" / "hero-still.jpg").read_bytes()
+    assert client.get("/api/media/published", params={"working_dir": str(folder), "name": "plate"}).status_code == 404            # not published
+    for bad in ("../slots", "hero-still/../../x", "nope"):
+        assert client.get("/api/media/published", params={"working_dir": str(folder), "name": bad}).status_code == 404
+    assert client.get("/api/media/published", params={"working_dir": "/etc", "name": "hero-still"}).status_code == 422             # outside the allowed folders
+
+
+def test_storage_is_reported_and_clearing_only_removes_takes_of_slots_you_have_decided(env):
+    client, folder = env
+    run_and_wait(client, {"working_dir": str(folder), "slot": "hero-still"})        # a take for a slot that is already published
+    run_and_wait(client, {"working_dir": str(folder), "slot": "plate"})             # a take still waiting for your decision
+    data = client.get("/api/media/slots", params={"working_dir": str(folder)}).json()
+    assert data["storage"]["published_bytes"] > 0 and data["storage"]["unused_count"] == 1 and data["storage"]["unused_bytes"] > 0
+    assert next(s for s in data["slots"] if s["name"] == "hero-still")["published_bytes"] > 0
+    body = {"working_dir": str(folder)}
+    assert client.post("/api/media/clear-unused", json=body).status_code == 422                       # no confirmation, no deletion
+    assert (folder / "media" / "candidates").exists() and any((folder / "media" / "candidates").glob("hero-still-*"))
+    done = client.post("/api/media/clear-unused", json={**body, "confirm": True})
+    assert done.status_code == 200 and done.json()["deleted"] == 1 and done.json()["freed_bytes"] > 0
+    left = sorted(p.name for p in (folder / "media" / "candidates").iterdir())
+    assert not any(n.startswith("hero-still-") for n in left)                                            # the decided slot's take and its note are gone
+    assert any(n.startswith("plate-") for n in left)                                                     # the undecided slot's take is kept
+    assert (folder / "assets" / "img" / "hero-still.jpg").is_file()                                      # published media is never touched
+    assert client.get("/api/media/slots", params={"working_dir": str(folder)}).json()["storage"]["unused_count"] == 0
+    for name in ("hero-clip", "plate"):                                                                  # skipping decides a slot, so its take is then unused
+        client.post("/api/media/decision", json={"working_dir": str(folder), "slot": name, "event": "skip"})
+    assert client.get("/api/media/slots", params={"working_dir": str(folder)}).json()["storage"]["unused_count"] == 1
