@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import AppIcon from '@/components/AppIcon.vue'
 import ModalShell from '@/components/ModalShell.vue'
 import RouteAdvice from '@/components/RouteAdvice.vue'
+import NoteFold from '@/components/NoteFold.vue'
 import { agentLabel } from '@/lib/cards'
 import { planningBiasLabel, type ProjectNode } from '@/lib/projects'
 
@@ -37,7 +38,7 @@ const unknownArea = computed(() => problems.value.some(p => p.includes("this rep
           <span class="mark"><AppIcon :name="mode === 'plan' ? 'refresh' : 'send'" size="lg" /></span>
           <div>
             <h2 id="project-review-title" class="section-title">{{ heading }}</h2>
-            <p class="hint">{{ title }} · revision {{ revision }}</p>
+            <p class="hint">{{ title }} · revision {{ revision }} · <RouterLink to="/help?topic=projects">How-to</RouterLink></p>
           </div>
         </div>
         <button type="button" class="btn close" aria-label="Close" @click="emit('close')"><AppIcon name="close" /></button>
@@ -51,11 +52,11 @@ const unknownArea = computed(() => problems.value.some(p => p.includes("this rep
       </dl>
 
       <template v-if="mode === 'plan'">
-        <p class="lead">{{ delegatorName }} picks the approved planner, passes it the brief, reviews the result and posts an editable map. No story starts from this request.</p>
+        <p class="lead">{{ delegatorName }} reviews the plan and returns an editable map. This request starts no stories.</p>
         <label class="check option"><input v-model="fresh" type="checkbox" data-testid="plan-fresh" /><span><strong>Plan from scratch.</strong> Do not show the planner the stories on the map now. Use this when the brief or working directory changed, so it does not just repeat the old plan.</span></label>
       </template>
       <template v-else>
-        <p class="lead">{{ delegatorName }} will order exactly these stories. MCD creates them once, links their prerequisites and builds them as shown above. Each handoff needs your acceptance, routes and scope are frozen at submission, and your source branch is never merged automatically.</p>
+        <p class="lead">{{ delegatorName }} will submit this exact revision. Handoffs need your acceptance; routes and scope are fixed, and the source branch is never merged automatically.</p>
 
         <section v-if="standardsCheck" class="result" :class="blocked ? 'bad' : 'good'" role="status" data-testid="standards-result">
           <h3 class="result-title">{{ blocked ? `Standards check: ${problems.length} ${problems.length === 1 ? 'thing needs' : 'things need'} fixing` : 'Standards check: passes' }}</h3>
@@ -80,10 +81,7 @@ const unknownArea = computed(() => problems.value.some(p => p.includes("this rep
         <RouteAdvice :project-id="projectId" :revision="revision" />
       </template>
 
-      <details class="fold">
-        <summary>Spending and billing</summary>
-        <p class="small">The selected Delegator uses its reviewed native route. Membership access and provider API billing are separate. Free models can hit limits, and a Google BYOK fallback can incur Google charges. Hermes and OpenClaw routing shares a $20 per month OpenRouter key cap that includes tracked BYOK usage (check Agents for its current setting). That is not a guarantee about your whole Google invoice or calls outside this key.</p>
-      </details>
+      <NoteFold label="Spending and billing"><p class="small">The selected Delegator uses its reviewed native route. Membership access and provider API billing are separate. Free models can hit limits, and a Google BYOK fallback can incur Google charges. Hermes and OpenClaw routing shares a $20 per month OpenRouter key cap that includes tracked BYOK usage; this does not cover your whole Google invoice or calls outside this key.</p><RouterLink to="/help?topic=project-models">Model routes and billing</RouterLink></NoteFold>
 
       <div class="approvals">
         <label class="check"><input v-model="coordination" type="checkbox" /><span>I approve this Delegator coordination request and its configured routing.</span></label>

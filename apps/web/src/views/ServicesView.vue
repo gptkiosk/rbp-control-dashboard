@@ -27,7 +27,7 @@ function runs24(s: ServiceInfo): string {
 
 <template>
   <section class="page" aria-labelledby="services-title">
-    <PageHead id="services-title" title="Services" :icon="navIcon('services')" sub="Most severe first. Crash loop = restarts in 24 h beyond what the job's schedule explains." help="services" />
+    <PageHead id="services-title" title="Services" :icon="navIcon('services')" sub="Most severe first." help="services" />
 
     <p v-if="error" class="error" role="alert">Could not load services: {{ error }}</p>
     <p v-else-if="pending" class="muted" role="status">Collecting service state…</p>
@@ -51,7 +51,7 @@ function runs24(s: ServiceInfo): string {
           <tr v-for="s in data.services" :key="`${s.domain}/${s.label}`" :data-severity="s.severity">
             <th scope="row" class="name" data-label="Service">
               <span class="label"><template v-for="(part, i) in s.label.split('.')" :key="i">{{ i ? '.' : '' }}<wbr v-if="i" />{{ part }}</template></span>
-              <span v-if="s.program" class="program muted">{{ s.program }}</span>
+              <details v-if="s.program" class="program-fold"><summary>Program location</summary><code>{{ s.program }}</code></details>
             </th>
             <td data-label="Schedule">{{ s.schedule }}</td>
             <td data-label="State">

@@ -32,7 +32,7 @@ onMounted(load)
 <template>
   <details class="card storage-panel">
     <summary>Host report storage · configure folders</summary>
-    <p class="muted small">Shared by everyone here. Reports are read-only; folder changes need operator sign-in.</p>
+    <p class="muted small">Shared host folders. Reports are read-only; changes need operator sign-in.</p>
     <p v-if="error || data?.error" class="notice-warn" role="alert">{{ error || data?.error }}</p>
     <p v-if="notice" role="status">{{ notice }}</p>
     <template v-if="data">
@@ -40,9 +40,9 @@ onMounted(load)
       <form @submit.prevent="save()">
         <label>Ops report folder<input v-model="ops" class="input" autocomplete="off" spellcheck="false" required /></label>
         <label>Hermes report archive (optional)<input v-model="hermes" class="input" autocomplete="off" spellcheck="false" /></label>
-        <p class="muted">Use an existing absolute folder on the dashboard host inside one of these approved report roots:</p>
+        <p class="muted">Choose an existing host folder inside an approved report root:</p>
         <ul><li v-for="root in data.allowed_roots" :key="root"><code>{{ root }}</code></li></ul>
-        <p class="muted">The host installer can add dedicated folders with MAC_CONTROL_REPORTS_ALLOWED_ROOTS. Create folders on the host first. Clearing the Hermes field disables its archive; restoring defaults uses the host environment and this installation’s data directory.</p>
+        <p class="muted">To add approved roots, configure MAC_CONTROL_REPORTS_ALLOWED_ROOTS in the host installer and create the folders first. Clear the Hermes field to disable its archive. Defaults use the host environment and this installation’s data directory.</p>
         <div class="actions"><button class="btn primary" :disabled="busy || forbidden">Save host folders</button><button type="button" class="btn" :disabled="busy || forbidden" @click="save(true)">Restore installation defaults</button></div>
       </form>
     </template>

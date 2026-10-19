@@ -14,7 +14,7 @@ it('says there is nothing to tidy and states the retention rule', async () => {
   const w = mount(HousekeepingPanel); await flushPromises()
   expect(w.text()).toContain('Nothing to tidy')
   expect(w.text()).toContain('newest 3')
-  expect(w.text()).toContain('cannot change anything itself')
+  expect(w.text()).toContain('Hermes can only propose')
   w.unmount()
 })
 

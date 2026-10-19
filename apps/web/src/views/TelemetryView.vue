@@ -40,14 +40,17 @@ onMounted(load)
 </script>
 <template>
   <section class="page" aria-labelledby="telemetry-title">
-    <PageHead id="telemetry-title" title="Jobs &amp; telemetry" icon="activity" sub="Assignee, agent, model, time and cost per job and story. A job is one approved plan revision." help="jobs-telemetry" />
+    <PageHead id="telemetry-title" title="Jobs &amp; telemetry" icon="activity" sub="Work, decisions, timing and cost." help="jobs-telemetry" />
     <p v-if="error" class="notice-warn" role="alert">{{ error }}</p>
 
-    <form class="card filters" aria-label="Filters" @submit.prevent="load">
+    <details class="card filter-fold" :open="active">
+      <summary>Filters<span v-if="active" class="muted"> · applied</span><span v-else class="muted"> · optional</span></summary>
+      <form class="filters" aria-label="Filters" @submit.prevent="load">
       <label>Period<AppSelect v-model="days" aria-label="Period" @update:model-value="load"><option value="7">Last 7 days</option><option value="30">Last 30 days</option><option value="90">Last 90 days</option><option value="365">Last year</option></AppSelect></label>
       <label v-for="key in FILTERS" :key="key">{{ LABELS[key] }}<AppSelect v-model="filters[key]" :aria-label="LABELS[key]" @update:model-value="load"><option value="">All</option><option v-for="o in data?.options[key] ?? []" :key="o" :value="o">{{ o }}</option></AppSelect></label>
       <button v-if="active" type="button" class="btn" @click="reset">Clear filters</button>
-    </form>
+      </form>
+    </details>
 
     <template v-if="data && t">
       <div class="tiles">
@@ -58,9 +61,10 @@ onMounted(load)
         <StatTile label="Estimates missing" :value="String(t.estimates_missing)" sub="open work without one" />
         <StatTile label="Failed" :value="String(t.failed)" />
       </div>
-      <p class="muted small totals">Reported cost {{ money(data.totals.cost_usd) }} · API-equivalent {{ money(data.totals.api_equivalent_usd) }} · {{ data.totals.tokens.toLocaleString() }} tokens · {{ data.totals.unpriced_runs }} unpriced {{ data.totals.unpriced_runs === 1 ? 'run' : 'runs' }}. {{ data.note }}</p>
+      <p class="muted small totals">Reported cost {{ money(data.totals.cost_usd) }} · API-equivalent {{ money(data.totals.api_equivalent_usd) }} · {{ data.totals.tokens.toLocaleString() }} tokens · {{ data.totals.unpriced_runs }} unpriced {{ data.totals.unpriced_runs === 1 ? 'run' : 'runs' }}.</p>
+      <details class="card detail"><summary>About these totals</summary><p class="muted small">{{ data.note }}</p><p class="muted small">A job is one approved plan revision.</p></details>
 
-      <div class="grid">
+      <details class="card detail trends"><summary>Work trends and breakdowns</summary><div class="grid">
         <DonutChart title="Workload by status" :slices="data.by_status.map(s => ({ label: s.column, value: s.count, color: STATUS_COLOR[s.column] }))" />
         <DonutChart title="Work by route" :slices="data.by_tier.map(x => ({ label: x.tier, value: x.count }))" />
         <StackedBars title="Work by property" :parts="OUTCOME" :rows="data.by_property.map(p => ({ label: p.property, values: { open: p.open, done: p.done, failed: p.failed }, hint: `first pass ${percent(p.first_pass_rate)}, median ${minutes(p.median_minutes)}` }))" empty="No work yet." />
@@ -70,7 +74,7 @@ onMounted(load)
         <StackedBars title="Work by kind" :parts="DONE" :rows="data.by_kind.map(k => ({ label: k.kind, values: { done: k.done, rest: k.stories - k.done }, hint: `median ${minutes(k.median_minutes)}, first pass ${percent(k.first_pass_rate)}` }))" />
         <BarList title="Completed per week" :items="data.velocity.map(v => ({ label: v.week, value: v.done }))" empty="No completed work in the last eight weeks." />
         <BarList title="Median time per kind (minutes)" :items="data.by_kind.filter(k => k.median_minutes != null).map(k => ({ label: k.kind, value: Math.round(k.median_minutes!) }))" empty="No finished work with a recorded time." />
-      </div>
+      </div></details>
 
       <details class="card detail" aria-label="Jobs table">
         <summary>Jobs: the numbers</summary>
@@ -110,8 +114,8 @@ onMounted(load)
           <li v-for="a in data.activity" :key="`${a.card_id}-${a.at}`"><strong>{{ a.title }}</strong> <span class="muted small">{{ a.outcome }} · {{ a.assignee }} · {{ a.model ?? a.agent }}{{ a.job ? ` · ${a.job}` : '' }} · {{ when(a.at) }}</span></li>
         </ul>
       </section>
-      <CoordinatorScorecard />
-      <ModelProfiles />
+      <details class="card detail"><summary>Coordinator scorecard</summary><CoordinatorScorecard /></details>
+      <details class="card detail"><summary>Model profiles</summary><ModelProfiles /></details>
     </template>
     <p v-else-if="loading" class="muted" role="status">Loading…</p>
   </section>
@@ -120,6 +124,8 @@ onMounted(load)
 .page { display: grid; gap: var(--gap); }
 .lead { max-width: 72ch; line-height: var(--line-height); margin: 0; }
 .small { font-size: var(--font-size-sm); margin: 0; }
+.filter-fold > summary { cursor: pointer; font-weight: 600; }
+.filter-fold[open] > summary { margin-bottom: var(--gap-sm); }
 .filters { display: flex; flex-direction: row; flex-wrap: wrap; gap: var(--gap); align-items: end; }
 .filters label { display: grid; gap: var(--gap-xs); font-size: var(--font-size-sm); }
 .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); gap: var(--gap); }

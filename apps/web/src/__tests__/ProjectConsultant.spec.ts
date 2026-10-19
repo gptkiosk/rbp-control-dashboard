@@ -22,7 +22,7 @@ it('uses explicit membership profile defaults and hands a completed answer to ed
  const w=mount(ProjectConsultant,{...options,props:{...options.props,preferences:{ai_agent:'codex',ai_model:'gpt-6-luna',theme:'system',planning_bias:50,working_dir:'/workspace',dashboard_origin:'',discord_channel_id:'',notify_plans:true,allow_discord_planning:false,allow_discord_control:false,allow_discord_diagnostics:false}}})
  await w.get('button').trigger('click');await w.get('input').setValue('Goal');await w.get('textarea').setValue('Idea');await w.get('form').trigger('submit');await flushPromises()
  expect(JSON.parse(String(f.mock.calls.find(([url])=>url==='/api/chat/threads')![1]?.body))).toMatchObject({agent:'codex',model:'gpt-6-luna'})
- await w.findAll('button').find(b=>b.text().includes('Review brief'))!.trigger('click');await flushPromises()
+ await w.findAll('button').find(b=>b.text().includes('Review existing brief'))!.trigger('click');await flushPromises()
  expect(w.emitted('review')![0]![0]).toMatchObject({title:'Goal',working_dir:'/workspace',brief:expect.stringContaining('Definitions of done')})
  expect(f.mock.calls.some(([url,init])=>url.startsWith('/api/projects')&&init?.method==='POST')).toBe(false)   // nothing is created or submitted
  w.unmount()
@@ -30,7 +30,7 @@ it('uses explicit membership profile defaults and hands a completed answer to ed
 it('refuses to hand off an unfinished or approval-pending conversation',async()=>{
  stubFetch(()=>({body:{busy:true,messages:[]}}))
  const w=mount(ProjectConsultant,{...options,props:{...options.props,resumeId:7}})
- await w.get('button').trigger('click');await w.findAll('button').find(b=>b.text().includes('Review brief'))!.trigger('click');await flushPromises()
+ await w.get('button').trigger('click');await w.findAll('button').find(b=>b.text().includes('Review existing brief'))!.trigger('click');await flushPromises()
  expect(w.emitted('review')).toBeUndefined();expect(w.text()).toContain('Wait for the conversation')
  w.unmount()
 })
@@ -79,7 +79,7 @@ it('lets the owner say when it is enough, then writes up the brief and opens it 
  const w=mount(ProjectConsultant,options)
  await w.get('button').trigger('click');await w.get('input').setValue('Site');await w.get('textarea').setValue('A simple site');await w.get('form').trigger('submit');await flushPromises()
  expect(w.emitted('review')).toBeUndefined()                                          // talking does not submit anything
- await w.findAll('button').find(b=>b.text().includes('enough'))!.trigger('click');await flushPromises()
+ await w.findAll('button').find(b=>b.text().includes('Write up the plan'))!.trigger('click');await flushPromises()
  await vi.advanceTimersByTimeAsync(2100);await flushPromises()
  const ask=f.mock.calls.filter(([url])=>url==='/api/chat/threads/11/messages').map(([,init])=>JSON.parse(String(init?.body)))
  expect(ask).toHaveLength(2);expect(ask[1].text).toContain('That is enough')
@@ -103,7 +103,7 @@ it('asks for the project type before starting, with Other for what does not fit,
  expect(String(ctx)).toContain('project_type=other')
  const sent=f.mock.calls.find(([url,init])=>String(url).includes('/messages')&&init?.method==='POST')!
  expect(String(JSON.parse(String(sent[1]?.body)).context)).toContain('Project type: other')
- await w.findAll('button').find(b=>b.text().includes('Review brief'))!.trigger('click');await flushPromises()
+ await w.findAll('button').find(b=>b.text().includes('Review existing brief'))!.trigger('click');await flushPromises()
  expect(w.emitted('review')![0]![0]).toMatchObject({project_type:'other'})
  w.unmount()
 })

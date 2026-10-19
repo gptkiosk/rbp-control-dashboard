@@ -19,7 +19,7 @@ onMounted(()=>action(load))
 <template>
 <section id="agent-roles" class="card">
   <PanelHead id="agent-roles-title" title="Agent roles" :status="state ? (state.delegator ? `Delegator: ${state.delegator}` : 'No Delegator') : undefined" :tone="state?.delegator ? 'ok' : 'warn'" help="maintenance" />
-  <p class="muted small">Hermes is the recommended Delegator. Role instructions do not grant execution permission or change billing.</p>
+  <p class="muted small">Roles guide assignments. They do not grant tool access or change billing.</p>
   <template v-if="state">
     <p>Current Delegator: <strong>{{state.delegator ? state.delegator + (state.available.includes(state.delegator) ? '' : ' (unavailable — reassign below)') : 'None — assign an installed agent'}}</strong>. {{state.guidance_installed?'Managed starter guidance installed.':'Starter guidance has not been installed.'}}</p>
     <div v-for="agent in Object.keys(roles)" :key="agent" class="role-row"><label :for="`role-${agent}`">{{agent}}{{ state.available.includes(agent) ? '' : ' (not installed)' }}</label><select :id="`role-${agent}`" v-model="roles[agent]" :disabled="busy"><option value="worker">Worker</option><option value="delegator" :disabled="!state.available.includes(agent)">Delegator</option><option value="reviewer">Reviewer</option><option value="security">Security</option></select></div>

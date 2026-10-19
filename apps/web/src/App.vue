@@ -112,7 +112,7 @@ onBeforeUnmount(() => {
       <div class="content">
         <div class="content-inner" :class="{ 'project-content': route.name === 'projects' }">
           <main id="main-content" tabindex="-1">
-            <SetupPrompt />
+            <SetupPrompt v-if="route.name === 'overview'" />
             <LimitBanner />
             <RouterView />
           </main>

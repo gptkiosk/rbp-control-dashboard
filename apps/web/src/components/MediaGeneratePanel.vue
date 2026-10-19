@@ -187,7 +187,7 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
       MCD makes the call with your saved key, which never reaches an agent or the project folder. The folder's <code>media/slots.json</code> only supplies prompts and file names; no code from it is run.
       Make it, look at it, <strong>Accept</strong> the one you like, and it is published into the site. Published items stay out of the way.
     </p></NoteFold>
-    <p v-if="!keyOk" class="small" role="status">Save your fal key first (Profile, Private credentials).</p>
+    <div v-if="!keyOk" class="key-needed" role="status"><RouterLink to="/profile#credentials-profile" class="btn">Add fal key in Settings</RouterLink><RouterLink to="/help?topic=fal-key" class="small">fal key how-to</RouterLink></div>
     <label v-if="!props.workingDir">Project folder
       <select v-model="folder" class="input" aria-label="Project folder" @change="loadSlots">
         <option value="">Choose a folder with media slots</option>
@@ -307,6 +307,7 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
 <style scoped>
 .storage { display: flex; align-items: center; flex-wrap: wrap; gap: var(--gap-sm); padding: var(--gap-xs) var(--gap-sm); border: 1px solid var(--surface-border); border-radius: var(--radius); }
 .small-btn { padding: 0 var(--gap-sm); }
+.key-needed { display: flex; flex-wrap: wrap; align-items: center; gap: var(--gap-sm); }
 .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr)); gap: var(--gap); }
 .piece { display: grid; gap: var(--gap-xs); align-content: start; margin: 0; padding: var(--gap-sm); border: 1px solid var(--surface-border); border-radius: var(--radius); background: var(--panel); min-width: 0; }
 .piece .thumb { width: 100%; height: auto; max-height: 11rem; object-fit: cover; border-radius: var(--radius-sm); background: var(--bg); }
