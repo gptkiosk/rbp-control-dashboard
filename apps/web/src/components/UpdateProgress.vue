@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 
-// What an update is doing, step by step, and how it ended, with the log. The same layout as the MCD checkout updater.
+// What an update is doing, step by step, and how it ended, with the log. Shared by the packaged updater and the MCD source-checkout updater.
 export interface Step { name: string; state: string; detail: string }
 export interface UpdateOperation {
   id: string; state: 'running' | 'staged' | 'succeeded' | 'rolled_back' | 'failed'; version: string; message: string; steps: Step[]
 }
-const props = defineProps<{ operation: UpdateOperation; log: string[] }>()
+// stepText adds or renames steps for an updater whose steps differ (the MCD source-checkout updater).
+const props = defineProps<{ operation: UpdateOperation; log: string[]; stepText?: Record<string, string> }>()
 
 const STEP_TEXT: Record<string, string> = {
   fetch: 'Download the release from GitHub', verify: 'Verify the release signature', stage: 'Prepare it on this host',
@@ -26,7 +27,7 @@ const messageClass = computed(() => props.operation.state === 'succeeded' ? 'sta
     <h4>{{ title }}</h4>
     <p v-if="operation.message" :class="messageClass" :role="running ? 'status' : 'alert'">{{ operation.message }}</p>
     <ol class="steps">
-      <li v-for="s in operation.steps" :key="s.name" :data-state="s.state"><strong>{{ STEP_TEXT[s.name] ?? s.name }}</strong> <span class="state">{{ s.state }}</span><span v-if="s.detail" class="muted small detail">{{ s.detail }}</span></li>
+      <li v-for="s in operation.steps" :key="s.name" :data-state="s.state"><strong>{{ stepText?.[s.name] ?? STEP_TEXT[s.name] ?? s.name }}</strong> <span class="state">{{ s.state }}</span><span v-if="s.detail" class="muted small detail">{{ s.detail }}</span></li>
     </ol>
     <details v-if="log.length">
       <summary>Log</summary>

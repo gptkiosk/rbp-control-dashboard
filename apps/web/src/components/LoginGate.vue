@@ -54,7 +54,7 @@ async function recover() {
           </form>
         </details>
       </template>
-      <footer class="small muted">© {{ new Date().getFullYear() }} RCD</footer>
+      <footer class="small muted">© {{ new Date().getFullYear() }} Pi Control</footer>
     </section>
   </main>
 </template>

@@ -133,6 +133,8 @@ const pickedRunId = ref<number | null>(null)
 const selectedRun = computed<Run | null>(
   () => runs.value.find((r) => r.id === pickedRunId.value) ?? runs.value[0] ?? null,
 )
+const latestRun = computed(() => runs.value[0] ?? card.value?.last_run ?? null)
+const viewingHistory = computed(() => !!latestRun.value && !!selectedRun.value && latestRun.value.id !== selectedRun.value.id)
 const activeRun = computed<Run | null>(() => {
   const latest = runs.value[0] ?? card.value?.last_run ?? null
   return latest && latest.stage === 'running' ? latest : null
@@ -629,7 +631,7 @@ async function save(): Promise<void> {
               @click="move('queued')"
             >
               <AppIcon name="run" />
-              Run
+              {{ card.column === 'failed' && card.last_run ? 'Rerun task' : 'Run' }}
             </button>
             <button v-if="activeRun" type="button" class="btn danger" :disabled="busy" @click="cancelRun">
               <AppIcon name="stop" />
@@ -677,6 +679,10 @@ async function save(): Promise<void> {
         </section>
 
         <template v-if="selectedRun">
+          <div v-if="viewingHistory && latestRun" class="history-notice" role="status" data-testid="run-history-notice">
+            <p>Viewing older Run #{{ selectedRun.id }}. Latest Run #{{ latestRun.id }}: <strong>{{ stageLabel(latestRun.stage) }}</strong>.</p>
+            <button type="button" class="btn" @click="pickedRunId = null">View latest run #{{ latestRun.id }}</button>
+          </div>
           <section class="block" aria-labelledby="meta-h">
             <h3 id="meta-h" class="sub-title">Run #{{ selectedRun.id }}</h3>
             <dl class="meta" data-testid="run-meta">
@@ -949,6 +955,19 @@ dd {
   flex-direction: column;
   gap: var(--gap-xs);
 }
+
+.history-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--gap-sm);
+  padding: var(--gap-sm);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--accent-soft);
+}
+.history-notice p { margin: 0; }
 
 .run-btn {
   display: flex;

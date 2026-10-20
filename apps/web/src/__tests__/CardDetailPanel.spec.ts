@@ -61,6 +61,24 @@ describe('CardDetailPanel', () => {
     second.w.unmount()
   })
 
+  it('identifies an older failure and returns to the latest active run without changing the task', async () => {
+    const detail: CardDetail = { ...card({id:45,column:'running'}), runs:[
+      run({id:48,card_id:45,stage:'running',ended_at:null,error:null,result_text:null}),
+      run({id:45,card_id:45,stage:'failed',error:'Old failure',result_text:'Old report'}),
+    ] }
+    const {w,f}=mountPanel(detail)
+    await flushPromises()
+    expect(w.find('[data-testid="run-history-notice"]').exists()).toBe(false)
+    await w.findAll('button.run-btn')[1]!.trigger('click')
+    expect(w.get('[data-testid="run-history-notice"]').text()).toContain('Viewing older Run #45. Latest Run #48: Running')
+    expect(w.get('[data-testid="run-result"]').text()).toBe('Old report')
+    await w.findAll('button').find(b=>b.text()==='View latest run #48')!.trigger('click')
+    expect(w.find('[data-testid="run-history-notice"]').exists()).toBe(false)
+    expect(w.get('[data-testid="run-meta"]').text()).toContain('Running')
+    expect(calls(f,'POST','/api/')).toHaveLength(0)
+    w.unmount()
+  })
+
   it('explains a normal CLI exit when the provider timed out', async () => {
     const detail: CardDetail = {
       ...card({ id: 5, column: 'failed' }),
@@ -290,6 +308,20 @@ describe('CardDetailPanel', () => {
     const patch = calls(f, 'PATCH', '/api/cards/9')[0]!
     expect(JSON.parse(String(patch[1]?.body))).toEqual({ body: 'new prompt' })
     expect(w.get('[data-testid="panel-message"]').text()).toContain('cleared the approval')
+    w.unmount()
+  })
+
+  it('edits the retry policy so a failing task can try again on its own', async () => {
+    const { w, f } = mountPanel({ ...card({ id: 11 }), runs: [] }, (u, init) =>
+      u === '/api/cards/11' && init?.method === 'PATCH' ? { body: card({ id: 11, max_attempts: 3, retry_backoff_s: 60 }) } : undefined)
+    await flushPromises()
+    await w.findAll('button').find((b) => b.text() === 'Edit')!.trigger('click')
+    await flushPromises()
+    await w.get('#ed-max-attempts').setValue('3')
+    await w.get('#ed-retry-backoff').setValue('60')
+    await w.get('form[aria-label="Edit card"]').trigger('submit')
+    await flushPromises()
+    expect(JSON.parse(String(calls(f, 'PATCH', '/api/cards/11')[0]![1]?.body))).toEqual({ max_attempts: 3, retry_backoff_s: 60 })
     w.unmount()
   })
 

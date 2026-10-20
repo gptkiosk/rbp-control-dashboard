@@ -22,6 +22,33 @@ router = APIRouter(prefix="/api/mcp")
 
 _CACHE: dict[str, tuple[float, dict]] = {}
 CACHE_S = 60.0
+ERROR_DETAIL_LIMIT = 500
+
+
+async def _run_list_command(binary: str, *args: str, timeout: float = 90.0) -> tuple[int, str]:
+    """Run an MCP inventory command while retaining safe, bounded failure diagnostics."""
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            binary, *args,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+    except FileNotFoundError:
+        return 127, ""
+    try:
+        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+    except asyncio.TimeoutError:
+        proc.kill()
+        await proc.wait()
+        return 124, ""
+    output = (stderr or stdout).decode("utf-8", "replace").strip()
+    if proc.returncode:
+        # CLI diagnostics can echo credentials. Redact recognizable tokens and values
+        # configured in RCD's private environment file before returning them to the UI.
+        secrets = list(mcp.read_env_file(get_settings().data_dir / ".env").values())
+        output = mcp.redact(output, secrets)
+        output = " ".join(output.split())[:ERROR_DETAIL_LIMIT]
+    return proc.returncode or 0, output
 
 
 class ChangeIn(BaseModel):
@@ -50,13 +77,18 @@ async def list_for(agent: str, refresh: bool = False) -> dict:
     if cached and not refresh and time.time() - cached[0] < CACHE_S:
         return cached[1]
     args, parse = mcp.LIST_COMMANDS[agent]
-    code, out = await run_command(spec.binary(get_settings()), *args, timeout=90)
+    code, out = await _run_list_command(spec.binary(get_settings()), *args, timeout=90)
     now = int(time.time())
     if code == 127:
         # The command is not on this host: an agent the operator does not use here. That is a state, not a failure.
         result = {"agent": agent, "servers": [], "error": None, "installed": False, "checked_at": now}
     elif code != 0:
-        result = {"agent": agent, "servers": [], "error": f"list failed (exit {code})", "installed": True, "checked_at": now}
+        error = f"list failed (exit {code})"
+        if code == 124:
+            error += ": command timed out after 90 seconds"
+        elif out:
+            error += f": {out}"
+        result = {"agent": agent, "servers": [], "error": error, "installed": True, "checked_at": now}
     else:
         try:
             result = {"agent": agent, "servers": parse(out), "error": None, "installed": True, "checked_at": now}

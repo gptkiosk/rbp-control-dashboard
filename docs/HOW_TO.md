@@ -17,7 +17,7 @@ A six-step wizard for local installation, Google access, agents, provider keys, 
 3. Configure Google OAuth privately on the host and sign in with an allowed account. The wizard explains callbacks, test users and the local importer; it does not collect OAuth client secrets.
 4. Install Hermes and OpenClaw using their official guides. Check executable detection and independently confirm native provider/model routing and fallback spending caps. The wizard does not launch agents or grant permissions.
 5. Save your OpenRouter key in encrypted, write-only profile storage. Check key with OpenRouter reads actual key spending; inference credentials still need native agent configuration.
-6. Install and sign into Codex and Claude Code using eligible subscriptions on the Pi, For included membership usage, use native subscription sign-in; API/OpenRouter billing is separate. Desktop app login alone does not establish CLI readiness. Confirm the host sign-in yourself; RCD does not collect tokens or verify entitlement.
+6. Install and sign into Codex and Claude Code using eligible subscriptions on the Pi. For included membership usage, use native subscription sign-in; API/OpenRouter billing is separate. Desktop app login alone does not establish CLI readiness. Confirm the host sign-in yourself; RCD does not collect tokens or verify entitlement.
 7. Try header Help chat and browse the main menu. Finish walkthrough saves your reviewed progress; pending items stay listed. Reopen and refresh checks after changes.
 
 Setup progress belongs to your profile. Finishing the walkthrough does not complete project tasks, install software, change model routes, authorize paid usage or enable remote access.
@@ -139,16 +139,17 @@ Check updates and peer connectivity without changing the machine.
 
 [Open available updates](http://127.0.0.1:8800/pi#upd-title) · [Open Tailscale peers](http://127.0.0.1:8800/pi#ts-title) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=updates)
 
-## Review and install a staged dashboard update
+## Check, install or roll back a dashboard update
 
-Check staged releases of this dashboard and install or roll one back, with operator sign-in.
+Look for a newer release on GitHub, read what changed, then update or roll back with operator sign-in.
 
 1. Sign in as the operator. Only the operator can see or change dashboard updates; other sessions get a sign-in message.
-2. Open Updates in Settings. The panel reads only this host: it makes no network or provider call and lists each staged version with its channel and authenticity status.
-3. Only complete stable or prerelease packages get an install button. Development builds and partly staged packages say why they cannot be installed.
-4. Confirm the version in the dialog. The helper stops the service, saves a data snapshot, switches versions and runs a health check; a failed check rolls the version back. Progress is shown until the update finishes or the page reconnects.
+2. Open Updates in Settings and press Check for updates. This reads the public GitHub release list and nothing else: it downloads nothing and changes nothing. The release notes appear as plain text.
+3. Press Update to the new version and confirm once. With signature trust set up, or on a source checkout, that one button does the rest. Otherwise paste the manifest SHA-256 from the release page: the package is downloaded, verified against that digest and staged, and you confirm the install after reading what changed.
+4. The helper stops the service, saves a data snapshot, switches versions and runs a health check; a failed check rolls the version back by itself. Progress is shown step by step until the update finishes or the page reconnects.
+5. An installed package can be rolled back to the previous version from the same panel. It returns the code only; data written meanwhile stays.
 
-Install and rollback stay disabled while an update is in progress or a blocker is listed. If managed updates are not set up, the panel shows the manual steps instead.
+Every step stays disabled while an update is in progress or a blocker is listed. If managed updates are not set up, the panel shows the manual steps instead.
 
 [Open dashboard updates](http://127.0.0.1:8800/profile#updates) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=app-updates)
 
@@ -214,7 +215,7 @@ Task details show run history, output, exit status and captured usage.
 
 1. Open the task, then inspect the last run and its output/history.
 2. Read Stage and Error before Exit code. OpenClaw can exit with code 0 while its agent result reports a provider timeout. Timed out means the agent did not finish; it does not authorize a model switch.
-3. Review partial output and changed files against the task’s definition of done. Correct the task or timeout setting when necessary, review any new approval requirement, then use Run again. Cancel run is available for an active run. Failed, timed-out or interrupted runs can generate alerts; cancellation does not.
+3. Review partial output and changed files against the task’s definition of done. Correct the task or timeout setting when necessary, then use Rerun task or an approved alternative on the failed task screen. After a subscription limit, Go Free! lets you select a configured OpenClaw target and OpenRouter :free model for that story only; it excludes paid-model and Google BYOK fallback. Cancel run is available for an active run. Failed, timed-out or interrupted runs can generate alerts; cancellation does not.
 
 [Open task run history](http://127.0.0.1:8800/tasks) · [Open alert history](http://127.0.0.1:8800/#alerts-title) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=runs)
 
@@ -467,8 +468,8 @@ The edit screen for an existing fal key shows the model list read-only; that is 
 Accept anyway records the agent’s report and your reason, keeps the run failed in history and releases what waits on it.
 
 1. When an agent finishes but its report says work is unfinished or a check could not run, the story fails and blocks what depends on it. Read its report first.
-2. If you are content with the result (for example the missing items are made by a later human step, or a check needs a browser the agent does not have), choose Accept anyway… on the story, in Projects under Stories & runs.
-3. Type a reason of at least ten characters. MCD records the agent’s own report and your reason as the handoff, keeps the run as failed in the history and releases the stories that depend on it.
+2. If you are content with the result (for example the missing items are made by a later human step, or a check needs a browser the agent does not have), choose Accept anyway… on the story, in Projects under Stories & runs or in the board’s task panel beside Rerun.
+3. Type a reason of at least ten characters. RCD records the agent’s own report and your reason as the handoff, keeps the run as failed in the history and releases the stories that depend on it.
 4. A crash or timeout leaves no report to accept: use Retry same story instead. A human story is decided, not accepted this way.
 
 Nobody should later read an accepted story as a clean pass: the handoff begins with the operator’s acceptance and keeps the agent’s list of gaps.
@@ -523,7 +524,7 @@ Roll back switches to the version kept on this host. Remove deletes the program 
 
 Install (All) and Upgrade (All) for Docker, ffmpeg, Python and gh, with a log and a health check. Homebrew on a Mac; a command to copy on Linux.
 
-1. Open Settings, then Updates & installs, then Optional system tools. Each tool shows its version; Check for updates asks Homebrew which are outdated.
+1. Open Settings, then Updates & installs, then Optional system tools. Each tool shows its installed version; Check for updates asks Homebrew which are outdated and shows the newer version beside those. Managed Agent tools use their verified catalog version.
 2. On a Mac, Homebrew comes first. If it is missing the card shows the one command to run yourself in Terminal (it asks for your password; the dashboard never runs it). Press Check again afterwards.
 3. Install (All) runs one brew install for everything missing. Upgrade (All) runs brew update and then upgrades only these tools. The log shows every command.
 4. Docker needs its engine: Colima provides it on a Mac. If the health check says the engine is stopped, press Start Colima.
