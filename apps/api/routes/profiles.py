@@ -116,13 +116,17 @@ def start_coordinator_bootstrap(request:Request,s:Session=Depends(get_session)):
     model_policy='reuse each platform’s configured default; ask before any model change' if choice.model_policy=='ask_before_change' else 'reuse each platform’s configured default; do not change models without operator approval'
     prefix=settings.product_short_name.lower()
     brief=(f"Prepare this {settings.product_short_name} installation to receive and run projects using its installed agent platforms. "
-        "First inspect platform readiness and the existing agent configurations. Keep Hermes as the sole Coordinator for this setup. "
+        "Hermes is the sole Coordinator. First inspect platform readiness and existing agent configurations. "
         f"Consider only these operator-selected platforms: {platforms}. Configure these starter roles where supported: {roles}. "
-        f"For OpenClaw, create missing agents named {prefix}-oc-developer and {prefix}-oc-security when those roles are selected, and {prefix}-oc-reviewer only if reviewer is selected. Give each a focused SOUL.md and a concise starting prompt that explains its specialty and how it reports findings to Hermes. "
+        f"For OpenClaw, create missing agents named {prefix}-oc-developer and {prefix}-oc-security when those roles are selected, and {prefix}-oc-reviewer only if reviewer is selected. Give each created agent a focused SOUL.md and concise starting prompt describing its specialty, task boundaries, and reporting handoff to Hermes. "
         f"Shared project memory: {memory}. Project workspaces: {workspaces}. Model policy: {model_policy}. "
-        f"Security review policy: {choice.security_review}. Create missing role agents/configuration where safe, but preserve every existing user configuration and agent; never overwrite or delete existing files/agents. "
-        "Do not request or expose credentials, change billing, or execute actions that need operator approval. Identify unavailable platforms and model/sign-in prerequisites as human tasks with direct in-app links. "
-        "Use the normal project plan and approval workflow. Return a concise readiness summary, proposed changes, human actions, and a small validation plan. Do not claim setup is complete until each change is verified.")
+        f"Security review policy: {choice.security_review}. Preserve existing configuration and agents; create only missing role agents and guidance. Never overwrite or delete existing files or agents. "
+        "Keep sign-in, credentials, billing, and permission changes as human-only manual tasks with direct in-app links. Do not request or expose credentials, change billing or permissions, or perform actions requiring operator approval. "
+        "Create a reviewable project plan only. No agent work or setup changes may start until the operator reviews and approves the plan. "
+        "Plan in small, sequential, reviewable stories. Every story must have concrete instructions, a non-empty bounded scope, and verifiable acceptance criteria. State the exact platform or resource in scope, allowed actions, excluded actions, and what evidence completes the story. Do not use broad stories such as 'configure agents' without specific boundaries and completion checks. "
+        "Include one read-only readiness story for each selected platform. Limit it to checking executable presence, reported version, whether it can run, and sign-in or model prerequisites; do not install software or change configuration. Mark any unavailable or unverified result clearly. "
+        "Make configuration stories depend on the relevant readiness findings. Limit them to creating selected missing role agents/guidance and enabling the requested shared project memory/workspaces after plan approval. If a requested item already exists or would require overwriting user configuration, leave it unchanged and report it for operator review. "
+        "Return a concise readiness summary, proposed changes, linked human actions, and a small validation plan. Verify each approved change before claiming setup is complete.")
     from project_schemas import Document
     from sqlalchemy import text
     from native_routes import read as read_native

@@ -747,6 +747,45 @@ def free_planner_routes(s, settings):
     return routes
 
 
+def _next_planning_route(s, settings, p, pipeline, step):
+    """Next route already approved for this planning stage, including a completed-but-invalid result."""
+    role = {'coordinate': 'coordinate', 'plan': 'plan', 'return': 'return plan'}[step]
+    attempted = {(run.agent, run.model_requested or '') for run in s.scalars(
+        select(Run).join(ProjectTask, ProjectTask.card_id == Run.card_id).where(
+            ProjectTask.project_id == p.id, ProjectTask.role == role, ProjectTask.revision == p.revision))}
+    free_routes = free_planner_routes(s, settings)
+    if step == 'plan':
+        candidates = list(pipeline.get('choices', ())) + list(pipeline.get('recovery_routes', ())) + free_routes
+    else:
+        delegate = pipeline.get('delegator', {})
+        candidates = ([delegate] if delegate.get('agent') and delegate.get('model') else [])
+        candidates.extend(pipeline.get('recovery_routes', ()))
+        candidates.extend(free_routes)
+    candidates = [route for route in candidates if isinstance(route, dict) and route.get('agent') and route.get('model')
+        and (not settings.dispatch_free_only or reviewed_free_planner(s, settings, route))]
+    unique = {}
+    for route in candidates:
+        unique.setdefault((route['agent'], route['model']), route)
+    return next((route for route in unique.values() if (route['agent'], route['model']) not in attempted), None)
+
+
+def _retry_unusable_planning_result(s, p, pipeline, step, run, card, settings):
+    """A successful process can still return unusable plan data. Retry only another approved route; never dispatch stories here."""
+    if step not in {'coordinate', 'plan', 'return'}:
+        return False
+    route = _next_planning_route(s, settings, p, pipeline, step)
+    if not route:
+        return False
+    role = {'coordinate': 'coordinate', 'plan': 'plan', 'return': 'return plan'}[step]
+    replacement = _queue(s, p, role, route['agent'], route['model'], card.body or '', settings)
+    route_updates = {'delegator': route} if step == 'coordinate' else {'chosen': route} if step == 'plan' else {}
+    p.pipeline = json.dumps({**pipeline, 'card_id': replacement.id, **route_updates})
+    p.state = 'planning'
+    p.error = None
+    memory(s, p, 'checkpoint', f'Planning {role} returned successfully but its output did not pass project schema validation. Retrying the same read-only planning step on the next already-approved route; no project stories have started. Run #{run.id} was retained for review.', run.agent, card.id, run.id)
+    return True
+
+
 def plan(s,p,action,settings,actor,subagents=None):
     check_revision(p,action.revision)
     if p.state=='planning': return
@@ -822,7 +861,16 @@ def recoverable(s, p):
     if pipeline.get('step') not in {'plan','return'} or pipeline.get('revision') != p.revision: return False
     link = s.get(ProjectTask, pipeline['card_id'])
     run = s.scalar(select(Run).where(Run.card_id == pipeline['card_id']).order_by(Run.id.desc()).limit(1))
-    return bool(link and link.project_id == p.id and link.revision == p.revision and run and run.stage == 'succeeded')
+    if not (link and link.project_id == p.id and link.revision == p.revision and run and run.stage == 'succeeded'):
+        return False
+    try:
+        data = _json_result(run.result_text)
+        if not isinstance(data, dict) or set(data) != {'nodes'}:
+            return False
+        proposal(document(p), data['nodes'], get_settings())
+        return True
+    except (HTTPException, ValidationError, ValueError, TypeError, AttributeError):
+        return False
 
 def resume_plan(s, p, revision, settings, actor):
     check_revision(p, revision)
@@ -1069,7 +1117,12 @@ def advance(s,settings):
                 elif step=='dispatch': _materialize(s,p,data.get('order'),settings)
                 else: fail('Unknown project pipeline stage.',422)
         except (HTTPException,ValidationError,ValueError,TypeError,AttributeError) as exc:
-            # Never log model output or restart models automatically after malformed output.
+            # Keep model output private. A malformed planning result may retry only another route
+            # already approved for this planning step; story dispatch still requires plan approval.
+            step = pipeline.get('step')
+            if _retry_unusable_planning_result(s, p, pipeline, step, r, c, settings):
+                p.updated_at = now()
+                continue
             p.state='dispatch_failed' if pipeline['step']=='dispatch' else 'planning_failed'
             p.error=str(exc.detail) if isinstance(exc,HTTPException) else 'Agent response failed the project schema. Review the task output.'
         p.updated_at=now()
