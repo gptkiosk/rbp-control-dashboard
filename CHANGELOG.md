@@ -10,6 +10,8 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.6.40] - 2026-10-20
+
 ### Changed
 
 - **Coordinator setup is done by the dashboard, not by a Hermes project.**
@@ -729,7 +731,7 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 - Claude Code stories may use web search and fetch without any shell, credential or publish permission.
 
 [0.3.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.0
-[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.39...HEAD
+[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.40...HEAD
 [0.6.29]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.29
 [0.6.28]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.28
 [0.6.27]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.27
@@ -800,3 +802,4 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 
 [0.6.38]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.37...v0.6.38
 [0.6.39]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.38...v0.6.39
+[0.6.40]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.39...v0.6.40
