@@ -10,6 +10,12 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.6.36] - 2026-10-20
+
+### Fixed
+
+- **Failed project-planning tasks can be retried directly.** Retry the current failed planning step on its existing or another already-approved route without restarting completed planning steps. Project-owned tasks no longer show a generic board Run action that cannot retry their approved scope.
+
 ## [0.6.35] - 2026-10-19
 
 ### Fixed
@@ -747,3 +753,4 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 [0.6.33]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.33
 [0.6.34]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.34
 [0.6.35]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.35
+[0.6.36]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.36

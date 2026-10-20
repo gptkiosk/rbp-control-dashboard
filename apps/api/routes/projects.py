@@ -91,6 +91,11 @@ def resume_plan(project_id:int,body:Action,request:Request,s:Session=Depends(get
     identity=actor(request);write(s);p=projects.get(s,project_id)
     projects.resume_plan(s,p,body.revision,get_settings(),identity);s.commit();return projects.detail(s,p)
 
+@router.post('/{project_id}/planning-tasks/{card_id}/retry')
+def retry_planning_task(project_id:int,card_id:int,body:Retry,request:Request,s:Session=Depends(get_session)):
+    identity=actor(request);write(s);p=projects.get(s,project_id)
+    projects.retry_planning_task(s,p,card_id,body,get_settings(),identity);s.commit();return projects.detail(s,p)
+
 @router.post('/{project_id}/memory',status_code=201)
 def note(project_id:int,body:Note,request:Request,s:Session=Depends(get_session)):
     identity=actor(request);write(s);p=projects.get(s,project_id)

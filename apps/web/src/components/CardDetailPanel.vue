@@ -5,6 +5,7 @@ import { computed, reactive, ref } from 'vue'
 import TaskFields, { type TaskFieldValues } from '@/components/TaskFields.vue'
 import TagPill from '@/components/TagPill.vue'
 import TaskApprovalAction from '@/components/TaskApprovalAction.vue'
+import ProjectPlanningRetryAction from '@/components/ProjectPlanningRetryAction.vue'
 import MediaCallout from '@/components/MediaCallout.vue'
 import { useProjectMedia } from '@/composables/useProjectMedia'
 import AppIcon from '@/components/AppIcon.vue'
@@ -394,6 +395,7 @@ async function save(): Promise<void> {
 
         <MediaCallout v-if="card.project" :media="projectMedia" :link="mediaLink" />
         <TaskApprovalAction v-if="card.project" :card="card" hide-media-link @changed="afterChange" />
+        <ProjectPlanningRetryAction v-if="card.project" :card="card" @changed="afterChange" />
         <div
           v-if="message"
           class="message"
@@ -547,7 +549,7 @@ async function save(): Promise<void> {
 
         <section class="block" aria-labelledby="dependencies-h">
           <h3 id="dependencies-h" class="sub-title has-icon"><AppIcon name="link" />Dependencies</h3>
-          <p v-if="card.project" class="notice-warn">This task uses a reviewed project plan. <RouterLink :to="`/projects?project=${card.project.id}&view=work`">Open Projects</RouterLink> to inspect artifacts or retry its approved scope.</p>
+          <p v-if="card.project" class="notice-warn">This task is managed by its reviewed project plan. <RouterLink :to="`/projects?project=${card.project.id}&view=work`">Open Projects</RouterLink> to retry this task or review its approved scope.</p>
           <p v-if="isBlocked(card)" class="warning-text" data-testid="dependency-notice">
             Blocked by {{ idList(card.blocked_by) }}.
             {{
@@ -618,7 +620,7 @@ async function save(): Promise<void> {
         <section class="block" aria-label="Actions">
           <div class="actions wrap">
             <button
-              v-if="!human"
+              v-if="!human && !card.project"
               type="button"
               class="btn primary"
               :disabled="busy || locked || card.column === 'queued'"
