@@ -10,6 +10,18 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.6.41] - 2026-10-20
+
+### Changed
+
+- **Fixed: Coordinator setup kept offering to create OpenClaw agents that already existed.** It read only OpenClaw's config file, which on some installs does not list agents that `openclaw agents list` reports. That kept Start validation project locked. Setup now asks OpenClaw itself, the same source as the Agents page, and an agent that already exists counts as done rather than as a failure.
+- **Coordinator setup shows its work.** Apply setup now runs on the host in the background, while the panel shows an "Applying setup" card:
+  - a progress bar and "N of M done";
+  - each item as waiting, working, done or failed;
+  - the setup log, with every file written and each `openclaw agents add` command and its output.
+
+  It cannot run twice: the button and the other setup actions are disabled while it works, the server refuses a second apply, and a reloaded page picks the running job up again. The log is kept with the last setup record. The panel also says that setup itself creates no tasks; the validation project does.
+
 ## [0.6.40] - 2026-10-20
 
 ### Changed
@@ -731,7 +743,7 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 - Claude Code stories may use web search and fetch without any shell, credential or publish permission.
 
 [0.3.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.0
-[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.40...HEAD
+[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.41...HEAD
 [0.6.29]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.29
 [0.6.28]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.28
 [0.6.27]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.27
@@ -803,3 +815,4 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 [0.6.38]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.37...v0.6.38
 [0.6.39]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.38...v0.6.39
 [0.6.40]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.39...v0.6.40
+[0.6.41]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.40...v0.6.41

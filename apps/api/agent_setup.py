@@ -22,6 +22,8 @@ TEMPLATES = REPO_ROOT / 'packs/agents'
 AGENT_TOOLS = '/profile#agent-tools'
 BILLING = '/agents?action=billing'
 _LOCK = threading.Lock()
+_JOB = None      # the running or last apply: items with their state, and a log the page shows while it works
+_THREAD = None
 
 
 class SetupError(Exception):
@@ -35,11 +37,11 @@ def _env():
     return LegacyAgentAdapter.env()
 
 
-def run(argv, timeout=30):
-    """(exit code, first 300 characters of output). Never raises; 127 means it could not start."""
+def run(argv, timeout=30, limit=2000):
+    """(exit code, the first `limit` characters of output). Never raises; 127 means it could not start."""
     try:
         done = subprocess.run(argv, stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=timeout, env=_env())
-        return done.returncode, ((done.stdout or '') + (done.stderr or '')).strip()[:300]
+        return done.returncode, ((done.stdout or '') + (done.stderr or '')).strip()[:limit]
     except subprocess.TimeoutExpired:
         return 124, f'no answer within {timeout} seconds'
     except (OSError, subprocess.SubprocessError, UnicodeError):
@@ -62,6 +64,16 @@ def base_dir(settings, pref):
 
 
 def _openclaw_agents(settings):
+    """Registered OpenClaw agents as OpenClaw itself reports them (the list the Agents page shows). The config file is only a
+    fallback: the CLI can keep agents somewhere the file does not show, and a file-only check then offers to create them again."""
+    from agents import REGISTRY
+    from subagents import parse_openclaw_agents
+    code, out = run([REGISTRY['openclaw'].binary(settings), 'agents', 'list', '--json'], timeout=60, limit=1_000_000)
+    if code == 0 and '[' in out:
+        try:
+            return {a['id']: a for a in parse_openclaw_agents(out[out.index('['):]) if isinstance(a.get('id'), str)}
+        except (ValueError, TypeError, AttributeError):
+            pass
     import native_routes
     return {t['id']: t for t in native_routes.read(settings).get('openclaw', {}).get('targets', [])}
 
@@ -128,7 +140,30 @@ def plan(settings, s, pref):
     digest = hashlib.sha256(json.dumps(state, sort_keys=True).encode()).hexdigest()[:16]
     pending = [c for c in changes if c['action'] == 'create']
     return {'mode': choice.mode, 'checks': checks, 'changes': changes, 'problems': problems, 'base': str(base) if base else None,
-            'agents': sorted(registered), 'digest': digest, 'verified': bool(ready) and not pending and not problems, 'last': last(settings)}
+            'agents': sorted(registered), 'digest': digest, 'verified': bool(ready) and not pending and not problems and not running(),
+            'last': last(settings), 'job': job()}
+
+
+def job():
+    """A copy of the running or last apply, or None before the first one in this process."""
+    if _JOB is None:
+        return None
+    return {**_JOB, 'items': [dict(i) for i in _JOB['items']], 'log': list(_JOB['log'])}
+
+
+def running():
+    return _JOB is not None and _JOB['state'] == 'running'
+
+
+def wait(timeout=60):
+    """Block until the current apply finishes (tests, and callers that need the result)."""
+    if _THREAD is not None:
+        _THREAD.join(timeout)
+
+
+def _log(line):
+    _JOB['log'].append(line[:500])
+    del _JOB['log'][:-400]
 
 
 def _record_path(settings):
@@ -160,22 +195,65 @@ def _write_new(path, text):
 def _apply_one(settings, change):
     path = Path(change['path'])
     if change['kind'] == 'folder':
+        _log(f'Creating folder {path}')
         path.mkdir(parents=True, exist_ok=True)
         return 'Created.'
     if change['kind'] == 'file':
+        _log(f'Writing {path}')
         _write_new(path, f'# Shared project memory\n\nNotes that every {settings.product_short_name} project may read. Hermes adds accepted handoffs here; agents read them, and write only when a story says so.\n')
         return 'Created.'
-    kept = [n for n, src in (('SOUL.md', f'{change["role"]}/SOUL.md'), ('AGENTS.md', 'AGENTS.md')) if not _write_new(path / n, _template(settings, src))]
+    kept = []
+    for name, src in (('SOUL.md', f'{change["role"]}/SOUL.md'), ('AGENTS.md', 'AGENTS.md')):
+        if _write_new(path / name, _template(settings, src)):
+            _log(f'Wrote {path / name}')
+        else:
+            kept.append(name); _log(f'Kept existing {path / name}')
     from agents import REGISTRY
-    code, out = run([REGISTRY['openclaw'].binary(settings), 'agents', 'add', change['id'], '--workspace', str(path), '--non-interactive', '--json'], timeout=60)
+    argv = [REGISTRY['openclaw'].binary(settings), 'agents', 'add', change['id'], '--workspace', str(path), '--non-interactive', '--json']
+    _log('$ openclaw ' + ' '.join(argv[1:]))
+    code, out = run(argv, timeout=60)
+    for line in out.splitlines()[:40]:
+        _log('  ' + line)
+    if code != 0 and re.search(r'already exists|already registered', out, re.I):
+        return 'Already registered with OpenClaw; left unchanged.'
     if code != 0:
         said = out.splitlines()[0] if out else f'exit {code}'
         raise SetupError(f'openclaw agents add failed: {said}')
     return 'Registered.' + (f' Kept existing {", ".join(kept)}.' if kept else '')
 
 
+def _work(settings, todo):
+    """The apply itself, on a worker thread so the page can show each item and the log while it runs."""
+    global _JOB
+    try:
+        results = []
+        for item, change in zip(_JOB['items'], todo):
+            item['state'] = 'running'
+            try:
+                item['detail'] = _apply_one(settings, change); item['state'] = 'done'
+            except (SetupError, OSError) as exc:
+                item['detail'] = str(exc)[:300]; item['state'] = 'failed'; _log(f'Failed: {item["detail"]}')
+            results.append({'id': item['id'], 'outcome': 'done' if item['state'] == 'done' else 'failed', 'detail': item['detail']})
+        failed = sum(r['outcome'] == 'failed' for r in results)
+        _log(f'Finished: {len(results) - failed} done, {failed} failed.')
+        try:
+            path = _record_path(settings)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(json.dumps({'at': int(time.time()), 'results': results, 'log': _JOB['log'][-200:]}))
+        except OSError as exc:
+            _log(f'Could not save the setup record: {exc}')
+        _JOB['state'] = 'failed' if failed else 'done'
+    except Exception as exc:  # never leave the page waiting on a job that died
+        _JOB['state'] = 'failed'; _log(f'Stopped: {exc}')
+    finally:
+        _JOB['finished'] = int(time.time())
+        _LOCK.release()
+
+
 def apply(settings, s, pref, digest):
-    """Make the previewed changes. Refused when the preview is stale, in configure-myself mode, or while another apply runs."""
+    """Start making the previewed changes on a worker thread and return at once; `job` in the setup view shows each item and the log.
+    Refused when the preview is stale, in configure-myself mode, or while another apply runs."""
+    global _JOB, _THREAD
     if pref.coordinator_bootstrap.mode != 'stable':
         raise SetupError('Configure-myself mode makes no changes. Switch to Stable start to let the dashboard set things up.')
     if not _LOCK.acquire(blocking=False):
@@ -184,19 +262,17 @@ def apply(settings, s, pref, digest):
         current = plan(settings, s, pref)
         if current['digest'] != digest:
             raise SetupError('Something changed since the preview. Review the changes again.')
-        results = []
-        for change in (c for c in current['changes'] if c['action'] == 'create'):
-            try:
-                results.append({'id': change['id'], 'outcome': 'done', 'detail': _apply_one(settings, change)})
-            except (SetupError, OSError) as exc:
-                results.append({'id': change['id'], 'outcome': 'failed', 'detail': str(exc)[:300]})
-        record = {'at': int(time.time()), 'results': results}
-        path = _record_path(settings)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(record))
-        return plan(settings, s, pref)
-    finally:
+        todo = [c for c in current['changes'] if c['action'] == 'create']
+        if not todo:
+            raise SetupError('Nothing to create. Check again.')
+        _JOB = {'state': 'running', 'started': int(time.time()), 'finished': None, 'log': [],
+                'items': [{'id': c['id'], 'label': c['detail'], 'state': 'pending', 'detail': ''} for c in todo]}
+        _THREAD = threading.Thread(target=_work, args=(settings, todo), name='agent-setup', daemon=True)
+        _THREAD.start()
+    except BaseException:
         _LOCK.release()
+        raise
+    return plan(settings, s, pref)
 
 
 def validation_nodes(settings, result):

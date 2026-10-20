@@ -12,14 +12,17 @@ const setup = (over: Record<string, unknown> = {}) => ({
   ...over,
 })
 
-it('shows each platform with its fix, previews the changes and applies them only after confirmation', async () => {
-  const f = stubFetch((url, init) => {
-    if (url === '/api/profile/coordinator-bootstrap/setup/apply') return { body: setup({ verified: true, changes: [], last: { at: 1, results: [{ id: 'rcd-oc-developer', outcome: 'done', detail: 'Registered.' }] } }) }
-    if (url === '/api/profile/coordinator-bootstrap/setup') return { body: setup() }
+it('shows each platform with its fix, applies only after confirmation, and shows progress and the log while it runs', async () => {
+  vi.useFakeTimers()
+  const running = { state: 'running', started: 1, finished: null, log: ['Wrote /w/agents/rcd-oc-developer/SOUL.md', '$ openclaw agents add rcd-oc-developer'], items: [{ id: 'rcd-oc-developer', label: 'Register it.', state: 'running', detail: '' }] }
+  const done = { ...running, state: 'done', finished: 2, items: [{ id: 'rcd-oc-developer', label: 'Register it.', state: 'done', detail: 'Registered.' }] }
+  let reads = 0
+  const f = stubFetch(url => {
+    if (url === '/api/profile/coordinator-bootstrap/setup/apply') return { body: setup({ job: running }) }
+    if (url === '/api/profile/coordinator-bootstrap/setup') return { body: reads++ === 0 ? setup() : setup({ verified: true, changes: [], job: done }) }
     return undefined
   })
-  const persist = vi.fn(async () => {})
-  const w = mount(CoordinatorSetupPanel, { props: { hermesReady: true, persist }, ...stubs }); await flushPromises()
+  const w = mount(CoordinatorSetupPanel, { props: { hermesReady: true, persist: async () => {} }, ...stubs }); await flushPromises()
   expect(w.get('[data-platform="grok"] [data-test="word"]').text()).toBe('not installed')
   expect(w.get('[data-platform="grok"] a').attributes('href')).toBe('/profile#agent-tools')
   expect(w.get('[data-test="changes"]').text()).toContain('will create')
@@ -27,12 +30,21 @@ it('shows each platform with its fix, previews the changes and applies them only
   expect(w.get('[data-action="apply"]').attributes('disabled')).toBeDefined()
   await w.get('input[type="checkbox"]').setValue(true)
   await w.get('[data-action="apply"]').trigger('click'); await flushPromises()
-  const sent = calls(f, 'POST', '/api/profile/coordinator-bootstrap/setup/apply')[0]!
-  expect(JSON.parse(String(sent[1]?.body))).toEqual({ digest: 'abcdef0123456789' })
-  expect(w.text()).toContain('Setup applied and verified.')
+  expect(JSON.parse(String(calls(f, 'POST', '/api/profile/coordinator-bootstrap/setup/apply')[0]![1]?.body))).toEqual({ digest: 'abcdef0123456789' })
+  // While it runs: a progress bar, the item and the log, and no way to start it again.
+  expect(w.get('[data-test="job"]').text()).toContain('0 of 1 done')
+  expect(w.find('[data-test="job"] [role="progressbar"]').exists()).toBe(true)
+  expect(w.get('[data-test="job"]').text()).toContain('$ openclaw agents add rcd-oc-developer')
+  expect(w.get('[data-action="apply"]').text()).toBe('Applying…')
+  expect(w.get('[data-action="apply"]').attributes('disabled')).toBeDefined()
+  expect(w.find('input[type="checkbox"]').exists()).toBe(false)
+  await vi.advanceTimersByTimeAsync(1500); await flushPromises()
+  expect(w.get('[data-test="job"]').text()).toContain('1 of 1 done')
+  expect(w.find('[data-test="job"] [role="progressbar"]').exists()).toBe(false)
+  expect(w.text()).toContain('Setup applied. Start the validation project')
   expect(w.find('[data-action="apply"]').exists()).toBe(false)
   expect(w.get('[data-action="start"]').attributes('disabled')).toBeUndefined()
-  w.unmount()
+  w.unmount(); vi.useRealTimers()
 })
 
 it('lists failed changes, and in configure-myself mode changes nothing and says so', async () => {
