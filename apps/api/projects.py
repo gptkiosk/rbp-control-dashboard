@@ -644,6 +644,19 @@ def _queue(s, p, role, agent, model, prompt, settings, node_key=''):
     s.add(ProjectTask(card_id=c.id, project_id=p.id, revision=p.revision, node_key=node_key, role=role))
     return c
 
+def _requeue_planning_card(card, agent, model):
+    """Run another approved attempt on the same planning task, keeping its run history together."""
+    card.agent = agent
+    card.model = model or None
+    card.agent_target = None
+    card.route_tier = job_envelope.tier_for('agent', agent, card.model)
+    card.column = 'queued'
+    card.approved_at = now()
+    card.retry_attempts = 0
+    card.retry_after = None
+    card.updated_at = now()
+    return card
+
 def _brief(p, include_nodes=False):
     d=document(p)
     payload={k:d[k] for k in (('title','brief','constraints','nodes') if include_nodes else ('title','brief','constraints'))}
@@ -804,12 +817,12 @@ def _retry_unusable_planning_result(s, p, pipeline, step, run, card, settings):
     if not route:
         return False
     role = {'coordinate': 'coordinate', 'plan': 'plan', 'return': 'return plan'}[step]
-    replacement = _queue(s, p, role, route['agent'], route['model'], card.body or '', settings)
+    _requeue_planning_card(card, route['agent'], route['model'])
     route_updates = {'delegator': route} if step == 'coordinate' else {'chosen': route} if step == 'plan' else {}
-    p.pipeline = json.dumps({**pipeline, 'card_id': replacement.id, **route_updates})
+    p.pipeline = json.dumps({**pipeline, 'card_id': card.id, **route_updates})
     p.state = 'planning'
     p.error = None
-    memory(s, p, 'checkpoint', f'Planning {role} returned successfully but its output did not pass project schema validation. Retrying the same read-only planning step on the next already-approved route; no project stories have started. Run #{run.id} was retained for review.', run.agent, card.id, run.id)
+    memory(s, p, 'checkpoint', f'Planning {role} returned successfully but its output did not pass project schema validation. Retrying the same task on the next already-approved route; no project stories have started. Run #{run.id} remains in this task history.', run.agent, card.id, run.id)
     return True
 
 
@@ -918,12 +931,12 @@ def retry_planning_task(s, p, card_id, body, settings, actor):
     chosen = body.route.model_dump() if body.route else {'agent': card.agent, 'model': card.model or ''}
     if chosen not in routes:
         fail('Choose the same route or another route already approved for this planning step.', 422)
-    replacement = _queue(s, p, role, chosen['agent'], chosen['model'], card.body or '', settings)
+    _requeue_planning_card(card, chosen['agent'], chosen['model'])
     updates = {'delegator': chosen} if step == 'coordinate' else {'chosen': chosen} if step == 'plan' else {'delegator': chosen}
-    p.pipeline = json.dumps({**pipeline, 'card_id': replacement.id, **updates})
+    p.pipeline = json.dumps({**pipeline, 'card_id': card.id, **updates})
     p.state = 'planning'
     p.error = None
-    memory(s, p, 'decision', f'Operator retried only the {role} task #{card_id} as new task #{replacement.id} on {chosen["agent"]} · {chosen["model"]}. Earlier steps, project brief, and scope are unchanged; prior run history is retained.', actor, card_id, latest.id)
+    memory(s, p, 'decision', f'Operator retried the same {role} task #{card_id} on {chosen["agent"]} · {chosen["model"]}. Earlier steps, project brief, and scope are unchanged; prior run history remains on this task.', actor, card_id, latest.id)
 
 def resume_plan(s, p, revision, settings, actor):
     check_revision(p, revision)
@@ -1133,7 +1146,7 @@ def advance(s,settings):
                 memory(s,p,'checkpoint',f'Planning {step} route failed. Retrying the same read-only planning step on the next approved route; no implementation started.\n'
                     +(r.error or '')+'\n'+(r.result_text or ''),r.agent,c.id,r.id)
                 role_title={'coordinate':'coordinate','plan':'plan','return':'return plan'}[step]
-                c=_queue(s,p,role_title,alternative['agent'],alternative['model'],c.body or '',settings)
+                _requeue_planning_card(c,alternative['agent'],alternative['model'])
                 route_updates={'delegator':alternative} if step=='coordinate' else {'chosen':alternative} if step=='plan' else {}
                 p.pipeline=json.dumps({**pipeline,'card_id':c.id,**route_updates});continue
         if not c or not r or r.stage!='succeeded':

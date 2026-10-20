@@ -10,6 +10,12 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.6.37] - 2026-10-20
+
+### Fixed
+
+- **Planning retries reuse their task card.** Manual retries and automatic approved-route fallbacks keep run history together instead of creating another failed planning card each time.
+
 ## [0.6.36] - 2026-10-20
 
 ### Fixed
