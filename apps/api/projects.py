@@ -533,6 +533,10 @@ def plan_schedule(p):
 
 def detail(s, p):
     bindings = []
+    pipeline = json.loads(p.pipeline) if p.pipeline else {}
+    planning_role = {'coordinate': 'coordinate', 'plan': 'plan', 'return': 'return plan'}.get(pipeline.get('step'))
+    retry_routes = planning_retry_routes(s, get_settings(), pipeline, pipeline.get('step')) if (
+        p.state == 'planning_failed' and planning_role and pipeline.get('revision') == p.revision) else []
     free_routes=free_retry_routes(get_settings()) if p.state=='active' else []
     cheap_routes=low_cost_routes(s,get_settings()) if p.state=='active' else []
     paid_routes=paid_retry_routes(get_settings()) if p.state=='active' else []
@@ -546,6 +550,8 @@ def detail(s, p):
             'mode':c.mode if c else None, 'incomplete_reason':project_outputs.incomplete_error(r) if r else None,
             'revision':link.revision, 'column':c.column if c else 'missing', 'title':c.title if c else '',
             'run_id':r.id if r else None, 'run_stage':r.stage if r else None,
+            'planning_retry_routes':retry_routes if link.card_id==pipeline.get('card_id') and link.role==planning_role
+                and link.revision==p.revision and c and c.column in {'failed','review'} and r and r.stage not in {'queued','running','awaiting_approval'} else [],
             'free_retry_routes':other_free_routes(free_routes,c) if link.role=='story' and can_go_free(c,r) else [],
             'paid_retry_routes':[x for x in paid_routes if not (c and c.agent=='openclaw' and x['model']==c.model and (c.agent_target or x['agent_target'])==x['agent_target'])] if link.role=='story' and c and c.assignee_type=='agent' and c.column=='failed' and r and r.stage in RETRYABLE_STAGES else [],
             'low_cost_routes':[x for x in cheap_routes if (x['agent'],x['model'])!=(c.agent,c.model or '') or c.mode=='read'] if link.role=='story' and c and c.assignee_type=='agent' and c.column=='failed' and r and r.stage in {'failed','timeout','interrupted'} else [],
@@ -769,6 +775,27 @@ def _next_planning_route(s, settings, p, pipeline, step):
     return next((route for route in unique.values() if (route['agent'], route['model']) not in attempted), None)
 
 
+def planning_retry_routes(s, settings, pipeline, step):
+    """Routes already authorized for this failed planning step, including its current route."""
+    if step == 'plan':
+        candidates = list(pipeline.get('choices', ())) + list(pipeline.get('recovery_routes', ())) + free_planner_routes(s, settings)
+    else:
+        delegate = pipeline.get('delegator', {})
+        candidates = ([delegate] if delegate.get('agent') and delegate.get('model') else [])
+        candidates.extend(pipeline.get('recovery_routes', ()))
+        candidates.extend(free_planner_routes(s, settings))
+    unique = {}
+    for route in candidates:
+        if not isinstance(route, dict) or not route.get('agent') or not route.get('model'):
+            continue
+        if route['agent'] not in REGISTRY or not REGISTRY[route['agent']].available(settings):
+            continue
+        if settings.dispatch_free_only and not reviewed_free_planner(s, settings, route):
+            continue
+        unique.setdefault((route['agent'], route['model']), {'agent': route['agent'], 'model': route['model']})
+    return list(unique.values())
+
+
 def _retry_unusable_planning_result(s, p, pipeline, step, run, card, settings):
     """A successful process can still return unusable plan data. Retry only another approved route; never dispatch stories here."""
     if step not in {'coordinate', 'plan', 'return'}:
@@ -871,6 +898,32 @@ def recoverable(s, p):
         return True
     except (HTTPException, ValidationError, ValueError, TypeError, AttributeError):
         return False
+
+
+def retry_planning_task(s, p, card_id, body, settings, actor):
+    """Retry only the failed current planning step, keeping the project brief and completed steps intact."""
+    check_revision(p, body.revision)
+    pipeline = json.loads(p.pipeline) if p.pipeline else {}
+    step = pipeline.get('step')
+    role = {'coordinate': 'coordinate', 'plan': 'plan', 'return': 'return plan'}.get(step)
+    link = binding(s, card_id)
+    card = s.get(Card, card_id)
+    latest = s.scalar(select(Run).where(Run.card_id == card_id).order_by(Run.id.desc()).limit(1))
+    if (p.state != 'planning_failed' or not role or pipeline.get('revision') != p.revision
+            or pipeline.get('card_id') != card_id or not link or link.project_id != p.id
+            or link.revision != p.revision or link.role != role or not card or card.column not in {'failed', 'review'}
+            or not latest or latest.stage in {'queued', 'running', 'awaiting_approval'}):
+        fail('Only the failed current planning task can be retried here. The project plan and its approved scope are unchanged.', 409)
+    routes = planning_retry_routes(s, settings, pipeline, step)
+    chosen = body.route.model_dump() if body.route else {'agent': card.agent, 'model': card.model or ''}
+    if chosen not in routes:
+        fail('Choose the same route or another route already approved for this planning step.', 422)
+    replacement = _queue(s, p, role, chosen['agent'], chosen['model'], card.body or '', settings)
+    updates = {'delegator': chosen} if step == 'coordinate' else {'chosen': chosen} if step == 'plan' else {'delegator': chosen}
+    p.pipeline = json.dumps({**pipeline, 'card_id': replacement.id, **updates})
+    p.state = 'planning'
+    p.error = None
+    memory(s, p, 'decision', f'Operator retried only the {role} task #{card_id} as new task #{replacement.id} on {chosen["agent"]} · {chosen["model"]}. Earlier steps, project brief, and scope are unchanged; prior run history is retained.', actor, card_id, latest.id)
 
 def resume_plan(s, p, revision, settings, actor):
     check_revision(p, revision)
