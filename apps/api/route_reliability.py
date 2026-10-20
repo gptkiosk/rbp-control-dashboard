@@ -40,7 +40,12 @@ def failure_kind(run, contract_failed=False):
     if run.stage == 'timeout':
         return 'timeout'
     value = (run.error or '')[:8000]
-    # Only the taxonomy/code or error text is examined; result text may be a project artifact.
+    # Some CLI adapters return only an exit code as the error and put the provider
+    # failure in their final text. Inspect that bounded text only for generic CLI
+    # errors, never for a successful artifact or a report marked incomplete.
+    generic_cli = bool(re.match(r'^(hermes|openclaw) exit code [1-9]',value,re.I))
+    if generic_cli:
+        value += '\n' + (getattr(run,'result_text',None) or '')[-4000:]
     if re.search(r'FREE_ONLY|PRICE_UNKNOWN|BUDGET_|ROUTE_UNPINNED|APPROVAL|permission|denied|sandbox', value, re.I):
         return 'policy'
     if re.search(r'authentication|unauthorized|invalid.api.key|sign.?in|log.?in|\b401\b|\b403\b', value, re.I):
@@ -49,6 +54,8 @@ def failure_kind(run, contract_failed=False):
         return 'rate_limit'
     if re.search(r'provider|overload|unavailable|temporar|connection|network|\b50[234]\b', value, re.I):
         return 'provider'
+    if generic_cli:
+        return 'runtime'
     return 'execution'
 
 
@@ -65,7 +72,7 @@ def stats(s, window_s=7 * 86400):
     result = []
     for (agent, model), outcomes in grouped.items():
         recent = outcomes[:5]
-        route_failures = sum(v in {'invalid_output', 'rate_limit', 'provider', 'timeout'} for v in recent)
+        route_failures = sum(v in {'invalid_output', 'rate_limit', 'provider', 'timeout', 'runtime'} for v in recent)
         persistent = len(recent) >= 3 and route_failures >= 3
         result.append({'agent': agent, 'model': model, 'attempts': len(outcomes),
             'failures': sum(v is not None for v in outcomes), 'recent_failures': route_failures,
@@ -151,7 +158,7 @@ def payload(s, settings, owner):
     for item in health:
         if item['persistent']:
             recommendations.append({'agent': item['agent'], 'model': item['model'],
-                'message': f"{item['recent_failures']} of its last {min(item['attempts'], 5)} attempts had provider, timeout or output failures. A different route may be needed.",
+                'message': f"{item['recent_failures']} of its last {min(item['attempts'], 5)} attempts had provider, runtime, timeout or output failures. A different route may be needed.",
                 'cost': 'A membership route uses your quota. A paid API route adds provider charges; free endpoints may still be unavailable.',
                 'link': '/profile#route-recovery'})
     return {'policy': saved.model_dump(), 'options': options(s, settings), 'health': health,

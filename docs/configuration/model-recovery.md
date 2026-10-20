@@ -16,7 +16,7 @@ When alternatives are included on future story maps, operator plan approval auth
 
 ## Local route telemetry
 
-The app samples at most 500 terminal local runs over seven days by runtime and requested model. Categories include provider, rate limit, timeout, invalid planning output, sign-in, policy and execution failures. Three provider, rate-limit, timeout or invalid-output failures among the last five attempts trigger a recommendation and move that fallback behind healthier alternatives. Advice includes possible cost and a direct link to the toggle; it never turns on a paid route. No prompts, raw provider errors, credentials or account identities are returned by this telemetry endpoint. Process success does not verify task correctness.
+The app samples at most 500 terminal local runs over seven days by runtime and requested model. Categories include provider, runtime, rate limit, timeout, invalid planning output, sign-in, policy and execution failures. Three provider, runtime, rate-limit, timeout or invalid-output failures among the last five attempts trigger a recommendation and move that fallback behind healthier alternatives. Advice includes possible cost and a direct link to the toggle; it never turns on a paid route. No prompts, raw provider errors, credentials or account identities are returned by this telemetry endpoint. Process success does not verify task correctness.
 
 ## Bootstrap sequence
 

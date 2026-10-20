@@ -228,3 +228,9 @@ def test_failed_dispatch_uses_only_the_approved_dependency_order(app):
 @pytest.mark.parametrize('error,kind',[('429 quota','rate_limit'),('provider unavailable','provider'),('FREE_ONLY: refused','policy'),('401 sign in','sign_in')])
 def test_failure_categories(error,kind):
     assert recovery.failure_kind(SimpleNamespace(stage='failed',error=error))==kind
+
+
+@pytest.mark.parametrize('result,kind',[('429 free endpoint limit','rate_limit'),('Provider unavailable','provider'),('Sign in required','sign_in'),('No diagnostic supplied','runtime')])
+def test_generic_hermes_exit_keeps_provider_diagnostics_useful_without_exposing_them(result,kind):
+    assert recovery.failure_kind(SimpleNamespace(stage='failed',error='hermes exit code 1',result_text=result))==kind
+    assert recovery.failure_kind(SimpleNamespace(stage='succeeded',error=None,result_text=result)) is None
