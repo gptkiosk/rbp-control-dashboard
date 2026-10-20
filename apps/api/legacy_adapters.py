@@ -208,6 +208,7 @@ class LegacyAgentAdapter:
         self._prepared[str(run_id)] = list(argv)
 
     async def start(self, spec):
+        stale_state = None
         try:
             fingerprint = spec_digest(spec)
             rid, key = spec["run_id"], spec["idempotency_key"]
@@ -218,19 +219,14 @@ class LegacyAgentAdapter:
                 raise ValueError("Wrong adapter or schema version")
             if spec["model_policy"].get("allow_runtime_fallback") is not False:
                 raise ValueError("Runtime fallback must be disabled")
-            if rid in self._runs and self._runs[rid]["key"] != key:
-                raise AdapterError("IDEMPOTENCY_CONFLICT", "Run ID already has a start key")
+            prior_run = self._runs.get(rid)
+            if prior_run and prior_run["key"] != key:
+                task = prior_run.get("task")
+                if task is None or not task.done():
+                    raise AdapterError("IDEMPOTENCY_CONFLICT", "Run ID already has an active start key")
+                stale_state = prior_run
         except (KeyError, TypeError, ValueError) as exc:
             raise AdapterError("INVALID_RUN_SPEC", "Malformed legacy run specification") from exc
-        if key in self._keys:
-            prior = self._runs[self._keys[key]]
-            retry = (prior.get("outcome") is not None and prior["outcome"][0] == "interrupted"
-                     and spec.get("attempt", 1) > prior["spec"].get("attempt", 1))
-            if not retry and prior["digest"] != fingerprint:
-                raise AdapterError("IDEMPOTENCY_CONFLICT", "Start key was used for different work")
-            if not retry:
-                self._prepared.pop(rid, None)
-                return dict(run_id=rid, status=prior["status"], replayed=True)
         # Existing Run row is the durable source of identity. Never create workflow rows here.
         with self.sessions() as db:
             row = db.get(Run, int(rid))
@@ -241,6 +237,23 @@ class LegacyAgentAdapter:
             if row.working_dir != spec["workspace"]["path"] or (row.model_requested or "") != route["model"]:
                 raise AdapterError("INVALID_RUN_SPEC", "Specification differs from the claimed route or workspace")
             started_at = row.started_at
+        # A restored/replaced database can reuse a numeric run ID while this API process
+        # still holds a completed adapter receipt from the previous database. The current
+        # durable Run row has now been validated, so discard only that finished stale receipt.
+        # Never release an active receipt or change the same-key replay/interruption semantics.
+        if stale_state is not None:
+            self._runs.pop(rid, None)
+            if self._keys.get(stale_state["key"]) == rid:
+                self._keys.pop(stale_state["key"], None)
+        if key in self._keys:
+            prior = self._runs[self._keys[key]]
+            retry = (prior.get("outcome") is not None and prior["outcome"][0] == "interrupted"
+                     and spec.get("attempt", 1) > prior["spec"].get("attempt", 1))
+            if not retry and prior["digest"] != fingerprint:
+                raise AdapterError("IDEMPOTENCY_CONFLICT", "Start key was used for different work")
+            if not retry:
+                self._prepared.pop(rid, None)
+                return dict(run_id=rid, status=prior["status"], replayed=True)
         argv = self._prepared.pop(rid, None)
         if argv is None:
             ctx = SimpleNamespace(mode=spec["workspace"]["mode"],

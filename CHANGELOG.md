@@ -10,6 +10,12 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.6.34] - 2026-10-19
+
+### Fixed
+
+- **RCD run-ID recovery:** a completed in-memory adapter receipt no longer blocks a new durable run when a database restore reuses that numeric ID. Active-run collisions remain rejected.
+
 ## [0.6.33] - 2026-10-19
 
 ### Fixed
@@ -732,3 +738,4 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 [0.6.31]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.31
 [0.6.32]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.32
 [0.6.33]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.33
+[0.6.34]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.34
