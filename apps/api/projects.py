@@ -1005,7 +1005,7 @@ def advance(s,settings):
         c=s.get(Card,pipeline['card_id'])
         if c and c.column in {'queued','running'}: continue
         r=s.scalar(select(Run).where(Run.card_id==pipeline['card_id']).order_by(Run.id.desc()).limit(1))
-        if c and r and r.stage=='failed' and pipeline['step'] in {'coordinate','plan','return'}:
+        if c and r and r.stage in {'failed','timeout','interrupted'} and pipeline['step'] in {'coordinate','plan','return'}:
             step=pipeline['step']
             role={'coordinate':'coordinate','plan':'plan','return':'return plan'}[step]
             attempted={(v.agent,v.model_requested or '') for v in s.scalars(select(Run).join(ProjectTask,ProjectTask.card_id==Run.card_id).where(
