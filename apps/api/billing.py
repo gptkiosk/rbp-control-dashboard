@@ -237,11 +237,12 @@ def dashboard(s, period="month", agent=None, target=None, now=None):
     rows = [r for r in rows if r.get("model") != "delivery-mirror"]
     native_sessions = {
         (r.agent, r.session_id) for r in s.scalars(select(UsageRecord))
-        if json.loads(r.payload).get("source") == "native"
+        if json.loads(r.payload).get("source") != "retained accounting"
     }
     # A late native scan supersedes a deletion-time accounting snapshot too.
     rows = [r for r in rows if r.get("source") != "retained accounting"
-            or (r["agent"], r["session_id"]) not in native_sessions]
+            or ((r["agent"], r["session_id"]) not in native_sessions
+                and (r["agent"], r.get("receipt_session_id")) not in native_sessions)]
     for run in s.scalars(
         select(Run).where(Run.started_at >= min(start, month), Run.started_at <= now)
     ):

@@ -473,3 +473,19 @@ def test_unknown_deleted_usage_remains_partial(sessions):
     with sessions() as s:
         total = next(a for a in dashboard(s, now=NOW+1)["overview"] if a["agent"] == "hermes")
         assert total["unpriced"] == 1 and total["api_equivalent_usd"] is None
+
+
+def test_provider_receipt_supersedes_deleted_run_with_a_different_native_session(sessions):
+    from usage import retain_run_accounting
+    with sessions.begin() as s:
+        run = Run(agent="codex", session_id="native-session", stage="failed", started_at=int(NOW),
+                  cost_usd=0.25, working_dir="/w", command="[]", log_path="")
+        s.add(run); s.flush(); receipt_sid=f"mcd-run-{run.id}"
+        retain_run_accounting(s, [run]); s.delete(run)
+    with sessions.begin() as s:
+        row=record("codex", receipt_sid, "response", NOW, "unknown-paid-model", {}, cost=0.25)
+        row['source']='OpenRouter provider boundary'
+        put(s, row)
+    with sessions() as s:
+        total=dashboard(s, now=NOW+1)['summary']
+        assert total['responses']==1 and total['api_equivalent_usd']==0.25

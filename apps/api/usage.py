@@ -426,7 +426,7 @@ def retain_run_accounting(s, runs):
                      f"deleted-run:{run.id}:{run.started_at}:{run.ended_at}",
                      run.started_at, run.model_reported or run.model_requested,
                      {}, cost=run.cost_usd, cost_kind="reported API equivalent")
-        row.update(source="retained accounting", input_tokens=run.input_tokens,
+        row.update(source="retained accounting", receipt_session_id=f"mcd-run-{run.id}", input_tokens=run.input_tokens,
                    output_tokens=run.output_tokens,
                    cached_input_tokens=run.cached_input_tokens,
                    cache_write_tokens=run.cache_write_tokens)
