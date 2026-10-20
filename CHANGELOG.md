@@ -10,6 +10,10 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+### Changed
+
+- The update progress view can name an updater's own steps, so MCD's source-checkout updater now shares this component and the same look as RCD's updater. No change to how RCD updates.
+
 ## [0.6.38] - 2026-10-20
 
 - Preserve usage-only accounting when deleting tasks, chats, or projects; distinguish configured agents from native session history and recognize the free router price.
