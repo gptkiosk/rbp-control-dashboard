@@ -5,7 +5,7 @@ import ast
 import json
 from pathlib import Path
 
-SHARED_FILES = ['apps/web/src/components/OverviewAgents.vue', 'apps/web/src/__tests__/OverviewAgents.spec.ts', 'apps/api/route_reliability.py', 'apps/api/bootstrap_plan.py',
+SHARED_FILES = ['apps/web/src/components/OverviewAgents.vue', 'apps/web/src/__tests__/OverviewAgents.spec.ts', 'apps/api/route_reliability.py', 'apps/api/agent_setup.py',
     'apps/api/routes/profiles.py', 'apps/api/routes/billing.py',
     'apps/web/src/lib/routeRecovery.ts', 'apps/web/src/lib/profile.ts',
     'apps/web/src/components/RouteRecoveryPanel.vue', 'apps/web/src/components/RouteRecoveryNotice.vue',

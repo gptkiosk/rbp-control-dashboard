@@ -33,6 +33,8 @@ class GithubPreferences(BaseModel):
 class CoordinatorBootstrapPreferences(BaseModel):
     """Operator choices Hermes should use when preparing the first agent-platform setup project."""
     model_config = ConfigDict(extra='forbid')
+    # stable: the dashboard creates what is missing from versioned templates. custom: the operator configures the platforms; setup only checks them.
+    mode: Literal['stable','custom'] = 'stable'
     platforms: list[Literal['openclaw','claude','codex','grok']] = Field(default_factory=lambda: ['openclaw','claude','codex','grok'], max_length=4)
     roles: list[Literal['developer','security','reviewer']] = Field(default_factory=lambda: ['developer','security'], max_length=3)
     shared_project_memory: bool = True

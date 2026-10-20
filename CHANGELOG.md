@@ -10,6 +10,16 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+### Changed
+
+- **Coordinator setup is done by the dashboard, not by a Hermes project.**
+  - Pick *Stable start* or *I'll configure the platforms myself*, then pick the platforms.
+  - Each platform is checked without a model: installed, starts, and has a usable route. Anything not ready shows its fix.
+  - Stable start previews and then creates only what is missing: OpenClaw role agents from versioned templates (`packs/agents`, registered with `openclaw agents add` on OpenClaw's default model), shared-memory notes and project folders.
+  - Existing agents and files are never changed; a stale preview is refused; applying twice creates nothing.
+  - **Start validation project** then creates one read-only story per ready platform plus your review, replacing the 15-story Hermes bootstrap plan that could fail mid-way.
+  - New help guide *Set up the agent platforms*; Hermes Coordinator guidance version 14.
+
 ## [0.6.39] - 2026-10-20
 
 ### Changed
