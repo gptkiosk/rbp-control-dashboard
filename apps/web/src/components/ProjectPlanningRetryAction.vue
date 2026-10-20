@@ -32,7 +32,7 @@ async function retry(route: {agent: string; model: string}) {
     const base = `/api/projects/${props.card.project.id}`
     const fresh = await getJson<Project>(base)
     const current: ProjectTask | undefined = fresh.tasks.find(t => t.card_id === props.card.id && t.role !== 'story')
-    if (fresh.state !== 'planning_failed' || !['failed', 'review'].includes(current?.column ?? '') || current?.run_id !== props.card.last_run?.id)
+    if (!current || fresh.state !== 'planning_failed' || !['failed', 'review'].includes(current.column) || current.run_id !== props.card.last_run?.id)
       throw new Error('The planning task changed. Refresh before retrying it.')
     if (!current.planning_retry_routes?.some(r => r.agent === route.agent && r.model === route.model))
       throw new Error('This route is no longer approved. Review the current project settings.')
