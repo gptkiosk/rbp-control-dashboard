@@ -5,7 +5,7 @@ import ast
 import json
 from pathlib import Path
 
-SHARED_FILES = ['apps/api/route_reliability.py', 'apps/api/bootstrap_plan.py',
+SHARED_FILES = ['apps/web/src/components/OverviewAgents.vue', 'apps/web/src/__tests__/OverviewAgents.spec.ts', 'apps/api/route_reliability.py', 'apps/api/bootstrap_plan.py',
     'apps/api/routes/profiles.py', 'apps/api/routes/billing.py',
     'apps/web/src/lib/routeRecovery.ts', 'apps/web/src/lib/profile.ts',
     'apps/web/src/components/RouteRecoveryPanel.vue', 'apps/web/src/components/RouteRecoveryNotice.vue',
@@ -46,13 +46,13 @@ def compare(root, peer):
     for name in SHARED_FILES:
         if not (root/name).is_file() or not (peer/name).is_file() or normalized((root/name).read_text())!=normalized((peer/name).read_text()):
             failures.append(name)
-    for file,names in [('apps/api/projects.py',SHARED_FUNCTIONS),('apps/api/project_schemas.py',SHARED_SCHEMAS)]:
+    for file,names in [('apps/api/projects.py',SHARED_FUNCTIONS),('apps/api/project_schemas.py',SHARED_SCHEMAS), ('apps/api/billing.py',['is_free','dashboard']), ('apps/api/usage.py',['retain_run_accounting'])]:
         x,y=definitions(root,file),definitions(peer,file)
         failures.extend(file+':'+name for name in names if name not in x or x.get(name)!=y.get(name))
     for tree in (root,peer):
         if 'TaskRetryAction' not in (tree/'apps/web/src/components/CardDetailPanel.vue').read_text():
             failures.append('TaskRetryAction is not mounted on a dashboard')
-    return {'shared_contract_checks':len(SHARED_FILES)+len(SHARED_FUNCTIONS)+len(SHARED_SCHEMAS)+2,
+    return {'shared_contract_checks':len(SHARED_FILES)+len(SHARED_FUNCTIONS)+len(SHARED_SCHEMAS)+5,
         'shared_contract_failures':failures,'common_files':len(a.keys() & b.keys()),'identical':len(same),
         'branding_only':len(branding),'different_files':changed,'this_product_only':sorted(a.keys()-b.keys()),
         'peer_product_only':sorted(b.keys()-a.keys()),

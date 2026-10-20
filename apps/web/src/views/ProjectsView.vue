@@ -219,8 +219,8 @@ async function closeProject() {
   if (!reason || reason.trim().length < 3) return
   const id = project.value.id, title = project.value.document.title
   // Closing usually means the work moves to a new project, so offer the cleanup straight away: delete the project and everything kept for it.
-  const del = window.confirm(`Also delete "${title}" now? This removes the project, its tasks and their run history, its ledger and handoffs. The working folder and its files are kept. This cannot be undone. Choose Cancel to keep the closed project and its ledger.`)
-  const removeTasks = del || window.confirm('Remove this project\'s tasks from the board? Their run history is deleted. The project, its plan and the whole ledger are kept. Choose Cancel to leave the tasks for now; you can remove them later.')
+  const del = window.confirm(`Also delete "${title}" now? This removes the project, its tasks and their run history, its ledger and handoffs. Usage accounting and native agent history are retained. The working folder and its files are kept. This cannot be undone. Choose Cancel to keep the closed project and its ledger.`)
+  const removeTasks = del || window.confirm('Remove this project\'s tasks from the board? Their run history is deleted; usage accounting and native agent history are retained. The project, its plan and the whole ledger are kept. Choose Cancel to leave the tasks for now; you can remove them later.')
   await perform(async () => {
     const closed = await postJson<Project>(`/api/projects/${id}/close`, { revision: project.value!.revision, reason: reason.trim(), ...(removeTasks ? { remove_tasks: true } : {}) })
     if (!del) { apply(closed); refreshDetail(); return }
@@ -231,7 +231,7 @@ async function closeProject() {
 }
 const deletable = computed(() => !!project.value && ['closed', 'complete'].includes(project.value.state))
 async function deleteProject() {
-  if (!project.value || !window.confirm(`Delete "${project.value.document.title}"? This removes the project, its tasks and their run history, its ledger and handoffs. The working folder and its files are kept. This cannot be undone.`)) return
+  if (!project.value || !window.confirm(`Delete "${project.value.document.title}"? This removes the project, its tasks and their run history, its ledger and handoffs. Usage accounting and native agent history are retained. The working folder and its files are kept. This cannot be undone.`)) return
   const id = project.value.id
   await perform(async () => {
     await postJson(`/api/projects/${id}/delete`, { revision: project.value!.revision, confirm: true })
@@ -246,7 +246,7 @@ async function acceptDespiteReport(task: ProjectTask) {
   await perform(async () => { apply(await postJson<Project>(`/api/projects/${project.value!.id}/stories/${task.card_id}/accept-despite-report`, { revision: project.value!.revision, run_id: task.run_id, reason: reason.trim() })); refreshDetail() })
 }
 async function removeProjectTasks() {
-  if (!project.value || !window.confirm('Remove every task of this closed project from the board? Their run history is deleted. The project, its plan and the whole ledger are kept.')) return
+  if (!project.value || !window.confirm('Remove every task of this closed project from the board? Their run history is deleted; usage accounting and native agent history are retained. The project, its plan and the whole ledger are kept.')) return
   await perform(async () => { apply(await postJson<Project>(`/api/projects/${project.value!.id}/remove-tasks`, { revision: project.value!.revision })); refreshDetail() })
 }
 async function toggleModelLock() { await perform(async () => { if (!project.value) return

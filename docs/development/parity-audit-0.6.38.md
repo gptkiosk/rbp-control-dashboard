@@ -16,6 +16,10 @@ Audit date: 2026-10-20. Baselines: MCD 0.6.37 (`3086c14`) and RCD 0.6.37 (`ab968
 | Appearance and navigation | Shared status cards/toggles exist; model failures lacked a direct configuration destination. | Shared recovery panel/notice uses ManagedItem, PanelHead, ToggleSwitch and NoteFold. Failure notices deep-link to the exact settings panel; billing links open the billing dialog. |
 | Media, Chat, roles and settings | Shared modules coexist with platform-specific host/runtime code. | Existing feature routes are retained; Chat uses the same explicit membership admission option. No installer, identity or live native configuration is changed by the audit. |
 
+## Cleanup and accounting
+
+Both products retain usage-only accounting before cascading task/chat/project deletion, preserve unknown-cost evidence, and deduplicate late native telemetry. The overview shows configured agents rather than listing historical sessions as current agents. Native runtime session history and working folders are intentionally preserved and described in deletion confirmations. Free-router aliases no longer create a false unpriced warning.
+
 ## Repeatable contract check
 
 From either checkout, using Python 3.12 for development-source parsing:
@@ -24,7 +28,7 @@ From either checkout, using Python 3.12 for development-source parsing:
 python scripts/check-shared-features.py --peer /path/to/other-dashboard
 ```
 
-The check compares 32 shared files, function/schema definitions and mounted controls. Its inventory separately lists all source differences instead of treating every difference as a defect. See [the machine-readable inventory](parity-inventory-0.6.38.json). The shared contract check passed with zero mismatches.
+The check compares 37 shared files, function/schema definitions and mounted controls. Its inventory separately lists all source differences instead of treating every difference as a defect. See [the machine-readable inventory](parity-inventory-0.6.38.json). The shared contract check passed with zero mismatches.
 
 This is not a claim that the native runners are identical. RCD retains its durable adapter supervision and additional typed context/dependency evidence checks; MCD retains its native Mac runner and source-upgrade integration. Launchd/systemd, hardware collectors, migration history and updater packaging require platform-specific checks. Live provider availability, sign-in validity, native fallback conformance and physical-Pi behavior are not certified by matching source or synthetic fixtures.
 

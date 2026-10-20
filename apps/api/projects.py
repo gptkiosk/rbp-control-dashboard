@@ -1312,6 +1312,8 @@ def _remove_cards(s,p,actor,note=True):
         s.delete(l);s.flush()
         if c is None: continue
         paths+=s.execute(select(Run.log_path).where(Run.card_id==c.id)).scalars().all()
+        from usage import retain_run_accounting
+        retain_run_accounting(s, s.scalars(select(Run).where(Run.card_id==c.id)).all())
         s.delete(c)
     if note:
         memory(s,p,'decision',f'Removed {len(links)} task(s) of this closed project from the board. The run history of those tasks is deleted; this ledger keeps their handoff, incident and decision entries.',actor)

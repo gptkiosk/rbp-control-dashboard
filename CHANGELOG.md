@@ -12,6 +12,8 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [0.6.38] - 2026-10-20
 
+- Preserve usage-only accounting when deleting tasks, chats, or projects; distinguish configured agents from native session history and recognize the free router price.
+
 ### Added
 
 - **Model recovery settings:** choose ordered configured fallback routes, optionally include free/membership alternatives in future story maps, and explicitly allow configured memberships or separately approved paid API routes on a free-only installation. The paid toggle never authorizes a run by itself.

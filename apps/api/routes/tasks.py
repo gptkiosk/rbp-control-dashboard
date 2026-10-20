@@ -374,6 +374,8 @@ def delete_card(card_id: int, s: Session = Depends(get_session)):
     # Runs go with the card (ON DELETE CASCADE); remove their log files too, or they would
     # never be pruned (retention walks runs, and these runs no longer exist).
     log_paths = s.execute(select(Run.log_path).where(Run.card_id == card_id)).scalars().all()
+    from usage import retain_run_accounting
+    retain_run_accounting(s, s.scalars(select(Run).where(Run.card_id == card_id)).all())
     s.delete(card)
     s.commit()
     remove_run_logs(log_paths)

@@ -79,8 +79,8 @@ FREE_SUFFIX = ":free"
 
 
 def is_free(model):
-    """An OpenRouter ':free' model costs nothing whatever the token counts are."""
-    return (model or "").endswith(FREE_SUFFIX)
+    """OpenRouter free variants and the exact free router aliases have zero list price."""
+    return (model or "").endswith(FREE_SUFFIX) or model in {"openrouter/free", "openrouter/openrouter/free"}
 
 
 def find_rate(model, rates):
@@ -235,9 +235,13 @@ def dashboard(s, period="month", agent=None, target=None, now=None):
         )
     ]
     rows = [r for r in rows if r.get("model") != "delivery-mirror"]
-    native_sessions = set(
-        s.execute(select(UsageRecord.agent, UsageRecord.session_id).distinct())
-    )
+    native_sessions = {
+        (r.agent, r.session_id) for r in s.scalars(select(UsageRecord))
+        if json.loads(r.payload).get("source") == "native"
+    }
+    # A late native scan supersedes a deletion-time accounting snapshot too.
+    rows = [r for r in rows if r.get("source") != "retained accounting"
+            or (r["agent"], r["session_id"]) not in native_sessions]
     for run in s.scalars(
         select(Run).where(Run.started_at >= min(start, month), Run.started_at <= now)
     ):

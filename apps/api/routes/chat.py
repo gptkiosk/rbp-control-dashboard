@@ -272,6 +272,8 @@ def delete_thread(thread_id: int, request: Request, s: Session = Depends(get_ses
     if d and d.thread_busy(t.id):
         raise HTTPException(status_code=409, detail="Stop the running turn before deleting the thread.")
     log_paths = s.execute(select(Run.log_path).where(Run.thread_id == thread_id)).scalars().all()
+    from usage import retain_run_accounting
+    retain_run_accounting(s, s.scalars(select(Run).where(Run.thread_id == thread_id)).all())
     s.delete(t)
     s.commit()
     remove_run_logs(log_paths)

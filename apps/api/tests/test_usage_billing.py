@@ -431,3 +431,45 @@ def test_jobs_that_call_no_model_are_not_usage_records(sessions):
     with sessions() as s:
         d = dashboard(s, now=NOW + 1)
         assert all(a["responses"] == 0 for a in d["overview"])
+
+
+def test_free_router_aliases_are_priced_but_reported_cost_wins(sessions):
+    with sessions() as s:
+        cfg = config(s)
+        for model in ("openrouter/free", "openrouter/openrouter/free", "google/example:free"):
+            assert price({"model": model}, cfg) == (0.0, "free model")
+            assert price({"model": model, "reported_cost_usd": 0.25}, cfg)[0] == 0.25
+        assert price({"model": "other/free"}, cfg)[0] is None
+
+
+def test_deleted_run_accounting_survives_without_task_content_and_native_deduplicates(sessions):
+    from usage import retain_run_accounting
+    with sessions.begin() as s:
+        run = Run(agent="hermes", session_id="native-session", stage="failed", started_at=int(NOW),
+                  model_requested="unknown-paid-model", input_tokens=100, cost_usd=0.25,
+                  working_dir="/private/work", command='["private prompt"]', log_path="/private/log", result_text="private answer")
+        s.add(run); s.flush()
+        retain_run_accounting(s, [run]); retain_run_accounting(s, [run])
+        s.delete(run)
+    with sessions.begin() as s:
+        rows = list(s.scalars(select(UsageRecord)))
+        assert len(rows) == 1 and "private" not in rows[0].payload
+        assert 'card_id' not in rows[0].payload and 'thread_id' not in rows[0].payload
+        total = next(a for a in dashboard(s, now=NOW+1)["overview"] if a["agent"] == "hermes")
+        assert total["api_equivalent_usd"] == 0.25 and total["responses"] == 1
+        put(s, record("hermes", "native-session", "response", NOW, "unknown-paid-model",
+                      {"input_tokens": 100}, cost=0.25))
+    with sessions() as s:
+        total = next(a for a in dashboard(s, now=NOW+1)["overview"] if a["agent"] == "hermes")
+        assert total["api_equivalent_usd"] == 0.25 and total["responses"] == 1
+
+
+def test_unknown_deleted_usage_remains_partial(sessions):
+    from usage import retain_run_accounting
+    with sessions.begin() as s:
+        run = Run(agent="hermes", stage="failed", started_at=int(NOW), model_requested="unknown",
+                  input_tokens=100, working_dir="/w", command="[]", log_path="")
+        s.add(run); s.flush(); retain_run_accounting(s, [run]); s.delete(run)
+    with sessions() as s:
+        total = next(a for a in dashboard(s, now=NOW+1)["overview"] if a["agent"] == "hermes")
+        assert total["unpriced"] == 1 and total["api_equivalent_usd"] is None

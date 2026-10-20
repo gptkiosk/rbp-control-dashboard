@@ -1472,6 +1472,9 @@ def test_a_closed_project_can_be_deleted_with_everything_kept_for_it_but_never_t
     pid=p['id']
     (wd/'site.html').write_text('<p>the work</p>')
     finish(app,next(t['card_id'] for t in p['tasks'] if t['node_key']=='a'),'Done work.')
+    with s.begin() as db:
+        paid = db.scalar(select(Run).where(Run.card_id==next(t['card_id'] for t in p['tasks'] if t['node_key']=='a')))
+        paid.cost_usd=0.25
     path=f'/api/projects/{pid}/delete'
     assert c.post(path,json={'revision':1,'confirm':True}).status_code==409                    # active: close it first
     closed=c.post(f'/api/projects/{pid}/close',json={'revision':1,'reason':'Replanning from a new brief'})
@@ -1492,6 +1495,9 @@ def test_a_closed_project_can_be_deleted_with_everything_kept_for_it_but_never_t
     assert c.get(f'/api/projects/{pid}').status_code==404
     assert pid not in [x['id'] for x in c.get('/api/projects').json()['projects']]
     with s() as db:
+        from models import UsageRecord
+        retained=[json.loads(r.payload) for r in db.scalars(select(UsageRecord))]
+        assert any(r.get('source')=='retained accounting' and r.get('reported_cost_usd')==0.25 for r in retained)
         assert db.get(Project,pid) is None
         assert not db.scalars(select(ProjectTask).where(ProjectTask.project_id==pid)).all()
         assert not db.scalars(select(ProjectMemory).where(ProjectMemory.project_id==pid)).all()

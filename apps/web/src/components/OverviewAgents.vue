@@ -36,15 +36,6 @@ function related(a: Agent) {
     parent: false,
     scope: 'configured',
   }))
-  for (const s of usage.data.value?.sessions.filter((s) => s.agent === a.id) ?? []) {
-    const existing = items.find((i) => i.id === s.id)
-    if (existing) {
-      if (s.last_active != null) existing.last = Math.max(existing.last ?? 0, s.last_active)
-    } else items.push({
-      id: s.id, name: s.name || `${s.parent ? 'Sub-agent' : 'Session'} ${a.id === 'hermes' ? s.id.slice(-8) : s.id.slice(0, 8)}`,
-      last: s.last_active, parent: !!s.parent, scope: s.scope,
-    })
-  }
   return items.sort((a, b) => (b.last ?? 0) - (a.last ?? 0))
 }
 function detail(id: AgentId, target?: string) {
@@ -82,17 +73,17 @@ function detail(id: AgentId, target?: string) {
           </template>
           <template v-else>
             <strong>No RCD turns running</strong>
-            <span class="small muted">Last captured activity: {{ stats(a.id)?.last_active ? formatSince(stats(a.id)!.last_active, now) : 'not reported' }}</span>
+            <span class="small muted">Last usage record: {{ stats(a.id)?.last_active ? formatSince(stats(a.id)!.last_active, now) : 'not reported' }}</span>
             <span class="small muted">{{ stats(a.id)?.models.slice(0, 2).map(m => m.model).join(' · ') || a.default_model || 'Model not reported' }}<template v-if="(stats(a.id)?.models.length ?? 0) > 2"> · +{{ stats(a.id)!.models.length - 2 }} models</template></span>
           </template>
         </div>
         <dl class="totals">
           <div><dt>API equivalent · 24h</dt><dd>{{ formatUsd(stats(a.id)?.api_equivalent_usd) }}</dd></div>
-          <div><dt>Captured sessions · 24h</dt><dd>{{ stats(a.id)?.sessions ?? '—' }}</dd></div>
+          <div><dt>Usage history · sessions · 24h</dt><dd>{{ stats(a.id)?.sessions ?? '—' }}</dd></div>
         </dl>
         <p v-if="stats(a.id)?.unpriced" class="warning-text small" :title="UNPRICED_HINT">{{ stats(a.id)!.unpriced }} unpriced records · cost is partial<template v-if="stats(a.id)?.unpriced_models?.length"> · {{ unpricedModels(stats(a.id)?.unpriced_models) }}</template></p>
         <div class="related">
-          <span class="small muted">Sub-agents & sessions</span>
+          <span class="small muted">Configured agents</span>
           <ul v-if="related(a).length">
             <li v-for="s in related(a).slice(0, 3)" :key="s.id">
               <RouterLink :to="detail(a.id, s.id)" :title="`${s.name} · ${s.id}`">{{ s.name }}</RouterLink>
@@ -106,7 +97,7 @@ function detail(id: AgentId, target?: string) {
       </article>
     </div>
     <OpenRouterSpend :data="usage.data.value?.openrouter" />
-    <p class="muted small">Observed processes can be idle. Recent activity means a captured update within the last minute. API equivalents are estimates; subscriptions and detailed usage are in the explorer.</p>
+    <p class="muted small">Usage history includes native sessions and retained accounting after project or task deletion. Open the explorer for session history. Observed processes can be idle. Recent activity means a captured update within the last minute. API equivalents are estimates; subscriptions and detailed usage are in the explorer.</p>
   </section>
 </template>
 

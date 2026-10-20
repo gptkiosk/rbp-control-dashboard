@@ -21,3 +21,9 @@ The app samples at most 500 terminal local runs over seven days by runtime and r
 ## Bootstrap sequence
 
 **Start agent setup** creates or reopens the current bootstrap project. Review and submit the built-in stories directly; model planning is optional. Hermes checks each selected platform, the operator resolves or excludes missing prerequisites, Hermes prepares selected missing role guidance and shared project areas, and verification and human acceptance follow. Existing agents and files are preserved. Changes outside approved workspaces need the ordinary scoped tools/permissions; otherwise the task stages guidance and provides a linked manual action. Staged files are never reported as registered agents. External provider availability and physical Pi behavior still require verification on the installed host.
+
+## Deleting projects and usage history
+
+Deleting a closed project removes its app tasks, run details/logs, ledger, saved outputs and project grants. The working folder stays. Usage-only accounting stays separately, including unpriced records so an unknown bill is not silently dropped. Paid, free and unknown records contain usage metadata rather than prompts, answers, working paths or links to deleted tasks. Native telemetry supersedes matching retained snapshots to avoid counting twice.
+
+Native agent sessions belong to the agent runtime and may include work outside this app. Project deletion does not erase those native sessions. The overview lists configured agents separately; historical sessions and cost estimates remain in the agent explorer. Exact `openrouter/free` aliases are zero list price unless the runtime reports a different actual cost, which remains authoritative.
