@@ -33,8 +33,9 @@ class SetupError(Exception):
 
 
 def _env():
-    from legacy_adapters import LegacyAgentAdapter
-    return LegacyAgentAdapter.env()
+    """The scrubbed environment agent runs get, built the way this product builds it."""
+    from dispatcher import Dispatcher
+    return Dispatcher._env('openclaw')
 
 
 def run(argv, timeout=30, limit=2000):
@@ -69,9 +70,10 @@ def _openclaw_agents(settings):
     from agents import REGISTRY
     from subagents import parse_openclaw_agents
     code, out = run([REGISTRY['openclaw'].binary(settings), 'agents', 'list', '--json'], timeout=60, limit=1_000_000)
-    if code == 0 and '[' in out:
+    if code == 0:
+        import native_routes
         try:
-            return {a['id']: a for a in parse_openclaw_agents(out[out.index('['):]) if isinstance(a.get('id'), str)}
+            return {a['id']: a for a in parse_openclaw_agents(json.dumps(native_routes.json_list(out))) if isinstance(a.get('id'), str)}
         except (ValueError, TypeError, AttributeError):
             pass
     import native_routes
@@ -242,6 +244,8 @@ def _work(settings, todo):
             path.write_text(json.dumps({'at': int(time.time()), 'results': results, 'log': _JOB['log'][-200:]}))
         except OSError as exc:
             _log(f'Could not save the setup record: {exc}')
+        import native_routes
+        native_routes.forget()  # the new agents are targets from now on
         _JOB['state'] = 'failed' if failed else 'done'
     except Exception as exc:  # never leave the page waiting on a job that died
         _JOB['state'] = 'failed'; _log(f'Stopped: {exc}')
