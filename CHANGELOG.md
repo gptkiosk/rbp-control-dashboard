@@ -10,6 +10,18 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.6.40] - 2026-10-20
+
+### Changed
+
+- **Coordinator setup is done by the dashboard, not by a Hermes project.**
+  - Pick *Stable start* or *I'll configure the platforms myself*, then pick the platforms.
+  - Each platform is checked without a model: installed, starts, and has a usable route. Anything not ready shows its fix.
+  - Stable start previews and then creates only what is missing: OpenClaw role agents from versioned templates (`packs/agents`, registered with `openclaw agents add` on OpenClaw's default model), shared-memory notes and project folders.
+  - Existing agents and files are never changed; a stale preview is refused; applying twice creates nothing.
+  - **Start validation project** then creates one read-only story per ready platform plus your review, replacing the 15-story Hermes bootstrap plan that could fail mid-way.
+  - New help guide *Set up the agent platforms*; Hermes Coordinator guidance version 14.
+
 ## [0.6.39] - 2026-10-20
 
 ### Changed
@@ -719,7 +731,7 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 - Claude Code stories may use web search and fetch without any shell, credential or publish permission.
 
 [0.3.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.0
-[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.39...HEAD
+[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.40...HEAD
 [0.6.29]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.29
 [0.6.28]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.28
 [0.6.27]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.27
@@ -790,3 +802,4 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 
 [0.6.38]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.37...v0.6.38
 [0.6.39]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.38...v0.6.39
+[0.6.40]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.39...v0.6.40

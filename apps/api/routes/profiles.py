@@ -107,60 +107,61 @@ def coordinator_bootstrap_readiness(request:Request):
     profiles.owner(request)
     return _bootstrap_readiness(get_settings())
 
+class SetupApply(BaseModel):
+    digest:str=Field(pattern=r'^[0-9a-f]{16}$')
+
+def _setup_error(exc):
+    return HTTPException(exc.status,str(exc))
+
+@router.get('/coordinator-bootstrap/setup')
+def coordinator_setup(request:Request,s:Session=Depends(get_session)):
+    """What setup checks and would change now. Read-only."""
+    import agent_setup
+    identity=profiles.owner(request)
+    return agent_setup.plan(get_settings(),s,profiles.prefs(s,identity))
+
+@router.post('/coordinator-bootstrap/setup/apply')
+def apply_coordinator_setup(body:SetupApply,request:Request,s:Session=Depends(get_session)):
+    """Make exactly the previewed changes. Existing agents and files are never changed."""
+    import agent_setup
+    identity=profiles.owner(request)
+    try:
+        return agent_setup.apply(get_settings(),s,profiles.prefs(s,identity),body.digest)
+    except agent_setup.SetupError as exc:
+        raise _setup_error(exc)
+
 @router.post('/coordinator-bootstrap/start',status_code=201)
 def start_coordinator_bootstrap(request:Request,s:Session=Depends(get_session)):
-    """Create a reviewable setup project draft. This never starts a model run."""
+    """Create the small validation project once setup is verified. This never starts a model run by itself."""
+    import agent_setup
     identity=profiles.owner(request);settings=get_settings();readiness=_bootstrap_readiness(settings)
     s.execute(text('BEGIN IMMEDIATE'))
     from models import Project
     from sqlalchemy import select
+    import projects
     existing=s.scalar(select(Project).where(Project.created_by==identity,Project.intake_key.like('bootstrap:%'),
         Project.state.notin_(['closed','complete'])).order_by(Project.id.desc()).limit(1))
     if existing:
-        import projects
         return {'project_id':existing.id,'title':projects.document(existing)['title'],'state':existing.state,'readiness':readiness,'existing':True}
     if not readiness['ready']:
         missing=[item['label'] for item in readiness['checks'] if not item['ready']]
         raise HTTPException(409,{'message':'Finish Hermes setup before starting agent configuration.','missing':missing,'checks':readiness['checks']})
-    pref=profiles.prefs(s,identity);choice=pref.coordinator_bootstrap
-    from pathlib import Path
-    import projects
-    working_dir=''
-    scratch=projects.scratch_root(settings)
-    if choice.project_workspaces and scratch is not None:
-        working_dir=str(scratch)
-    elif pref.working_dir:
-        working_dir=pref.working_dir
-    else:
-        working_dir=next((str(Path(root).expanduser()) for root in settings.workdir_roots if Path(root).expanduser().is_dir()),'')
-    if not working_dir:
-        raise HTTPException(409,{'message':'Choose or enable an allowed project workspace before starting setup.','checks':readiness['checks'],'link':'/profile#settings'})
-    platforms=', '.join(choice.platforms) or 'none selected'
-    roles=', '.join(choice.roles) or 'none selected'
-    memory='enabled' if choice.shared_project_memory else 'disabled unless needed and approved'
-    workspaces='enabled' if choice.project_workspaces else 'use existing allowed workspaces only'
-    model_policy='reuse each platform’s configured default; ask before any model change' if choice.model_policy=='ask_before_change' else 'reuse each platform’s configured default; do not change models without operator approval'
-    prefix=settings.product_short_name.lower()
-    brief=(f"Prepare this {settings.product_short_name} installation to receive and run projects using its installed agent platforms. "
-        "Hermes is the sole Coordinator. First inspect platform readiness and existing agent configurations. "
-        f"Consider only these operator-selected platforms: {platforms}. Configure these starter roles where supported: {roles}. "
-        f"For OpenClaw, create missing agents named {prefix}-oc-developer and {prefix}-oc-security when those roles are selected, and {prefix}-oc-reviewer only if reviewer is selected. Give each created agent a focused SOUL.md and concise starting prompt describing its specialty, task boundaries, and reporting handoff to Hermes. "
-        f"Shared project memory: {memory}. Project workspaces: {workspaces}. Model policy: {model_policy}. "
-        f"Security review policy: {choice.security_review}. Preserve existing configuration and agents; create only missing role agents and guidance. Never overwrite or delete existing files or agents. "
-        "Keep sign-in, credentials, billing, and permission changes as human-only manual tasks with direct in-app links. Do not request or expose credentials, change billing or permissions, or perform actions requiring operator approval. "
-        "Create a reviewable project plan only. No agent work or setup changes may start until the operator reviews and approves the plan. "
-        "Plan in small, sequential, reviewable stories. Every story must have concrete instructions, a non-empty bounded scope, and verifiable acceptance criteria. State the exact platform or resource in scope, allowed actions, excluded actions, and what evidence completes the story. Do not use broad stories such as 'configure agents' without specific boundaries and completion checks. "
-        "Include one read-only readiness story for each selected platform. Limit it to checking executable presence, reported version, whether it can run, and sign-in or model prerequisites; do not install software or change configuration. Mark any unavailable or unverified result clearly. "
-        "Make configuration stories depend on the relevant readiness findings. Limit them to creating selected missing role agents/guidance and enabling the requested shared project memory/workspaces after plan approval. If a requested item already exists or would require overwriting user configuration, leave it unchanged and report it for operator review. "
-        "Return a concise readiness summary, proposed changes, linked human actions, and a small validation plan. Verify each approved change before claiming setup is complete.")
+    pref=profiles.prefs(s,identity);setup=agent_setup.plan(settings,s,pref)
+    if not setup['verified']:
+        raise HTTPException(409,{'message':'Finish platform setup first: apply the changes or fix the items listed.','problems':setup['problems'],'link':'/profile#coordinator-bootstrap'})
+    nodes=agent_setup.validation_nodes(settings,setup)
+    if len(nodes)<2:
+        raise HTTPException(409,{'message':'No ready platform can run a validation story.','link':'/profile#coordinator-bootstrap'})
+    ready=', '.join(c['name'] for c in setup['checks'] if c['state']=='ready')
+    brief=(f"Validate the {settings.product_short_name} agent platforms that Coordinator setup verified: {ready}. "
+        "Each platform gets one read-only story that proves it answers on its configured route. Then the operator reviews the reports and starts a real project.")
     from project_schemas import Document, Node
     from native_routes import read as read_native
     hermes_model=read_native(settings).get('hermes',{}).get('default') or ''
-    doc=Document(title=f'{settings.product_short_name} agent platform bootstrap',brief=brief,
-        constraints='Hermes only for coordination. No agent work starts until the operator reviews and approves the project plan. Preserve existing configuration; create only missing role agents and guidance. Keep human-only sign-in, credentials, billing and permission changes as linked manual tasks.',
-        working_dir=working_dir,planner_agent='hermes',planner_model=hermes_model,planning_bias=pref.planning_bias,nodes=[])
-    import bootstrap_plan
-    doc.nodes=[Node.model_validate(n) for n in bootstrap_plan.nodes(settings,choice,hermes_model)]
+    doc=Document(title=f'{settings.product_short_name} agent platform validation',brief=brief,
+        constraints='Read-only validation. No files, configuration, credentials, billing or permissions change.',
+        working_dir=setup['base'],planner_agent='hermes',planner_model=hermes_model,planning_bias=pref.planning_bias,nodes=[])
+    doc.nodes=[Node.model_validate(n) for n in nodes]
     project=projects.create(s,doc.model_dump(),settings,identity)
     prepared=projects.document(project)
     projects.add_recovery_routes(s,project,prepared,settings)
@@ -168,7 +169,7 @@ def start_coordinator_bootstrap(request:Request,s:Session=Depends(get_session)):
     project.document=json.dumps(prepared)
     project.intake_key=f'bootstrap:{project.id}'
     project.state='review'
-    projects.memory(s,project,'proposal','Built-in bootstrap plan prepared without a provider call. Review the editable stories and prerequisites before approving setup.',identity)
+    projects.memory(s,project,'proposal','Built-in validation plan prepared by Coordinator setup without a provider call. Review and submit it to run one read-only story per ready platform.',identity)
     s.commit()
     return {'project_id':project.id,'title':doc.title,'state':'review','readiness':readiness}
 

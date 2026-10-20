@@ -77,11 +77,11 @@ Configure ordered alternatives and retry the same task without rebuilding the pr
 4. Open the failed planning task to choose another configured model. A paid route requires a separate API-charge acknowledgment. Membership access does not cover provider API billing. Global spending settings and host restrictions remain in force.
 5. Enable Include alternatives in future project plans to put eligible free and membership alternatives on the editable story map. Review them before submitting. Provider/rate-limit failures may hand off to an approved untried route; model lock disables automatic story switching, and editing timeouts require review of partial work.
 6. After three provider, runtime, timeout or output failures in the last five local attempts, the app recommends a route change with its possible cost and a link to the enabling toggle. It lowers that route’s recovery priority without changing permissions or enabling paid use.
-7. Start agent setup in Coordinator setup to create or reopen a built-in, editable bootstrap plan. No provider call is needed to construct it. Review and submit the plan; the app releases its validated dependency order, then Hermes inspects readiness, prepares missing guidance, and leaves linked human prerequisites. Existing configurations are preserved.
+7. Coordinator setup is done by the dashboard itself, without a model: see the Coordinator setup guide. Its validation project uses the same recovery routes as any other project.
 
 Provider responses and free-model availability cannot be guaranteed. Telemetry samples up to 500 terminal local runs over seven days, and process success is not independent acceptance. Recovery preserves scope, workspace, dependencies, history and approval gates. The app never silently enables paid API fallback.
 
-[Configure recovery routes and toggles](http://127.0.0.1:8800/profile#route-recovery) · [Start or reopen agent setup](http://127.0.0.1:8800/profile#coordinator-bootstrap) · [Review project models](http://127.0.0.1:8800/projects) · [Inspect actual key spending](http://127.0.0.1:8800/agents#openrouter-spending) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=project-models)
+[Configure recovery routes and toggles](http://127.0.0.1:8800/profile#route-recovery) · [Open Coordinator setup](http://127.0.0.1:8800/profile#coordinator-bootstrap) · [Review project models](http://127.0.0.1:8800/projects) · [Inspect actual key spending](http://127.0.0.1:8800/agents#openrouter-spending) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=project-models)
 
 ## Get started with RCD
 
@@ -489,6 +489,20 @@ See how work is going across approved plans and stories: who it is assigned to, 
 Telemetry only reads what the dashboard already recorded. It changes nothing.
 
 [Open Jobs & telemetry](http://127.0.0.1:8800/telemetry) · [Price an unrecognised model](http://127.0.0.1:8800/help?topic=model-rates) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=jobs-telemetry)
+
+## Set up the agent platforms (Coordinator setup)
+
+The dashboard checks the platforms you pick, creates the missing OpenClaw role agents from tested templates, then proves each platform with a small validation project.
+
+1. Open Settings, then Coordinator setup. Choose Stable start (recommended) to let the dashboard create what is missing, or I’ll configure the platforms myself to change nothing and only check.
+2. Tick the platforms. Each is checked without a model: installed, starts, and has a route the dashboard may use. OpenClaw needs a default model; Claude Code, Codex and Grok Build need billing saved as Subscription. A row that is not ready shows its fix.
+3. Hermes must be installed, assigned as Coordinator, guided and have a default model. Its list sits above the platform check.
+4. In Stable start, read Changes: what will be created and what is already there. Tick the confirmation and press Apply setup. Existing agents, files and folders are never changed; a failed item shows its reason.
+5. When everything is ready, press Start validation project. Submit it in Projects: one read-only story per ready platform proves it signs in and answers. Then start a real project.
+
+Role agents use OpenClaw’s configured default model. Applying twice creates nothing new; switching to Stable start later only adds what is missing.
+
+[Open Coordinator setup](http://127.0.0.1:8800/profile#coordinator-bootstrap) · [Agent tools](http://127.0.0.1:8800/profile#agent-tools) · [Billing & rates](http://127.0.0.1:8800/agents?action=billing) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=coordinator-setup)
 
 ## Keep the dashboard tidy: housekeeping, bug reports, roles and GitHub
 

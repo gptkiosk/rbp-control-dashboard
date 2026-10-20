@@ -15,6 +15,7 @@ import { useRouter } from 'vue-router'
 import AppIcon from '@/components/AppIcon.vue'
 import AppSelect from '@/components/AppSelect.vue'
 import PlanningBiasSlider from '@/components/PlanningBiasSlider.vue'
+import CoordinatorSetupPanel from '@/components/CoordinatorSetupPanel.vue'
 import ToggleSwitch from '@/components/ToggleSwitch.vue'
 import { getJson, putJson, postJson, deleteJson } from '@/lib/api'
 import type { Profile, Preferences, CoordinatorBootstrapPreferences } from '@/lib/profile'
@@ -46,7 +47,7 @@ onMounted(fromHash)
 if (router) watch(() => router.currentRoute.value.hash, fromHash)
 window.addEventListener('hashchange', fromHash)
 onBeforeUnmount(() => window.removeEventListener('hashchange', fromHash))
-const BOOTSTRAP_DEFAULTS = { platforms: ['openclaw','claude','codex','grok'] as ('openclaw'|'claude'|'codex'|'grok')[], roles: ['developer','security'] as ('developer'|'security'|'reviewer')[], shared_project_memory: true, project_workspaces: true, model_policy: 'reuse_configured_default' as const, security_review: 'risk_based' as const }
+const BOOTSTRAP_DEFAULTS = { mode: 'stable' as 'stable'|'custom', platforms: ['openclaw','claude','codex','grok'] as ('openclaw'|'claude'|'codex'|'grok')[], roles: ['developer','security'] as ('developer'|'security'|'reviewer')[], shared_project_memory: true, project_workspaces: true, model_policy: 'reuse_configured_default' as const, security_review: 'risk_based' as const }
 function apply(p: Profile) { profile.value = p; preferences.value = {ai_agent:'hermes',ai_model:'openrouter/free',...structuredClone(p.preferences),coordinator_bootstrap:{...BOOTSTRAP_DEFAULTS,...p.preferences.coordinator_bootstrap}} }
 async function action(fn: () => Promise<void>) {
   if (busy.value) return
@@ -63,16 +64,11 @@ async function save() { await action(async () => {
   apply(await putJson<Profile>('/api/profile', preferences.value)); theme.choose(profile.value!.preferences.theme)
   notice.value = tab.value === 'coordinator' ? 'Coordinator bootstrap preferences saved.' : 'Profile saved. New projects use these defaults.'
 }) }
-async function startCoordinatorBootstrap() { await action(async () => {
-  // Persist the current choices before the server snapshots them into the setup brief.
-  apply(await putJson<Profile>('/api/profile', preferences.value))
-  const result = await postJson<{project_id:number}>('/api/profile/coordinator-bootstrap/start')
-  notice.value = 'Setup plan ready. Review and submit its built-in stories in Projects; Hermes has not started work.'
-  await router.push({ path: '/projects', query: { project: String(result.project_id) } })
-}) }
+// Saves the current choices; the setup check reads them from the profile.
+async function persistPreferences() { apply(await putJson<Profile>('/api/profile', preferences.value)) }
 async function refreshCoordinatorReadiness() { await action(async () => {
   bootstrapReadiness.value = await getJson<{ ready:boolean; checks:{id:string;label:string;ready:boolean;link:string}[] }>('/api/profile/coordinator-bootstrap/readiness')
-  notice.value = bootstrapReadiness.value.ready ? 'Hermes is ready to prepare the setup draft.' : 'Readiness updated. Complete the linked setup items first.'
+  notice.value = bootstrapReadiness.value.ready ? 'Hermes is ready.' : 'Readiness updated. Complete the linked Hermes items first.'
 }) }
 async function saveKey(provider: string) { await action(async () => {
   const key = secrets.value[provider]
@@ -183,26 +179,32 @@ async function importPreferences(event: Event) { await action(async () => {
 
     <RouteRecoveryPanel v-show="tab === 'coordinator'" @saved="p => { if (preferences) preferences.route_recovery = p; if (profile) profile.preferences.route_recovery = p }" />
     <form v-if="profile && preferences" v-show="tab === 'coordinator'" id="coordinator-bootstrap" class="card bootstrap-card" role="tabpanel" aria-labelledby="bootstrap-title" @submit.prevent="save">
-      <header class="card-head"><div><h2 id="bootstrap-title">Coordinator bootstrap</h2><p class="muted small">Set the starting assumptions Hermes uses to prepare agent setup work.</p></div><RouterLink to="/help?topic=maintenance" class="small">How-to</RouterLink></header>
-      <fieldset class="choice-group"><legend>Platforms to consider</legend><p class="small muted">Ready platforms become setup candidates. Anything that needs sign-in or a model choice becomes a human task with a direct settings link.</p>
+      <header class="card-head"><div><h2 id="bootstrap-title">Coordinator setup</h2><p class="muted small">The dashboard checks the platforms you pick and sets up what is missing. No model runs until you start the validation project.</p></div><RouterLink to="/help?topic=maintenance" class="small">How-to</RouterLink></header>
+      <fieldset class="choice-group mode-group"><legend>Setup mode</legend>
+        <label class="mode"><input v-model="preferences.coordinator_bootstrap.mode" type="radio" value="stable" /><span><strong>Stable start (recommended)</strong><span class="small muted">Creates the missing OpenClaw role agents and project folders from tested templates. Never changes what is already there.</span></span></label>
+        <label class="mode"><input v-model="preferences.coordinator_bootstrap.mode" type="radio" value="custom" /><span><strong>I’ll configure the platforms myself</strong><span class="small muted">Changes nothing. Checks what you set up and lists any gaps with links.</span></span></label>
+      </fieldset>
+      <fieldset class="choice-group"><legend>Platforms</legend><p class="small muted">Each one is checked: installed, starts, and has a route the dashboard may use. Unready ones show the fix.</p>
         <label v-for="item in [{id:'openclaw',name:'OpenClaw'},{id:'claude',name:'Claude Code'},{id:'codex',name:'Codex'},{id:'grok',name:'Grok Build'}]" :key="item.id" class="choice"><input v-model="preferences.coordinator_bootstrap.platforms" type="checkbox" :value="item.id" /><span>{{ item.name }}</span></label>
       </fieldset>
-      <fieldset class="choice-group"><legend>Starter roles</legend><p class="small muted">Create only missing agents for these roles. Existing agents are preserved.</p>
-        <label v-for="item in [{id:'developer',name:'Developer'},{id:'security',name:'Security reviewer'},{id:'reviewer',name:'Acceptance reviewer'}]" :key="item.id" class="choice"><input v-model="preferences.coordinator_bootstrap.roles" type="checkbox" :value="item.id" /><span>{{ item.name }}</span></label>
-      </fieldset>
-      <div class="switches" role="group" aria-label="Workspace and memory setup">
-        <ToggleSwitch v-model="preferences.coordinator_bootstrap.shared_project_memory" label="Shared project memory" hint="Prepare project-scoped notes and handoffs agents can share." />
-        <ToggleSwitch v-model="preferences.coordinator_bootstrap.project_workspaces" label="Project workspaces" hint="Prepare an allowed project area for agent work." />
-      </div>
-      <label class="row bootstrap-model"><span class="name">Model setup</span><AppSelect v-model="preferences.coordinator_bootstrap.model_policy" aria-label="Bootstrap model policy"><option value="reuse_configured_default">Reuse each platform’s configured default</option><option value="ask_before_change">Ask me before changing a model</option></AppSelect></label>
+      <template v-if="preferences.coordinator_bootstrap.mode === 'stable'">
+        <fieldset class="choice-group"><legend>OpenClaw role agents</legend><p class="small muted">Missing ones are created on OpenClaw’s configured default model. Existing agents are kept.</p>
+          <label v-for="item in [{id:'developer',name:'Developer'},{id:'security',name:'Security reviewer'},{id:'reviewer',name:'Acceptance reviewer'}]" :key="item.id" class="choice"><input v-model="preferences.coordinator_bootstrap.roles" type="checkbox" :value="item.id" /><span>{{ item.name }}</span></label>
+        </fieldset>
+        <div class="switches" role="group" aria-label="Workspace and memory setup">
+          <ToggleSwitch v-model="preferences.coordinator_bootstrap.shared_project_memory" label="Shared project memory" hint="A notes folder every project may read." />
+          <ToggleSwitch v-model="preferences.coordinator_bootstrap.project_workspaces" label="Project workspaces" hint="Projects get their own folders in the managed project area." />
+        </div>
+      </template>
       <label class="row bootstrap-model"><span class="name">Security review</span><AppSelect v-model="preferences.coordinator_bootstrap.security_review" aria-label="Security review policy"><option value="risk_based">Include for security-sensitive or high-risk work</option><option value="every_project">Include in every project</option><option value="by_request">Include when I request it</option></AppSelect></label>
-      <aside class="bootstrap-note"><strong>Ready to configure?</strong> Check that Hermes is installed, assigned as Coordinator, has its guidance and a default model. Starting setup prepares a built-in editable plan without a model call. Review and submit it before agent work begins.</aside>
+      <h3 class="sub">Hermes, the Coordinator</h3>
       <ul v-if="bootstrapReadiness" class="readiness-list" aria-label="Hermes readiness">
         <li v-for="check in bootstrapReadiness.checks" :key="check.id" :class="check.ready ? 'ready' : 'missing'">
           <span aria-hidden="true">{{ check.ready ? '✓' : '!' }}</span><span>{{ check.label }}</span><RouterLink v-if="!check.ready" :to="check.link">{{ check.id === 'guidance' ? 'Open Agent roles' : 'Fix' }}</RouterLink>
         </li>
       </ul>
-      <div class="actions"><button class="btn primary" type="button" :disabled="busy || !bootstrapReadiness?.ready" @click="startCoordinatorBootstrap">{{ busy ? 'Checking…' : 'Start agent setup' }}</button><button class="btn" type="button" :disabled="busy" @click="refreshCoordinatorReadiness">Recheck readiness</button><button class="btn" :disabled="busy">Save coordinator setup</button><RouterLink to="/agents" class="btn">Review installed agents</RouterLink></div>
+      <CoordinatorSetupPanel :hermes-ready="!!bootstrapReadiness?.ready" :persist="persistPreferences" />
+      <div class="actions"><button class="btn" :disabled="busy">Save coordinator setup</button><button class="btn" type="button" :disabled="busy" @click="refreshCoordinatorReadiness">Recheck Hermes</button><RouterLink to="/agents" class="btn">Review installed agents</RouterLink></div>
     </form>
   </section>
 </template>
@@ -224,7 +226,11 @@ async function importPreferences(event: Event) { await action(async () => {
 .choice { display:flex; align-items:center; gap:var(--gap-xs); color:var(--text); }
 .choice input { accent-color:var(--accent); }
 .bootstrap-model { max-width:42rem; }
-.bootstrap-note { border:1px solid var(--surface-border); border-radius:var(--radius); padding:var(--gap); color:var(--text-muted); }
+.mode-group { display:grid; }
+.mode { display:flex; align-items:flex-start; gap:var(--gap-sm); color:var(--text); }
+.mode input { margin-top:0.3rem; accent-color:var(--accent); }
+.mode > span { display:grid; gap:var(--gap-xs); }
+.sub { margin:var(--gap-xs) 0 0; font-size:var(--font-size-base); }
 .readiness-list { display:grid; gap:var(--gap-xs); list-style:none; padding:0; margin:0; }
 .readiness-list li { display:flex; align-items:center; gap:var(--gap-sm); border:1px solid var(--surface-border); border-radius:var(--radius); padding:var(--gap-sm) var(--gap); }
 .readiness-list li span:first-child { font-weight:var(--font-weight-strong); }

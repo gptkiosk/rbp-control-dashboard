@@ -50,6 +50,10 @@
     "ops/systemd/*.template",
     "ops/systemd/*.timer",
     "packs/roles/delegator/*",
+    "packs/agents/*",
+    "packs/agents/developer/*",
+    "packs/agents/security/*",
+    "packs/agents/reviewer/*",
     "packs/standards/*",
     "packs/evaluation/*",
     "packaging/allowed_signers"

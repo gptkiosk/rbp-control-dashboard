@@ -6,9 +6,20 @@ Hermes is the fixed project Coordinator in RCD. Settings → Agent roles shows H
 
 Coordinator is a project role, not a requirement to use only Hermes. Today, you can ask Hermes through RCD Chat for setup advice or a setup brief, or use Claude Code CLI or Codex CLI directly when that runtime is installed and signed in on the host. The operator still applies and verifies native configuration and credentials.
 
-The Hermes starter guidance includes RCD-specific context for OpenClaw, including how the dashboard uses its gateway, named agent targets and workspace instructions. That context can make OpenClaw setup easier than starting from a generic prompt. In Profile → Coordinator setup, save the desired platforms and roles, then choose **Start agent setup** when the readiness list shows Hermes installed, assigned as Coordinator, guided and configured with a default model. RCD creates a setup project draft and opens it in Projects. Review the brief and plan there; no model run begins until you explicitly continue through the normal project approval flow. The bootstrap must preserve existing agent configuration and turn sign-in, credentials, model selection and other operator-only work into linked human tasks.
+The Hermes starter guidance includes RCD-specific context for OpenClaw: how the dashboard uses its gateway, named agent targets and workspace instructions.
 
-Profile → Coordinator setup stores bootstrap preferences for platforms to consider, starter roles, shared project memory and workspace creation, security-review frequency, and whether to reuse configured model defaults or ask before changing them. All platforms are selected initially. Saving preferences does not change native platform configuration; starting setup snapshots those choices into a project brief for Hermes to plan.
+## Coordinator setup
+
+In Settings → Coordinator setup, the dashboard sets up the agent platforms itself; no model is involved, so every run behaves the same.
+
+1. **Choose a setup mode.** *Stable start* (recommended) creates what is missing from tested templates: the OpenClaw role agents `rcd-oc-developer`, `rcd-oc-security` and, if ticked, `rcd-oc-reviewer` (each with its own workspace, `SOUL.md` and `AGENTS.md` from `packs/agents/`, registered with `openclaw agents add` on OpenClaw's configured default model), plus the shared-memory notes and project folders. *I'll configure the platforms myself* changes nothing and only checks what you set up.
+2. **Pick the platforms.** Each selected platform is checked: installed, starts (`--version`), and has a route the dashboard may use (OpenClaw: a default model; Claude Code, Codex and Grok Build: billing saved as Subscription). Anything not ready shows the fix and a link.
+3. **Hermes, the Coordinator,** must be installed, assigned, guided and have a default model.
+4. **Apply setup.** The list of changes says what will be created and what is already there. Tick the confirmation and apply. An existing agent, file or folder is never changed, a stale preview is refused, and a failed item is reported with its reason while the others still apply. Applying twice creates nothing new.
+5. **Start validation project.** Once every check passes and nothing is left to create, this creates a small project: one read-only story per ready platform (OpenClaw runs as `rcd-oc-developer`) and your review. Submit it in Projects; it proves each platform signs in and answers. Then start a real project.
+
+Switching from *configure myself* to *Stable start* later only adds what is missing.
+
 
 Preview shows exact managed instruction blocks and paths before confirmation. The dashboard retains surrounding operator text, makes a private backup and supports rollback. Rollback refuses if a target was edited after assignment. An interrupted write has a recovery journal; recover only when its contents still match the recorded before/after states. Changed operator files are never silently erased.
 

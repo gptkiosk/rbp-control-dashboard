@@ -12,6 +12,7 @@ export interface Preferences {
   coordinator_bootstrap?: CoordinatorBootstrapPreferences
 }
 export interface CoordinatorBootstrapPreferences {
+  mode: 'stable' | 'custom'
   platforms: ('openclaw' | 'claude' | 'codex' | 'grok')[]
   roles: ('developer' | 'security' | 'reviewer')[]
   shared_project_memory: boolean

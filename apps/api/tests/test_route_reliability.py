@@ -186,31 +186,6 @@ def test_dispatch_rechecks_each_explicit_billing_opt_in(app,price,flag):
             admit(settings,item,argv,current_price_class=other,limits=billing.limits(s,settings))
 
 
-def test_bootstrap_has_a_valid_editable_plan_and_dispatches_without_planning_calls(app,monkeypatch):
-    c,sessions,settings,workspace=app
-    import routes.profiles as profile_routes
-    monkeypatch.setattr(profile_routes,'_bootstrap_readiness',lambda settings:{'ready':True,'checks':[]})
-    prefs=c.get('/api/profile').json()['preferences'];prefs['working_dir']=str(workspace)
-    prefs['coordinator_bootstrap']['platforms']=['openclaw','claude','codex']
-    assert c.put('/api/profile',json=prefs).status_code==200
-    first=c.post('/api/profile/coordinator-bootstrap/start')
-    assert first.status_code==201,first.text
-    pid=first.json()['project_id'];doc=c.get(f'/api/projects/{pid}').json()
-    assert doc['state']=='review' and len(doc['document']['nodes'])>=10
-    assert not doc['tasks']
-    assert c.post('/api/profile/coordinator-bootstrap/start').json()['project_id']==pid
-    nodes=doc['document']['nodes']
-    assert all(n['scope'] and n['acceptance'] and n['description'] for n in nodes)
-    assert {n['assignee'] for n in nodes}=={'hermes','human'}
-    assert 'SOUL.md' in json.dumps(nodes) and '/profile#agent-tools' in json.dumps(nodes)
-    result=c.post(f'/api/projects/{pid}/submit',json={'revision':1,'approve_coordination':True,'approve_api_work':True})
-    assert result.status_code==200,result.text
-    assert result.json()['state']=='active'
-    assert all(t['role']=='story' for t in result.json()['tasks'])
-    with sessions() as s:
-        assert not list(s.scalars(select(Run.id)))
-
-
 def test_failed_dispatch_uses_only_the_approved_dependency_order(app):
     c,sessions,settings,workspace=app
     with sessions() as s:

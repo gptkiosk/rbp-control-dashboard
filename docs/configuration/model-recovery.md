@@ -20,7 +20,7 @@ The app samples at most 500 terminal local runs over seven days by runtime and r
 
 ## Bootstrap sequence
 
-**Start agent setup** creates or reopens the current bootstrap project. Review and submit the built-in stories directly; model planning is optional. Hermes checks each selected platform, the operator resolves or excludes missing prerequisites, Hermes prepares selected missing role guidance and shared project areas, and verification and human acceptance follow. Existing agents and files are preserved. Changes outside approved workspaces need the ordinary scoped tools/permissions; otherwise the task stages guidance and provides a linked manual action. Staged files are never reported as registered agents. External provider availability and physical Pi behavior still require verification on the installed host.
+Coordinator setup is done by the dashboard itself; see [agent roles](agent-roles.md#coordinator-setup). **Start validation project** creates or reopens a small project with one read-only story per ready platform; its stories use the same route recovery as any other project.
 
 ## Deleting projects and usage history
 
