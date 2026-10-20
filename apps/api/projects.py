@@ -734,27 +734,72 @@ def reviewed_free_planner(s, settings, choice):
     return reviewed_route_class(s, settings, SimpleNamespace(agent=choice['agent'], agent_target=''), choice['model']) == 'free'
 
 
+def free_planner_routes(s, settings):
+    """Configured, reviewed-free Hermes models suitable for safe planner recovery."""
+    if not REGISTRY['hermes'].available(settings):
+        return []
+    configured = native_routes.read(settings).get('hermes', {})
+    routes = []
+    for model in configured.get('models', ()):
+        route = {'agent': 'hermes', 'model': resolve_free_alias(s, settings, 'hermes', None, model) or model}
+        if route['model'] and reviewed_free_planner(s, settings, route) and route not in routes:
+            routes.append(route)
+    return routes
+
+
 def plan(s,p,action,settings,actor,subagents=None):
     check_revision(p,action.revision)
     if p.state=='planning': return
     if p.state in BUSY: fail('This project is already submitted or active.')
     if not action.approve_coordination: fail('Approve project coordination usage before requesting a plan.',422)
     d=document(p)
-    delegate = delegator_route(settings, action)
     agent=d['planner_agent']
+    retrying = p.state == 'planning_failed'
+    free_routes = free_planner_routes(s, settings)
+    delegate = delegator_route(settings, action)
+    if retrying:
+        attempted_coordinate={(v.agent,v.model_requested or '') for v in s.scalars(select(Run).join(ProjectTask,ProjectTask.card_id==Run.card_id).where(
+            ProjectTask.project_id==p.id,ProjectTask.role=='coordinate',ProjectTask.revision==p.revision))}
+        if (delegate['agent'],delegate['model']) in attempted_coordinate:
+            alternate=next((route for route in free_routes if (route['agent'],route['model']) not in attempted_coordinate),None)
+            if alternate: delegate=alternate
     choices = [{'agent':a,'model':subscription_model(a,d['planning_bias'],planner=True)}
         for a in ('claude','codex') if subscription(s,a) and REGISTRY[a].available(settings)] if agent=='auto' else [{'agent':agent,'model':d['planner_model'] or (subscription_model(agent,d['planning_bias'],planner=True) if agent in {'claude','codex'} else REGISTRY[agent].default_model() or '')}]
     choices = [{**c, 'model': resolve_free_alias(s, settings, c['agent'], None, c['model'])} for c in choices]    # the generic free default becomes the agent's own free model
-    if not choices and (subscription(s, delegate['agent']) or reviewed_free_planner(s, settings, delegate)):
+    if retrying:
+        attempted={(v.agent,v.model_requested or '') for v in s.scalars(select(Run).join(ProjectTask,ProjectTask.card_id==Run.card_id).where(
+            ProjectTask.project_id==p.id,ProjectTask.role=='plan',ProjectTask.revision==p.revision))}
+        # Prefer a route that has not already produced a failed or unusable plan.
+        # If all configured routes were tried, an explicit retry may try them again.
+        untried=[c for c in choices+free_routes if (c['agent'],c['model']) not in attempted]
+        if untried: choices=list({(c['agent'],c['model']):c for c in untried}.values())
+    if settings.dispatch_free_only and retrying:
+        # A retry of a failed project must move onto an approved free route. Initial
+        # planning retains its existing candidate approval flow; dispatch still
+        # enforces the operator's free-only policy before any task can start.
+        choices = free_routes
+        if retrying:
+            attempted={(v.agent,v.model_requested or '') for v in s.scalars(select(Run).join(ProjectTask,ProjectTask.card_id==Run.card_id).where(
+                ProjectTask.project_id==p.id,ProjectTask.role=='plan',ProjectTask.revision==p.revision))}
+            untried=[c for c in choices if (c['agent'],c['model']) not in attempted]
+            if untried: choices=untried
+    if not choices and (retrying or agent == 'auto') and (
+            reviewed_free_planner(s, settings, delegate) if settings.dispatch_free_only else
+            (subscription(s, delegate['agent']) or reviewed_free_planner(s, settings, delegate))):
         choices = [delegate.copy()]
-    if not choices: fail('No installed subscription or reviewed free planner is available. Configure a planner explicitly.',422)
+    if not choices:
+        if settings.dispatch_free_only:
+            fail('No configured free planner route is available. Configure a reviewed-free Hermes model/provider route; this project remains saved for retry.',422)
+        fail('No installed subscription or reviewed free planner is available. Configure a planner explicitly.',422)
+    recovery_routes = [r for r in free_routes if r not in choices]
     if any(not subscription(s,c['agent']) and not reviewed_free_planner(s, settings, c) for c in choices) and not action.approve_api_planning:
         fail('This planner uses API billing. Separate paid-planning approval is required.',422)
     prompt = role_prompt('coordinate', candidates=json.dumps(choices), project=_brief(p))
     c=_queue(s,p,'coordinate',delegate['agent'],delegate['model'],prompt,settings)
-    p.state='planning'; p.error=None; p.pipeline=json.dumps({'step':'coordinate','delegator':delegate,'card_id':c.id,'choices':choices,'fresh':bool(action.fresh),'revision':p.revision,'execution_catalog':execution_catalog(settings,subagents,d['planning_bias'])})
+    p.state='planning'; p.error=None; p.pipeline=json.dumps({'step':'coordinate','delegator':delegate,'card_id':c.id,'choices':choices,
+        'recovery_routes':recovery_routes,'fresh':bool(action.fresh),'revision':p.revision,'execution_catalog':execution_catalog(settings,subagents,d['planning_bias'])})
     planning_mode='from scratch, current stories not shown to the planner' if action.fresh else 'from the current map'
-    memory(s,p,'decision',f'Operator approved planning revision {p.revision}: Delegator {delegate["agent"]} · {delegate["model"]}; candidates {json.dumps(choices)}; API planner approval={action.approve_api_planning}; planning {planning_mode}. Provider limits apply; budget is not a universal hard cap.',actor)
+    memory(s,p,'decision',f'Operator approved planning revision {p.revision}: Delegator {delegate["agent"]} · {delegate["model"]}; candidates {json.dumps(choices)}; free recovery routes {json.dumps(recovery_routes)}; API planner approval={action.approve_api_planning}; planning {planning_mode}. Provider limits apply; budget is not a universal hard cap.',actor)
 
 def _json_result(raw):
     value=(raw or '').strip()
@@ -960,15 +1005,41 @@ def advance(s,settings):
         c=s.get(Card,pipeline['card_id'])
         if c and c.column in {'queued','running'}: continue
         r=s.scalar(select(Run).where(Run.card_id==pipeline['card_id']).order_by(Run.id.desc()).limit(1))
-        if c and r and r.stage=='failed' and pipeline['step']=='plan' and re.search(r'usage limit|session limit|rate.?limit|quota|limit reached|429', (r.error or '')+'\n'+(r.result_text or ''),re.I):
-            attempted={(v.agent,v.model_requested or '') for v in s.scalars(select(Run).join(ProjectTask,ProjectTask.card_id==Run.card_id).where(ProjectTask.project_id==p.id,ProjectTask.role=='plan',ProjectTask.revision==p.revision))}
-            alternative=next((v for v in pipeline['choices'] if (v['agent'],v['model']) not in attempted),None)
-            memory(s,p,'checkpoint','Planner stopped on a reported quota/limit. No implementation started.\n'+(r.error or '')+'\n'+(r.result_text or ''),r.agent,c.id,r.id)
+        if c and r and r.stage=='failed' and pipeline['step'] in {'coordinate','plan','return'}:
+            step=pipeline['step']
+            role={'coordinate':'coordinate','plan':'plan','return':'return plan'}[step]
+            attempted={(v.agent,v.model_requested or '') for v in s.scalars(select(Run).join(ProjectTask,ProjectTask.card_id==Run.card_id).where(
+                ProjectTask.project_id==p.id,ProjectTask.role==role,ProjectTask.revision==p.revision))}
+            free_routes=free_planner_routes(s,settings)
+            if step=='plan':
+                candidates=list(pipeline.get('choices',()))+list(pipeline.get('recovery_routes',()))+free_routes
+            else:
+                delegate=pipeline.get('delegator',{})
+                candidates=[delegate] if delegate.get('agent') and delegate.get('model') else []
+                candidates.extend(pipeline.get('recovery_routes',()))
+                candidates.extend(free_routes)
+            # Routes were explicitly selected in the project or are exact models in
+            # the operator's Hermes config. Re-check the active policy at each retry;
+            # never turn a free-only refusal into paid work.
+            candidates=[v for v in candidates if isinstance(v,dict) and v.get('agent') and v.get('model')
+                and (not settings.dispatch_free_only or reviewed_free_planner(s,settings,v))]
+            unique_candidates={}
+            for candidate in candidates:
+                unique_candidates.setdefault((candidate['agent'],candidate['model']),candidate)
+            candidates=list(unique_candidates.values())
+            alternative=next((v for v in candidates if (v['agent'],v['model']) not in attempted),None)
             if alternative:
-                c=_queue(s,p,'plan',alternative['agent'],alternative['model'],_planner_prompt(p,pipeline.get('execution_catalog'),s,pipeline.get('fresh',False)),settings)
-                p.pipeline=json.dumps({**pipeline,'card_id':c.id,'chosen':alternative});continue
+                memory(s,p,'checkpoint',f'Planning {step} route failed. Retrying the same read-only planning step on the next approved route; no implementation started.\n'
+                    +(r.error or '')+'\n'+(r.result_text or ''),r.agent,c.id,r.id)
+                role_title={'coordinate':'coordinate','plan':'plan','return':'return plan'}[step]
+                c=_queue(s,p,role_title,alternative['agent'],alternative['model'],c.body or '',settings)
+                route_updates={'delegator':alternative} if step=='coordinate' else {'chosen':alternative} if step=='plan' else {}
+                p.pipeline=json.dumps({**pipeline,'card_id':c.id,**route_updates});continue
         if not c or not r or r.stage!='succeeded':
-            p.state='planning_failed' if p.state=='planning' else 'dispatch_failed';p.error='Planning/dispatch task stopped or failed. Inspect its board run and explicitly retry.';continue
+            p.state='planning_failed' if p.state=='planning' else 'dispatch_failed'
+            p.error=('Planning failed after the available approved routes were tried. Review the board runs, then retry or revise the planner route; the project and its brief are retained.'
+                if p.state=='planning_failed' else 'Planning/dispatch task stopped or failed. Inspect its board run and explicitly retry.')
+            continue
         try:
             # A savepoint prevents partial story creation if any validated field fails.
             with s.begin_nested():

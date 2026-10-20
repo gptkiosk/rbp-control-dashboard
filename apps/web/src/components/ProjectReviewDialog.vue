@@ -81,7 +81,7 @@ const unknownArea = computed(() => problems.value.some(p => p.includes("this rep
         <RouteAdvice :project-id="projectId" :revision="revision" />
       </template>
 
-      <NoteFold label="Spending and billing"><p class="small">The Coordinator uses its reviewed route; the Planner above is a separate choice. Membership access and provider API billing are separate. Free models can hit limits, and a Google BYOK fallback can incur Google charges. Hermes and OpenClaw routing shares a $20 per month OpenRouter key cap that includes tracked BYOK usage; this does not cover your whole Google invoice or calls outside this key.</p><RouterLink to="/help?topic=project-models">Model routes and billing</RouterLink></NoteFold>
+      <NoteFold label="Spending and billing"><p class="small">The Coordinator uses its reviewed route; the Planner above is a separate choice. Failed planning steps try the next approved model/provider route. Free-only policy keeps retries on reviewed-free routes; it never approves paid work. If all routes fail, the project stays available to revise and retry. Membership access and provider API billing are separate. Free models can hit limits, and a Google BYOK fallback can incur Google charges. Hermes and OpenClaw routing shares a $20 per month OpenRouter key cap that includes tracked BYOK usage; this does not cover your whole Google invoice or calls outside this key.</p><RouterLink to="/help?topic=project-models">Model routes and billing</RouterLink></NoteFold>
 
       <div class="approvals">
         <label class="check"><input v-model="coordination" type="checkbox" /><span>I approve this Coordinator coordination request and its configured routing.</span></label>
