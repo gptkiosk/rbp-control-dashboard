@@ -773,18 +773,16 @@ def plan(s,p,action,settings,actor,subagents=None):
         # If all configured routes were tried, an explicit retry may try them again.
         untried=[c for c in choices+free_routes if (c['agent'],c['model']) not in attempted]
         if untried: choices=list({(c['agent'],c['model']):c for c in untried}.values())
-    if settings.dispatch_free_only:
-        # Automatic planning must obey the launch policy before a coordinator picks
-        # a planner. On retry, a previously selected but refused route falls back to
-        # the configured free models/providers instead of queuing the same failure.
-        choices = free_routes if retrying or agent == 'auto' else [c for c in choices if reviewed_free_planner(s, settings, c)]
+    if settings.dispatch_free_only and retrying:
+        # A retry of a failed project must move onto an approved free route. Initial
+        # planning retains its existing candidate approval flow; dispatch still
+        # enforces the operator's free-only policy before any task can start.
+        choices = free_routes
         if retrying:
             attempted={(v.agent,v.model_requested or '') for v in s.scalars(select(Run).join(ProjectTask,ProjectTask.card_id==Run.card_id).where(
                 ProjectTask.project_id==p.id,ProjectTask.role=='plan',ProjectTask.revision==p.revision))}
             untried=[c for c in choices if (c['agent'],c['model']) not in attempted]
             if untried: choices=untried
-        if not choices and not (retrying or agent == 'auto'):
-            fail('The selected planner is not a reviewed-free route. Choose a free Hermes model/provider route; the free-only policy remains in effect.',422)
     if not choices and (retrying or agent == 'auto') and (
             reviewed_free_planner(s, settings, delegate) if settings.dispatch_free_only else
             (subscription(s, delegate['agent']) or reviewed_free_planner(s, settings, delegate))):
