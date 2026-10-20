@@ -32,7 +32,7 @@ def setup_app(make_client, monkeypatch, tmp_path):
             return 0, 'tool 2026.6.11'
         if argv[1:4] == ['agents', 'list', '--json']:
             listed = json.loads(openclaw.read_text())['agents']['list'] + extra_cli_agents
-            return 0, 'banner line\n' + json.dumps([{'id': a['id'], 'isDefault': False} for a in listed])
+            return 0, '[plugins] ready\n' + json.dumps([{'id': a['id'], 'isDefault': False} for a in listed])
         if argv[1:3] == ['agents', 'add']:
             cfg = json.loads(openclaw.read_text())
             cfg['agents']['list'].append({'id': argv[3]})
@@ -113,6 +113,24 @@ def test_agents_the_cli_reports_count_as_registered_even_when_the_config_file_om
     agents = [ch for ch in body['changes'] if ch['kind'] == 'agent']
     assert agents and all(ch['action'] == 'keep' for ch in agents)
     assert agent_setup.agent_id(settings, 'developer') in body['agents']
+
+
+def test_a_project_can_submit_to_an_agent_only_the_cli_reports(setup_app, monkeypatch):
+    # The Pi case: OpenClaw lists the role agent, its config file does not. Submission checks targets through native_routes.
+    import native_routes
+    c, _, settings, _, _, _, extra = setup_app
+    developer = agent_setup.agent_id(settings, 'developer')
+    extra.append({'id': developer})
+    monkeypatch.setattr(native_routes, '_cli_agents', lambda settings: [{'id': developer, 'name': developer, 'model': '', 'default': False}])
+    assert developer in {t['id'] for t in native_routes.read(settings)['openclaw']['targets']}
+    preview = c.get('/api/profile/coordinator-bootstrap/setup').json()
+    assert c.post('/api/profile/coordinator-bootstrap/setup/apply', json={'digest': preview['digest']}).status_code == 200
+    agent_setup.wait()
+    first = c.post('/api/profile/coordinator-bootstrap/start')
+    assert first.status_code == 201, first.text
+    pid = first.json()['project_id']
+    result = c.post(f'/api/projects/{pid}/submit', json={'revision': 1, 'approve_coordination': True, 'approve_api_work': True})
+    assert result.status_code == 200, result.text
 
 
 def test_an_agent_that_already_exists_is_not_a_failure(setup_app, monkeypatch):
