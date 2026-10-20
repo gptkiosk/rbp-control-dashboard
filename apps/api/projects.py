@@ -1033,7 +1033,8 @@ def advance(s,settings):
                     +(r.error or '')+'\n'+(r.result_text or ''),r.agent,c.id,r.id)
                 role_title={'coordinate':'coordinate','plan':'plan','return':'return plan'}[step]
                 c=_queue(s,p,role_title,alternative['agent'],alternative['model'],c.body or '',settings)
-                p.pipeline=json.dumps({**pipeline,'card_id':c.id,**({'chosen':alternative} if step=='plan' else {})});continue
+                route_updates={'delegator':alternative} if step=='coordinate' else {'chosen':alternative} if step=='plan' else {}
+                p.pipeline=json.dumps({**pipeline,'card_id':c.id,**route_updates});continue
         if not c or not r or r.stage!='succeeded':
             p.state='planning_failed' if p.state=='planning' else 'dispatch_failed'
             p.error=('Planning failed after the available approved routes were tried. Review the board runs, then retry or revise the planner route; the project and its brief are retained.'
