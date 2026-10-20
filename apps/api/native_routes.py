@@ -50,8 +50,8 @@ def _cli_agents(settings):
             return list(_cli['agents'])
         found = []
         try:
-            from legacy_adapters import LegacyAgentAdapter
-            done = subprocess.run([binary, 'agents', 'list', '--json'], stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=30, env=LegacyAgentAdapter.env())
+            from dispatcher import Dispatcher
+            done = subprocess.run([binary, 'agents', 'list', '--json'], stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=30, env=Dispatcher._env('openclaw'))
             out = done.stdout or ''
             if done.returncode == 0:
                 for row in json_list(out):

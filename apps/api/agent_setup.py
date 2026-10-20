@@ -33,8 +33,9 @@ class SetupError(Exception):
 
 
 def _env():
-    from legacy_adapters import LegacyAgentAdapter
-    return LegacyAgentAdapter.env()
+    """The scrubbed environment agent runs get, built the way this product builds it."""
+    from dispatcher import Dispatcher
+    return Dispatcher._env('openclaw')
 
 
 def run(argv, timeout=30, limit=2000):

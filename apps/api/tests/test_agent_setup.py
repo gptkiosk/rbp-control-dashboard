@@ -176,3 +176,10 @@ def test_validation_project_waits_for_setup_then_runs_one_read_story_per_ready_p
     assert result.status_code == 200, result.text
     with sessions() as s:
         assert not list(s.scalars(select(Run.id)))
+
+
+def test_the_real_runner_starts_a_command_with_this_products_agent_environment():
+    # Not faked: building the environment must work in this product (MCD and RCD build it differently).
+    import sys
+    code, out = agent_setup.run([sys.executable, '-c', 'import os; print("ok", "MAC_CONTROL_DATA_DIR" in os.environ)'])
+    assert (code, out) == (0, 'ok False')

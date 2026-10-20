@@ -17,6 +17,7 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 - **A project could not be submitted to an OpenClaw agent that OpenClaw lists but its config file does not.** The validation project's `-oc-developer` story was refused as "OpenClaw target is no longer configured".
   - OpenClaw targets now also come from `openclaw agents list --json`, cached for a minute and refreshed right after Coordinator setup. This covers project submission, route choices, the task panel and route recovery alike.
   - CLI output is parsed past log lines such as `[plugins] ready` that can come before the JSON.
+- Coordinator setup and the target list build the agent environment through the dispatcher, the same way in both products.
 
 ## [0.6.41] - 2026-10-20
 
