@@ -760,3 +760,4 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 [0.6.34]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.34
 [0.6.35]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.35
 [0.6.36]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.36
+[0.6.37]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.37
