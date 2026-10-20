@@ -156,12 +156,12 @@ function lastSeen(iso: string | null): string {
       <StatTile data-testid="tile-temp" label="Temperature" icon="temperature" :value="formatTemp(m.cpu_temp)" sub="SoC" />
       <StatTile data-testid="tile-throttling" label="Throttling" icon="alert" :value="throttling!.value">
         <template #sub>
-          <ChipTag :tone="throttling!.tone">{{ throttling!.detail }}</ChipTag>
+          <ChipTag v-if="throttling!.tone !== 'muted'" class="flag-chip" :tone="throttling!.tone">{{ throttling!.detail }}</ChipTag><template v-else>{{ throttling!.detail }}</template>
         </template>
       </StatTile>
       <StatTile data-testid="tile-undervoltage" label="Undervoltage" icon="power" :value="undervoltage!.value">
         <template #sub>
-          <ChipTag :tone="undervoltage!.tone">{{ undervoltage!.detail }}</ChipTag>
+          <ChipTag v-if="undervoltage!.tone !== 'muted'" class="flag-chip" :tone="undervoltage!.tone">{{ undervoltage!.detail }}</ChipTag><template v-else>{{ undervoltage!.detail }}</template>
         </template>
       </StatTile>
       <StatTile data-testid="tile-cpu" label="CPU" icon="cpu" :value="formatPct(m.cpu_pct)" :meter="m.cpu_pct" />
@@ -398,4 +398,6 @@ function lastSeen(iso: string | null): string {
 .title {
   font-weight: var(--font-weight-strong);
 }
+/* Flag details can name several conditions: let the chip wrap inside its tile. */
+.flag-chip { white-space: normal; max-width: 100%; }
 </style>

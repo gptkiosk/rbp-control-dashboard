@@ -27,7 +27,7 @@ describe('AppFooter', () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')))
     const w = mount(AppFooter)
     await flushPromises()
-    expect(w.text()).toContain('Raspberry Pi Control Dashboard · RCD')
+    expect(w.text()).toContain('Raspberry Pi Control Dashboard · Pi Control')
     expect(w.find('[data-testid="release-label"]').exists()).toBe(false)
   })
 

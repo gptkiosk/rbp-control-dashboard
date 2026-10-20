@@ -12,6 +12,9 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ### Changed
 
+- **Same as MCD, from the congruency pass**: the task panel says when you are looking at an older run and offers View latest run, and a failed task's button reads Rerun task. The MCP list keeps RCD's quiet not-installed state and now also shows a failing list command's own redacted message. The failed-task and Accept anyway guides match the buttons both apps show.
+- **Pi flag tiles fit their card**: Throttling and Undervoltage no longer spill their note out of the tile. "Not reported" reads as plain text and longer flag lists wrap. The sign-in page and footer fallback name the product Pi Control, as MCD says Mac Control.
+- **One help text for dashboard updates**: the update guide now describes Check for updates, the single Update button (signed or source-checkout installs) and the pasted-digest fallback the same way in both apps. The optional system tools guide says what Check for updates shows. The setup guide's subscription sign-in sentence is fixed.
 - The update progress view can name an updater's own steps, so MCD's source-checkout updater now shares this component and the same look as RCD's updater. No change to how RCD updates.
 
 ## [0.6.38] - 2026-10-20

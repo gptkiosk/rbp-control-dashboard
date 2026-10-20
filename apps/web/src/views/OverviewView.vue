@@ -95,12 +95,12 @@ function usedOf(used: number | null | undefined, total: number | null | undefine
       />
       <StatTile data-testid="tile-throttling" label="Throttling" icon="alert" :value="throttling!.value">
         <template #sub>
-          <ChipTag :tone="throttling!.tone">{{ throttling!.detail }}</ChipTag>
+          <ChipTag v-if="throttling!.tone !== 'muted'" class="flag-chip" :tone="throttling!.tone">{{ throttling!.detail }}</ChipTag><template v-else>{{ throttling!.detail }}</template>
         </template>
       </StatTile>
       <StatTile data-testid="tile-undervoltage" label="Undervoltage" icon="power" :value="undervoltage!.value">
         <template #sub>
-          <ChipTag :tone="undervoltage!.tone">{{ undervoltage!.detail }}</ChipTag>
+          <ChipTag v-if="undervoltage!.tone !== 'muted'" class="flag-chip" :tone="undervoltage!.tone">{{ undervoltage!.detail }}</ChipTag><template v-else>{{ undervoltage!.detail }}</template>
         </template>
       </StatTile>
       <StatTile
@@ -170,4 +170,6 @@ function usedOf(used: number | null | undefined, total: number | null | undefine
   color: var(--danger);
   border-color: var(--danger);
 }
+/* Flag details can name several conditions: let the chip wrap inside its tile. */
+.flag-chip { white-space: normal; max-width: 100%; }
 </style>

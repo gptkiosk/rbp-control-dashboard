@@ -218,3 +218,20 @@ def test_a_command_that_runs_and_fails_is_still_reported_as_a_failure(tmp_path, 
         routes_mcp._CACHE.clear()
         get_settings.cache_clear()
     assert listing["installed"] is True and listing["error"] == "list failed (exit 3)"
+
+def test_a_failing_list_command_shows_its_own_redacted_message(tmp_path, monkeypatch):
+    import asyncio
+    import routes.mcp as routes_mcp
+    from settings import get_settings
+    script = tmp_path / "noisy-codex"
+    script.write_text("#!/bin/sh\necho 'config error near line 4' >&2\nexit 3\n")
+    script.chmod(0o755)
+    monkeypatch.setenv("MAC_CONTROL_CODEX_PATH", str(script))
+    get_settings.cache_clear()
+    routes_mcp._CACHE.clear()
+    try:
+        listing = asyncio.run(routes_mcp.list_for("codex", refresh=True))
+    finally:
+        routes_mcp._CACHE.clear()
+        get_settings.cache_clear()
+    assert listing["installed"] is True and listing["error"] == "list failed (exit 3): config error near line 4"
