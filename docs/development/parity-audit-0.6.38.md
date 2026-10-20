@@ -46,6 +46,10 @@ Synthetic recovery previews were inspected at desktop (1300 × 900) and mobile (
 
 ![Synthetic mobile recovery preview](../screenshots/model-recovery-mobile.png)
 
+The RCD cleanup preview also confirmed that 15 historical usage sessions do not populate the configured-agent list. The synthetic overview shows no running turns, a zero-cost free-router history and no false unpriced warning.
+
+![Synthetic usage history after cleanup](../screenshots/agent-history-cleanup.png)
+
 ## Recovery limits
 
 Providers and models can still fail. The application guarantees bounded attempts and keeps the project/task available for explicit recovery; it cannot guarantee a provider response or correct reasoning. Native runtime and provider fallback/overage settings can affect billing and must be reviewed in addition to app route choices. Bootstrap files outside an approved workspace require scoped tools/permission or a linked manual apply step. Existing user configurations are never overwritten by the built-in template.

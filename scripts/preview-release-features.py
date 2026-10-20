@@ -78,7 +78,13 @@ async def role_preview(request:Request):
  try: return fixture_roles.preview(body['roles'],body.get('workspace',''))[1]
  except (ValueError,KeyError) as e: return JSONResponse({'detail':str(e)},status_code=409)
 @app.get('/api/agents')
-def agents(): return {'agents':[{'id':name,'name':name,'available':True,'default_model':'openrouter/free' if name in {'hermes','openclaw'} else None,'subscription_configured':False} for name in fixture_roles.available()]}
+def agents(): return {'agents':[{'id':name,'name':name,'available':True,'default_model':'openrouter/free' if name in {'hermes','openclaw'} else None,'subscription_configured':False,'role':'manager' if name=='hermes' else 'worker','current':[],'subagents':{'agents':[],'processes':[]}} for name in fixture_roles.available()]}
+@app.get('/api/agents/usage')
+def usage_fixture():
+ now=time.time()
+ summary={'agent':'hermes','responses':15,'sessions':15,'last_active':now-3600,'api_equivalent_usd':0,'unpriced':0,'models':[{'model':'openrouter/free'}]}
+ return {'overview':[summary],'sessions':[{'id':'historical-session','agent':'hermes','name':'Historical setup session','scope':'session lifetime','parent':None,'last_active':now-3600}],
+         'coverage':{'hermes':{'state':'ready','checked_at':now}},'openrouter':None}
 # Synthetic model recovery state: provider execution and every save remain disabled.
 @app.get('/api/profile/route-reliability')
 def recovery_fixture():
