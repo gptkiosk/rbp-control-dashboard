@@ -10,6 +10,13 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.6.35] - 2026-10-19
+
+### Fixed
+
+- **Bootstrap planning now requires bounded stories:** the bundled setup brief asks for explicit instructions, scope and acceptance criteria, with read-only readiness checks separated from configuration work.
+- **Malformed planning output can recover:** when a planning run succeeds at the process level but returns data that fails project validation, RCD retries the same planning step on the next already-approved route. The retry never starts project stories; invalid saved output is no longer offered as resumable.
+
 ## [0.6.34] - 2026-10-19
 
 ### Fixed
