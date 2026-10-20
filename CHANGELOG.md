@@ -10,9 +10,11 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.6.33] - 2026-10-19
+
 ### Fixed
 
-- **Projects no longer need to be deleted after a planning route fails.** Coordinator, planner and plan-review tasks automatically retry on the next configured, unused Hermes free route; Retry planning also selects an unused route where available. Free-only policy is rechecked before every attempt and never permits a paid fallback. When eligible routes are exhausted, the saved project remains available to edit and retry.
+- **Projects no longer need to be deleted after a planning route fails.** Coordinator, planner and plan-review tasks retry failures, timeouts and interruptions on the next approved route. Free-only policy is rechecked before every attempt and never permits a paid fallback. When eligible routes are exhausted, the saved project remains available to edit and retry.
 
 ## [0.6.32] - 2026-10-19
 
@@ -729,3 +731,4 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 [0.6.30]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.30
 [0.6.31]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.31
 [0.6.32]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.32
+[0.6.33]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.33
