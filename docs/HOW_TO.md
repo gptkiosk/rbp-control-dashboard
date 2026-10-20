@@ -67,19 +67,21 @@ Tasks needing human interaction, decisions or required answers stay manual, incl
 
 [Open project library](http://127.0.0.1:8800/projects) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=project-approvals)
 
-## Choose model routes and handle subscription limits
+## Choose models and recover failed work
 
-Set the primary model per story and review an ordered list of alternate routes.
+Configure ordered alternatives and retry the same task without rebuilding the project.
 
-1. Select a story and choose its agent and model. Claude and Codex use their existing subscription logins. Suggestions are editable; availability depends on the installed CLI and account.
-2. In Stories & runs, enable Model lock to stop failed tasks without automatic retries or equivalent-model switching. Default off retains approved alternatives; manual retry remains explicit.
-3. Add Model route entries in the order you want. Alternate subscription models or reviewed free/API routes are tried once per story after an explicit reported quota or rate limit, using the same workspace and a checkpoint. Other errors require an explicit retry.
-4. Use Review & submit to inspect every route. Hermes/OpenClaw API routes require a separate acknowledgment. Automatic alternate API routes are limited to Inkling free, Gemma free and Google Gemini 2.5 Flash.
-5. Open Agents to inspect actual key-wide spending and the current monthly limit. The shared key has a $20 monthly cap including recorded BYOK usage. Google calls outside that key and differences in upstream invoicing are outside the cap.
+1. Open Settings → Coordinator setup → Model recovery. Enable automatic route recovery and select up to six configured alternatives in the order you want. A route can use a different runtime/model. Hermes retains the Coordinator guidance; planning helpers only return proposals.
+2. On a free-only host, explicitly enable Allow membership routes alongside free models to use configured subscription accounts. Membership consumes shared account quota and any enabled account overage still applies. This switch does not enable paid API routes; their separate toggle and planning/task approval are required.
+3. Planning permits one output repair on its approved route, followed by untried approved alternatives. Validation applies to every route. After all alternatives fail, the saved project and task remain available for a manual route choice; no project stories start before plan approval.
+4. Open the failed planning task to choose another configured model. A paid route requires a separate API-charge acknowledgment. Membership access does not cover provider API billing. Global spending settings and host restrictions remain in force.
+5. Enable Include alternatives in future project plans to put eligible free and membership alternatives on the editable story map. Review them before submitting. Provider/rate-limit failures may hand off to an approved untried route; model lock disables automatic story switching, and editing timeouts require review of partial work.
+6. After three provider, timeout or output failures in the last five local attempts, the app recommends a route change with its possible cost and a link to the enabling toggle. It lowers that route’s recovery priority without changing permissions or enabling paid use.
+7. Start agent setup in Coordinator setup to create or reopen a built-in, editable bootstrap plan. No provider call is needed to construct it. Review and submit the plan; the app releases its validated dependency order, then Hermes inspects readiness, prepares missing guidance, and leaves linked human prerequisites. Existing configurations are preserved.
 
-Quota handoff is reactive; RCD cannot predict all subscription windows or guarantee free-model availability. A model switch within one subscription may share the same exhausted quota. No unapproved paid model is selected automatically.
+Provider responses and free-model availability cannot be guaranteed. Telemetry samples up to 500 terminal local runs over seven days, and process success is not independent acceptance. Recovery preserves scope, workspace, dependencies, history and approval gates. The app never silently enables paid API fallback.
 
-[Review project models](http://127.0.0.1:8800/projects) · [Inspect actual key spending](http://127.0.0.1:8800/agents#openrouter-spending) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=project-models)
+[Configure recovery routes and toggles](http://127.0.0.1:8800/profile#route-recovery) · [Start or reopen agent setup](http://127.0.0.1:8800/profile#coordinator-bootstrap) · [Review project models](http://127.0.0.1:8800/projects) · [Inspect actual key spending](http://127.0.0.1:8800/agents#openrouter-spending) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=project-models)
 
 ## Get started with RCD
 
@@ -248,7 +250,7 @@ Talk to Claude Code, Codex, Hermes or OpenClaw and retain the conversation.
 2. Select Start chat. Type a prompt and send it; an agent turn can consume usage.
 3. Open an existing thread in the thread list to continue it. The selected thread has a shareable local ?thread= link; an approval-required turn waits for your review.
 
-Read/Edit restrictions depend on the agent. Check the explanatory note in New chat; Hermes and OpenClaw use their own tool policies.
+Read/Edit restrictions depend on the agent. Check the explanatory note in New chat; Hermes and OpenClaw use their own tool policies. Today, ask Hermes in Chat for setup advice or a setup brief, or use an installed and configured Claude Code or Codex CLI on the host. The planned Hermes bootstrap will detect ready installed platforms and create a project brief whose tasks use the standard RCD review, approval and execution flow, with Hermes as the sole bootstrap agent. Until that capability is implemented, Hermes can explain or draft setup briefs but cannot run the bootstrap workflow. You still review proposed changes and verify native settings and credentials.
 
 [Open New chat](http://127.0.0.1:8800/chat?action=new) · [Open existing conversations](http://127.0.0.1:8800/chat) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=agent-chat)
 
@@ -395,7 +397,7 @@ Talk your idea through, say when it is enough, then send the plan to the coordin
 2. Choose an allowed workspace, enter a project name and goal, and choose a project type (the closest fit, or Other if nothing fits exactly). The type is required here so it is always part of the plan. The consultant is told the type’s planning guidance and says if your goal does not fit it.
 3. New AI conversations use Hermes with openrouter/free unless you changed Profile → AI defaults. Install and configure the selected native agent first.
 4. The consultant answers, then asks what it needs to know. Keep talking until you are satisfied; you never have to read its instructions.
-5. Choose That’s enough, write up the plan. The brief opens for you to edit. Confirm the working directory and approve coordination; Hermes creates the project map and stories using the planner you selected.
+5. Choose That’s enough, write up the plan. The brief opens for you to edit. Confirm the working directory and approve coordination; Hermes coordinates the selected planner and returns the project map and stories.
 6. Review the returned project map before separately approving story execution.
 
 Free routes can throttle or fail. Profile → AI defaults also supplies new chat, task and planning forms; existing work keeps its routes. Native membership accounts and API billing are separate. The built-in help chat uses local guides and makes no model calls.
@@ -493,7 +495,7 @@ Settings, Maintenance & access holds the cleanup scan, bug-report intake, agent 
 
 1. Housekeeping scans for leftovers by fixed rules, with no model involved. Press Scan now, read the findings and approve only what you want removed. Hermes may propose a cleanup but can never change anything itself. After hours cleanup is off unless the host enables it (the Notes line says how).
 2. Bug reports shows whether intake is on and when GitHub was last checked. A maintainer labels an issue bug-report and accepted to make it a Backlog task. Press Check GitHub now to look immediately.
-3. Agent roles identifies Hermes as the fixed Coordinator. Use the card to label other installed agents as Workers, Reviewers or Security; it does not let you assign another Coordinator. Preview role changes shows the exact guidance and files before anything is written.
+3. Hermes is the fixed project Coordinator. Agent roles lets you label other agents as Workers, Reviewers or Security; Coordinator and Delegator are not selectable there. Preview role changes shows exactly what will be written before anything is.
 4. Report storage sets the folders the Ops reports page reads. Reports are read-only.
 5. GitHub settings turns on repository, pull request and issue views for the repositories you choose, using the account already signed in with gh. GitHub actions waiting for you lists anything drafted that would write to GitHub: read the exact request, confirm, and it runs once.
 

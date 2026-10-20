@@ -32,6 +32,7 @@ from role_pack import RoleStore, RoleError
 import project_outputs
 import project_types
 import project_schedule as schedule
+import route_reliability as recovery
 from settings import get_settings
 
 BUSY = {'planning', 'dispatching', 'active', 'paused', 'complete'}
@@ -441,10 +442,10 @@ def other_free_routes(routes,card):
     """The configured free routes, without the one this story just failed on."""
     return [r for r in routes if not (card and card.agent=='openclaw' and r['model']==card.model and (card.agent_target or r['agent_target'])==r['agent_target'])]
 
-def paid_retry_routes(settings):
+def paid_retry_routes(settings,s=None):
     """Configured OpenRouter models that are not free, on the configured OpenClaw targets. Choosing one is a per-task operator approval of API billing;
     the price class, budget caps and free-only settings still apply when it dispatches."""
-    if not REGISTRY['openclaw'].available(settings): return []
+    if (settings.dispatch_free_only and (s is None or not recovery.allowed_class(s,settings,'paid'))) or not REGISTRY['openclaw'].available(settings): return []
     native=native_routes.read(settings)['openclaw']
     models=[m for m in native['models'] if m.startswith('openrouter/') and not m.endswith(':free')]
     return [{'agent':'openclaw','model':m,'agent_target':t['id']} for t in native['targets'] for m in models]
@@ -462,7 +463,7 @@ def pay_retry(s,p,card_id,data,settings,actor):
     if not data.acknowledge: fail('Acknowledge that this run uses API billing for this story only.',422)
     timeout_gate(s,p,card,run,data.acknowledge_timeout,actor,'paid retry')
     chosen={'agent':'openclaw','model':data.model,'agent_target':data.agent_target}
-    if chosen not in paid_retry_routes(settings):
+    if chosen not in paid_retry_routes(settings,s):
         fail('Choose a configured OpenClaw target and an OpenRouter model that is not free. Google BYOK routes are not offered here.',422)
     manifest=json.loads(p.approved_manifest)
     previous={'agent':card.agent,'model':card.model,'agent_target':card.agent_target,'run_id':run.id}
@@ -508,7 +509,11 @@ def standards_check(p,settings=None):
     if not d.get('nodes'): return None
     try:
         std=standards.resolve(d['working_dir'],(settings or get_settings()).data_dir)
-        broken=standards.floor_problems(std,d['nodes'],_tier_of)
+        checked_nodes=list(d['nodes'])
+        for n in d['nodes']:
+            if n['kind']=='story' and n['assignee']!='human':
+                checked_nodes.extend({**n,'assignee':r['agent'],'model':r['model'],'title':n['title']+' (fallback)'} for r in n['routes'])
+        broken=standards.floor_problems(std,checked_nodes,_tier_of)
     except Exception:
         return None
     return {'source':std.get('source'),'property':std.get('property'),'problems':broken,'areas':sorted(a['slug'] for a in std.get('areas',[]))}
@@ -535,11 +540,11 @@ def detail(s, p):
     bindings = []
     pipeline = json.loads(p.pipeline) if p.pipeline else {}
     planning_role = {'coordinate': 'coordinate', 'plan': 'plan', 'return': 'return plan'}.get(pipeline.get('step'))
-    retry_routes = planning_retry_routes(s, get_settings(), pipeline, pipeline.get('step')) if (
+    retry_routes = planning_retry_routes(s, get_settings(), pipeline, pipeline.get('step'),p.created_by) if (
         p.state == 'planning_failed' and planning_role and pipeline.get('revision') == p.revision) else []
     free_routes=free_retry_routes(get_settings()) if p.state=='active' else []
     cheap_routes=low_cost_routes(s,get_settings()) if p.state=='active' else []
-    paid_routes=paid_retry_routes(get_settings()) if p.state=='active' else []
+    paid_routes=paid_retry_routes(get_settings(),s) if p.state=='active' else []
     dependency_cache={'reasons':{},'dependencies':{}}
     for link in s.scalars(select(ProjectTask).where(ProjectTask.project_id==p.id).order_by(ProjectTask.card_id)):
         c = s.get(Card, link.card_id)
@@ -563,9 +568,10 @@ def detail(s, p):
                 'plan':r.result_text or ''} if c and r and c.column=='review' and r.stage=='awaiting_approval'
                     and link.role=='story' and p.state=='active' and c.mode=='read' and c.agent=='claude' else None})
     records = list(s.scalars(select(ProjectMemory).where(ProjectMemory.project_id==p.id,ProjectMemory.kind!='scorecard').order_by(ProjectMemory.id.desc()).limit(100)))
-    return {'id':p.id, 'document':document(p), 'revision':p.revision, 'state':p.state, 'can_resume_plan':recoverable(s,p),
+    return {'id':p.id, 'bootstrap':(p.intake_key or '').startswith('bootstrap:'), 'document':document(p), 'revision':p.revision, 'state':p.state, 'can_resume_plan':recoverable(s,p),
         'approved_revision':json.loads(p.approved_manifest)['revision'] if p.approved_manifest else None,
         'pipeline':json.loads(p.pipeline) if p.pipeline else None, 'error':p.error,
+        'route_reliability':recovery.payload(s,get_settings(),p.created_by) if p.state in {'planning_failed','dispatch_failed','active','paused'} else None,
         'handoff_approval':handoff_approval(s,p), 'model_lock':model_locked(p),
         'schedule':plan_schedule(p), 'timing':plan_timing(s,p), 'standards_check':standards_check(p),
         'workspaces':json.loads(p.approved_manifest).get('workspaces',{}) if p.approved_manifest else {},
@@ -635,6 +641,14 @@ def subscription(s, agent):
     return agent in SUBSCRIPTION_AGENTS and billing.config(s)['accounts'][agent]['mode']=='subscription'
 
 def _queue(s, p, role, agent, model, prompt, settings, node_key=''):
+    prompt += '\n\nDashboard output contract v1: return exactly one JSON object, without prose or Markdown fences. Match the supplied schema and candidate IDs. Never interpret this formatting requirement as permission to execute work.'
+    # Native managers still need an explicit, immutable route at dispatch time.
+    # Pin the operator-configured default into the card instead of relying on
+    # the CLI to resolve a mutable default after the SEC-013 claim snapshot.
+    if not model and agent in {'hermes', 'openclaw'}:
+        model = native_routes.read(settings).get(agent, {}).get('default') or ''
+    if not model and agent in SUBSCRIPTION_AGENTS:
+        model = REGISTRY[agent].default_model() or ''
     # Operator approved this bounded pipeline at its current revision. New model output
     # never supplies command argv, workdir, mode, timeout or authorization.
     c = cards.create(s, {'title':f'{document(p)["title"][:145]} · {role}', 'body':prompt,
@@ -643,6 +657,7 @@ def _queue(s, p, role, agent, model, prompt, settings, node_key=''):
     c.column='queued'; c.approved_at=now()
     s.add(ProjectTask(card_id=c.id, project_id=p.id, revision=p.revision, node_key=node_key, role=role))
     return c
+
 
 def _requeue_planning_card(card, agent, model):
     """Run another approved attempt on the same planning task, keeping its run history together."""
@@ -781,14 +796,19 @@ def _next_planning_route(s, settings, p, pipeline, step):
         candidates.extend(pipeline.get('recovery_routes', ()))
         candidates.extend(free_routes)
     candidates = [route for route in candidates if isinstance(route, dict) and route.get('agent') and route.get('model')
-        and (not settings.dispatch_free_only or reviewed_free_planner(s, settings, route))]
+        and _planning_route_allowed(s,settings,route)]
+    candidates=[{'agent':r['agent'],'model':resolve_free_alias(s,settings,r['agent'],None,r['model']) or r['model']} for r in candidates]
     unique = {}
     for route in candidates:
         unique.setdefault((route['agent'], route['model']), route)
-    return next((route for route in unique.values() if (route['agent'], route['model']) not in attempted), None)
+    health={(r['agent'],r['model']):r for r in recovery.stats(s)}
+    routes=sorted(unique.values(),key=lambda r:bool(health.get((r['agent'],r['model']),{}).get('persistent')))
+    return next((route for route in routes if (route['agent'], route['model']) not in attempted), None)
 
 
-def planning_retry_routes(s, settings, pipeline, step):
+
+
+def planning_retry_routes(s, settings, pipeline, step, owner=None):
     """Routes already authorized for this failed planning step, including its current route."""
     if step == 'plan':
         candidates = list(pipeline.get('choices', ())) + list(pipeline.get('recovery_routes', ())) + free_planner_routes(s, settings)
@@ -797,28 +817,43 @@ def planning_retry_routes(s, settings, pipeline, step):
         candidates = ([delegate] if delegate.get('agent') and delegate.get('model') else [])
         candidates.extend(pipeline.get('recovery_routes', ()))
         candidates.extend(free_planner_routes(s, settings))
+    if owner is not None:
+        candidates.extend(recovery.eligible(s, settings, owner, paid_approved=bool(pipeline.get('api_planning_approved'))))
     unique = {}
     for route in candidates:
         if not isinstance(route, dict) or not route.get('agent') or not route.get('model'):
             continue
         if route['agent'] not in REGISTRY or not REGISTRY[route['agent']].available(settings):
             continue
-        if settings.dispatch_free_only and not reviewed_free_planner(s, settings, route):
+        if not _planning_route_allowed(s,settings,route):
             continue
         unique.setdefault((route['agent'], route['model']), {'agent': route['agent'], 'model': route['model']})
     return list(unique.values())
 
 
-def _retry_unusable_planning_result(s, p, pipeline, step, run, card, settings):
+
+def _retry_unusable_planning_result(s, p, pipeline, step, run, card, settings, error=None):
     """A successful process can still return unusable plan data. Retry only another approved route; never dispatch stories here."""
     if step not in {'coordinate', 'plan', 'return'}:
         return False
+    recovery.contract_failure(s,run)
+    card.column='failed'
+    repairs=pipeline.get('contract_repairs',{})
+    # One bounded repair, within the already-approved read-only route, gives small
+    # models actionable validation feedback instead of repeating the original prompt.
+    if recovery.policy(s,p.created_by).enabled and not repairs.get(step):
+        repairs={**repairs,step:1}
+        card.body += '\n\nOUTPUT REPAIR (one attempt): Your last response failed validation.\n'+recovery.validation_summary(error)+'\nReturn the complete corrected response using the original schema, without commentary. Preserve the brief, bounds, route approvals and human decisions. Do not execute work.'
+        _requeue_planning_card(card,run.agent,run.model_requested)
+        p.pipeline=json.dumps({**pipeline,'contract_repairs':repairs});p.state='planning';p.error=None
+        memory(s,p,'checkpoint',f'Run #{run.id} failed output validation. One bounded format repair was queued on the same planning task; no stories started.',run.agent,card.id,run.id)
+        return True
     route = _next_planning_route(s, settings, p, pipeline, step)
     if not route:
         return False
     role = {'coordinate': 'coordinate', 'plan': 'plan', 'return': 'return plan'}[step]
     _requeue_planning_card(card, route['agent'], route['model'])
-    route_updates = {'delegator': route} if step == 'coordinate' else {'chosen': route} if step == 'plan' else {}
+    route_updates = {'delegator': route} if step in {'coordinate','return'} else {'chosen': route}
     p.pipeline = json.dumps({**pipeline, 'card_id': card.id, **route_updates})
     p.state = 'planning'
     p.error = None
@@ -826,17 +861,28 @@ def _retry_unusable_planning_result(s, p, pipeline, step, run, card, settings):
     return True
 
 
+
 def plan(s,p,action,settings,actor,subagents=None):
     check_revision(p,action.revision)
     if p.state=='planning': return
     if p.state in BUSY: fail('This project is already submitted or active.')
     if not action.approve_coordination: fail('Approve project coordination usage before requesting a plan.',422)
+    if p.state=='planning_failed' and p.pipeline and not action.fresh:
+        pipeline=json.loads(p.pipeline)
+        if pipeline.get('revision')==p.revision and pipeline.get('step') in {'coordinate','plan','return'}:
+            from project_schemas import Retry
+            delegator_route(settings,action)
+            route=_next_planning_route(s,settings,p,pipeline,pipeline['step'])
+            retry_planning_task(s,p,pipeline['card_id'],Retry(**action.model_dump(),route=route),settings,actor)
+            return
     d=document(p)
-    agent=d['planner_agent']
-    retrying = p.state == 'planning_failed'
-    free_routes = free_planner_routes(s, settings)
     delegate = delegator_route(settings, action)
-    if retrying:
+    agent=d['planner_agent']
+    retrying=p.state=='planning_failed'
+    free_routes=free_planner_routes(s,settings)
+    configured_recovery=recovery.eligible(s,settings,actor,paid_approved=action.approve_api_planning)
+    free_routes=list({(r['agent'],r['model']):r for r in configured_recovery+free_routes}.values())
+    if retrying and delegate['agent']=='hermes':
         attempted_coordinate={(v.agent,v.model_requested or '') for v in s.scalars(select(Run).join(ProjectTask,ProjectTask.card_id==Run.card_id).where(
             ProjectTask.project_id==p.id,ProjectTask.role=='coordinate',ProjectTask.revision==p.revision))}
         if (delegate['agent'],delegate['model']) in attempted_coordinate:
@@ -848,37 +894,32 @@ def plan(s,p,action,settings,actor,subagents=None):
     if retrying:
         attempted={(v.agent,v.model_requested or '') for v in s.scalars(select(Run).join(ProjectTask,ProjectTask.card_id==Run.card_id).where(
             ProjectTask.project_id==p.id,ProjectTask.role=='plan',ProjectTask.revision==p.revision))}
-        # Prefer a route that has not already produced a failed or unusable plan.
-        # If all configured routes were tried, an explicit retry may try them again.
-        untried=[c for c in choices+free_routes if (c['agent'],c['model']) not in attempted]
-        if untried: choices=list({(c['agent'],c['model']):c for c in untried}.values())
+        candidates=[r for r in choices+free_routes if _planning_route_allowed(s,settings,r)]
+        untried=[route for route in candidates if (route['agent'],route['model']) not in attempted]
+        retry_routes=untried or candidates
+        if retry_routes: choices=list({(route['agent'],route['model']):route for route in retry_routes}.values())
     if settings.dispatch_free_only and retrying:
-        # A retry of a failed project must move onto an approved free route. Initial
-        # planning retains its existing candidate approval flow; dispatch still
-        # enforces the operator's free-only policy before any task can start.
-        choices = free_routes
-        if retrying:
-            attempted={(v.agent,v.model_requested or '') for v in s.scalars(select(Run).join(ProjectTask,ProjectTask.card_id==Run.card_id).where(
-                ProjectTask.project_id==p.id,ProjectTask.role=='plan',ProjectTask.revision==p.revision))}
-            untried=[c for c in choices if (c['agent'],c['model']) not in attempted]
-            if untried: choices=untried
-    if not choices and (retrying or agent == 'auto') and (
-            reviewed_free_planner(s, settings, delegate) if settings.dispatch_free_only else
+        choices=[r for r in choices+free_routes if _planning_route_allowed(s,settings,r)]
+        attempted={(v.agent,v.model_requested or '') for v in s.scalars(select(Run).join(ProjectTask,ProjectTask.card_id==Run.card_id).where(
+            ProjectTask.project_id==p.id,ProjectTask.role=='plan',ProjectTask.revision==p.revision))}
+        untried=[route for route in choices if (route['agent'],route['model']) not in attempted]
+        if untried: choices=untried
+    if not choices and (_planning_route_allowed(s,settings,delegate) if settings.dispatch_free_only else
             (subscription(s, delegate['agent']) or reviewed_free_planner(s, settings, delegate))):
         choices = [delegate.copy()]
-    if not choices:
-        if settings.dispatch_free_only:
-            fail('No configured free planner route is available. Configure a reviewed-free Hermes model/provider route; this project remains saved for retry.',422)
-        fail('No installed subscription or reviewed free planner is available. Configure a planner explicitly.',422)
-    recovery_routes = [r for r in free_routes if r not in choices]
+    if not choices: fail('No installed subscription or reviewed free planner is available. Configure a planner explicitly.',422)
     if any(not subscription(s,c['agent']) and not reviewed_free_planner(s, settings, c) for c in choices) and not action.approve_api_planning:
         fail('This planner uses API billing. Separate paid-planning approval is required.',422)
+    if settings.dispatch_free_only and retrying and not any(_planning_route_allowed(s,settings,c) for c in choices):
+        fail('No configured free planner route is available. Configure a reviewed-free Hermes model/provider route; this project remains saved for retry.',422)
     prompt = role_prompt('coordinate', candidates=json.dumps(choices), project=_brief(p))
     c=_queue(s,p,'coordinate',delegate['agent'],delegate['model'],prompt,settings)
+    recovery_routes=[route for route in free_routes if route not in choices]
     p.state='planning'; p.error=None; p.pipeline=json.dumps({'step':'coordinate','delegator':delegate,'card_id':c.id,'choices':choices,
-        'recovery_routes':recovery_routes,'fresh':bool(action.fresh),'revision':p.revision,'execution_catalog':execution_catalog(settings,subagents,d['planning_bias'])})
+        'recovery_routes':recovery_routes,'api_planning_approved':action.approve_api_planning,'fresh':bool(action.fresh),'revision':p.revision,'execution_catalog':execution_catalog(settings,subagents,d['planning_bias'])})
     planning_mode='from scratch, current stories not shown to the planner' if action.fresh else 'from the current map'
-    memory(s,p,'decision',f'Operator approved planning revision {p.revision}: Delegator {delegate["agent"]} · {delegate["model"]}; candidates {json.dumps(choices)}; free recovery routes {json.dumps(recovery_routes)}; API planner approval={action.approve_api_planning}; planning {planning_mode}. Provider limits apply; budget is not a universal hard cap.',actor)
+    memory(s,p,'decision',f"Operator approved planning revision {p.revision}: Coordinator {delegate['agent']} · {delegate['model']}; candidates {json.dumps(choices)}; API planner approval={action.approve_api_planning}; planning {planning_mode}. Provider limits apply; budget is not a universal hard cap.",actor)
+
 
 def _json_result(raw):
     value=(raw or '').strip()
@@ -927,16 +968,28 @@ def retry_planning_task(s, p, card_id, body, settings, actor):
             or link.revision != p.revision or link.role != role or not card or card.column not in {'failed', 'review'}
             or not latest or latest.stage in {'queued', 'running', 'awaiting_approval'}):
         fail('Only the failed current planning task can be retried here. The project plan and its approved scope are unchanged.', 409)
-    routes = planning_retry_routes(s, settings, pipeline, step)
+    routes = planning_retry_routes(s, settings, pipeline, step, p.created_by)
     chosen = body.route.model_dump() if body.route else {'agent': card.agent, 'model': card.model or ''}
+    # A direct operator retry may authorize a newly configured route without
+    # recreating the project. API billing still needs explicit per-request approval.
+    new_route=next((r for r in recovery.options(s,settings) if r['agent']==chosen['agent'] and r['model']==chosen['model'] and r['allowed']),None)
+    if chosen not in routes and new_route:
+        if new_route['price_class']=='paid' and not body.approve_api_planning:
+            fail('Approve API model planning charges before retrying on this route.',422)
+        routes.append(chosen)
+    if new_route and new_route['price_class']=='paid' and not (body.approve_api_planning or pipeline.get('api_planning_approved')):
+        fail('Approve API model planning charges before retrying on this route.',422)
     if chosen not in routes:
         fail('Choose the same route or another route already approved for this planning step.', 422)
     _requeue_planning_card(card, chosen['agent'], chosen['model'])
     updates = {'delegator': chosen} if step == 'coordinate' else {'chosen': chosen} if step == 'plan' else {'delegator': chosen}
-    p.pipeline = json.dumps({**pipeline, 'card_id': card.id, **updates})
+    p.pipeline = json.dumps({**pipeline, 'card_id': card.id, **updates,
+        'api_planning_approved':bool(body.approve_api_planning or pipeline.get('api_planning_approved')),
+        'recovery_routes':list({(r['agent'],r['model']):r for r in list(pipeline.get('recovery_routes',[]))+[chosen]}.values())})
     p.state = 'planning'
     p.error = None
     memory(s, p, 'decision', f'Operator retried the same {role} task #{card_id} on {chosen["agent"]} · {chosen["model"]}. Earlier steps, project brief, and scope are unchanged; prior run history remains on this task.', actor, card_id, latest.id)
+
 
 def resume_plan(s, p, revision, settings, actor):
     check_revision(p, revision)
@@ -1012,30 +1065,45 @@ def submit(s,p,action,settings,actor):
         if n['kind']=='story' and n['assignee']!='human' and not REGISTRY[n['assignee']].available(settings): fail('Story agent is not installed: '+n['assignee'],422)
         for r in n['routes']:
             if not REGISTRY[r['agent']].available(settings): fail('Handoff agent is not installed: '+r['agent'],422)
-            if r['agent'] in {'hermes','openclaw'} and not native_routes.automatic_route(r['model']):
+            from dispatch_gate import reviewed_route_class
+            from types import SimpleNamespace
+            reviewed=reviewed_route_class(s,settings,SimpleNamespace(agent=r['agent'],agent_target=''),r['model'])
+            if r['agent'] in {'hermes','openclaw'} and not native_routes.automatic_route(r['model']) and reviewed not in {'free','paid'}:
                 fail('Automatic API handoffs are limited to the reviewed free / capped Google routes.',422)
     base_commit=workspaces.snapshot(d['working_dir']) if d['dispatch_mode']=='parallel' else None
     # Validate every story before dispatch; no partial materialization on error.
     gaps=job_envelope.story_problems(d['nodes'])
     if gaps: fail('Every story needs a work kind, size, risk, estimate and route reason before approval. Missing: '+'; '.join(gaps[:8])+('; and more' if len(gaps)>8 else ''),422)
     std=standards.resolve(d['working_dir'],settings.data_dir)
-    broken=standards.floor_problems(std,d['nodes'],_tier_of)
+    checked_nodes=list(d['nodes'])
+    for n in d['nodes']:
+        if n['kind']=='story' and n['assignee']!='human':
+            checked_nodes.extend({**n,'assignee':r['agent'],'model':r['model'],'title':n['title']+' (fallback)'} for r in n['routes'])
+    broken=standards.floor_problems(std,checked_nodes,_tier_of)
     if broken: fail(standards_message(std,broken),422)
     for n in d['nodes']:
         if n['kind']=='story':
             probe=cards.create(s,_story_data(p,d,n),settings,'hermes'); s.delete(probe); s.flush()
     manifest={'revision':p.revision,'document':d,'order':ordered(d['nodes']),
         'branch':approval.current_branch(Path(d['working_dir'])),'approved_by':actor,'approved_at':now(),
-        'fallback_models':{a:('opus' if a=='claude' else REGISTRY[a].default_model() or '') for a in ('claude','codex')},
+        'fallback_models':{a:subscription_model(a,d['planning_bias']) for a in ('claude','codex')},
         'api_work_approved':action.approve_api_work,'dispatch_mode':d['dispatch_mode'],
+        'route_recovery':recovery.policy(s,actor).model_dump(),
         'base_commit':base_commit,'workspaces':{},'artifacts':{},'standards':{k:std[k] for k in ('state','property','sha256')}|{'source':std.get('source'),'areas':len(std['areas']),'checks':len(std['checks']),'required_checks':standards.required_checks(std),'security_checks':std.get('security_checks',[])},'scorecard':None}
     try: manifest['scorecard']=scorecard.at_approval(s,p,d,settings)
     except Exception: manifest['scorecard']=None   # never block an approval on the scorecard
     manifest['hash']=hashlib.sha256(json.dumps(manifest,sort_keys=True).encode()).hexdigest()
     p.approved_manifest=json.dumps(manifest)
+    if (p.intake_key or '').startswith('bootstrap:'):
+        # The template's dependency order is app-owned and already reviewed. A
+        # second model call to echo the same order adds a needless failure point.
+        _materialize(s,p,manifest['order'],settings)
+        memory(s,p,'decision','Operator approved the built-in bootstrap map. The app dispatched its validated dependency order without another model call.',actor)
+        return
     c=_queue(s,p,'dispatch',delegate['agent'],delegate['model'],role_prompt('dispatch', manifest=json.dumps(manifest)),settings)
     p.state='dispatching';p.error=None;p.pipeline=json.dumps({'step':'dispatch','delegator':delegate,'card_id':c.id,'revision':p.revision})
     memory(s,p,'decision',f'Approved manifest {manifest["hash"]} revision {p.revision}; {d["dispatch_mode"]} stories and operator handoff acceptance.',actor)
+
 
 def _story_data(p,d,n,std=None):
     return {'title':n['title'],'body':n['description'],'assignee_type':'human' if n['assignee']=='human' else 'agent',
@@ -1119,35 +1187,29 @@ def advance(s,settings):
         c=s.get(Card,pipeline['card_id'])
         if c and c.column in {'queued','running'}: continue
         r=s.scalar(select(Run).where(Run.card_id==pipeline['card_id']).order_by(Run.id.desc()).limit(1))
+        if pipeline['step']=='dispatch' and c and r and r.stage in {'succeeded','failed','timeout','interrupted'}:
+            # Dispatch is an approved DAG operation, not a model decision. The
+            # app can always derive the exact approved order if the helper fails.
+            try:
+                with s.begin_nested():
+                    order=None
+                    if r.stage=='succeeded':
+                        try: order=_json_result(r.result_text).get('order')
+                        except (HTTPException,AttributeError,TypeError,ValueError): recovery.contract_failure(s,r)
+                    _materialize(s,p,order,settings)
+                    memory(s,p,'checkpoint','Dispatch used the approved dependency graph. The helper result cannot alter scope, routes or prerequisites.','mcd',c.id,r.id)
+            except (HTTPException,ValidationError,ValueError,TypeError) as exc:
+                p.state='dispatch_failed';p.error=str(exc.detail) if isinstance(exc,HTTPException) else 'Approved dispatch needs review.'
+            continue
         if c and r and r.stage in {'failed','timeout','interrupted'} and pipeline['step'] in {'coordinate','plan','return'}:
             step=pipeline['step']
-            role={'coordinate':'coordinate','plan':'plan','return':'return plan'}[step]
-            attempted={(v.agent,v.model_requested or '') for v in s.scalars(select(Run).join(ProjectTask,ProjectTask.card_id==Run.card_id).where(
-                ProjectTask.project_id==p.id,ProjectTask.role==role,ProjectTask.revision==p.revision))}
-            free_routes=free_planner_routes(s,settings)
-            if step=='plan':
-                candidates=list(pipeline.get('choices',()))+list(pipeline.get('recovery_routes',()))+free_routes
-            else:
-                delegate=pipeline.get('delegator',{})
-                candidates=[delegate] if delegate.get('agent') and delegate.get('model') else []
-                candidates.extend(pipeline.get('recovery_routes',()))
-                candidates.extend(free_routes)
-            # Routes were explicitly selected in the project or are exact models in
-            # the operator's Hermes config. Re-check the active policy at each retry;
-            # never turn a free-only refusal into paid work.
-            candidates=[v for v in candidates if isinstance(v,dict) and v.get('agent') and v.get('model')
-                and (not settings.dispatch_free_only or reviewed_free_planner(s,settings,v))]
-            unique_candidates={}
-            for candidate in candidates:
-                unique_candidates.setdefault((candidate['agent'],candidate['model']),candidate)
-            candidates=list(unique_candidates.values())
-            alternative=next((v for v in candidates if (v['agent'],v['model']) not in attempted),None)
+            alternative=_next_planning_route(s,settings,p,pipeline,step)
             if alternative:
                 memory(s,p,'checkpoint',f'Planning {step} route failed. Retrying the same read-only planning step on the next approved route; no implementation started.\n'
                     +(r.error or '')+'\n'+(r.result_text or ''),r.agent,c.id,r.id)
                 role_title={'coordinate':'coordinate','plan':'plan','return':'return plan'}[step]
                 _requeue_planning_card(c,alternative['agent'],alternative['model'])
-                route_updates={'delegator':alternative} if step=='coordinate' else {'chosen':alternative} if step=='plan' else {}
+                route_updates={'delegator':alternative} if step in {'coordinate','return'} else {'chosen':alternative}
                 p.pipeline=json.dumps({**pipeline,'card_id':c.id,**route_updates});continue
         if not c or not r or r.stage!='succeeded':
             p.state='planning_failed' if p.state=='planning' else 'dispatch_failed'
@@ -1173,6 +1235,7 @@ def advance(s,settings):
                 elif step=='return':
                     if not isinstance(data,dict) or set(data)!={'nodes'}: fail('Delegator response must contain only nodes.',422)
                     proposed=proposal(document(p),data['nodes'],settings)
+                    add_recovery_routes(s,p,proposed,settings)
                     fixed_modes=fix_implement_modes(proposed)
                     p.document=json.dumps(proposed);p.revision+=1;p.state='review'
                     try: scorecard.record_returned(s,p,proposed['nodes'],settings,pipeline.get('chosen'),{'agent':r.agent,'model':r.model_reported or r.model_requested})
@@ -1186,12 +1249,14 @@ def advance(s,settings):
             # Keep model output private. A malformed planning result may retry only another route
             # already approved for this planning step; story dispatch still requires plan approval.
             step = pipeline.get('step')
-            if _retry_unusable_planning_result(s, p, pipeline, step, r, c, settings):
+            if _retry_unusable_planning_result(s, p, pipeline, step, r, c, settings,exc):
                 p.updated_at = now()
                 continue
             p.state='dispatch_failed' if pipeline['step']=='dispatch' else 'planning_failed'
             p.error=str(exc.detail) if isinstance(exc,HTTPException) else 'Agent response failed the project schema. Review the task output.'
         p.updated_at=now()
+
+
 
 def binding(s,card_id): return s.get(ProjectTask,card_id)
 def superseded_by(s,card,link=None):
@@ -1581,7 +1646,6 @@ def on_finish(s,card,run,stage):
             if stage=='succeeded':
                 try:
                     output=project_outputs.parse(run.result_text)
-                    # The grant is uncommitted ('running'), so a file at its key is an interrupted attempt's.
                     target=project_outputs.save(get_settings(),p.id,card.id,grant['source_run_id'],link.node_key,output.markdown,replace_uncommitted=True)
                     grant.update(state='written',path=str(target),sha256=hashlib.sha256(output.markdown.encode()).hexdigest())
                     run.result_text=output.handoff+'\n\nProposed Markdown artifact: '+str(target)+'\nOperator review is required before dependent stories may run.'
@@ -1608,7 +1672,9 @@ def on_finish(s,card,run,stage):
             text = (run.error or '') + '\n' + (run.result_text or '')
             free=m.get('free_retries',{}).get(link.node_key)
             free_run=bool(free and free['route']=={'agent':run.agent,'model':run.model_requested})
-            quota = stage == 'failed' and not free_run and not (grant and grant.get('run_id')==run.id) and bool(re.search(r'usage limit|session limit|rate.?limit|quota|too many requests|limit reached|429', text, re.I))
+            intelligent=m.get('route_recovery',{}).get('enabled',False)
+            transient=recovery.failure_kind(run) in {'rate_limit','provider'}
+            quota = stage == 'failed' and not (grant and grant.get('run_id')==run.id) and ((intelligent and transient) or (not free_run and bool(re.search(r'usage limit|session limit|rate.?limit|quota|too many requests|limit reached|429', text, re.I))))
             if quota:
                 attempted={(r.agent,r.model_requested or '') for r in s.scalars(select(Run).where(Run.card_id==card.id))}
                 choices=approved_story_routes(p,link)
@@ -1618,10 +1684,12 @@ def on_finish(s,card,run,stage):
                 if alternative:
                     card.agent=alternative['agent']; card.model=alternative['model'] or None
                     card.agent_target=None;card.column='queued'
+                    card.retry_attempts=0;card.retry_after=None;card.updated_at=now()
                     provider_limits.note_handoff(s,run.agent,now())
                     memory(s,p,'decision',f'Pre-approved quota handoff to {alternative} for the same story #{card.id}; only reviewed routes are eligible.', 'mcd',card.id,run.id)
                     return
             memory(s,p,'incident',f'{stage}: story #{card.id} stopped; explicit retry required.',run.agent,card.id,run.id)
+
 
 def accept_story(s,p,card_id,data,actor):
     link=binding(s,card_id); c=s.get(Card,card_id)
@@ -1794,3 +1862,28 @@ def process_handoffs(s,p,actor=None,card_ids=None):
         except (HTTPException,OSError,ValueError):
             # A changed/missing artifact remains Review. Never fail the dispatcher tick.
             continue
+
+
+def _planning_route_allowed(s,settings,route):
+    from dispatch_gate import reviewed_route_class
+    from types import SimpleNamespace
+    price=reviewed_route_class(s,settings,SimpleNamespace(agent=route['agent'],agent_target=''),route['model'])
+    return recovery.allowed_class(s,settings,price)
+
+
+
+def add_recovery_routes(s,p,proposed,settings):
+    """Put configured alternatives on the editable map; only later plan approval authorizes story use."""
+    pref=recovery.policy(s,p.created_by)
+    if not (pref.enabled and pref.apply_to_stories): return
+    routes=recovery.eligible(s,settings,p.created_by,paid_approved=False)
+    std=standards.resolve(proposed['working_dir'],settings.data_dir)
+    for node in proposed['nodes']:
+        if node['kind']!='story' or node['assignee']=='human': continue
+        for route in routes:
+            candidate={**node,'assignee':route['agent'],'model':route['model']}
+            if standards.floor_problems(std,[candidate],_tier_of): continue
+            if node.get('risk')=='high' and _tier_of(candidate)=='free': continue
+            if len(node['routes'])>=6: break
+            if route not in node['routes'] and route!={'agent':node['assignee'],'model':node['model']}:
+                node['routes'].append(route.copy())

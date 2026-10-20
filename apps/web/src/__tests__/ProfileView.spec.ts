@@ -1,6 +1,7 @@
 import { afterEach, expect, it, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createPinia } from 'pinia'
+import { createMemoryHistory, createRouter } from 'vue-router'
 import ProfileView from '@/views/ProfileView.vue'
 import { stubFetch } from './helpers'
 afterEach(()=>{vi.unstubAllGlobals();localStorage.clear()})
@@ -70,4 +71,19 @@ it('keeps Settings first and opens the group that holds a linked section, so old
   const again=await setup()
   expect(again.w.get('[data-tab="maintenance"]').attributes('aria-selected')).toBe('true')
   again.w.unmount();window.location.hash=''
+})
+
+it('follows direct recovery and primary-AI links within the same settings view',async()=>{
+  const initial=await setup();initial.w.unmount()
+  const router=createRouter({history:createMemoryHistory(),routes:[{path:'/profile',component:ProfileView},{path:'/:pathMatch(.*)*',component:{template:'<div />'}}]})
+  await router.push('/profile#route-recovery');await router.isReady()
+  const w=mount(ProfileView,{global:{plugins:[createPinia(),router]}});await flushPromises()
+  expect(w.get('[data-tab="coordinator"]').attributes('aria-selected')).toBe('true')
+  await router.push('/profile#ai-settings');await flushPromises()
+  expect(w.get('[data-tab="settings"]').attributes('aria-selected')).toBe('true')
+  await w.get('[data-tab="coordinator"]').trigger('click');await flushPromises()
+  expect(router.currentRoute.value.hash).toBe('')
+  await router.push('/profile#route-recovery');await flushPromises()
+  expect(w.get('[data-tab="coordinator"]').attributes('aria-selected')).toBe('true')
+  w.unmount()
 })

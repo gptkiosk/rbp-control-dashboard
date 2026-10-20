@@ -44,7 +44,7 @@ DEFAULT_ACCOUNTS = {
 
 
 # Spending limits are off unless the operator turns them on, in one place: Agents, Billing & rates, Spending & limits. Without a limit MCD only discloses that a route can cost money.
-DEFAULT_LIMITS = {"require_reviewed_pricing": False, "per_run_cap_usd": None, "paid_needs_runtime_limit": False}
+DEFAULT_LIMITS = {"require_reviewed_pricing": False, "per_run_cap_usd": None, "paid_needs_runtime_limit": False, "allow_subscription_in_free_only": False, "allow_paid_in_free_only": False}
 
 
 def limits(s, settings=None):
@@ -54,7 +54,7 @@ def limits(s, settings=None):
     out = dict(DEFAULT_LIMITS)
     if settings is not None and "dispatch_max_budget_usd" in getattr(settings, "model_fields_set", set()) and (settings.dispatch_max_budget_usd or 0) > 0:
         out["per_run_cap_usd"] = float(settings.dispatch_max_budget_usd)
-    for key in ("require_reviewed_pricing", "paid_needs_runtime_limit"):
+    for key in ("require_reviewed_pricing", "paid_needs_runtime_limit", "allow_subscription_in_free_only", "allow_paid_in_free_only"):
         if isinstance(saved.get(key), bool):
             out[key] = saved[key]
     if "per_run_cap_usd" in saved:

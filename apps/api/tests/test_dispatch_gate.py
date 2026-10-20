@@ -310,9 +310,9 @@ def test_the_claude_dollar_flag_is_only_added_when_a_cap_exists():
 def test_limits_default_off_are_saved_in_one_place_and_can_be_cleared(make_client):
     import billing
     c = make_client()
-    assert c.get('/api/billing').json()['limits'] == {'require_reviewed_pricing': False, 'per_run_cap_usd': None, 'paid_needs_runtime_limit': False}
+    assert c.get('/api/billing').json()['limits'] == {'require_reviewed_pricing': False, 'per_run_cap_usd': None, 'paid_needs_runtime_limit': False, 'allow_subscription_in_free_only': False, 'allow_paid_in_free_only': False}
     saved = c.patch('/api/billing', json={'limits': {'per_run_cap_usd': 2.5, 'require_reviewed_pricing': True}}).json()['limits']
-    assert saved == {'require_reviewed_pricing': True, 'per_run_cap_usd': 2.5, 'paid_needs_runtime_limit': False}
+    assert saved == {'require_reviewed_pricing': True, 'per_run_cap_usd': 2.5, 'paid_needs_runtime_limit': False, 'allow_subscription_in_free_only': False, 'allow_paid_in_free_only': False}
     assert c.patch('/api/billing', json={'limits': {'paid_needs_runtime_limit': True}}).json()['limits']['per_run_cap_usd'] == 2.5          # untouched
     cleared = c.patch('/api/billing', json={'limits': {'per_run_cap_usd': None, 'require_reviewed_pricing': False}}).json()['limits']
     assert cleared['per_run_cap_usd'] is None and cleared['require_reviewed_pricing'] is False

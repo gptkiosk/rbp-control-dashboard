@@ -85,7 +85,7 @@ describe('guides and form links', () => {
     const wrapper = mount(HelpView, { global: { plugins: [createPinia(), router] } })
     expect(wrapper.get('.guide-reading').text()).toContain('Configure subscriptions')
     await wrapper.get('input').setValue('OpenRouter')
-    expect(wrapper.findAll('.topic').length).toBe(4)
+    expect(wrapper.findAll('.topic').length).toBe(5)
     wrapper.unmount()
   })
   it('opens a linked form once and consumes its action without submitting anything', async () => {

@@ -1,3 +1,4 @@
+import type { RecoveryInfo } from './routeRecovery'
 export interface ProjectNode {
   key: string; kind: 'phase' | 'story'; title: string; description: string; acceptance: string; scope: string
   parent: string | null; depends_on: string[]; assignee: 'human' | 'claude' | 'codex' | 'grok' | 'hermes' | 'openclaw'
@@ -13,6 +14,8 @@ export interface ProjectDocument {
 export interface ProjectTask { blocked_by?: number[]; working_dir?: string; agent?: string; model?: string; mode?: 'read'|'edit'; incomplete_reason?: string | null; card_id: number; node_key: string; role: string; revision: number; column: string; title: string; run_id: number | null; run_stage: string | null; planning_retry_routes?: {agent: ProjectNode['assignee']; model: string}[]; retry_routes?: ProjectNode['routes']; free_retry_routes?: { agent: 'openclaw'; model: string; agent_target: string }[]; paid_retry_routes?: { agent: 'openclaw'; model: string; agent_target: string }[]; low_cost_routes?: { agent: 'claude' | 'codex'; model: string }[]; output_approval?: { run_id: number; path: string; plan: string } | null }
 export interface Memory { id: number; kind: string; text: string; actor: string; card_id: number | null; run_id: number | null; created_at: number }
 export interface Project {
+  route_reliability?: RecoveryInfo | null
+  bootstrap?: boolean
   id: number; document: ProjectDocument; revision: number; state: string; approved_revision: number | null
   handoff_approval?: { mode: 'manual' | 'automatic'; manifest_hash: string | null; eligible: {card_id:number;title:string;column:string}[]; excluded: {card_id:number;title:string;reason:string}[] }
   model_lock?: boolean

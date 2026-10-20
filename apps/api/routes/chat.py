@@ -97,7 +97,8 @@ def route_problem(s: Session, request: Request, agent: str, agent_target: str | 
             hint = (f"Hermes is set up with these free models: {', '.join(free)}. Choose one in Profile, AI defaults." if free else
                     "Hermes has no free model configured. Run `hermes setup` or choose another agent in Profile, AI defaults.")
         return f"{spec.name} cannot run {chosen} here: that route has not been reviewed for pricing, so the dashboard will not start it. {hint}"
-    if getattr(settings, "dispatch_free_only", False) and price != "free":
+    from route_reliability import allowed_class
+    if not allowed_class(s, settings, price):
         return f"{chosen} is a {price} route and this installation only starts free routes. Choose a free model in Profile, AI defaults."
     return None
 

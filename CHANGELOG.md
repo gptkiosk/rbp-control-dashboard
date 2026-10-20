@@ -10,6 +10,21 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.6.38] - 2026-10-20
+
+### Added
+
+- **Model recovery settings:** choose ordered configured fallback routes, optionally include free/membership alternatives in future story maps, and explicitly allow configured memberships or separately approved paid API routes on a free-only installation. The paid toggle never authorizes a run by itself.
+- **Local reliability advice:** repeated provider, timeout or invalid-output failures show possible costs and link directly to the recovery toggle. Healthier alternatives take priority without enabling paid routes automatically.
+- **Shared-feature parity checks** and a source inventory covering planning contracts, bootstrap, recovery settings and task controls.
+
+### Fixed
+
+- **Bootstrap starts from a built-in editable plan.** Review and submit bounded readiness, configuration, verification and human-action stories without needing a provider to generate valid plan data. Starting setup again reopens its existing project.
+- **Planning recovery keeps the same task:** one bounded output repair supplies validation feedback, then approved alternatives are tried. Project retry resumes its failed step; normalized free-route aliases cannot cause repeated automatic attempts.
+- **Approved dispatch survives provider errors:** the app derives the approved dependency order itself if dispatch advice fails. Scope, route approval and human acceptance gates still apply.
+- **Task controls match across dashboards:** failed stories offer the same free, membership and paid retry choices; timeouts retain their partial-work review requirement. Recovery alternatives must satisfy story risk rules.
+
 ## [0.6.37] - 2026-10-20
 
 ### Fixed
@@ -761,3 +776,5 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 [0.6.35]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.35
 [0.6.36]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.36
 [0.6.37]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.37
+
+[0.6.38]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.37...v0.6.38
