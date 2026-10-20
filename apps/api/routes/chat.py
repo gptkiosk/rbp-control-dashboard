@@ -97,7 +97,8 @@ def route_problem(s: Session, request: Request, agent: str, agent_target: str | 
             hint = (f"Hermes is set up with these free models: {', '.join(free)}. Choose one in Profile, AI defaults." if free else
                     "Hermes has no free model configured. Run `hermes setup` or choose another agent in Profile, AI defaults.")
         return f"{spec.name} cannot run {chosen} here: that route has not been reviewed for pricing, so the dashboard will not start it. {hint}"
-    if getattr(settings, "dispatch_free_only", False) and price != "free":
+    from route_reliability import allowed_class
+    if not allowed_class(s, settings, price):
         return f"{chosen} is a {price} route and this installation only starts free routes. Choose a free model in Profile, AI defaults."
     return None
 
@@ -271,6 +272,8 @@ def delete_thread(thread_id: int, request: Request, s: Session = Depends(get_ses
     if d and d.thread_busy(t.id):
         raise HTTPException(status_code=409, detail="Stop the running turn before deleting the thread.")
     log_paths = s.execute(select(Run.log_path).where(Run.thread_id == thread_id)).scalars().all()
+    from usage import retain_run_accounting
+    retain_run_accounting(s, s.scalars(select(Run).where(Run.thread_id == thread_id)).all())
     s.delete(t)
     s.commit()
     remove_run_logs(log_paths)

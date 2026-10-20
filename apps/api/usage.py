@@ -410,3 +410,24 @@ def put_provider_receipt(s, agent, sid, receipt):
     row['source'] = 'OpenRouter provider boundary'
     put(s, row)
     return row
+
+
+def retain_run_accounting(s, runs):
+    """Keep usage evidence before cascading deletion; never keep prompts, paths or task links.
+
+    Native telemetry remains authoritative. Unknown costs are retained so deleting a
+    failed task cannot silently reduce a partial bill. This does not delete native history.
+    """
+    for run in runs:
+        if run.stage == "running" or (run.input_tokens is None and run.output_tokens is None and run.cost_usd is None):
+            continue
+        sid = run.session_id or f"mcd-run-{run.id}"
+        row = record(run.agent, sid,
+                     f"deleted-run:{run.id}:{run.started_at}:{run.ended_at}",
+                     run.started_at, run.model_reported or run.model_requested,
+                     {}, cost=run.cost_usd, cost_kind="reported API equivalent")
+        row.update(source="retained accounting", receipt_session_id=f"mcd-run-{run.id}", input_tokens=run.input_tokens,
+                   output_tokens=run.output_tokens,
+                   cached_input_tokens=run.cached_input_tokens,
+                   cache_write_tokens=run.cache_write_tokens)
+        put(s, row)

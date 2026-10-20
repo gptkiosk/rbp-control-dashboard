@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import RouteRecoveryPanel from '@/components/RouteRecoveryPanel.vue'
 import RolesPanel from '@/components/RolesPanel.vue'
 import CredentialsPanel from '@/components/CredentialsPanel.vue'
 import ReportStoragePanel from '@/components/ReportStoragePanel.vue'
@@ -9,7 +10,7 @@ import UpdatePanel from '@/components/UpdatePanel.vue'
 import HousekeepingPanel from '@/components/HousekeepingPanel.vue'
 import BugIntakePanel from '@/components/BugIntakePanel.vue'
 import GithubActionsPanel from '@/components/GithubActionsPanel.vue'
-import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import AppIcon from '@/components/AppIcon.vue'
 import AppSelect from '@/components/AppSelect.vue'
@@ -31,17 +32,18 @@ const bootstrapReadiness = ref<{ ready: boolean; checks: {id:string;label:string
 // Keep coordinator bootstrap choices in their own profile section; old hash links still open the right group.
 const TABS = [{ id: 'settings', label: 'Settings' }, { id: 'coordinator', label: 'Coordinator setup' }, { id: 'updates', label: 'Updates & installs' }, { id: 'maintenance', label: 'Maintenance & access' }] as const
 type Tab = typeof TABS[number]['id']
-const HOME: Record<string, Tab> = { 'coordinator-bootstrap': 'coordinator', updates: 'updates', 'agent-tools': 'updates', 'system-tools': 'updates', 'agent-roles': 'maintenance', housekeeping: 'maintenance', 'github-settings': 'maintenance', 'github-actions': 'maintenance', 'bug-intake': 'maintenance', roles: 'maintenance', reports: 'maintenance' }
+const HOME: Record<string, Tab> = { 'coordinator-bootstrap': 'coordinator', 'route-recovery': 'coordinator', updates: 'updates', 'agent-tools': 'updates', 'system-tools': 'updates', 'agent-roles': 'maintenance', housekeeping: 'maintenance', 'github-settings': 'maintenance', 'github-actions': 'maintenance', 'bug-intake': 'maintenance', roles: 'maintenance', reports: 'maintenance' }
 const THEMES = [{ id: 'system', label: 'Device' }, { id: 'light', label: 'Light' }, { id: 'dark', label: 'Dark' }] as const
 const tab = ref<Tab>('settings')
 function fromHash() {
-  const id = window.location.hash.replace('#', '')
+  const id = (router ? router.currentRoute.value.hash : window.location.hash).replace('#', '')
   if (!id) return
   tab.value = HOME[id] ?? 'settings'
   void nextTick(() => document.getElementById(id)?.scrollIntoView?.({ block: 'start' }))
 }
-function pick(id: Tab) { tab.value = id; history.replaceState(null, '', `${window.location.pathname}${window.location.search}`) }
+function pick(id: Tab) { tab.value = id; if (router) void router.replace({ path: router.currentRoute.value.path, query: router.currentRoute.value.query, hash: '' }); else history.replaceState(null, '', `${window.location.pathname}${window.location.search}`) }
 onMounted(fromHash)
+if (router) watch(() => router.currentRoute.value.hash, fromHash)
 window.addEventListener('hashchange', fromHash)
 onBeforeUnmount(() => window.removeEventListener('hashchange', fromHash))
 const BOOTSTRAP_DEFAULTS = { platforms: ['openclaw','claude','codex','grok'] as ('openclaw'|'claude'|'codex'|'grok')[], roles: ['developer','security'] as ('developer'|'security'|'reviewer')[], shared_project_memory: true, project_workspaces: true, model_policy: 'reuse_configured_default' as const, security_review: 'risk_based' as const }
@@ -65,7 +67,7 @@ async function startCoordinatorBootstrap() { await action(async () => {
   // Persist the current choices before the server snapshots them into the setup brief.
   apply(await putJson<Profile>('/api/profile', preferences.value))
   const result = await postJson<{project_id:number}>('/api/profile/coordinator-bootstrap/start')
-  notice.value = 'Setup draft created. Review it in Projects; Hermes has not started work.'
+  notice.value = 'Setup plan ready. Review and submit its built-in stories in Projects; Hermes has not started work.'
   await router.push({ path: '/projects', query: { project: String(result.project_id) } })
 }) }
 async function refreshCoordinatorReadiness() { await action(async () => {
@@ -179,6 +181,7 @@ async function importPreferences(event: Event) { await action(async () => {
       </div>
     </div>
 
+    <RouteRecoveryPanel v-show="tab === 'coordinator'" @saved="p => { if (preferences) preferences.route_recovery = p; if (profile) profile.preferences.route_recovery = p }" />
     <form v-if="profile && preferences" v-show="tab === 'coordinator'" id="coordinator-bootstrap" class="card bootstrap-card" role="tabpanel" aria-labelledby="bootstrap-title" @submit.prevent="save">
       <header class="card-head"><div><h2 id="bootstrap-title">Coordinator bootstrap</h2><p class="muted small">Set the starting assumptions Hermes uses to prepare agent setup work.</p></div><RouterLink to="/help?topic=maintenance" class="small">How-to</RouterLink></header>
       <fieldset class="choice-group"><legend>Platforms to consider</legend><p class="small muted">Ready platforms become setup candidates. Anything that needs sign-in or a model choice becomes a human task with a direct settings link.</p>
@@ -193,7 +196,7 @@ async function importPreferences(event: Event) { await action(async () => {
       </div>
       <label class="row bootstrap-model"><span class="name">Model setup</span><AppSelect v-model="preferences.coordinator_bootstrap.model_policy" aria-label="Bootstrap model policy"><option value="reuse_configured_default">Reuse each platform’s configured default</option><option value="ask_before_change">Ask me before changing a model</option></AppSelect></label>
       <label class="row bootstrap-model"><span class="name">Security review</span><AppSelect v-model="preferences.coordinator_bootstrap.security_review" aria-label="Security review policy"><option value="risk_based">Include for security-sensitive or high-risk work</option><option value="every_project">Include in every project</option><option value="by_request">Include when I request it</option></AppSelect></label>
-      <aside class="bootstrap-note"><strong>Ready to configure?</strong> Check that Hermes is installed, assigned as Coordinator, has its guidance and a default model. Starting setup creates a project draft from these choices. Review its plan before any agent work begins.</aside>
+      <aside class="bootstrap-note"><strong>Ready to configure?</strong> Check that Hermes is installed, assigned as Coordinator, has its guidance and a default model. Starting setup prepares a built-in editable plan without a model call. Review and submit it before agent work begins.</aside>
       <ul v-if="bootstrapReadiness" class="readiness-list" aria-label="Hermes readiness">
         <li v-for="check in bootstrapReadiness.checks" :key="check.id" :class="check.ready ? 'ready' : 'missing'">
           <span aria-hidden="true">{{ check.ready ? '✓' : '!' }}</span><span>{{ check.label }}</span><RouterLink v-if="!check.ready" :to="check.link">{{ check.id === 'guidance' ? 'Open Agent roles' : 'Fix' }}</RouterLink>

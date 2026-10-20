@@ -10,6 +10,7 @@ from fastapi import HTTPException
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy import select
 from models import UserProfile, UserCredential
+from route_reliability import RecoveryPolicy
 
 PROVIDERS = ('openrouter','discord','fal')
 class SetupProgress(BaseModel):
@@ -65,6 +66,7 @@ class Preferences(BaseModel):
     allow_discord_repositories: bool = False  # Hermes may propose a new private GitHub repository for a project; only the operator's approval creates it
     github: GithubPreferences = Field(default_factory=GithubPreferences)
     coordinator_bootstrap: CoordinatorBootstrapPreferences = Field(default_factory=CoordinatorBootstrapPreferences)
+    route_recovery: RecoveryPolicy = Field(default_factory=RecoveryPolicy)
     setup: SetupProgress = Field(default_factory=SetupProgress)
 
     @classmethod

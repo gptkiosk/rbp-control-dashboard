@@ -62,7 +62,9 @@ def admit(settings, run, argv, *, default_free_only=True, current_price_class=_U
     reviewed = isinstance(price_class, str) and price_class in {"free", "subscription", "paid"}
     if not reviewed and limits["require_reviewed_pricing"]:
         raise DispatchDenied("PRICE_UNKNOWN: route has no reviewed pricing class")
-    if getattr(settings, "dispatch_free_only", default_free_only) and price_class != "free":
+    membership_allowed = price_class == "subscription" and limits.get("allow_subscription_in_free_only", False)
+    paid_allowed = price_class == "paid" and limits.get("allow_paid_in_free_only", False)
+    if getattr(settings, "dispatch_free_only", default_free_only) and price_class != "free" and not membership_allowed and not paid_allowed:
         raise DispatchDenied("FREE_ONLY: only reviewed free routes may start")
     cap = amount(policy.get("budget_usd"))
     run_cap = amount(limits["per_run_cap_usd"])
@@ -153,6 +155,10 @@ def reviewed_route_class(s, settings, source, model: str | None) -> str | None:
         if (approved.get("route") == {"agent": agent, "model": model}
                 and approved.get("agent_target") == (target or "")):
             return "free"
+        approved_paid = manifest.get("paid_retries", {}).get(link.node_key, {})
+        if (approved_paid.get("route") == {"agent": agent, "model": model}
+                and approved_paid.get("agent_target") == (target or "")):
+            return "paid"
     return None
 
 

@@ -78,7 +78,24 @@ async def role_preview(request:Request):
  try: return fixture_roles.preview(body['roles'],body.get('workspace',''))[1]
  except (ValueError,KeyError) as e: return JSONResponse({'detail':str(e)},status_code=409)
 @app.get('/api/agents')
-def agents(): return {'agents':[{'id':name,'name':name,'available':True,'default_model':'openrouter/free' if name in {'hermes','openclaw'} else None,'subscription_configured':False} for name in fixture_roles.available()]}
+def agents(): return {'agents':[{'id':name,'name':name,'available':True,'default_model':'openrouter/free' if name in {'hermes','openclaw'} else None,'subscription_configured':False,'role':'manager' if name=='hermes' else 'worker','current':[],'subagents':{'agents':[],'processes':[]}} for name in fixture_roles.available()]}
+@app.get('/api/agents/usage')
+def usage_fixture():
+ now=time.time()
+ summary={'agent':'hermes','responses':15,'sessions':15,'last_active':now-3600,'api_equivalent_usd':0,'unpriced':0,'models':[{'model':'openrouter/free'}]}
+ return {'overview':[summary],'sessions':[{'id':'historical-session','agent':'hermes','name':'Historical setup session','scope':'session lifetime','parent':None,'last_active':now-3600}],
+         'coverage':{'hermes':{'state':'ready','checked_at':now}},'openrouter':None}
+# Synthetic model recovery state: provider execution and every save remain disabled.
+@app.get('/api/profile/route-reliability')
+def recovery_fixture():
+ routes=[{'agent':'claude','model':'claude-haiku-5-5','price_class':'subscription','installed':True,'allowed':True,'cost':'Uses membership quota; account limits and enabled overage still apply.'},
+         {'agent':'codex','model':'gpt-6-luna','price_class':'subscription','installed':True,'allowed':True,'cost':'Uses membership quota; account limits and enabled overage still apply.'},
+         {'agent':'hermes','model':'vendor/small:free','price_class':'free','installed':True,'allowed':True,'cost':'Free endpoint; availability and limits vary.'},
+         {'agent':'hermes','model':'vendor/paid','price_class':'paid','installed':True,'allowed':product=='mcd','cost':'Bills your provider API account. Membership does not cover these charges.'}]
+ return {'policy':{'enabled':True,'apply_to_stories':True,'routes':[{'agent':'claude','model':'claude-haiku-5-5'},{'agent':'hermes','model':'vendor/small:free'}]},
+         'options':routes,'health':[{'agent':'hermes','model':'vendor/small:free','attempts':5,'failures':3,'recent_failures':3,'persistent':True,'last_failure':'rate_limit','categories':{'rate_limit':3}}],
+         'recommendations':[{'agent':'hermes','model':'vendor/small:free','message':'3 of its last 5 attempts had provider, timeout or output failures. A different route may be needed.','cost':'Membership uses quota; API alternatives add provider charges.','link':'/profile#route-recovery'}],
+         'window_days':7,'sample_limit':500,'host_free_only':product=='rcd','subscription_allowed':True}
 @app.get('/api/{rest:path}')
 def unsupported(rest:str): return JSONResponse({'detail':'This feature is outside the fixture preview.'},status_code=503)
 mount_spa(app,root/'apps/web/dist')

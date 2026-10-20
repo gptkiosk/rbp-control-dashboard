@@ -25,3 +25,6 @@ The [MCD docs](https://github.com/gptkiosk/mac-control-dashboard/tree/main/docs)
 - [Clean Mac and Raspberry Pi OS0.3.1 installation](install/clean-os-0.3.1.md)
 
 - [Project consultant and AI defaults (0.3.1)](project-consultant.md)
+
+- [Model recovery and bootstrap](configuration/model-recovery.md) — route choices, telemetry, retry boundaries and built-in setup plans.
+- [Shared-feature parity audit](development/parity-audit-0.6.38.md) — inventory, repaired differences and platform limits.

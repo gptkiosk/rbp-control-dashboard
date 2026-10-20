@@ -12,6 +12,24 @@ import profiles
 from typing import Literal
 router=APIRouter(prefix='/api/profile')
 
+@router.get('/route-reliability')
+def route_reliability(request:Request,s:Session=Depends(get_session)):
+    import route_reliability as recovery
+    return recovery.payload(s,get_settings(),profiles.owner(request))
+
+from route_reliability import RecoveryPolicy
+
+@router.put('/route-reliability')
+def save_route_reliability(body:RecoveryPolicy,request:Request,s:Session=Depends(get_session)):
+    import route_reliability as recovery
+    identity=profiles.owner(request);s.execute(text('BEGIN IMMEDIATE'))
+    available={(r['agent'],r['model']) for r in recovery.options(s,get_settings())}
+    if any((r.agent,r.model) not in available for r in body.routes):
+        raise HTTPException(422,'Choose configured models from the current route list.')
+    pref=profiles.prefs(s,identity);pref.route_recovery=body
+    profiles.get(s,identity).preferences=pref.model_dump_json();s.commit()
+    return recovery.payload(s,get_settings(),identity)
+
 class SecretIn(BaseModel):
     model_config=ConfigDict(extra='forbid',hide_input_in_errors=True)
     value: SecretStr=Field(min_length=8,max_length=4000)
@@ -93,6 +111,14 @@ def coordinator_bootstrap_readiness(request:Request):
 def start_coordinator_bootstrap(request:Request,s:Session=Depends(get_session)):
     """Create a reviewable setup project draft. This never starts a model run."""
     identity=profiles.owner(request);settings=get_settings();readiness=_bootstrap_readiness(settings)
+    s.execute(text('BEGIN IMMEDIATE'))
+    from models import Project
+    from sqlalchemy import select
+    existing=s.scalar(select(Project).where(Project.created_by==identity,Project.intake_key.like('bootstrap:%'),
+        Project.state.notin_(['closed','complete'])).order_by(Project.id.desc()).limit(1))
+    if existing:
+        import projects
+        return {'project_id':existing.id,'title':projects.document(existing)['title'],'state':existing.state,'readiness':readiness,'existing':True}
     if not readiness['ready']:
         missing=[item['label'] for item in readiness['checks'] if not item['ready']]
         raise HTTPException(409,{'message':'Finish Hermes setup before starting agent configuration.','missing':missing,'checks':readiness['checks']})
@@ -127,16 +153,24 @@ def start_coordinator_bootstrap(request:Request,s:Session=Depends(get_session)):
         "Include one read-only readiness story for each selected platform. Limit it to checking executable presence, reported version, whether it can run, and sign-in or model prerequisites; do not install software or change configuration. Mark any unavailable or unverified result clearly. "
         "Make configuration stories depend on the relevant readiness findings. Limit them to creating selected missing role agents/guidance and enabling the requested shared project memory/workspaces after plan approval. If a requested item already exists or would require overwriting user configuration, leave it unchanged and report it for operator review. "
         "Return a concise readiness summary, proposed changes, linked human actions, and a small validation plan. Verify each approved change before claiming setup is complete.")
-    from project_schemas import Document
-    from sqlalchemy import text
+    from project_schemas import Document, Node
     from native_routes import read as read_native
     hermes_model=read_native(settings).get('hermes',{}).get('default') or ''
-    s.execute(text('BEGIN IMMEDIATE'))
     doc=Document(title=f'{settings.product_short_name} agent platform bootstrap',brief=brief,
         constraints='Hermes only for coordination. No agent work starts until the operator reviews and approves the project plan. Preserve existing configuration; create only missing role agents and guidance. Keep human-only sign-in, credentials, billing and permission changes as linked manual tasks.',
         working_dir=working_dir,planner_agent='hermes',planner_model=hermes_model,planning_bias=pref.planning_bias,nodes=[])
-    project=projects.create(s,doc.model_dump(),settings,identity);s.commit()
-    return {'project_id':project.id,'title':doc.title,'state':'draft','readiness':readiness}
+    import bootstrap_plan
+    doc.nodes=[Node.model_validate(n) for n in bootstrap_plan.nodes(settings,choice,hermes_model)]
+    project=projects.create(s,doc.model_dump(),settings,identity)
+    prepared=projects.document(project)
+    projects.add_recovery_routes(s,project,prepared,settings)
+    import json
+    project.document=json.dumps(prepared)
+    project.intake_key=f'bootstrap:{project.id}'
+    project.state='review'
+    projects.memory(s,project,'proposal','Built-in bootstrap plan prepared without a provider call. Review the editable stories and prerequisites before approving setup.',identity)
+    s.commit()
+    return {'project_id':project.id,'title':doc.title,'state':'review','readiness':readiness}
 
 @router.put('/credentials/{provider}')
 def secret(provider:str,body:SecretIn,request:Request,s:Session=Depends(get_session)):
@@ -158,7 +192,7 @@ def pair(request:Request,s:Session=Depends(get_session)):
     if not profiles.prefs(s,identity).discord_channel_id:raise HTTPException(422,'Save a Discord channel first.')
     profiles.bridge_token(get_settings(),True)
     code=secrets.token_hex(8).upper();row.pair_hash=digest(code);row.pair_expires=int(time.time())+600;s.commit()
-    return {'code':code,'expires_in_seconds':600,'instruction':'Send this code to Hermes in your saved Discord channel: Link my MCD profile with code '+code}
+    return {'code':code,'expires_in_seconds':600,'instruction':'Send this code to Hermes in your saved Discord channel: Link my RCD profile with code '+code}
 
 @router.post('/discord/unlink')
 def unlink(request:Request,s:Session=Depends(get_session)):

@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted, ref } from 'vue'
+import { getJson } from '@/lib/api'
+import type { RecoveryInfo } from '@/lib/routeRecovery'
 import AppIcon from '@/components/AppIcon.vue'
 import ModalShell from '@/components/ModalShell.vue'
 import RouteAdvice from '@/components/RouteAdvice.vue'
@@ -22,6 +24,8 @@ const paidWork = defineModel<boolean>('paidWork', { required: true })
 const fresh = defineModel<boolean>('fresh', { required: true })
 const emit = defineEmits<{ close: []; confirm: [] }>()
 
+const recovery = ref<RecoveryInfo|null>(null)
+onMounted(async () => { if (props.mode === 'plan') { try { recovery.value = await getJson('/api/profile/route-reliability') } catch { recovery.value = null } } })
 const heading = computed(() => (props.mode === 'plan' ? 'Review planning request' : 'Review project submission'))
 const delegatorName = computed(() => props.delegator || 'Hermes (Coordinator)')
 const planner = computed(() => (props.plannerAgent === 'auto' ? 'Installed subscription planner, or a reviewed free Hermes route' : `${agentLabel(props.plannerAgent)} · ${props.plannerModel || 'Agent default'}`))
@@ -52,6 +56,7 @@ const unknownArea = computed(() => problems.value.some(p => p.includes("this rep
       </dl>
 
       <template v-if="mode === 'plan'">
+        <p v-if="recovery?.policy.enabled && recovery.policy.routes.length" class="small muted">Recovery routes: {{ recovery.policy.routes.map(r => agentLabel(r.agent) + ' · ' + r.model).join(' → ') }}. Paid alternatives require the separate API approval below. <RouterLink to="/profile#route-recovery">Edit recovery settings</RouterLink></p>
         <p class="lead">{{ delegatorName }} reviews the plan and returns an editable map. This request starts no stories.</p>
         <label class="check option"><input v-model="fresh" type="checkbox" data-testid="plan-fresh" /><span><strong>Plan from scratch.</strong> Do not show the planner the stories on the map now. Use this when the brief or working directory changed, so it does not just repeat the old plan.</span></label>
       </template>
@@ -85,7 +90,7 @@ const unknownArea = computed(() => problems.value.some(p => p.includes("this rep
 
       <div class="approvals">
         <label class="check"><input v-model="coordination" type="checkbox" /><span>I approve this Coordinator coordination request and its configured routing.</span></label>
-        <label v-if="mode === 'plan' && ['hermes', 'openclaw'].includes(plannerAgent)" class="check"><input v-model="paidPlanner" type="checkbox" /><span>I separately approve API model planning.</span></label>
+        <label v-if="mode === 'plan'" class="check"><input v-model="paidPlanner" type="checkbox" /><span>I separately approve provider API planning charges for the selected planner and enabled recovery routes.</span></label>
         <label v-if="mode === 'submit' && needsPaidWork" class="check"><input v-model="paidWork" type="checkbox" /><span>I approve the API / BYOK routes assigned to these stories.</span></label>
       </div>
 
