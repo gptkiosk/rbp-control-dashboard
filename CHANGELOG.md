@@ -10,6 +10,8 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.6.39] - 2026-10-20
+
 ### Changed
 
 - **Same as MCD, from the congruency pass**: the task panel says when you are looking at an older run and offers View latest run, and a failed task's button reads Rerun task. The MCP list keeps RCD's quiet not-installed state and now also shows a failing list command's own redacted message. The failed-task and Accept anyway guides match the buttons both apps show.
@@ -717,7 +719,7 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 - Claude Code stories may use web search and fetch without any shell, credential or publish permission.
 
 [0.3.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.0
-[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.30...HEAD
+[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.39...HEAD
 [0.6.29]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.29
 [0.6.28]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.28
 [0.6.27]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.27
@@ -787,3 +789,4 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 [0.6.37]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.37
 
 [0.6.38]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.37...v0.6.38
+[0.6.39]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.38...v0.6.39
