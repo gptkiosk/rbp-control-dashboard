@@ -190,3 +190,41 @@ def _spawn(cfg: ue.HelperConfig, args: list[str]) -> dict:
     finally:
         os.close(log)
     return {"started": args[0], "poll": "/api/app-updates"}
+
+
+# ------------------------------------------------------------------ projects an update waits for
+from fastapi import Depends
+from sqlalchemy.orm import Session
+from deps import get_session
+import update_pause
+
+
+class PauseIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    confirm: bool = False
+
+
+@router.get("/projects")
+def update_projects(request: Request, s: Session = Depends(get_session)):
+    """Projects in progress (an update waits for them) and the ones paused for an update that can be resumed."""
+    operator(request)
+    return {"in_progress": update_pause.in_progress(s), "paused_for_update": update_pause.paused_for_update(s, get_settings())}
+
+
+@router.post("/pause-projects")
+def pause_projects(body: PauseIn, request: Request, s: Session = Depends(get_session)):
+    """Pause every active project so the update can run. Running stories may finish; no new story starts until they are resumed."""
+    identity = operator(request)
+    if not body.confirm:
+        raise HTTPException(422, "Confirm pausing the projects first.")
+    return {"paused": update_pause.pause_all(s, get_settings(), identity), "in_progress": update_pause.in_progress(s)}
+
+
+@router.post("/resume-projects")
+def resume_projects(body: PauseIn, request: Request, s: Session = Depends(get_session)):
+    """Resume exactly the projects that were paused for an update and are still paused."""
+    identity = operator(request)
+    if not body.confirm:
+        raise HTTPException(422, "Confirm resuming the projects first.")
+    return {"resumed": update_pause.resume_all(s, get_settings(), identity)}
+

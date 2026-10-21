@@ -659,6 +659,10 @@ def inbox_paths(cfg: HelperConfig, name: str) -> tuple[Path, Path, Path | None]:
 
 # --- drain -----------------------------------------------------------------------------
 
+# Tasks an update would interrupt: running ones, and queued ones that could start (a project story only while its project is active).
+BLOCKING_TASKS = ("c.\"column\" IN ('queued', 'running') AND NOT (c.\"column\" = 'queued' AND EXISTS "
+                  "(SELECT 1 FROM project_task t JOIN project p ON p.id = t.project_id WHERE t.card_id = c.id AND p.state NOT IN ('dispatching', 'active')))")
+
 DRAIN_COUNTS = (
     ("SELECT count(*) FROM run WHERE ended_at IS NULL", "agent runs",
      "{n} agent or chat run(s) still running: let them finish or cancel them"),
@@ -667,14 +671,13 @@ DRAIN_COUNTS = (
     ("SELECT count(*) FROM run r LEFT JOIN card c ON c.id = r.card_id WHERE r.stage = 'awaiting_approval' "
      "AND (c.id IS NULL OR c.\"column\" NOT IN ('done', 'failed'))", "approval waits",
      "{n} run(s) waiting on a human decision: decide or reject them first"),
-    # A queued story of a paused, closed or completed project cannot start (nothing is handed out for it), so it is not work an
-    # update would interrupt. Project stories cannot be moved to Backlog by hand, so counting them would block every update
-    # until the project finished or was closed.
-    ("SELECT count(*) FROM card c WHERE c.\"column\" IN ('queued', 'running') AND NOT (c.\"column\" = 'queued' AND EXISTS "
-     "(SELECT 1 FROM project_task t JOIN project p ON p.id = t.project_id WHERE t.card_id = c.id AND p.state IN ('paused', 'closed', 'complete')))",
-     "queued tasks", "{n} task(s) queued or running: let them finish or move them to Backlog"),
+    # A queued project story starts only while its project is active (projects.claim_context), so a queued story of a project in any
+    # other state (paused, closed, complete, waiting for review, failed) is not work an update would interrupt. Project stories cannot be
+    # moved to Backlog by hand, so counting them would block every update until each such project was closed.
+    ("SELECT count(*) FROM card c WHERE " + BLOCKING_TASKS, "queued tasks",
+     "{n} task(s) queued or running: let them finish or move them to Backlog"),
     ("SELECT count(*) FROM project WHERE state IN ('dispatching', 'active')", "projects",
-     "{n} project(s) still dispatching: pause them first (queued stories of a paused project do not block an update)"),
+     "{n} project(s) in progress: pause them (Pause dispatch, or Pause these projects for the update below) and resume them afterwards; queued stories of a paused project do not block an update"),
 )
 
 
@@ -695,7 +698,15 @@ def drain_blockers(db_path: Path, now: float | None = None) -> list[str]:
                 blockers.append(f"could not check {what} ({type(exc).__name__})")
                 continue
             if n:
-                blockers.append(message.format(n=n))
+                text = message.format(n=n)
+                if what == "queued tasks":
+                    # Name them, so the operator knows where to look instead of guessing (at most five).
+                    try:
+                        rows = con.execute("SELECT c.id, c.title, c.\"column\" FROM card c WHERE " + BLOCKING_TASKS + " ORDER BY c.id LIMIT 5").fetchall()
+                        text += ": " + "; ".join(f"#{i} {str(t)[:60]} ({col})" for i, t, col in rows) + (" and more" if n > 5 else "")
+                    except sqlite3.Error:
+                        pass
+                blockers.append(text)
         # The current task schema represents approval with ``needs_approval`` and
         # ``approved_at``; it has never contained the historical ``approval_grant``
         # column. Approved work is already blocked above while it is queued or

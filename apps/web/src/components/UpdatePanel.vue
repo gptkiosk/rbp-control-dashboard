@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UpdateBlockers from '@/components/UpdateBlockers.vue'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import AppSelect from '@/components/AppSelect.vue'
 import ManagedItem, { type Health } from '@/components/ManagedItem.vue'
@@ -377,12 +378,7 @@ onBeforeUnmount(() => { alive = false; if (timer) clearTimeout(timer) })
           <h4>Release notes (plain text)</h4>
           <pre class="notes log-window">{{ candidate.notes || 'This release has no notes.' }}</pre>
           <p v-if="refused" class="notice-warn" role="alert">{{ refused }}</p>
-          <div v-if="blockers.length && !inProgress" class="notice-warn blocked" role="status" data-testid="update-blocked">
-            <p><strong>Finish or pause this work first, then update.</strong> An update restarts the service, so it waits until nothing is running:</p>
-            <ul><li v-for="b in blockers" :key="b">{{ b }}</li></ul>
-            <p class="small">A project in progress can be paused with <strong>Pause dispatch</strong> on its page and resumed after the update; its queued stories then do not block.
-              <RouterLink to="/projects">Open Projects</RouterLink> · <RouterLink to="/tasks">Open Tasks</RouterLink> · <button type="button" class="link-btn" :disabled="busy" @click="read">Check again</button></p>
-          </div>
+          <UpdateBlockers v-if="!inProgress" :blockers="blockers" :busy="busy" @changed="read" />
           <div class="actions">
             <a v-if="releaseLink" class="release-link" :href="releaseLink" target="_blank" rel="noopener noreferrer">View this release on GitHub</a>
             <template v-if="!refused">
@@ -522,8 +518,4 @@ h4 { font-size: var(--font-size-sm); font-weight: var(--font-weight-strong); col
   .release .actions, .confirm .actions { justify-content: stretch; }
   .release .actions .btn, .confirm .actions .btn { flex: 1 1 100%; }
 }
-.blocked { display: grid; gap: var(--gap-xs); }
-.blocked p, .blocked ul { margin: 0; }
-.blocked ul { padding-left: 1.2rem; }
-.link-btn { background: none; border: 0; padding: 0; color: var(--accent); cursor: pointer; font: inherit; text-decoration: underline; }
 </style>
