@@ -10,6 +10,23 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.6.44] - 2026-10-20
+
+### Added
+
+- **Use one route for all stories.** Before submitting, pick the model every agent story runs on (subscription routes are listed first, for example Claude Haiku) and up to five backups in order, instead of changing each story by hand. It is saved as a new revision; human stories are not changed. Choosing no backups keeps each story's own. A free route is never put on a high-risk story.
+- **Stories no longer need a per-task model choice to run.** A Hermes or OpenClaw story with no model ("Agent default"), or one the gate cannot price, is given a reviewed free model and the agent's other reviewed free models as fallbacks. This applies to new plans, saves and validation projects; high-risk stories get no free fallbacks. A rate-limited or out-of-quota free endpoint hands the story to the next route by itself.
+- **Fix automatically in the standards check.** When a submission is blocked, one button saves a new revision with the safe fixes; anything left is still listed for an edit on the map. The fixes:
+  - each story's risk is raised to its area's minimum;
+  - high-risk stories lose their free fallback routes;
+  - a high-risk story on a free main route moves to its first approved fallback that is not free.
+
+### Changed
+
+- **A failover between two OpenClaw models keeps the story's agent.** It used to drop the target, so the run went to `mm-main`, which does not exist on a fresh install.
+- **The planner is told the rules the check enforces:** Hermes coordinates and is not assigned implement, test or edit stories; each story's risk is at least its area's minimum; a high-risk story never uses a free route, as its main route or as a fallback. Coordinator guidance version 15.
+- **The standards check lists each problem once.** It used to repeat a story when a fallback route broke the same rule.
+
 ## [0.6.43] - 2026-10-20
 
 ### Fixed
@@ -758,7 +775,7 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 - Claude Code stories may use web search and fetch without any shell, credential or publish permission.
 
 [0.3.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.0
-[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.43...HEAD
+[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.44...HEAD
 [0.6.29]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.29
 [0.6.28]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.28
 [0.6.27]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.27
@@ -833,3 +850,4 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 [0.6.41]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.40...v0.6.41
 [0.6.42]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.41...v0.6.42
 [0.6.43]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.42...v0.6.43
+[0.6.44]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.43...v0.6.44

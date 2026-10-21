@@ -149,7 +149,7 @@ def start_coordinator_bootstrap(request:Request,s:Session=Depends(get_session)):
     pref=profiles.prefs(s,identity);setup=agent_setup.plan(settings,s,pref)
     if not setup['verified']:
         raise HTTPException(409,{'message':'Finish platform setup first: apply the changes or fix the items listed.','problems':setup['problems'],'link':'/profile#coordinator-bootstrap'})
-    nodes=agent_setup.validation_nodes(settings,setup)
+    nodes=agent_setup.validation_nodes(s,settings,setup)
     if len(nodes)<2:
         raise HTTPException(409,{'message':'No ready platform can run a validation story.','link':'/profile#coordinator-bootstrap'})
     ready=', '.join(c['name'] for c in setup['checks'] if c['state']=='ready')
@@ -164,6 +164,7 @@ def start_coordinator_bootstrap(request:Request,s:Session=Depends(get_session)):
     doc.nodes=[Node.model_validate(n) for n in nodes]
     project=projects.create(s,doc.model_dump(),settings,identity)
     prepared=projects.document(project)
+    projects.pin_free_routes(s,prepared,settings)
     projects.add_recovery_routes(s,project,prepared,settings)
     import json
     project.document=json.dumps(prepared)

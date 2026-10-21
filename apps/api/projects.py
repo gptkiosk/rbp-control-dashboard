@@ -516,7 +516,48 @@ def standards_check(p,settings=None):
         broken=standards.floor_problems(std,checked_nodes,_tier_of)
     except Exception:
         return None
-    return {'source':std.get('source'),'property':std.get('property'),'problems':broken,'areas':sorted(a['slug'] for a in std.get('areas',[]))}
+    try:
+        fixable=len(standards_fixes(p,settings)[1]) if broken else 0
+    except Exception:
+        fixable=0
+    return {'source':std.get('source'),'property':std.get('property'),'problems':list(dict.fromkeys(broken)),'areas':sorted(a['slug'] for a in std.get('areas',[])),'fixable':fixable}
+
+def standards_fixes(p,settings=None):
+    """What Fix automatically would change, without changing anything: (document, change sentences). Every change is in the safe direction or
+    uses a route the plan already approved: a story's risk is raised to its area's minimum; a high-risk story loses its free fallback routes; and a
+    high-risk story on a free main route moves to its first fallback that is not free. A high-risk story with no such fallback is left for the operator."""
+    import copy
+    d=document(p)
+    std=standards.resolve(d['working_dir'],(settings or get_settings()).data_dir)
+    if std['state']!='ok' or not std['areas']: return d,[]
+    floors={a['slug']:a['risk'] for a in std['areas']}
+    free_ok=(std.get('rules') or {}).get('high_risk_free_routes')=='allowed'
+    nodes=copy.deepcopy(d['nodes']);changes=[]
+    name=lambda r:f"{r['agent']} · {r['model'] or 'default'}"
+    for n in nodes:
+        if n.get('kind')!='story': continue
+        floor=floors.get(n.get('area') or '')
+        if floor and n.get('risk') in standards.RANK and standards.RANK[n['risk']]<standards.RANK[floor]:
+            changes.append(f"{n['key']}: risk {n['risk']} raised to {floor}, the minimum for area {n['area']}");n['risk']=floor
+        if n.get('risk')!='high' or free_ok or n['assignee']=='human': continue
+        free=[r for r in n['routes'] if _tier_of({**n,'assignee':r['agent'],'model':r['model']})=='free']
+        if free:
+            n['routes']=[r for r in n['routes'] if r not in free]
+            changes.append(f"{n['key']}: free fallback {', '.join(name(r) for r in free)} removed; a high-risk story may not use a free route")
+        if _tier_of(n)=='free' and n['routes']:
+            new=n['routes'].pop(0)
+            changes.append(f"{n['key']}: moved from {name({'agent':n['assignee'],'model':n['model']})} to {name(new)}, its first approved fallback that is not free")
+            n['assignee'],n['model']=new['agent'],new['model']
+            if new['agent']!='openclaw': n['agent_target']=''
+    return {**d,'nodes':nodes},changes
+
+def fix_standards(s,p,revision,settings,actor):
+    """Apply standards_fixes as a new plan revision, recorded in project memory. Returns the change sentences."""
+    fixed,changes=standards_fixes(p,settings)
+    if not changes: fail('Nothing here can be fixed automatically. Edit the stories the standards check lists.',409)
+    save(s,p,fixed,revision,settings,actor)
+    memory(s,p,'decision','Standards fixed automatically: '+'; '.join(changes),actor)
+    return changes
 
 def plan_timing(s,p):
     """What actually happened: minutes of agent work against the minutes that passed from the first story run starting to the last one ending, so it is visible whether running
@@ -634,6 +675,7 @@ def save(s, p, doc, revision, settings, actor):
     try: data = validate(doc,settings)
     except Exception:
         _drop_empty(made); raise
+    pin_free_routes(s,data,settings)
     p.document=json.dumps(data); p.revision+=1; p.state='draft'; p.error=None; p.approved_manifest=None; p.pipeline=None
     memory(s,p,'decision',f'Plan saved as revision {p.revision}; story planning bias {data["planning_bias"]}/100. Preference is advisory; prior approval does not apply.',actor)
 
@@ -1235,8 +1277,10 @@ def advance(s,settings):
                 elif step=='return':
                     if not isinstance(data,dict) or set(data)!={'nodes'}: fail('Delegator response must contain only nodes.',422)
                     proposed=proposal(document(p),data['nodes'],settings)
+                    pinned=pin_free_routes(s,proposed,settings)
                     add_recovery_routes(s,p,proposed,settings)
                     fixed_modes=fix_implement_modes(proposed)
+                    if pinned: memory(s,p,'checkpoint','MCD gave '+str(len(pinned))+' stor'+('y' if len(pinned)==1 else 'ies')+' with no priced model a reviewed free model and free fallbacks, so they run without a per-task model choice: '+'; '.join(t[:60] for t in pinned[:12])+'.','mcd',r.card_id,r.id)
                     p.document=json.dumps(proposed);p.revision+=1;p.state='review'
                     try: scorecard.record_returned(s,p,proposed['nodes'],settings,pipeline.get('chosen'),{'agent':r.agent,'model':r.model_reported or r.model_requested})
                     except Exception: pass   # a scorecard problem must never block planning
@@ -1684,8 +1728,10 @@ def on_finish(s,card,run,stage):
                 alternative=None if model_locked(p) else next((r for r in choices if (r['agent'],r['model']) not in attempted),None)
                 memory(s,p,'checkpoint',f'Quota stopped {run.agent}, task #{card.id}, run #{run.id}. Partial work is unverified. Read the current workspace diff and prior run evidence before continuing the SAME story; do not redo completed work.\n'+text,run.agent,card.id,run.id)
                 if alternative:
+                    same_agent=alternative['agent']==card.agent
                     card.agent=alternative['agent']; card.model=alternative['model'] or None
-                    card.agent_target=None;card.column='queued'
+                    if not same_agent: card.agent_target=None   # another OpenClaw model keeps the story's agent; only a different platform drops it
+                    card.column='queued'
                     card.retry_attempts=0;card.retry_after=None;card.updated_at=now()
                     provider_limits.note_handoff(s,run.agent,now())
                     memory(s,p,'decision',f'Pre-approved quota handoff to {alternative} for the same story #{card.id}; only reviewed routes are eligible.', 'mcd',card.id,run.id)
@@ -1873,6 +1919,67 @@ def _planning_route_allowed(s,settings,route):
     return recovery.allowed_class(s,settings,price)
 
 
+
+def route_all(s,p,revision,agent,model,settings,actor,backups=None):
+    """One route for every agent story, chosen by the operator before the run (for example a Claude Haiku subscription), instead of one story at a
+    time. Saved as a new revision for review. `backups`, when given, become every story's fallbacks in that order (the failover a story hands
+    to on a quota or rate limit); when omitted each story keeps its own. A free route is never put on a high-risk story, as its main route or as a
+    backup; those are listed. Returns (changed, skipped) titles."""
+    options={(r['agent'],r['model']):r for r in recovery.options(s,settings)}
+    option=options.get((agent,model))
+    if not option or not option['allowed']: fail('That route is not available on this host. Choose one listed in the route menu.',422)
+    backups=[dict(agent=b['agent'],model=b['model']) for b in (backups or [])]
+    if any(not (options.get((b['agent'],b['model'])) or {}).get('allowed') for b in backups):
+        fail('A backup route is not available on this host. Choose backups from the route menu.',422)
+    backups=[b for b in dict.fromkeys((b['agent'],b['model']) for b in backups) if b!=(agent,model)][:5]
+    backups=[{'agent':a,'model':m} for a,m in backups]
+    d=document(p);changed=[];skipped=[]
+    default_target=next((t['id'] for t in native_routes.read(settings).get('openclaw',{}).get('targets',[]) if t.get('default')),'')
+    for n in d['nodes']:
+        if n.get('kind')!='story' or n['assignee']=='human': continue
+        if option['price_class']=='free' and n.get('risk')=='high': skipped.append(n['title']);continue
+        mine=[b for b in backups if not (n.get('risk')=='high' and options[(b['agent'],b['model'])]['price_class']=='free')] if backups else None
+        if (n['assignee'],n['model'])==(agent,model) and (mine is None or n['routes']==mine): continue
+        if n['assignee']!=agent: n['agent_target']=default_target if agent=='openclaw' else ''
+        n['assignee'],n['model']=agent,model
+        n['routes']=mine if mine is not None else [r for r in n['routes'] if (r['agent'],r['model'])!=(agent,model)]
+        changed.append(n['title'])
+    if not changed: fail('Every agent story already uses that route'+(' (high-risk stories stay off a free route)' if skipped else '')+'.',409)
+    save(s,p,d,revision,settings,actor)
+    memory(s,p,'decision',f'Operator set {agent} · {model} for {len(changed)} stor'+('y' if len(changed)==1 else 'ies')+(' with backups '+', '.join(b['agent']+' · '+b['model'] for b in backups) if backups else '')+(f'; {len(skipped)} high-risk stor'+('y keeps' if len(skipped)==1 else 'ies keep')+' its route, because a free route is not allowed there' if skipped else '')+'.',actor)
+    return changed,skipped
+
+def pin_free_routes(s,proposed,settings):
+    """A Hermes or OpenClaw story with no model ("Agent default") or a model the gate cannot price would stop with PRICE_UNKNOWN until the
+    operator picks a model by hand. Pin it instead to a reviewed free model of that agent (the OpenClaw target's own model when that one is free,
+    otherwise the healthiest free one) and give it the agent's other reviewed free models as fallbacks, so a free endpoint that is rate-limited or
+    out of quota hands the story to the next one by itself. High-risk stories get no free fallbacks. A model the gate can price is never replaced.
+    Returns the titles it changed."""
+    from types import SimpleNamespace
+    from dispatch_gate import reviewed_route_class
+    free={}
+    for r in recovery.options(s,settings):
+        if r['agent'] in ('hermes','openclaw') and r['allowed'] and r['price_class']=='free':
+            free.setdefault(r['agent'],[]).append(r['model'])
+    if not free: return []
+    failing={(h['agent'],h['model']) for h in recovery.stats(s) if h.get('persistent')}
+    for agent,models in free.items(): models.sort(key=lambda m:(agent,m) in failing)
+    targets={t['id']:t for t in native_routes.read(settings).get('openclaw',{}).get('targets',[])}
+    changed=[]
+    for n in proposed['nodes']:
+        if n.get('kind')!='story' or n['assignee'] not in free: continue
+        models=free[n['assignee']]
+        priced=n['model'] and reviewed_route_class(s,settings,SimpleNamespace(agent=n['assignee'],agent_target=n.get('agent_target') or '',id=None),n['model']) in {'free','subscription','paid'}
+        if not priced:
+            own=(targets.get(n.get('agent_target') or '') or {}).get('model') if n['assignee']=='openclaw' else None
+            n['model']=own if own in models else models[0]
+            changed.append(n['title'])
+        if n.get('risk')!='high' and _tier_of(n)=='free':
+            for m in models:
+                if len(n['routes'])>=6: break
+                route={'agent':n['assignee'],'model':m}
+                if m!=n['model'] and route not in n['routes']: n['routes'].append(route)
+    return changed
 
 def add_recovery_routes(s,p,proposed,settings):
     """Put configured alternatives on the editable map; only later plan approval authorizes story use."""

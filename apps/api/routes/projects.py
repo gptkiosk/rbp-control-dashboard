@@ -10,7 +10,7 @@ from deps import get_session
 from dispatcher import remove_run_logs
 from settings import get_settings
 from models import Project, ProjectTask, Card, CardDependency, Run
-from project_schemas import AcceptDespiteReport, Close, Document, Save, Action, Retry, GoFree, ContinueOutput, Note, Accept, HandoffPolicy, Retier, RepairExecution, ModelLock, LowCostRetry, PayRetry
+from project_schemas import Route, AcceptDespiteReport, Close, Document, Save, Action, Retry, GoFree, ContinueOutput, Note, Accept, HandoffPolicy, Retier, RepairExecution, ModelLock, LowCostRetry, PayRetry
 import agent_git
 import projects
 import standards
@@ -75,6 +75,29 @@ def standards_for(project_id:int,request:Request,s:Session=Depends(get_session))
 def save(project_id:int,body:Save,request:Request,s:Session=Depends(get_session)):
     identity=actor(request);write(s);p=projects.get(s,project_id)
     projects.save(s,p,body.document.model_dump(),body.revision,get_settings(),identity);s.commit();return projects.detail(s,p)
+
+class RouteAll(BaseModel):
+    revision:int=Field(ge=1)
+    agent:str=Field(pattern=r'^(claude|codex|grok|hermes|openclaw)$')
+    model:str=Field(min_length=1,max_length=120)
+    backups:list[Route]=Field(default_factory=list,max_length=5)
+
+@router.post('/{project_id}/route-all')
+def route_all(project_id:int,body:RouteAll,request:Request,s:Session=Depends(get_session)):
+    """Use one route for every agent story, as a new revision the operator reviews."""
+    identity=actor(request);write(s);p=projects.get(s,project_id)
+    changed,skipped=projects.route_all(s,p,body.revision,body.agent,body.model,get_settings(),identity,[b.model_dump() for b in body.backups]);s.commit()
+    return {**projects.detail(s,p),'routed':changed,'skipped':skipped}
+
+class StandardsFix(BaseModel):
+    revision:int=Field(ge=1)
+
+@router.post('/{project_id}/standards-fix')
+def standards_fix(project_id:int,body:StandardsFix,request:Request,s:Session=Depends(get_session)):
+    """Raise risks to their area minimum and move high-risk stories off free routes, as a new revision the operator reviews."""
+    identity=actor(request);write(s);p=projects.get(s,project_id)
+    changes=projects.fix_standards(s,p,body.revision,get_settings(),identity);s.commit()
+    return {**projects.detail(s,p),'fixed':changes}
 
 @router.post('/{project_id}/plan')
 def plan(project_id:int,body:Action,request:Request,s:Session=Depends(get_session)):
