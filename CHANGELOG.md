@@ -14,6 +14,12 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ### Added
 
+- **The dashboard sets up the project's repository as step 1.** Tick **Create a private GitHub repository** in the project brief panel. On submission, after every other check passes, the dashboard does the following with this host's `gh` sign-in and no model:
+  - creates the private repository, commits README and .gitignore on `main`, and clones it into the project folder;
+  - creates and pushes the `project-<id>/setup` branch;
+  - adds the repository to the GitHub list and grants agents that branch.
+
+  The review shows it as Step 1, and Hermes plans the work inside the clone instead of planning repository creation. A failure leaves the plan unchanged, and a retry skips the steps already done. Coordinator guidance version 16.
 - **Reference art in the Media studio.** Drop images, or choose them, under Reference art: PNG, JPEG, WebP or GIF, up to 10 MB each and 24 per project.
   - They are saved in the project's `media/references/`, shown as thumbnails and can be removed.
   - The planner and every story are told where they are and to follow them for style. A media slot can list one in its `refs` so generated images match it.
@@ -24,7 +30,7 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 ### Fixed
 
 - **Fix automatically could leave a story it had just made high-risk on a free route.** For example, `deploy-verify` was raised to high with no fallback that is not free. Such a story now moves to the cheapest subscription route this host allows, and the list of changes says so. With no subscription configured, it stays listed for an edit on the map.
-- **Stories now see the whole project brief.** It used to be cut at 5,000 characters, so a longer brief lost its later sections, such as art direction. The context budget grows with the brief, so accepted project memory is not crowded out.
+- **A long brief no longer hides its later sections from stories.** Each story still carries a bounded part of the brief (6,000 characters, so prompts stay small). The cut-off now names a private file with the full brief, beside the project ledger, so an agent can read the rest, such as art direction, when it needs it. It used to point at the Projects page, which agents cannot open.
 - **A high-risk story left on "Agent default" is no longer given a free main model,** which the standards check would refuse.
 
 ## [0.6.44] - 2026-10-20

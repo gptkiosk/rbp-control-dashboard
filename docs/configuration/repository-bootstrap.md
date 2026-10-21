@@ -6,6 +6,21 @@ Explains how a project that needs a GitHub repository gets one: Hermes (or you) 
 request, you grant agents one branch, and a setup story fills the repository in. Read it when you start a project from nothing, such as a
 new website that should live in its own private repository with a pipeline.
 
+## The quick way: let the dashboard set it up (step 1)
+
+In a project's **Project brief & planner** panel, tick **Create a private GitHub repository** and check the name. It is derived from the project title; use lowercase letters, digits and dashes. When you press **Submit approved revision**, the dashboard does step 1 itself, with no model, after every other check passes:
+
+1. It creates the private repository under the account `gh` is signed in to on this host. Sign in first with `gh auth login` (GitHub.com, HTTPS, web).
+2. It commits `README.md` and `.gitignore` on `main` and pushes them.
+3. It clones the repository into the project folder as `<project folder>/<name>/`.
+4. It creates and pushes the branch `project-<id>/setup`, and checks it out in the clone.
+5. It adds the repository to this install's GitHub list.
+6. It grants agents that one branch in that folder.
+
+The review shows this as **Step 1**. Hermes is told the repository exists and plans the work inside the clone, so it does not plan repository creation or grants. Each step is skipped when it is already done, so after a failure (for example `gh` not signed in) the plan stays as it was: fix the cause and submit again. Agents never hold GitHub write access for any of this; only the branch grant lets them commit to `project-<id>/setup`.
+
+The rest of this page describes the manual path, which still works.
+
 ## Screenshots
 
 Pending capture: `profile-github-actions-waiting.png`, `project-repository-access.png`.

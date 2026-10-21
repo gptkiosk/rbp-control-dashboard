@@ -57,6 +57,14 @@ class Node(Strict):
 
 DEFAULT_PLANNING_BIAS = 50
 
+class Repository(Strict):
+    """A GitHub repository the dashboard creates for the project when the plan is submitted (repo_setup.py). repo/folder/branch are filled in by
+    the dashboard once it exists; until then only the name is set."""
+    name: str = Field(pattern=r'^[a-z0-9][a-z0-9-]{0,62}$')
+    repo: str = Field(default='', max_length=140)
+    folder: str = Field(default='', max_length=63)
+    branch: str = Field(default='', max_length=80)
+
 class Document(Strict):
     title: str = Field(min_length=1, max_length=200)
     brief: str = Field(min_length=1, max_length=20000)
@@ -68,6 +76,7 @@ class Document(Strict):
     dispatch_mode: Literal['sequential','parallel'] = 'sequential'
     # The kind of project (see project_types.py). Optional: a project without one is planned exactly as before.
     project_type: str | None = Field(default=None, pattern=r'^[a-z0-9][a-z0-9-]{0,39}$')
+    repository: Repository | None = None
     nodes: list[Node] = Field(default_factory=list, max_length=100)
 
 class Save(Strict):

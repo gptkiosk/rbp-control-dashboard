@@ -18,6 +18,7 @@ const props = defineProps<{
   delegator: string; stories: ProjectNode[]; titles: Record<string, string>
   needsPaidWork: boolean; standardsCheck?: Check | null; error: string; busy: boolean
   fixed?: string[]
+  repository?: { name: string; repo: string; folder: string; branch: string } | null
 }>()
 const coordination = defineModel<boolean>('coordination', { required: true })
 const paidPlanner = defineModel<boolean>('paidPlanner', { required: true })
@@ -54,6 +55,8 @@ const unknownArea = computed(() => problems.value.some(p => p.includes("this rep
         <div><dt>Story preference</dt><dd>{{ planningBiasLabel(planningBias) }}</dd></div>
         <div v-if="mode === 'plan'"><dt>Planner</dt><dd>{{ planner }}</dd></div>
         <div v-else><dt>Build</dt><dd>{{ dispatchMode === 'parallel' ? 'In parallel, in separate branches' : 'One story at a time, in dependency order' }}</dd></div>
+        <div v-if="repository && !repository.repo" data-testid="repo-step"><dt>Step 1</dt><dd>The dashboard creates the private repository <strong>{{ repository.name }}</strong> with this host's gh sign-in, clones it into the working directory and gives agents its setup branch{{ mode === 'submit' ? ', before any story runs' : ' when you submit' }}.</dd></div>
+        <div v-else-if="repository?.repo"><dt>Repository</dt><dd class="mono">{{ repository.repo }} · {{ repository.folder }}/ · {{ repository.branch }}</dd></div>
       </dl>
 
       <template v-if="mode === 'plan'">

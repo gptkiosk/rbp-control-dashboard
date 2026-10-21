@@ -148,16 +148,20 @@ def test_fix_moves_a_high_risk_story_with_no_paid_fallback_to_a_subscription_rou
     assert body['standards_check']['problems'] == []
 
 
-def test_stories_see_the_whole_brief(app):
+def test_a_long_brief_is_bounded_in_every_story_and_the_rest_is_one_file_away(app):
     c, sessions, settings, workspace = app
+    import json
     brief = 'Concept art: neon arcade, CRT glow. ' + 'x' * 7400 + ' FINAL-LINE-OF-THE-BRIEF'
     with sessions() as s:
         p = projects.create(s, dict(title='Arcade', brief=brief, working_dir=str(workspace),
                                     nodes=[story('a', 'business-logic', 'medium', 'claude', 'claude-haiku-5-5')]), settings, 'operator')
         from project_schemas import Action
         projects.submit(s, p, Action(revision=1, approve_coordination=True, approve_api_work=True), settings, 'operator')
-        payload = projects.context_payload(s, p, 'a') if hasattr(projects, 'context_payload') else None
+        built = projects.context_payload(s, p, 'a') if hasattr(projects, 'context_payload') else projects.context(s, p, 'a')
         s.commit()
-    if payload is not None:
-        assert payload['brief'] == brief and 'omitted' not in payload['brief']
-    assert projects._context_excerpt(brief, projects.BRIEF_LIMIT) == brief
+    text = built if isinstance(built, str) else json.dumps(built)
+    # Token cost stays bounded: the story carries the first part and the cut-off names the file with all of it.
+    assert 'neon arcade' in text and 'FINAL-LINE' not in text
+    path = text.split('read the full text in ', 1)[1].split(';')[0]
+    from pathlib import Path
+    assert Path(path).read_text() == brief and oct(Path(path).stat().st_mode)[-3:] == '600'
