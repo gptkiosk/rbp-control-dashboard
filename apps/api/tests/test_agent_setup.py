@@ -171,6 +171,8 @@ def test_validation_project_waits_for_setup_then_runs_one_read_story_per_ready_p
     stories = [n for n in nodes if n['assignee'] != 'human']
     assert [n['assignee'] for n in stories] == ['openclaw', 'codex']
     assert stories[0]['agent_target'] == agent_setup.agent_id(settings, 'developer') and stories[0]['mode'] == 'read'
+    # Each story names its model: the dispatch gate refuses a blank one (PRICE_UNKNOWN).
+    assert stories[0]['model'] == 'openrouter/free' and stories[1]['model'] == 'gpt-6-luna'
     assert nodes[-1]['assignee'] == 'human' and nodes[-1]['depends_on'] == ['validate-openclaw', 'validate-codex']
     result = c.post(f'/api/projects/{pid}/submit', json={'revision': 1, 'approve_coordination': True, 'approve_api_work': True})
     assert result.status_code == 200, result.text

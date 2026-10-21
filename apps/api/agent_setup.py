@@ -279,6 +279,21 @@ def apply(settings, s, pref, digest):
     return plan(settings, s, pref)
 
 
+def _validation_model(settings, platform, target, check):
+    """Every run needs an explicit model (the dispatch gate refuses PRICE_UNKNOWN otherwise). OpenClaw uses the agent's own
+    model or OpenClaw's default; the subscription agents use their cheapest route, since a validation only needs an answer."""
+    from agents import REGISTRY
+    import native_routes
+    import projects
+    if platform == 'openclaw':
+        targets = {t['id']: t for t in native_routes.read(settings)['openclaw']['targets']}
+        return (targets.get(target) or {}).get('model') or check.get('model') or ''
+    if platform in ('claude', 'codex'):
+        return projects.subscription_model(platform, 0)
+    spec = REGISTRY[platform]
+    return spec.default_model() or (spec.suggested_models[0] if spec.suggested_models else '')
+
+
 def validation_nodes(settings, result):
     """A small built-in project that proves each ready platform answers: one read-only story per platform, then the operator's review."""
     nodes, keys = [], []
@@ -292,7 +307,10 @@ def validation_nodes(settings, result):
                 continue
         key = 'validate-' + platform
         who = f'OpenClaw agent {target}' if target else check['name']
-        nodes.append(dict(key=key, title=f'Validate {who}', assignee=platform, agent_target=target, model='', mode='read',
+        model = _validation_model(settings, platform, target, check)
+        if not model:
+            continue
+        nodes.append(dict(key=key, title=f'Validate {who}', assignee=platform, agent_target=target, model=model, mode='read',
             description='List the files in this project folder (there may be none). Reply with a short report: which agent and role you are, the model you run on if you know it, and the files you can see. Do not create, change or delete anything.',
             scope='Read-only. This project folder only. No network calls, installs or configuration changes.',
             acceptance='A short report arrives that names the agent and lists the visible files, and no file changed.',

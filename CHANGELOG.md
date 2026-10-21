@@ -10,6 +10,12 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.6.43] - 2026-10-20
+
+### Fixed
+
+- **Validation stories failed with `PRICE_UNKNOWN: an explicit priced model is required`.** They left the model blank, and every run needs an explicit one. Each validation story now names its model when it is created. OpenClaw uses the agent's own model, or OpenClaw's default. Claude Code and Codex use their cheapest subscription models; Grok Build uses its default. A project created by 0.6.42 or earlier keeps its blank models: close it and press Start validation project again.
+
 ## [0.6.42] - 2026-10-20
 
 ### Fixed
@@ -752,7 +758,7 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 - Claude Code stories may use web search and fetch without any shell, credential or publish permission.
 
 [0.3.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.0
-[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.42...HEAD
+[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.43...HEAD
 [0.6.29]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.29
 [0.6.28]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.28
 [0.6.27]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.27
@@ -826,3 +832,4 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 [0.6.40]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.39...v0.6.40
 [0.6.41]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.40...v0.6.41
 [0.6.42]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.41...v0.6.42
+[0.6.43]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.42...v0.6.43
