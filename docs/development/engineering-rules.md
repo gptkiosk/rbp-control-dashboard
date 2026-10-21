@@ -17,7 +17,7 @@ These rules come from operator decisions and from real failures on hardware. A c
 - Setup is done by the dashboard itself, with no model involved, so every run behaves the same. Do not move it back into a Hermes-run project.
 - Two modes: *Stable start* creates only what is missing from the versioned templates in `packs/agents/`. *I'll configure the platforms myself* changes nothing and only checks.
 - Never overwrite an existing agent, file or folder. Refuse a stale preview (digest). Run applies in the background with item states and a log, and never twice at once (server lock and disabled controls).
-- OpenClaw itself is the source of truth for registered agents: use `openclaw agents list --json`, with the config file only as a fallback, everywhere targets are checked (`native_routes.read` merges the CLI's list, cached briefly). CLI output can start with log lines such as `[plugins] ready`, so find the JSON with `native_routes.json_list`.
+- OpenClaw itself is the source of truth for registered agents: use `openclaw agents list --json`, with the config file only as a fallback, everywhere targets are checked (`native_routes.read` merges the CLI's list, cached briefly). A page never waits for the CLI: reads return the last known list and refresh it in the background; only actions that must be current (submitting a plan) pass `wait=True`. CLI output can start with log lines such as `[plugins] ready`, so find the JSON with `native_routes.json_list`.
 
 ## Repository setup
 - A project's repository is set up by the dashboard at submission, as step 1, with no model and in a fixed order: private repo, starter files on `main`, clone in the project folder, `project-<id>/setup` branch, GitHub list, branch grant. Every step can be retried.
@@ -31,6 +31,8 @@ These rules come from operator decisions and from real failures on hardware. A c
 - A failover from one OpenClaw model to another keeps the story's agent target. Never fall back to a hard-coded agent such as `mm-main`.
 
 ## Interface
+- A slow load says what is loading (LoadingCard), and says it is still working after a few seconds.
+- An approved plan is never edited; a project in progress takes dated brief amendments instead, given to later stories within a bounded size.
 - A long action shows that it is working (state, progress and a log) and cannot be started twice.
 - Say where work comes from. For example, Coordinator setup itself creates no tasks; its validation project does.
 - Reference art lives in a project's `media/references/`. Uploads are checked by their bytes, not their name, and are sent as the raw request body, so no new upload dependency is needed.

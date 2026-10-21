@@ -20,6 +20,7 @@ export interface Project {
   id: number; document: ProjectDocument; revision: number; state: string; approved_revision: number | null
   handoff_approval?: { mode: 'manual' | 'automatic'; manifest_hash: string | null; eligible: {card_id:number;title:string;column:string}[]; excluded: {card_id:number;title:string;reason:string}[] }
   model_lock?: boolean
+  amendments?: { id: number; text: string; actor: string; created_at: number }[]
   can_resume_plan?: boolean
   standards_check?: { source?: string | null; property?: string | null; problems: string[]; areas: string[]; fixable?: number } | null
   timing?: { runs: number; busy_minutes: number; elapsed_minutes: number; overlap: number } | null

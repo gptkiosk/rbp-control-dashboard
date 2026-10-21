@@ -76,6 +76,15 @@ def save(project_id:int,body:Save,request:Request,s:Session=Depends(get_session)
     identity=actor(request);write(s);p=projects.get(s,project_id)
     projects.save(s,p,body.document.model_dump(),body.revision,get_settings(),identity);s.commit();return projects.detail(s,p)
 
+class Amendment(BaseModel):
+    text:str=Field(min_length=1,max_length=4000)
+
+@router.post('/{project_id}/amendments',status_code=201)
+def amend(project_id:int,body:Amendment,request:Request,s:Session=Depends(get_session)):
+    """Amend the brief of a project in progress. The approved plan does not change; later stories follow the amendment."""
+    identity=actor(request);write(s);p=projects.get(s,project_id)
+    projects.amend_brief(s,p,body.text,identity);s.commit();return projects.detail(s,p)
+
 class RouteAll(BaseModel):
     revision:int=Field(ge=1)
     agent:str=Field(pattern=r'^(claude|codex|grok|hermes|openclaw)$')
@@ -173,7 +182,7 @@ def retry(project_id:int,card_id:int,body:Retry,request:Request,s:Session=Depend
         target=None
         if chosen['agent']=='openclaw':
             target=paid['agent_target'] if paid_choice else node.get('agent_target') or None
-            configured=projects.native_routes.read(get_settings())['openclaw']['targets']
+            configured=projects.native_routes.read(get_settings(),wait=True)['openclaw']['targets']
             if target and target not in {a['id'] for a in configured}:
                 raise HTTPException(422,'The approved OpenClaw target is no longer configured. Review a new project plan.')
         previous={'agent':c.agent,'model':c.model}

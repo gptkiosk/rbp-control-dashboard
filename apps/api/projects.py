@@ -38,6 +38,7 @@ from settings import get_settings
 BUSY = {'planning', 'dispatching', 'active', 'paused', 'complete'}
 AUTO_HANDOFF_PREFIX = 'Agent-reported completion passed under operator project-wide handoff approval; not independently verified.\n'
 CONTEXT_PAYLOAD_BUDGET = 16 * 1024
+AMENDMENT_LIMIT = 3000   # characters of brief amendments every story carries, newest first; all of them are in the brief file
 BRIEF_LIMIT = 6000    # what every story carries of the brief; a longer one is cut with a pointer to the full file (brief_path)
 CONTEXT_MEMORY_LIMIT = 2000
 CONTEXT_DIRECT_LIMIT = 3500   # a direct prerequisite's handoff keeps this much of its own text
@@ -625,7 +626,7 @@ def detail(s, p):
         'pipeline':json.loads(p.pipeline) if p.pipeline else None, 'error':p.error,
         'route_reliability':recovery.payload(s,get_settings(),p.created_by) if p.state in {'planning_failed','dispatch_failed','active','paused'} else None,
         'handoff_approval':handoff_approval(s,p), 'model_lock':model_locked(p),
-        'schedule':plan_schedule(p), 'timing':plan_timing(s,p), 'standards_check':standards_check(p,None,s),
+        'schedule':plan_schedule(p), 'timing':plan_timing(s,p), 'standards_check':standards_check(p,None,s),'amendments':amendments(s,p),
         'workspaces':json.loads(p.approved_manifest).get('workspaces',{}) if p.approved_manifest else {},
         'artifacts':json.loads(p.approved_manifest).get('artifacts',{}) if p.approved_manifest else {},
         'created_by':p.created_by, 'created_at':p.created_at, 'updated_at':p.updated_at,
@@ -1119,7 +1120,7 @@ def submit(s,p,action,settings,actor,github_store=None):
     if p.state in {'dispatching','active','paused','complete'}: return
     if p.state=='planning': fail('Wait for planning to finish.')
     d=validate(document(p),settings,True,overlaps=True)
-    configured_targets = {row['id'] for row in native_routes.read(settings)['openclaw']['targets']}
+    configured_targets = {row['id'] for row in native_routes.read(settings, wait=True)['openclaw']['targets']}   # submission must be current
     for n in d['nodes']:
         if n['kind']=='story' and n['assignee']=='openclaw' and n['agent_target'] and n['agent_target'] not in configured_targets:
             fail('OpenClaw target is no longer configured: '+n['agent_target']+'. Review this assignment before submission.',422)
@@ -1461,11 +1462,14 @@ def _digest(value, limit, ref=''):
 def ledger_path(settings, p):
     return settings.data_dir / 'project-ledgers' / f'project-{p.id}.md'
 
-def write_brief(p, d):
-    """The full brief as a file beside the ledger, for the stories whose prompt carries only its first BRIEF_LIMIT characters.
-    Written only when the brief is longer than that, and only when it changed. Returns the path, or None."""
+def write_brief(p, d, amends=None):
+    """The full brief, with every amendment, as a file beside the ledger, for the stories whose prompt carries only its first BRIEF_LIMIT
+    characters (or only the newest amendments). Written only when needed and only when it changed. Returns the path, or None."""
     brief=str(d.get('brief') or '')
-    if len(brief)<=BRIEF_LIMIT: return None
+    if amends:
+        brief+='\n\n## Amendments (newest last; they override the brief where they differ)\n'+''.join(
+            f"\n### {datetime.fromtimestamp(a['created_at']).isoformat(timespec='minutes') if a.get('created_at') else ''}\n\n{a['text']}\n" for a in amends)
+    elif len(brief)<=BRIEF_LIMIT: return None
     try:
         path=ledger_path(get_settings(),p).with_name(f'project-{p.id}-brief.md')
         if path.exists() and path.read_text(encoding='utf-8')==brief: return str(path)
@@ -1477,6 +1481,34 @@ def write_brief(p, d):
         return str(path)
     except OSError:
         return None
+
+def amendments(s,p):
+    """The operator's amendments to the brief of a project in progress, oldest first."""
+    return [{'id':r.id,'text':r.text,'actor':r.actor,'created_at':r.created_at} for r in s.scalars(select(ProjectMemory).where(
+        ProjectMemory.project_id==p.id,ProjectMemory.kind=='amendment').order_by(ProjectMemory.id))]
+
+def amend_brief(s,p,text,actor):
+    """Add an amendment to the brief of a project in progress. The approved plan and its scope do not change; stories that start from now on
+    are given it (newest first, bounded) and the brief file holds every amendment."""
+    text=str(text or '').strip()
+    if not text: fail('Write the amendment first.',422)
+    if len(text)>4000: fail('Keep one amendment under 4,000 characters; add another for more.',422)
+    if p.state not in {'dispatching','active','paused'}: fail('Amendments are for a project in progress. Before submission, edit the brief itself.',409)
+    memory(s,p,'amendment',text,actor)
+    s.flush()
+    write_brief(p,document(p),amendments(s,p))
+
+def _amendment_payload(s,p,d):
+    """What a story is told about amendments: the newest that fit AMENDMENT_LIMIT, and where all of them are."""
+    amends=amendments(s,p)
+    if not amends: return None
+    kept,used=[],0
+    for a in reversed(amends):
+        if kept and used+len(a['text'])>AMENDMENT_LIMIT: break
+        kept.append({'date':datetime.fromtimestamp(a['created_at']).isoformat(timespec='minutes') if a['created_at'] else '','text':_context_excerpt(a['text'],AMENDMENT_LIMIT)})
+        used+=len(a['text'])
+    return {'note':'Operator amendments to the brief, newest first. Follow them where they differ from the brief; the approved plan and its scope do not change.',
+            'items':kept,'omitted':len(amends)-len(kept),'all_in':write_brief(p,d,amends) or 'Projects'}
 
 def write_ledger(s, p):
     """The complete, uncompacted ledger as one Markdown file, rewritten only when it changed.
@@ -1548,7 +1580,7 @@ def context_payload(s,p,story=None,workspace=None):
     nodes=[{k:n.get(k) for k in ('key','title','assignee','model','depends_on')} for n in story_nodes]
     artifact_keys=visible if story else set(manifest.get('artifacts',{}))
     payload={'execution_workspace':workspace or d['working_dir'],'project_id':p.id,'revision':manifest['revision'],'title':d['title'],
-        'brief':_context_excerpt(d['brief'],BRIEF_LIMIT,write_brief(p,d) or 'Projects'),'constraints':_context_excerpt(d['constraints'],3000),'stories':nodes,'accepted_memory':[],
+        'brief':_context_excerpt(d['brief'],BRIEF_LIMIT,write_brief(p,d,amendments(s,p)) or 'Projects'),'constraints':_context_excerpt(d['constraints'],3000),'stories':nodes,'accepted_memory':[],
         'accepted_artifacts':{k:{f:(a.get(f)[:50] if isinstance(a.get(f),list) else a.get(f)) for f in ('workspace','branch','head','commits','files')} for k,a in manifest.get('artifacts',{}).items() if k in artifact_keys},
         'memory_compaction':{'mode':'deterministic_dependency_aware','budget_bytes':CONTEXT_PAYLOAD_BUDGET,
             'ledger_entries_scanned':len(rows),'entries_included':0,'entries_omitted':0,'digested':0,
@@ -1556,6 +1588,7 @@ def context_payload(s,p,story=None,workspace=None):
     payload['accepted_outputs']={k:{f:g[f] for f in ('path','sha256')} for k,g in manifest.get('output_continuations',{}).items() if g['state']=='accepted' and (not story or k in visible)}
     if (art:=_reference_art(d)): payload['reference_art']=art
     if d.get('repository'): payload['repository']=_repository_note(d)
+    if (amend:=_amendment_payload(s,p,d)): payload['brief_amendments']=amend
     if story:
         current=by_key[story]
         payload['current_story']={k:current.get(k) for k in ('key','title','depends_on','assignee','model','agent_target')}
@@ -1598,7 +1631,7 @@ def context_payload(s,p,story=None,workspace=None):
     payload['memory_compaction']['digested']=sum(1 for m in payload['accepted_memory'] if '[digest of' in m['text'])
     # Stable keys first (identical across the stories of a revision, so a prompt cache can reuse
     # them), what varies per story after, and the story's own location and identity last.
-    order=['project_id','revision','title','brief','constraints','reference_art','repository','stories','accepted_artifacts','accepted_outputs',
+    order=['project_id','revision','title','brief','brief_amendments','constraints','reference_art','repository','stories','accepted_artifacts','accepted_outputs',
         'memory_compaction','accepted_memory','upstream_outputs','execution_workspace','current_story','free_retry']
     payload={k:payload[k] for k in order if k in payload}
     payload['memory_compaction']['entries_included']=len(payload['accepted_memory'])

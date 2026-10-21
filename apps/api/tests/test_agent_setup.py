@@ -121,7 +121,7 @@ def test_a_project_can_submit_to_an_agent_only_the_cli_reports(setup_app, monkey
     c, _, settings, _, _, _, extra = setup_app
     developer = agent_setup.agent_id(settings, 'developer')
     extra.append({'id': developer})
-    monkeypatch.setattr(native_routes, '_cli_agents', lambda settings: [{'id': developer, 'name': developer, 'model': '', 'default': False}])
+    monkeypatch.setattr(native_routes, '_cli_agents', lambda settings, wait=False: [{'id': developer, 'name': developer, 'model': '', 'default': False}])
     assert developer in {t['id'] for t in native_routes.read(settings)['openclaw']['targets']}
     preview = c.get('/api/profile/coordinator-bootstrap/setup').json()
     assert c.post('/api/profile/coordinator-bootstrap/setup/apply', json={'digest': preview['digest']}).status_code == 200
