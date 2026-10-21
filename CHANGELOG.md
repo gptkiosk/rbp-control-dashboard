@@ -10,6 +10,17 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.6.46] - 2026-10-21
+
+### Added
+
+- **Amend the brief of a project in progress.** Under Project brief & planner, *Amend brief* adds dated corrections, such as originality rules or answered questions, without restarting the project. The approved plan and its scope stay as they are. Stories that start afterwards receive the newest amendments first (bounded to 3,000 characters), and the full brief file holds every one. Each amendment is recorded in the project memory.
+- **A loading card while a project opens.** It says which project is opening and what is loading, shows a quiet skeleton of the page and, after a few seconds, notes that it is still working. The project in the list shows "Opening…" with a small spinner. Motion stops when the visitor prefers reduced motion.
+
+### Fixed
+
+- **Opening a project could pause for seconds.** Since 0.6.42 a page waited for `openclaw agents list` whenever its one-minute cache had expired, which is slow on a Pi. Pages now get the last known agent list at once and refresh it in the background. Only submitting a plan waits for a current list.
+
 ## [0.6.45] - 2026-10-20
 
 ### Added
@@ -798,7 +809,7 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 - Claude Code stories may use web search and fetch without any shell, credential or publish permission.
 
 [0.3.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.0
-[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.45...HEAD
+[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.46...HEAD
 [0.6.29]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.29
 [0.6.28]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.28
 [0.6.27]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.27
@@ -875,3 +886,4 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 [0.6.43]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.42...v0.6.43
 [0.6.44]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.43...v0.6.44
 [0.6.45]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.44...v0.6.45
+[0.6.46]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.45...v0.6.46

@@ -8,9 +8,10 @@ from pathlib import Path
 import yaml
 
 # OpenClaw can keep agents that its config file does not list (seen on a Pi: `openclaw agents list` showed agents the file omitted).
-# Targets therefore also come from the CLI itself, cached briefly because starting it takes a second or two.
+# Targets therefore also come from the CLI itself. Starting it takes seconds on a Pi, so a page never waits for it: reads get the last
+# list at once and a stale one is refreshed in the background. Only callers that must be current (submitting a plan) pass wait=True.
 CLI_TTL_S = 60
-_cli = {'at': 0.0, 'key': None, 'agents': []}
+_cli = {'at': 0.0, 'key': None, 'agents': [], 'loaded': False, 'refreshing': False}
 _cli_lock = threading.Lock()
 
 
@@ -28,13 +29,51 @@ def json_list(text):
 
 
 def forget():
-    """Drop the cached CLI agent list, after setup registers agents."""
+    """Mark the cached CLI agent list stale, after setup registers agents; the next read refreshes it."""
     with _cli_lock:
         _cli['at'] = 0.0
 
 
-def _cli_agents(settings):
-    """[{id, name, model, default}] as `openclaw agents list --json` reports them; [] when it is absent, fails or in tests."""
+def _fetch(binary):
+    """Ask the CLI. Never raises; a failure gives [] (and is cached, so a broken CLI is not retried on every request)."""
+    found = []
+    try:
+        from dispatcher import Dispatcher
+        done = subprocess.run([binary, 'agents', 'list', '--json'], stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=30, env=Dispatcher._env('openclaw'))
+        if done.returncode == 0:
+            for row in json_list(done.stdout or ''):
+                target = row.get('id') if isinstance(row, dict) else None
+                if isinstance(target, str) and re.fullmatch(r'[A-Za-z0-9_-]{1,80}', target):
+                    model = row.get('model')
+                    found.append({'id': target, 'name': str(row.get('name') or row.get('identityName') or target)[:200],
+                                  'model': _model(model.get('primary') if isinstance(model, dict) else model), 'default': bool(row.get('isDefault'))})
+    except (OSError, subprocess.SubprocessError, ValueError, TypeError, AttributeError):
+        found = []
+    return found
+
+
+def _store(binary, found):
+    with _cli_lock:
+        _cli.update(at=time.monotonic(), key=binary, agents=found, loaded=True, refreshing=False)
+
+
+def _refresh_in_background(binary):
+    with _cli_lock:
+        if _cli['refreshing']:
+            return
+        _cli['refreshing'] = True
+    def work():
+        try:
+            _store(binary, _fetch(binary))
+        finally:
+            with _cli_lock:
+                _cli['refreshing'] = False
+    threading.Thread(target=work, name='openclaw-agents', daemon=True).start()
+
+
+def _cli_agents(settings, wait=False):
+    """[{id, name, model, default}] as `openclaw agents list --json` reports them; [] when it is absent, fails, is not known yet, or in tests.
+    Without `wait` this never runs the CLI on the caller's thread."""
     if getattr(settings, 'environment', 'test') == 'test':
         return []
     try:
@@ -46,29 +85,23 @@ def _cli_agents(settings):
     except Exception:
         return []
     with _cli_lock:
-        if _cli['key'] == binary and time.monotonic() - _cli['at'] < CLI_TTL_S:
-            return list(_cli['agents'])
-        found = []
-        try:
-            from dispatcher import Dispatcher
-            done = subprocess.run([binary, 'agents', 'list', '--json'], stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=30, env=Dispatcher._env('openclaw'))
-            out = done.stdout or ''
-            if done.returncode == 0:
-                for row in json_list(out):
-                    target = row.get('id') if isinstance(row, dict) else None
-                    if isinstance(target, str) and re.fullmatch(r'[A-Za-z0-9_-]{1,80}', target):
-                        model = row.get('model')
-                        found.append({'id': target, 'name': str(row.get('name') or row.get('identityName') or target)[:200],
-                                      'model': _model(model.get('primary') if isinstance(model, dict) else model), 'default': bool(row.get('isDefault'))})
-        except (OSError, subprocess.SubprocessError, ValueError, TypeError, AttributeError):
-            found = []  # a failure is cached too, so a broken CLI is not retried on every request
-        _cli.update(at=time.monotonic(), key=binary, agents=found)
+        known = _cli['loaded'] and _cli['key'] == binary
+        fresh = known and time.monotonic() - _cli['at'] < CLI_TTL_S
+        cached = list(_cli['agents']) if known else []
+    if fresh:
+        return cached
+    if wait:
+        found = _fetch(binary)
+        _store(binary, found)
         return list(found)
+    _refresh_in_background(binary)
+    return cached
+
 
 def _model(value):
     return value if isinstance(value, str) and re.fullmatch(r'[A-Za-z0-9_.:/-]{1,120}', value) else ''
 
-def read(settings):
+def read(settings, wait=False):
     result = {a: {'models': [], 'targets': [], 'default': None} for a in ('hermes', 'openclaw')}
     for agent, suffix in (('hermes', '.hermes/config.yaml'), ('openclaw', '.openclaw/openclaw.json')):
         configured = getattr(settings, agent + '_config_path', None)
@@ -109,7 +142,7 @@ def read(settings):
         except (OSError, ValueError, TypeError, AttributeError, yaml.YAMLError):
             pass  # Never return raw configuration or parser diagnostics containing credentials.
     known = {t['id'] for t in result['openclaw']['targets']}
-    for row in _cli_agents(settings):
+    for row in _cli_agents(settings, wait):
         if row['id'] not in known:
             model = row['model'] or result['openclaw']['default'] or ''
             result['openclaw']['targets'].append({**row, 'model': model})

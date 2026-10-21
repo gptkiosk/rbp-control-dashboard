@@ -165,3 +165,33 @@ def test_a_long_brief_is_bounded_in_every_story_and_the_rest_is_one_file_away(ap
     path = text.split('read the full text in ', 1)[1].split(';')[0]
     from pathlib import Path
     assert Path(path).read_text() == brief and oct(Path(path).stat().st_mode)[-3:] == '600'
+
+
+def test_amendments_reach_later_stories_bounded_and_all_are_in_the_brief_file(app):
+    c, sessions, settings, workspace = app
+    import json
+    with sessions() as s:
+        p = projects.create(s, dict(title='Doors', brief='Two worlds.', working_dir=str(workspace),
+                                    nodes=[story('a', 'business-logic', 'medium', 'claude', 'claude-haiku-5-5')]), settings, 'operator')
+        s.commit(); pid = p.id
+    assert c.post(f'/api/projects/{pid}/amendments', json={'text': 'Too early.'}).status_code == 409    # before submission, edit the brief
+    with sessions() as s:
+        from project_schemas import Action
+        p = projects.get(s, pid)
+        projects.submit(s, p, Action(revision=1, approve_coordination=True, approve_api_work=True), settings, 'operator'); s.commit()
+    first = c.post(f'/api/projects/{pid}/amendments', json={'text': 'Originality: all characters are original; no button eyes.'})
+    assert first.status_code == 201, first.text
+    c.post(f'/api/projects/{pid}/amendments', json={'text': 'X' * 2960})
+    c.post(f'/api/projects/{pid}/amendments', json={'text': 'Only the chosen world is stored.'})
+    body = c.get(f'/api/projects/{pid}').json()
+    assert [a['text'][:12] for a in body['amendments']] == ['Originality:', 'XXXXXXXXXXXX', 'Only the cho']
+    with sessions() as s:
+        p = projects.get(s, pid)
+        built = projects.context_payload(s, p, 'a') if hasattr(projects, 'context_payload') else projects.context(s, p, 'a')
+    text = built if isinstance(built, str) else json.dumps(built)
+    # Newest first, within the limit: the oldest no longer fits inline, and the file holds all three.
+    assert 'Only the chosen world is stored.' in text and 'XXXX' in text and 'Originality: all characters' not in text
+    path = text.split('"all_in": "', 1)[1].split('"', 1)[0] if '"all_in": "' in text else text.split('all_in', 1)[1].split("'")[2]
+    from pathlib import Path
+    full = Path(path).read_text()
+    assert 'Two worlds.' in full and 'Originality: all characters' in full and 'Only the chosen world' in full
