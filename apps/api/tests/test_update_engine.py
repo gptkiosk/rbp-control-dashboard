@@ -467,7 +467,7 @@ def test_drain_blockers_read_the_real_task_database(tmp_path):
         s.commit()
     blockers = " | ".join(ue.drain_blockers(db_path))
     for expected in ("1 agent or chat run(s) still running", "1 run(s) waiting on a human decision",
-                     "1 task(s) queued or running", "1 project(s) still dispatching"):
+                     "1 task(s) queued or running", "1 project(s) in progress"):
         assert expected in blockers
     engine.dispose()
     assert "could not be opened" in ue.drain_blockers(tmp_path / "missing" / "data.db")[0]
@@ -799,3 +799,30 @@ def test_queued_stories_of_a_closed_or_completed_project_do_not_block_an_update(
         s.commit()
     assert not any("queued or running" in b for b in ue.drain_blockers(db_path))
     engine.dispose()
+
+
+def test_queued_stories_of_a_project_that_cannot_dispatch_do_not_block_and_blocking_tasks_are_named(tmp_path):
+    """2026-10-21: an update on the Pi was blocked by nine queued stories of earlier projects that had failed or were waiting
+    for review. Those can never start (a project story runs only while its project is active), and the message did not say which."""
+    from db import make_engine, make_session_factory
+    from migrate import upgrade_to_head
+    from models import Card, Project, ProjectTask
+
+    db_path = tmp_path / "data.db"
+    engine = make_engine(db_path)
+    upgrade_to_head(engine)
+    sessions = make_session_factory(engine)
+    with sessions() as s:
+        for state in ("dispatch_failed", "review", "planning_failed"):
+            project = Project(document="{}", state=state, created_by="op", created_at=0, updated_at=0)
+            s.add(project); s.flush()
+            card = Card(title=f"left over in {state}", body="b", column="queued", timeout_s=60, created_at=0, updated_at=0)
+            s.add(card); s.flush()
+            s.add(ProjectTask(card_id=card.id, project_id=project.id, revision=1, node_key="s", role="story"))
+        s.commit()
+    assert not any("queued or running" in b for b in ue.drain_blockers(db_path))
+    with sessions() as s:
+        s.add(Card(title="Fix the DNS record", body="b", column="queued", timeout_s=60, created_at=0, updated_at=0))
+        s.commit()
+    message = next(b for b in ue.drain_blockers(db_path) if "queued or running" in b)
+    assert message.startswith("1 task(s) queued or running") and "Fix the DNS record (queued)" in message

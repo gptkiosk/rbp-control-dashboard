@@ -1577,3 +1577,70 @@ def test_only_a_run_that_finished_and_reported_unfinished_work_can_be_accepted_t
     assert accept('b',ok).status_code==409                                                              # not failed
     assert c.post(f'/api/projects/{p["id"]}/stories/{ids["c"]}/accept-despite-report',json={'run_id':1,'reason':'A human story is decided.'}).status_code==422
     assert c.post(f'/api/projects/{p["id"]}/stories/999/accept-despite-report',json={'run_id':1,'reason':'No such story here.'}).status_code==404
+
+
+@pytest.mark.parametrize('state,column', [('active','queued'),('active','backlog'),('paused','queued')])
+def test_pending_story_can_switch_subscription_without_changing_work(app, pending_subscriptions, state, column):
+    app[3].dispatch_free_only=False
+    p=active(app,[node('a',assignee='claude',model='claude-sonnet-5-5'),node('b',depends_on=['a'])])
+    c,s,wd,settings=app;cid=next(t['card_id'] for t in p['tasks'] if t['node_key']=='a')
+    with s.begin() as db:
+        project=db.get(Project,p['id']);project.state=state
+        card=db.get(Card,cid);card.column=column
+        before=(card.body,card.mode,card.working_dir)
+        original=json.loads(project.approved_manifest)['document']
+    body={'revision':p['revision'],'agent':'codex','model':'gpt-6-luna',
+          'expected_agent':'claude','expected_model':'claude-sonnet-5-5','acknowledge':True}
+    path=f'/api/projects/{p["id"]}/stories/{cid}/route'
+    assert c.post(path,json={**body,'acknowledge':False}).status_code==422
+    response=c.post(path,json=body);assert response.status_code==200,response.text
+    assert response.json()['state']==state
+    with s() as db:
+        project=db.get(Project,p['id']);card=db.get(Card,cid)
+        assert (card.agent,card.model,card.column)==('codex','gpt-6-luna',column)
+        assert (card.body,card.mode,card.working_dir)==before
+        manifest=json.loads(project.approved_manifest)
+        assert manifest['document']==original
+        context=projects.context(db,project,'a')
+        assert '"assignee": "codex"' in context and '"model": "gpt-6-luna"' in context
+        assert manifest['route_amendments'][-1]['kind']=='queued_route_change'
+        assert {'agent':'codex','model':'gpt-6-luna'} in projects.approved_story_routes(project,projects.binding(db,cid))
+    assert c.post(path,json=body).status_code==409
+
+@pytest.mark.parametrize('column', ['running','done','review','failed'])
+def test_pending_route_change_refuses_started_or_finished_story(app, pending_subscriptions, column):
+    p=active(app,[node('a',assignee='claude',model='claude-sonnet-5-5')]);c,s,_,_=app
+    cid=next(t['card_id'] for t in p['tasks'] if t['node_key']=='a')
+    with s.begin() as db:db.get(Card,cid).column=column
+    body={'revision':p['revision'],'agent':'codex','model':'gpt-6-luna','expected_agent':'claude',
+          'expected_model':'claude-sonnet-5-5','acknowledge':True}
+    assert c.post(f'/api/projects/{p["id"]}/stories/{cid}/route',json=body).status_code==409
+
+
+@pytest.fixture
+def pending_subscriptions(monkeypatch):
+    import billing
+    monkeypatch.setattr(billing,'DEFAULT_ACCOUNTS',{**billing.DEFAULT_ACCOUNTS,
+        'claude':{'mode':'subscription','monthly_usd':20.0},
+        'codex':{'mode':'subscription','monthly_usd':20.0}})
+
+
+def test_pending_route_options_respect_host_membership_policy(app,pending_subscriptions):
+    c,s,_,settings=app
+    settings.dispatch_free_only=True
+    with s() as db:
+        assert projects.pending_subscription_routes(db,settings)==[]
+    settings.dispatch_free_only=False
+    with s() as db:
+        assert {'agent':'codex','model':'gpt-6-luna'} in projects.pending_subscription_routes(db,settings)
+
+
+def test_pending_route_refuses_output_continuation(app,pending_subscriptions):
+    p=active(app,[node('a',assignee='claude',model='claude-sonnet-5-5')]);c,s,_,_=app
+    cid=next(t['card_id'] for t in p['tasks'] if t['node_key']=='a')
+    with s.begin() as db:
+        project=db.get(Project,p['id']);manifest=json.loads(project.approved_manifest)
+        manifest['output_continuations']={'a':{'state':'queued'}};project.approved_manifest=json.dumps(manifest)
+    response=c.post(f'/api/projects/{p["id"]}/stories/{cid}/route',json={'revision':p['revision'],
+        'agent':'codex','model':'gpt-6-luna','expected_agent':'claude','expected_model':'claude-sonnet-5-5','acknowledge':True})
+    assert response.status_code==409 and 'output continuation' in response.text

@@ -30,6 +30,8 @@ These rules come from operator decisions and from real failures on hardware. A c
 - *Use one route for all stories* keeps each story's fallbacks unless the operator chooses backups. Every route change is a new revision the operator reviews before submitting; a submitted plan is never changed.
 - A failover from one OpenClaw model to another keeps the story's agent target. Never fall back to a hard-coded agent such as `mm-main`.
 
+- Operators may amend the subscription route of a queued/backlog project story with explicit confirmation. Keep the original approved scope/mode/dependencies, append route evidence and reject running/stale task state atomically. A pause is retained.
+
 ## Interface
 - A slow load says what is loading (LoadingCard), and says it is still working after a few seconds.
 - An approved plan is never edited; a project in progress takes dated brief amendments instead, given to later stories within a bounded size.

@@ -1,0 +1,8 @@
+<!doctype html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Queued route · synthetic preview</title></head><body><main id="app"></main><script type="module">
+import {createApp,h} from 'vue';import {createRouter,createMemoryHistory} from 'vue-router';
+import QueuedTaskRouteAction from './src/components/QueuedTaskRouteAction.vue';import './src/styles/main.css';
+// Synthetic read-only fixture. No operator API or runtime is contacted.
+window.fetch=async(_url,init={})=>new Response(JSON.stringify(init.method==='POST'?{detail:'Synthetic preview: changes are disabled.'}:{revision:1,state:'paused',tasks:[{card_id:50,queued_route_options:[{agent:'codex',model:'gpt-6-luna'},{agent:'codex',model:'gpt-6.1-sol'}]}]}),{status:init.method==='POST'?403:200,headers:{'Content-Type':'application/json'}});
+const card={id:50,column:'queued',assignee_type:'agent',agent:'claude',model:'claude-sonnet-5-5',project:{id:2,node_key:'a',role:'story'}};
+createApp({render:()=>h('div',{style:'max-width:46rem;margin:2rem auto;padding:1rem'},[h('h1','Pending project task'),h('p','Synthetic preview · project paused · no execution or saves'),h('p','Claude · claude-sonnet-5-5 → choose your Codex membership'),h(QueuedTaskRouteAction,{card})])}).use(createRouter({history:createMemoryHistory(),routes:[{path:'/:pathMatch(.*)*',component:{template:'<div />'}}]})).mount('#app');
+</script></body></html>

@@ -170,3 +170,12 @@ class LowCostRetry(Strict):
 class ModelLock(Strict):
     revision: int = Field(ge=1)
     enabled: StrictBool
+
+
+class QueuedRouteChange(Strict):
+    revision: int = Field(ge=1)
+    agent: Literal['claude', 'codex']
+    model: str = Field(min_length=1, max_length=120)
+    expected_agent: str = Field(max_length=40)
+    expected_model: str = Field(max_length=120)
+    acknowledge: bool = False

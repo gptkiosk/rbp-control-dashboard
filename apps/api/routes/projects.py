@@ -10,7 +10,7 @@ from deps import get_session
 from dispatcher import remove_run_logs
 from settings import get_settings
 from models import Project, ProjectTask, Card, CardDependency, Run
-from project_schemas import Route, AcceptDespiteReport, Close, Document, Save, Action, Retry, GoFree, ContinueOutput, Note, Accept, HandoffPolicy, Retier, RepairExecution, ModelLock, LowCostRetry, PayRetry
+from project_schemas import QueuedRouteChange, Route, AcceptDespiteReport, Close, Document, Save, Action, Retry, GoFree, ContinueOutput, Note, Accept, HandoffPolicy, Retier, RepairExecution, ModelLock, LowCostRetry, PayRetry
 import agent_git
 import projects
 import standards
@@ -359,3 +359,10 @@ def go_free(project_id:int,card_id:int,body:GoFree,request:Request,s:Session=Dep
 def model_lock(project_id:int,body:ModelLock,request:Request,s:Session=Depends(get_session)):
     identity=actor(request);write(s);p=projects.get(s,project_id)
     projects.set_model_lock(s,p,body,identity);s.commit();return projects.detail(s,p)
+
+
+@router.post('/{project_id}/stories/{card_id}/route')
+def queued_route(project_id:int,card_id:int,body:QueuedRouteChange,request:Request,s:Session=Depends(get_session)):
+    identity=actor(request);write(s);p=projects.get(s,project_id)
+    projects.change_queued_route(s,p,card_id,body,get_settings(),identity)
+    s.commit();return projects.detail(s,p)

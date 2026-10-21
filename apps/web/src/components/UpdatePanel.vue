@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UpdateBlockers from '@/components/UpdateBlockers.vue'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import AppSelect from '@/components/AppSelect.vue'
 import ManagedItem, { type Health } from '@/components/ManagedItem.vue'
@@ -377,6 +378,7 @@ onBeforeUnmount(() => { alive = false; if (timer) clearTimeout(timer) })
           <h4>Release notes (plain text)</h4>
           <pre class="notes log-window">{{ candidate.notes || 'This release has no notes.' }}</pre>
           <p v-if="refused" class="notice-warn" role="alert">{{ refused }}</p>
+          <UpdateBlockers v-if="!inProgress" :blockers="blockers" :busy="busy" @changed="read" />
           <div class="actions">
             <a v-if="releaseLink" class="release-link" :href="releaseLink" target="_blank" rel="noopener noreferrer">View this release on GitHub</a>
             <template v-if="!refused">

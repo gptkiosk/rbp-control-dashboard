@@ -215,7 +215,7 @@ Task details show run history, output, exit status and captured usage.
 
 1. Open the task, then inspect the last run and its output/history.
 2. Read Stage and Error before Exit code. OpenClaw can exit with code 0 while its agent result reports a provider timeout. Timed out means the agent did not finish; it does not authorize a model switch.
-3. Review partial output and changed files against the task’s definition of done. Correct the task or timeout setting when necessary, then use Rerun task or an approved alternative on the failed task screen. After a subscription limit, Go Free! lets you select a configured OpenClaw target and OpenRouter :free model for that story only; it excludes paid-model and Google BYOK fallback. Cancel run is available for an active run. Failed, timed-out or interrupted runs can generate alerts; cancellation does not.
+3. Review partial output and changed files against the task’s definition of done. For queued or backlog project tasks, open the task and use Change model or platform to choose another configured Claude or Codex subscription route, then confirm Switch task route. Running tasks cannot switch. Correct the task or timeout setting when necessary, then use Rerun task or an approved alternative on the failed task screen. After a subscription limit, Go Free! lets you select a configured OpenClaw target and OpenRouter :free model for that story only; it excludes paid-model and Google BYOK fallback. Cancel run is available for an active run. Failed, timed-out or interrupted runs can generate alerts; cancellation does not.
 
 [Open task run history](http://127.0.0.1:8800/tasks) · [Open alert history](http://127.0.0.1:8800/#alerts-title) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=runs)
 

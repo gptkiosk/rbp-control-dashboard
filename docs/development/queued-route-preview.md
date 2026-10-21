@@ -1,0 +1,9 @@
+# Queued subscription-route change — 0.6.47
+
+Open a queued/backlog project task and choose **Change model or platform**, select the configured Claude/Codex subscription model, acknowledge quota/overage costs, then **Switch task route**. Running, review and completed tasks cannot change here. A paused project stays paused. Membership billing and host policy must allow the route; existing approvals, scope, mode, dependencies and acceptance remain in force. The original approved map is preserved, with an auditable route amendment. The existing current-story and story-summary route values reflect the approved amendment, avoiding conflicting old Claude instructions. No new prompt/context field or inline instruction is added. The route change records one concise decision in the existing shared-memory budget (decision digests are capped at 300 characters).
+
+## Safe UI preview
+
+From `apps/web`, start `npm run dev -- --host 127.0.0.1 --port 8861 --strictPort` after confirming the port is free. URL: `http://127.0.0.1:8861/queued-route-preview.html`. Stop with Ctrl-C in that terminal (this session: exec terminal 24092). Source: the 0.6.47 queued-route candidate on fix/release-trigger-fallback. Fixture state lives only in the page: synthetic paused project, queued Claude task and Codex alternatives. All fetches are synthetic and POST is refused. No real API, collector, dispatcher, native configuration, provider, credentials, service or production data is accessed. Do not treat this isolated component preview as hardware/provider acceptance.
+
+The selector and explicit approval enabling were inspected in-browser. API regressions cover active/paused queued/backlog state, preserved scope and original manifest, stale route rejection and running/review/done/failed refusal. Both products mount the same component in task detail.

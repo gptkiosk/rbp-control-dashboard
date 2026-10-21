@@ -10,6 +10,15 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.6.47] - 2026-10-21
+
+- **Switch queued project tasks between memberships:** choose Claude or Codex on pending tasks without waiting for a failed run. The operator-approved amendment retains scope, mode, dependencies, history and project pause state; a task that starts before approval is rejected.
+
+### Fixed
+
+- **An update that is blocked now says why, next to the Update button.** It lists the work it is waiting for, such as a project in progress, a queued task or a run waiting for a decision. It says that a project can be paused with Pause dispatch and resumed after the update, and links to Projects and Tasks. It used to show only a disabled button.
+- **Release tooling:** `publish-release.sh --package` waits up to two minutes for the tag to start the release workflow, and starts the workflow for that tag itself if GitHub did not. This happened on the MCD repository for 0.6.45 and 0.6.46. A late duplicate run skips, because the release already exists. Release script tests now run in both repositories.
+
 ## [0.6.46] - 2026-10-21
 
 ### Added
@@ -809,7 +818,7 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 - Claude Code stories may use web search and fetch without any shell, credential or publish permission.
 
 [0.3.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.0
-[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.46...HEAD
+[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.47...HEAD
 [0.6.29]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.29
 [0.6.28]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.28
 [0.6.27]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.27
@@ -887,3 +896,5 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 [0.6.44]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.43...v0.6.44
 [0.6.45]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.44...v0.6.45
 [0.6.46]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.45...v0.6.46
+
+[0.6.47]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.46...v0.6.47

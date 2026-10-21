@@ -5,6 +5,7 @@ import { computed, reactive, ref } from 'vue'
 import TaskFields, { type TaskFieldValues } from '@/components/TaskFields.vue'
 import TagPill from '@/components/TagPill.vue'
 import TaskApprovalAction from '@/components/TaskApprovalAction.vue'
+import QueuedTaskRouteAction from '@/components/QueuedTaskRouteAction.vue'
 import TaskRetryAction from '@/components/TaskRetryAction.vue'
 import ProjectPlanningRetryAction from '@/components/ProjectPlanningRetryAction.vue'
 import MediaCallout from '@/components/MediaCallout.vue'
@@ -398,6 +399,7 @@ async function save(): Promise<void> {
 
         <MediaCallout v-if="card.project" :media="projectMedia" :link="mediaLink" />
         <TaskApprovalAction v-if="card.project" :card="card" hide-media-link @changed="afterChange" />
+        <QueuedTaskRouteAction v-if="card.project" :card="card" @changed="afterChange" />
         <TaskRetryAction v-if="card.project" :card="card" @changed="afterChange" />
         <ProjectPlanningRetryAction v-if="card.project" :card="card" @changed="afterChange" />
         <div

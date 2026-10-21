@@ -591,12 +591,14 @@ def plan_schedule(p):
 
 def detail(s, p):
     bindings = []
+    approved_routes = json.loads(p.approved_manifest) if p.approved_manifest else {}
     pipeline = json.loads(p.pipeline) if p.pipeline else {}
     planning_role = {'coordinate': 'coordinate', 'plan': 'plan', 'return': 'return plan'}.get(pipeline.get('step'))
     retry_routes = planning_retry_routes(s, get_settings(), pipeline, pipeline.get('step'),p.created_by) if (
         p.state == 'planning_failed' and planning_role and pipeline.get('revision') == p.revision) else []
     free_routes=free_retry_routes(get_settings()) if p.state=='active' else []
-    cheap_routes=low_cost_routes(s,get_settings()) if p.state=='active' else []
+    cheap_routes=low_cost_routes(s,get_settings()) if p.state in {'active','paused'} else []
+    queued_routes=pending_subscription_routes(s,get_settings())
     paid_routes=paid_retry_routes(get_settings(),s) if p.state=='active' else []
     dependency_cache={'reasons':{},'dependencies':{}}
     for link in s.scalars(select(ProjectTask).where(ProjectTask.project_id==p.id).order_by(ProjectTask.card_id)):
@@ -612,6 +614,8 @@ def detail(s, p):
                 and link.revision==p.revision and c and c.column in {'failed','review'} and r and r.stage not in {'queued','running','awaiting_approval'} else [],
             'free_retry_routes':other_free_routes(free_routes,c) if link.role=='story' and can_go_free(c,r) else [],
             'paid_retry_routes':[x for x in paid_routes if not (c and c.agent=='openclaw' and x['model']==c.model and (c.agent_target or x['agent_target'])==x['agent_target'])] if link.role=='story' and c and c.assignee_type=='agent' and c.column=='failed' and r and r.stage in RETRYABLE_STAGES else [],
+            'queued_route_blocker':'This task is an approved output continuation. Review its output approval before changing the route.' if approved_routes.get('output_continuations',{}).get(link.node_key,{}).get('state')=='queued' else None,
+            'queued_route_options':[x for x in queued_routes if (x['agent'],x['model'])!=(c.agent,c.model or '')] if link.role=='story' and c and c.assignee_type=='agent' and c.column in {'queued','backlog'} and p.state in {'active','paused'} else [],
             'low_cost_routes':[x for x in cheap_routes if (x['agent'],x['model'])!=(c.agent,c.model or '') or c.mode=='read'] if link.role=='story' and c and c.assignee_type=='agent' and c.column=='failed' and r and r.stage in {'failed','timeout','interrupted'} else [],
             'blocked_by':[b['card_id'] for b in blocks if b['card_id'] is not None],
             'blocked_reasons':blocks,
@@ -1592,6 +1596,11 @@ def context_payload(s,p,story=None,workspace=None):
     if story:
         current=by_key[story]
         payload['current_story']={k:current.get(k) for k in ('key','title','depends_on','assignee','model','agent_target')}
+        if (cost:=manifest.get('cost_retries',{}).get(story)):
+            payload['current_story'].update(assignee=cost['route']['agent'],model=cost['route']['model'],agent_target=None)
+            for summary in nodes:
+                if summary['key']==story: summary.update(assignee=cost['route']['agent'],model=cost['route']['model'])
+
     if story and (free:=manifest.get('free_retries',{}).get(story)):
         payload['free_retry']=free
     if story:
@@ -2088,3 +2097,50 @@ def add_recovery_routes(s,p,proposed,settings):
             if len(node['routes'])>=6: break
             if route not in node['routes'] and route!={'agent':node['assignee'],'model':node['model']}:
                 node['routes'].append(route.copy())
+
+
+def change_queued_route(s, p, card_id, data, settings, actor):
+    """Operator-approved route-only amendment under the caller's immediate write lock."""
+    check_revision(p, data.revision)
+    link=binding(s,card_id); card=s.get(Card,card_id)
+    if (p.state not in {'active','paused'} or not p.approved_manifest or not link or
+            link.project_id!=p.id or link.role!='story' or link.revision!=p.revision or not card or
+            card.assignee_type!='agent' or card.column not in {'queued','backlog'}):
+        fail('Only a queued or backlog agent story in an active or paused project can change route.',409)
+    continuation=json.loads(p.approved_manifest).get('output_continuations',{}).get(link.node_key,{})
+    if continuation.get('state')=='queued':
+        fail('This task is an approved output continuation. Review its output approval before changing the route.',409)
+    if (card.agent,card.model or '')!=(data.expected_agent,data.expected_model):
+        fail('This task route changed. Refresh before choosing another route.',409)
+    if not data.acknowledge: fail('Approve the subscription route change.',422)
+    route={'agent':data.agent,'model':data.model}
+    import route_reliability
+    if not route_reliability.allowed_class(s,settings,'subscription'):
+        fail('Enable membership routes in Settings → Model recovery before switching this task.',422)
+    if route not in pending_subscription_routes(s,settings):
+        fail('That subscription route is not installed or configured for membership billing.',422)
+    if (card.agent,card.model)==(data.agent,data.model): fail('This task already uses that route.',422)
+    manifest=json.loads(p.approved_manifest)
+    if manifest.get('revision')!=p.revision: fail('The approved revision changed. Refresh first.',409)
+    previous={'agent':card.agent,'model':card.model,'agent_target':card.agent_target}
+    manifest.setdefault('cost_retries',{})[link.node_key]={'route':route,'mode':card.mode,
+        'approved_by':actor,'approved_at':now()}
+    amendment={'kind':'queued_route_change','approved_by':actor,'approved_at':now(),
+        'card_id':card.id,'previous':previous,'route':route}
+    manifest.setdefault('route_amendments',[]).append(amendment)
+    manifest['hash']=hashlib.sha256((manifest.get('hash','')+json.dumps(amendment,sort_keys=True)).encode()).hexdigest()
+    policy=manifest.get('handoff_policy')
+    if policy and policy.get('mode')=='automatic': policy['manifest_hash']=manifest['hash']
+    card.agent=data.agent;card.model=data.model;card.agent_target=None
+    card.retry_attempts=0;card.retry_after=None;card.updated_at=now()
+    p.approved_manifest=json.dumps(manifest)
+    memory(s,p,'decision',f'Operator changed pending story #{card.id} from {previous["agent"]} {previous["model"]} '
+        f'to {data.agent} {data.model} using membership quota. Scope, mode, workspace, dependencies and acceptance unchanged. '
+        'No paid API route added. Project pause state retained.',actor,card.id)
+
+
+def pending_subscription_routes(s,settings):
+    import route_reliability
+    if not route_reliability.allowed_class(s,settings,'subscription'): return []
+    return [{'agent':a,'model':m} for a in LOW_COST_AGENTS if REGISTRY[a].available(settings) and subscription(s,a)
+            for m in dict.fromkeys([subscription_model(a,50),subscription_model(a,90),REGISTRY[a].default_model()]) if m]
