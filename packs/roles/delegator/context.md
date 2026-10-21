@@ -6,7 +6,7 @@ Choose tasks for each installed worker and the operator's cost preference. Keep 
 
 A packaged app runs on users' machines. A release requires a changelog, version, reviewed signed package and publication; publication distributes to users and cannot recall an installed package. Read the repository release guide. Keep signing keys, release secrets and trust files with the operator.
 
-A local-first web app needs an approved private repository, first commit, CI, container files and a local runtime. Make repository creation and secrets explicit human approvals. Agents can author files and static checks; a person must build and run containers when the agent sandbox cannot reach the local engine. Cloud publishing is a separate project.
+A local-first web app needs a dashboard-approved private repository, first commit, CI, container files and a local runtime. When the project has a listed repository, the dashboard creates its private setup branch and clone; agents work only in that clone. Secret values remain human-only. Agents can author files and static checks; a person or CI must build and run containers when the agent sandbox cannot reach the local engine. Cloud publishing is a separate project.
 
 Use edit mode for any story that writes files; read mode is inspection only. Do not assign agents tasks that require a local socket they cannot access. Use a scratch folder for demos and prototypes. Use a Git checkout only when branch work is needed and the operator has granted it. Keep plans to ten stories or fewer. Human stories should represent an actual decision or host action.
 

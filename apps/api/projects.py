@@ -792,6 +792,22 @@ def installation_text(s, settings):
     lines.append('Spending policy: ' + ('free routes only (paid routes are refused)' if settings.dispatch_free_only else 'paid routes allowed when approved')
                  + ('; per-run cap $' + format(cap['per_run_cap_usd'], 'g') if cap['per_run_cap_usd'] else '; no per-run dollar cap (set limits in Agents, Billing & rates)')
                  + ('; a reviewed price is required before a run starts' if cap['require_reviewed_pricing'] else '') + '.')
+    try:
+        import host_readiness
+        tools = {row['id']: row['installed'] for row in host_readiness.check_tools(settings).get('tools', [])}
+        health = {row['id']: row['ok'] for row in host_readiness.system_tools_health(settings).get('checks', [])}
+        facts = []
+        for name in ('node', 'docker', 'gh'):
+            if name not in tools:
+                continue
+            state = 'available' if tools[name] else 'missing'
+            if name == 'docker' and tools[name]:
+                state = 'engine accessible' if health.get(name) else 'engine unavailable to RCD'
+            facts.append(f'{name}: {state}')
+        if facts:
+            lines.append('Host tool readiness: ' + '; '.join(facts) + '. Do not assign an agent story to an unavailable or host-only tool; use a human or CI verification story instead.')
+    except Exception:
+        pass
     return '\n'.join(lines)
 
 
@@ -1124,6 +1140,9 @@ def submit(s,p,action,settings,actor,github_store=None):
     if p.state in {'dispatching','active','paused','complete'}: return
     if p.state=='planning': fail('Wait for planning to finish.')
     d=validate(document(p),settings,True,overlaps=True)
+    blockers=project_types.blocking_findings(d.get('project_type'),d['nodes'],settings)
+    if blockers:
+        fail('Repair these plan blockers before dispatch: '+'; '.join(f['message'] for f in blockers),422)
     configured_targets = {row['id'] for row in native_routes.read(settings, wait=True)['openclaw']['targets']}   # submission must be current
     for n in d['nodes']:
         if n['kind']=='story' and n['assignee']=='openclaw' and n['agent_target'] and n['agent_target'] not in configured_targets:
@@ -1145,7 +1164,6 @@ def submit(s,p,action,settings,actor,github_store=None):
             reviewed=reviewed_route_class(s,settings,SimpleNamespace(agent=r['agent'],agent_target=''),r['model'])
             if r['agent'] in {'hermes','openclaw'} and not native_routes.automatic_route(r['model']) and reviewed not in {'free','paid'}:
                 fail('Automatic API handoffs are limited to the reviewed free / capped Google routes.',422)
-    base_commit=workspaces.snapshot(d['working_dir']) if d['dispatch_mode']=='parallel' else None
     # Validate every story before dispatch; no partial materialization on error.
     gaps=job_envelope.story_problems(d['nodes'])
     if gaps: fail('Every story needs a work kind, size, risk, estimate and route reason before approval. Missing: '+'; '.join(gaps[:8])+('; and more' if len(gaps)>8 else ''),422)
@@ -1165,9 +1183,14 @@ def submit(s,p,action,settings,actor,github_store=None):
         try: made=repo_setup.setup(settings,p.id,d['working_dir'],repo['name'],d['title'],github_store=github_store)
         except repo_setup.RepoSetupError as exc: fail(str(exc),exc.status)
         except agent_git.GrantError as exc: fail('The branch grant could not be written: '+str(exc),422)
+        # Repository setup is the dashboard's first action. Subsequent validation,
+        # workspace snapshots and every story must use its clone, not the empty
+        # folder selected while the project was drafted.
         d['repository']={**repo,'repo':made['repo'],'folder':made['folder'],'branch':made['branch']}
-        p.document=json.dumps({**document(p),'repository':d['repository']})
+        d['working_dir']=str(Path(d['working_dir']).expanduser() / made['folder'])
+        p.document=json.dumps({**document(p),'working_dir':d['working_dir'],'repository':d['repository']})
         memory(s,p,'decision','Repository set up by the dashboard: '+' '.join(made['done']),actor)
+    base_commit=workspaces.snapshot(d['working_dir']) if d['dispatch_mode']=='parallel' else None
     manifest={'revision':p.revision,'document':d,'order':ordered(d['nodes']),
         'branch':approval.current_branch(Path(d['working_dir'])),'approved_by':actor,'approved_at':now(),
         'fallback_models':{a:subscription_model(a,d['planning_bias']) for a in ('claude','codex')},

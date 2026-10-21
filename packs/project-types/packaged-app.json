@@ -45,7 +45,7 @@
   "checks": [
     {
       "id": "release-is-human",
-      "severity": "warn",
+      "severity": "block",
       "kind": "not_agent_for",
       "match": "publish (the )?(release|package)|sign (the )?(release|package|manifest)|install (on|onto) (the )?(operator|pi|mac|target)|rotate (the )?signing",
       "message": "Publishing, signing and installing belong to the operator. Make this a human story."
@@ -76,7 +76,7 @@
     },
     {
       "id": "browser-checks-need-a-person",
-      "severity": "warn",
+      "severity": "block",
       "kind": "not_agent_for",
       "match": "console errors|render(s|ed|ing)? (in|without|correctly)|in a browser|browser (render|check|test)|\\b(run|launch|execute|take|capture|generate|make)s?\\s+(the\\s+|a\\s+|all\\s+|some\\s+)?(playwright|puppeteer|lighthouse|screenshots?)\\b",
       "message": "A story asks an agent to render pages or check a browser console, which no agent sandbox can do. It will report itself unfinished. Keep agent verification to static checks and move rendering to the human preview."
