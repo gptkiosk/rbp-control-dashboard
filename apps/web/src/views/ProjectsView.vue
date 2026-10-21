@@ -3,6 +3,7 @@ import RouteRecoveryNotice from '@/components/RouteRecoveryNotice.vue'
 import KeyGateDialog, { type MissingKey } from '@/components/KeyGateDialog.vue'
 import ProjectTypePicker from '@/components/ProjectTypePicker.vue'
 import PlanChecks from '@/components/PlanChecks.vue'
+import ReferenceArtPanel from '@/components/ReferenceArtPanel.vue'
 import MediaGeneratePanel from '@/components/MediaGeneratePanel.vue'
 import { costWords, type ProjectMedia } from '@/composables/useProjectMedia'
 import { computed, ref, watch, onBeforeUnmount } from 'vue'
@@ -106,8 +107,8 @@ async function loadProjectMedia() {
   try { projectMedia.value = await getJson(`/api/media/project/${id}`) } catch { projectMedia.value = null }
 }
 watch(() => [project.value?.id, project.value?.revision, project.value?.state] as const, () => { void loadProjectMedia() }, { immediate: true })
-watch(() => route.query.view, v => { if (v === 'media' && projectMedia.value?.available) tab.value = 'media' })
-watch(projectMedia, m => { if (route.query.view === 'media' && m?.available) tab.value = 'media' })
+watch(() => route.query.view, v => { if (v === 'media') tab.value = 'media' })
+watch(projectMedia, () => { if (route.query.view === 'media') tab.value = 'media' })
 watch(selectedId, () => { routedNote.value = ''; project.value = null; draft.value = emptyProject(); baseline.value = ''; conflict.value = false; error.value = '' })
 // One route (and its backups) for every agent story, saved by the server as a new revision.
 const routedNote = ref('')
@@ -421,9 +422,9 @@ function human(task: ProjectTask) { return draft.value.nodes.find(n => n.key ===
           <p v-else class="muted small">Review the plan here when ready. <RouterLink to="/profile#discord-profile">Link Discord in your profile</RouterLink> for plan notifications.</p>
           <p v-if="readyDelivery?.error" class="muted">{{ readyDelivery.error }}</p>
         </section>
-        <nav class="tabs" aria-label="Project sections"><button v-for="t in (projectMedia?.available ? ['map','memory','work','media'] : ['map','memory','work']) as ('map' | 'memory' | 'work' | 'media')[]" :key="t" class="btn" :class="{ active: tab === t }" :aria-pressed="tab === t" @click="tab = t">{{ t === 'map' ? (locked ? 'Live map' : 'Planning map') : t === 'memory' ? 'Shared memory' : t === 'media' ? 'Media studio' : 'Stories & runs' }}</button></nav>
+        <nav class="tabs" aria-label="Project sections"><button v-for="t in ['map','memory','work','media'] as ('map' | 'memory' | 'work' | 'media')[]" :key="t" class="btn" :class="{ active: tab === t }" :aria-pressed="tab === t" @click="tab = t">{{ t === 'map' ? (locked ? 'Live map' : 'Planning map') : t === 'memory' ? 'Shared memory' : t === 'media' ? 'Media studio' : 'Stories & runs' }}</button></nav>
         <p v-if="projectMedia?.available && projectMedia.summary && !projectMedia.summary.complete && tab !== 'media'" class="notice-warn media-banner" role="status" data-testid="media-banner">Media for this project: {{ projectMedia.summary.published }} of {{ projectMedia.summary.total }} published, {{ projectMedia.summary.pending }} waiting for your decision. <template v-if="projectMedia.cost"> · {{ costWords(projectMedia.cost).left }}.</template> <button type="button" class="btn" @click="tab = 'media'">Open media studio</button></p>
-        <div v-if="tab === 'media' && projectMedia?.available" class="card media-tab"><MediaGeneratePanel :working-dir="project.document.working_dir" /></div>
+        <div v-if="tab === 'media'" class="card media-tab"><ReferenceArtPanel :working-dir="project.document.working_dir" /><MediaGeneratePanel v-if="projectMedia?.available" :working-dir="project.document.working_dir" /><p v-else class="muted small" data-testid="no-media-slots">No media slots yet. Media to generate is listed in this project's <code>media/slots.json</code>, which its media story or setup creates; reference art works without it.</p></div>
         <template v-if="tab === 'map'">
           <ProjectGitAccess v-if="project" :project-id="project.id" />
           <ProjectSchedule v-if="project?.schedule" :schedule="project.schedule" :titles="nodeTitles" :timing="project.timing" />

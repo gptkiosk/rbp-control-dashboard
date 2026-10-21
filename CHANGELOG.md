@@ -12,9 +12,19 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [0.6.45] - 2026-10-20
 
+### Added
+
+- **Reference art in the Media studio.** Drop images, or choose them, under Reference art: PNG, JPEG, WebP or GIF, up to 10 MB each and 24 per project.
+  - They are saved in the project's `media/references/`, shown as thumbnails and can be removed.
+  - The planner and every story are told where they are and to follow them for style. A media slot can list one in its `refs` so generated images match it.
+  - The bytes must be a real image. Uploads are recorded in the project memory.
+  - The Media studio tab now shows for every project, even before it has media slots.
+- **Space use.** The Media studio shows how much the project's media uses (reference art and generated takes) and how much space is left on the disk, with a warning above 90% full. Housekeeping shows total project media, the disk, and the five largest projects with a link to each Media studio.
+
 ### Fixed
 
 - **Fix automatically could leave a story it had just made high-risk on a free route.** For example, `deploy-verify` was raised to high with no fallback that is not free. Such a story now moves to the cheapest subscription route this host allows, and the list of changes says so. With no subscription configured, it stays listed for an edit on the map.
+- **Stories now see the whole project brief.** It used to be cut at 5,000 characters, so a longer brief lost its later sections, such as art direction. The context budget grows with the brief, so accepted project memory is not crowded out.
 - **A high-risk story left on "Agent default" is no longer given a free main model,** which the standards check would refuse.
 
 ## [0.6.44] - 2026-10-20

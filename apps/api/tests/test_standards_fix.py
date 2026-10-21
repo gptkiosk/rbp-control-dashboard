@@ -146,3 +146,18 @@ def test_fix_moves_a_high_risk_story_with_no_paid_fallback_to_a_subscription_rou
     assert (n['risk'], n['assignee'], n['model']) == ('high', 'claude', 'claude-haiku-5-5')
     assert any('cheapest subscription route' in f for f in body['fixed'])
     assert body['standards_check']['problems'] == []
+
+
+def test_stories_see_the_whole_brief(app):
+    c, sessions, settings, workspace = app
+    brief = 'Concept art: neon arcade, CRT glow. ' + 'x' * 7400 + ' FINAL-LINE-OF-THE-BRIEF'
+    with sessions() as s:
+        p = projects.create(s, dict(title='Arcade', brief=brief, working_dir=str(workspace),
+                                    nodes=[story('a', 'business-logic', 'medium', 'claude', 'claude-haiku-5-5')]), settings, 'operator')
+        from project_schemas import Action
+        projects.submit(s, p, Action(revision=1, approve_coordination=True, approve_api_work=True), settings, 'operator')
+        payload = projects.context_payload(s, p, 'a') if hasattr(projects, 'context_payload') else None
+        s.commit()
+    if payload is not None:
+        assert payload['brief'] == brief and 'omitted' not in payload['brief']
+    assert projects._context_excerpt(brief, projects.BRIEF_LIMIT) == brief

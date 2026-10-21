@@ -397,3 +397,104 @@ def pick(body: PickIn, request: Request, s: Session = Depends(get_session)):
     media_state.record(root, body.slot, "accepted", body.candidate, identity)
     project_note(s, root, f"Accepted candidate {body.candidate} for media slot {body.slot}.", identity)
     return {"copied": f"media/inbox/{body.slot}{source.suffix}", "next": f"python3 tools/media/media.py ingest {body.slot}"}
+
+
+# ------------------------------------------------------------------ reference art (uploaded by the operator, read by agents)
+import media_references as refs
+
+
+def _ref_root(working_dir):
+    try:
+        return mg.project_root(get_settings(), working_dir)
+    except mg.MediaError as exc:
+        fail(exc)
+
+
+@router.get("/references")
+def references(working_dir: str, request: Request):
+    """The reference images of a project folder, oldest first."""
+    operator(request)
+    root = _ref_root(working_dir)
+    return {"references": refs.listing(root), "max_bytes": refs.REF_MAX, "max_count": refs.REF_COUNT, "usage": refs.usage(root)}
+
+
+@router.get("/reference")
+def reference(working_dir: str, name: str, request: Request):
+    """One reference image, for its thumbnail. Operator-only; only image files inside media/references."""
+    operator(request)
+    path = refs.file_of(_ref_root(working_dir), name)
+    if path is None:
+        raise HTTPException(404, "No such reference image.")
+    return FileResponse(path, media_type=refs.TYPES[path.suffix.lower()], headers={"Cache-Control": "private, max-age=300", "Content-Disposition": "inline"})
+
+
+@router.post("/references", status_code=201)
+async def upload_reference(working_dir: str, name: str, request: Request, s: Session = Depends(get_session)):
+    """Upload one image as the raw request body (no multipart parser needed). The bytes must be a PNG, JPEG, WebP or GIF."""
+    identity = operator(request)
+    root = _ref_root(working_dir)
+    declared = request.headers.get("content-length")
+    if declared and declared.isdigit() and int(declared) > refs.REF_MAX:
+        raise HTTPException(413, f"Images can be at most {refs.REF_MAX // (1024 * 1024)} MB.")
+    data = bytearray()
+    async for chunk in request.stream():
+        data += chunk
+        if len(data) > refs.REF_MAX:
+            raise HTTPException(413, f"Images can be at most {refs.REF_MAX // (1024 * 1024)} MB.")
+    try:
+        row = refs.save(root, name, bytes(data))
+    except refs.ReferenceError_ as exc:
+        raise HTTPException(exc.status, str(exc)) from None
+    project_note(s, root, f"Added reference art {row['path']} for agents to follow.", identity)
+    return row
+
+
+class ReferenceOut(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    working_dir: str = Field(max_length=500)
+    name: str = Field(max_length=80)
+
+
+@router.post("/references/remove")
+def remove_reference(body: ReferenceOut, request: Request, s: Session = Depends(get_session)):
+    identity = operator(request)
+    root = _ref_root(body.working_dir)
+    try:
+        refs.remove(root, body.name)
+    except refs.ReferenceError_ as exc:
+        raise HTTPException(exc.status, str(exc)) from None
+    project_note(s, root, f"Removed reference art media/references/{body.name}.", identity)
+    return {"references": refs.listing(root), "usage": refs.usage(root)}
+
+
+@router.get("/storage")
+def storage(request: Request, s: Session = Depends(get_session)):
+    """Media space per project (references, generated takes, the whole media folder), largest first, and the disk the projects live on.
+    For Housekeeping and the Media studio; read-only."""
+    operator(request)
+    from models import Project
+    settings = get_settings()
+    rows, seen = [], set()
+    for p in s.scalars(select(Project).order_by(Project.id.desc())):
+        try:
+            root = mg.project_root(settings, projects.document(p)["working_dir"])
+        except (mg.MediaError, KeyError, OSError, ValueError):
+            continue
+        if root in seen:
+            continue
+        seen.add(root)
+        use = refs.usage(root)
+        if use["media_bytes"]:
+            rows.append({"project_id": p.id, "title": projects.document(p).get("title", ""), "state": p.state, **{k: use[k] for k in ("references_bytes", "candidates_bytes", "media_bytes")}})
+    rows.sort(key=lambda r: r["media_bytes"], reverse=True)
+    disk = None
+    for root in settings.workdir_roots:
+        try:
+            u = shutil.disk_usage(Path(root).expanduser())
+            disk = {"free_bytes": u.free, "total_bytes": u.total}
+            break
+        except OSError:
+            continue
+    return {"projects": rows[:50], "total_media_bytes": sum(r["media_bytes"] for r in rows),
+            "total_candidates_bytes": sum(r["candidates_bytes"] for r in rows), "disk": disk}
+

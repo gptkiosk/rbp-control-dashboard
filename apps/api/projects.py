@@ -38,6 +38,7 @@ from settings import get_settings
 BUSY = {'planning', 'dispatching', 'active', 'paused', 'complete'}
 AUTO_HANDOFF_PREFIX = 'Agent-reported completion passed under operator project-wide handoff approval; not independently verified.\n'
 CONTEXT_PAYLOAD_BUDGET = 16 * 1024
+BRIEF_LIMIT = 20000   # the brief's own maximum (project_schemas.Document): stories always see all of it
 CONTEXT_MEMORY_LIMIT = 2000
 CONTEXT_DIRECT_LIMIT = 3500   # a direct prerequisite's handoff keeps this much of its own text
 CONTEXT_DIGEST_LIMIT = 700    # an earlier story in the lineage is a digest; the rest is in the ledger file
@@ -728,7 +729,16 @@ def _brief(p, include_nodes=False):
     d=document(p)
     payload={k:d[k] for k in (('title','brief','constraints','nodes') if include_nodes else ('title','brief','constraints'))}
     payload.update(planning_bias=d['planning_bias'], assignment_policy=planning_policy(d['planning_bias']), dispatch_mode=d['dispatch_mode'])
+    if (art:=_reference_art(d)): payload['reference_art']=art
     return json.dumps(payload,ensure_ascii=False)
+
+def _reference_art(d):
+    """Where the operator's reference images for this project are, for the planner and every story. None without any."""
+    try:
+        import media_references
+        return media_references.context_note(Path(d['working_dir']).expanduser())
+    except (OSError, KeyError, ValueError):
+        return None
 
 CONSULTANT_CONTEXT_MAX = 20000
 
@@ -1504,12 +1514,13 @@ def context_payload(s,p,story=None,workspace=None):
     nodes=[{k:n.get(k) for k in ('key','title','assignee','model','depends_on')} for n in story_nodes]
     artifact_keys=visible if story else set(manifest.get('artifacts',{}))
     payload={'execution_workspace':workspace or d['working_dir'],'project_id':p.id,'revision':manifest['revision'],'title':d['title'],
-        'brief':_context_excerpt(d['brief'],5000),'constraints':_context_excerpt(d['constraints'],3000),'stories':nodes,'accepted_memory':[],
+        'brief':_context_excerpt(d['brief'],BRIEF_LIMIT),'constraints':_context_excerpt(d['constraints'],3000),'stories':nodes,'accepted_memory':[],
         'accepted_artifacts':{k:{f:(a.get(f)[:50] if isinstance(a.get(f),list) else a.get(f)) for f in ('workspace','branch','head','commits','files')} for k,a in manifest.get('artifacts',{}).items() if k in artifact_keys},
         'memory_compaction':{'mode':'deterministic_dependency_aware','budget_bytes':CONTEXT_PAYLOAD_BUDGET,
             'ledger_entries_scanned':len(rows),'entries_included':0,'entries_omitted':0,'digested':0,
             'full_ledger':ledger or 'Projects > Shared memory'}}
     payload['accepted_outputs']={k:{f:g[f] for f in ('path','sha256')} for k,g in manifest.get('output_continuations',{}).items() if g['state']=='accepted' and (not story or k in visible)}
+    if (art:=_reference_art(d)): payload['reference_art']=art
     if story:
         current=by_key[story]
         payload['current_story']={k:current.get(k) for k in ('key','title','depends_on','assignee','model','agent_target')}
@@ -1532,6 +1543,8 @@ def context_payload(s,p,story=None,workspace=None):
                 'result_text':_digest((run.result_text or '') if run else handoff.text,CONTEXT_DIRECT_LIMIT,f'run {handoff.run_id}')}
     selected=[]
     digested=0
+    # The brief is the story's specification, so it travels whole; a long one widens the budget instead of crowding out memory.
+    budget=CONTEXT_PAYLOAD_BUDGET+max(0,len(str(d['brief']).encode())-5000)
     for r in candidates:
         ref=f'ledger #{r.id}'
         # Full text for what the story builds on directly, a digest for the rest of the lineage and a
@@ -1543,14 +1556,14 @@ def context_payload(s,p,story=None,workspace=None):
         record={'id':r.id,'kind':r.kind,'actor':r.actor,'card_id':r.card_id,'run_id':r.run_id,'text':text}
         digested+=len(text)<len(str(r.text or '').strip())
         payload['accepted_memory'].append(record)
-        if len(json.dumps(payload,ensure_ascii=False).encode())>CONTEXT_PAYLOAD_BUDGET:
+        if len(json.dumps(payload,ensure_ascii=False).encode())>budget:
             payload['accepted_memory'].pop()
         else:selected.append(record)
     payload['accepted_memory']=list(reversed(selected))
     payload['memory_compaction']['digested']=sum(1 for m in payload['accepted_memory'] if '[digest of' in m['text'])
     # Stable keys first (identical across the stories of a revision, so a prompt cache can reuse
     # them), what varies per story after, and the story's own location and identity last.
-    order=['project_id','revision','title','brief','constraints','stories','accepted_artifacts','accepted_outputs',
+    order=['project_id','revision','title','brief','constraints','reference_art','stories','accepted_artifacts','accepted_outputs',
         'memory_compaction','accepted_memory','upstream_outputs','execution_workspace','current_story','free_retry']
     payload={k:payload[k] for k in order if k in payload}
     payload['memory_compaction']['entries_included']=len(payload['accepted_memory'])

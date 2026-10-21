@@ -136,11 +136,14 @@ it('routes a human-assigned project story to its media action and approval guide
  expect(w.find('.media-tab').exists()).toBe(true)
  w.unmount()
 })
-it('has no Media tab for a project without media slots',async()=>{
+it('offers the Media studio for reference art even without media slots, and says how slots appear',async()=>{
  const {w}=await setup('active')
  await flushPromises()
- expect(w.findAll('nav.tabs button').map(b=>b.text())).not.toContain('Media studio')
- expect(w.find('[data-testid=media-banner]').exists()).toBe(false)
+ expect(w.findAll('nav.tabs button').map(b=>b.text())).toContain('Media studio')
+ expect(w.find('[data-testid=media-banner]').exists()).toBe(false)   // nothing to decide without slots
+ await w.findAll('nav.tabs button').find(b=>b.text()==='Media studio')!.trigger('click'); await flushPromises()
+ expect(w.find('[data-testid=reference-art]').exists()).toBe(true)
+ expect(w.get('[data-testid=no-media-slots]').text()).toContain('media/slots.json')
  w.unmount()
 })
 it('asks for a missing key before creating the project, then creates it after the key is saved or skipped',async()=>{
