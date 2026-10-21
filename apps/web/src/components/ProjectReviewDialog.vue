@@ -69,7 +69,7 @@ const unknownArea = computed(() => problems.value.some(p => p.includes("this rep
           <ul v-if="blocked"><li v-for="p in problems" :key="p">{{ p }}</li></ul>
           <p v-if="unknownArea && standardsCheck.areas.length" class="small">Areas these standards list: {{ standardsCheck.areas.join(', ') }}.</p>
           <template v-if="blocked">
-            <p v-if="standardsCheck.fixable" class="small">Fix automatically raises each risk to its area’s minimum and moves high-risk stories off free routes onto a fallback this plan already approved. It saves a new revision for you to review.</p>
+            <p v-if="standardsCheck.fixable" class="small">Fix automatically raises each risk to its area’s minimum and moves high-risk stories off free routes: onto a fallback this plan already approved, or else onto the cheapest subscription route on this host. It saves a new revision for you to review.</p>
             <div v-if="standardsCheck.fixable" class="fix-row"><button type="button" class="btn primary" data-action="standards-fix" :disabled="busy" @click="emit('fix')">Fix automatically ({{ standardsCheck.fixable }})</button></div>
             <p class="small">{{ standardsCheck.fixable ? 'Anything left after that needs an edit on the map: choose a subscription route or make it a human review.' : 'Go back to the map and fix these, or plan again from scratch. This cannot be submitted until they are fixed.' }}</p>
           </template>

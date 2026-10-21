@@ -24,8 +24,11 @@ def story(key, area, risk, assignee='openclaw', model='', routes=(), mode='edit'
                 area=area, route_reason='Planner choice.')
 
 
-def test_fix_raises_risk_and_moves_high_risk_stories_off_free_routes(app):
+def test_fix_raises_risk_and_moves_high_risk_stories_off_free_routes(app, monkeypatch):
     c, sessions, settings, workspace = app
+    import route_reliability
+    # No subscription route on this host, so a high-risk story with no paid fallback is left for the operator (products differ by default).
+    monkeypatch.setattr(route_reliability, 'options', lambda s, st: [{'agent': 'openclaw', 'model': 'vendor/m:free', 'allowed': True, 'price_class': 'free'}])
     handoffs = [('hermes', 'google/gemma-4-31b-it:free'), ('claude', 'claude-haiku-5-5'), ('codex', 'gpt-6-luna')]
     nodes = [
         story('deploy-config', 'infrastructure-and-deployment', 'high', 'hermes', 'google/gemma-4-31b-it:free', handoffs),
@@ -76,9 +79,9 @@ def test_stories_without_a_priced_model_get_a_free_model_and_free_fallbacks(app,
     with sessions() as s:
         changed = projects.pin_free_routes(s, proposed, settings)
     by = {n['key']: n for n in proposed['nodes']}
-    assert changed == ['ui', 'risky']
+    assert changed == ['ui']
     assert by['ui']['model'] == 'vendor/a:free' and by['ui']['routes'] == [{'agent': 'openclaw', 'model': 'vendor/b:free'}]
-    assert by['risky']['routes'] == []  # high risk: no free fallbacks (the standards check still flags its free main route)
+    assert by['risky']['model'] == '' and by['risky']['routes'] == []  # high risk: no free main model and no free fallbacks
     assert by['named']['model'] == 'claude-haiku-5-5' and by['named']['routes'] == []
 
 
@@ -124,3 +127,22 @@ def test_route_for_all_can_set_the_backups_too(app, monkeypatch):
     by = {n['key']: n for n in body['document']['nodes']}
     assert by['a']['routes'] == backups                                   # the chosen backups, in order, replace the old ones
     assert by['b']['routes'] == [{'agent': 'codex', 'model': 'gpt-6-luna'}]  # high risk: the free backup is left off
+
+
+def test_fix_moves_a_high_risk_story_with_no_paid_fallback_to_a_subscription_route(app, monkeypatch):
+    c, sessions, settings, workspace = app
+    import route_reliability
+    monkeypatch.setattr(route_reliability, 'options', lambda s, st: [
+        {'agent': 'openclaw', 'model': 'vendor/a:free', 'allowed': True, 'price_class': 'free'},
+        {'agent': 'claude', 'model': 'claude-haiku-5-5', 'allowed': True, 'price_class': 'subscription'}])
+    # The Pi case: raising the risk makes the story high, and it has no fallback that is not free.
+    nodes = [story('deploy-verify', 'infrastructure-and-deployment', 'low', 'hermes', 'vendor/x:free', mode='read')]
+    with sessions() as s:
+        p = projects.create(s, dict(title='Arcade', brief='Build it.', working_dir=str(workspace), nodes=nodes), settings, 'operator')
+        s.commit(); pid = p.id
+    assert c.get(f'/api/projects/{pid}').json()['standards_check']['fixable'] == 2
+    body = c.post(f'/api/projects/{pid}/standards-fix', json={'revision': 1}).json()
+    n = body['document']['nodes'][0]
+    assert (n['risk'], n['assignee'], n['model']) == ('high', 'claude', 'claude-haiku-5-5')
+    assert any('cheapest subscription route' in f for f in body['fixed'])
+    assert body['standards_check']['problems'] == []

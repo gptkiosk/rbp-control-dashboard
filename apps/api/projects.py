@@ -503,7 +503,7 @@ def standards_message(std,broken):
     tail=["Areas these standards list: "+', '.join(areas)+'.'] if areas and any("this repository's areas" in b for b in broken) else []
     return '\n'.join([head,*lines,*tail])
 
-def standards_check(p,settings=None):
+def standards_check(p,settings=None,s=None):
     """The standards check a submission would run, for the Projects page: what the plan breaks right now. None when there is nothing to check."""
     d=document(p)
     if not d.get('nodes'): return None
@@ -517,15 +517,16 @@ def standards_check(p,settings=None):
     except Exception:
         return None
     try:
-        fixable=len(standards_fixes(p,settings)[1]) if broken else 0
+        fixable=len(standards_fixes(p,settings,s)[1]) if broken else 0
     except Exception:
         fixable=0
     return {'source':std.get('source'),'property':std.get('property'),'problems':list(dict.fromkeys(broken)),'areas':sorted(a['slug'] for a in std.get('areas',[])),'fixable':fixable}
 
-def standards_fixes(p,settings=None):
+def standards_fixes(p,settings=None,s=None):
     """What Fix automatically would change, without changing anything: (document, change sentences). Every change is in the safe direction or
     uses a route the plan already approved: a story's risk is raised to its area's minimum; a high-risk story loses its free fallback routes; and a
-    high-risk story on a free main route moves to its first fallback that is not free. A high-risk story with no such fallback is left for the operator."""
+    high-risk story on a free main route moves to its first fallback that is not free, or, with none, to the cheapest subscription route this host
+    allows (membership quota, not API billing; listed in the changes). A high-risk story with neither is left for the operator."""
     import copy
     d=document(p)
     std=standards.resolve(d['working_dir'],(settings or get_settings()).data_dir)
@@ -534,6 +535,10 @@ def standards_fixes(p,settings=None):
     free_ok=(std.get('rules') or {}).get('high_risk_free_routes')=='allowed'
     nodes=copy.deepcopy(d['nodes']);changes=[]
     name=lambda r:f"{r['agent']} · {r['model'] or 'default'}"
+    subscription_routes=[]
+    if s is not None:
+        try: subscription_routes=[{'agent':r['agent'],'model':r['model']} for r in recovery.options(s,settings or get_settings()) if r['allowed'] and r['price_class']=='subscription']
+        except Exception: subscription_routes=[]
     for n in nodes:
         if n.get('kind')!='story': continue
         floor=floors.get(n.get('area') or '')
@@ -549,11 +554,16 @@ def standards_fixes(p,settings=None):
             changes.append(f"{n['key']}: moved from {name({'agent':n['assignee'],'model':n['model']})} to {name(new)}, its first approved fallback that is not free")
             n['assignee'],n['model']=new['agent'],new['model']
             if new['agent']!='openclaw': n['agent_target']=''
+        elif _tier_of(n)=='free' and subscription_routes:
+            new=subscription_routes[0]
+            changes.append(f"{n['key']}: moved from {name({'agent':n['assignee'],'model':n['model']})} to {name(new)}, the cheapest subscription route on this host, because it has no approved fallback that is not free")
+            n['assignee'],n['model']=new['agent'],new['model']
+            if new['agent']!='openclaw': n['agent_target']=''
     return {**d,'nodes':nodes},changes
 
 def fix_standards(s,p,revision,settings,actor):
     """Apply standards_fixes as a new plan revision, recorded in project memory. Returns the change sentences."""
-    fixed,changes=standards_fixes(p,settings)
+    fixed,changes=standards_fixes(p,settings,s)
     if not changes: fail('Nothing here can be fixed automatically. Edit the stories the standards check lists.',409)
     save(s,p,fixed,revision,settings,actor)
     memory(s,p,'decision','Standards fixed automatically: '+'; '.join(changes),actor)
@@ -614,7 +624,7 @@ def detail(s, p):
         'pipeline':json.loads(p.pipeline) if p.pipeline else None, 'error':p.error,
         'route_reliability':recovery.payload(s,get_settings(),p.created_by) if p.state in {'planning_failed','dispatch_failed','active','paused'} else None,
         'handoff_approval':handoff_approval(s,p), 'model_lock':model_locked(p),
-        'schedule':plan_schedule(p), 'timing':plan_timing(s,p), 'standards_check':standards_check(p),
+        'schedule':plan_schedule(p), 'timing':plan_timing(s,p), 'standards_check':standards_check(p,None,s),
         'workspaces':json.loads(p.approved_manifest).get('workspaces',{}) if p.approved_manifest else {},
         'artifacts':json.loads(p.approved_manifest).get('artifacts',{}) if p.approved_manifest else {},
         'created_by':p.created_by, 'created_at':p.created_at, 'updated_at':p.updated_at,
@@ -1970,6 +1980,7 @@ def pin_free_routes(s,proposed,settings):
         if n.get('kind')!='story' or n['assignee'] not in free: continue
         models=free[n['assignee']]
         priced=n['model'] and reviewed_route_class(s,settings,SimpleNamespace(agent=n['assignee'],agent_target=n.get('agent_target') or '',id=None),n['model']) in {'free','subscription','paid'}
+        if not priced and n.get('risk')=='high': continue   # a free main route is not allowed there; the standards check asks for a choice
         if not priced:
             own=(targets.get(n.get('agent_target') or '') or {}).get('model') if n['assignee']=='openclaw' else None
             n['model']=own if own in models else models[0]

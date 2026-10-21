@@ -10,6 +10,13 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.6.45] - 2026-10-20
+
+### Fixed
+
+- **Fix automatically could leave a story it had just made high-risk on a free route.** For example, `deploy-verify` was raised to high with no fallback that is not free. Such a story now moves to the cheapest subscription route this host allows, and the list of changes says so. With no subscription configured, it stays listed for an edit on the map.
+- **A high-risk story left on "Agent default" is no longer given a free main model,** which the standards check would refuse.
+
 ## [0.6.44] - 2026-10-20
 
 ### Added
@@ -775,7 +782,7 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 - Claude Code stories may use web search and fetch without any shell, credential or publish permission.
 
 [0.3.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.0
-[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.44...HEAD
+[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.45...HEAD
 [0.6.29]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.29
 [0.6.28]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.28
 [0.6.27]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.27
@@ -851,3 +858,4 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 [0.6.42]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.41...v0.6.42
 [0.6.43]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.42...v0.6.43
 [0.6.44]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.43...v0.6.44
+[0.6.45]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.44...v0.6.45
