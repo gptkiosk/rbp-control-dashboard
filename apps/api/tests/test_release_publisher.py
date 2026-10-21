@@ -40,6 +40,8 @@ case "$1 $2" in
   "api repos/owner/product/git/ref/tags/"*) [ -f "{state}/tag-exists" ] && exit 0; exit 1;;
   "secret list") [ -f "{state}/has-secret" ] && printf 'RELEASE_SSH_PRIVATE_KEY\\t2026-10-13\\n'; exit 0;;
   "release view") exit 1;;
+  "run list") [ -f "{state}/workflow-started" ] && echo 1 || echo 0; exit 0;;
+  "api repos/owner/product") echo main; exit 0;;
   "release create") echo "created"; exit 0;;
 esac
 exit 0
@@ -47,7 +49,7 @@ exit 0
     gh.chmod(0o755); state.mkdir()
     leaks = tmp_path / "gitleaks"                      # stands in for gitleaks so the test needs no install
     leaks.write_text(f'#!/bin/bash\necho "$@" >> "{tmp_path}/leak-calls"\n[ -f "{state}/leak" ] && exit 1\nexit 0\n'); leaks.chmod(0o755)
-    env = {**os.environ, "MCD_GH": str(gh), "MCD_GITLEAKS": str(leaks)}
+    env = {**os.environ, "MCD_GH": str(gh), "MCD_GITLEAKS": str(leaks), "RELEASE_TRIGGER_WAIT_S": "0"}
     def run(*args):
         return subprocess.run(["bash", str(repo / "scripts/release/publish-release.sh"), *args], capture_output=True, text=True, cwd=repo, env=env)
     return SimpleNamespace(repo=repo, run=run, calls=calls, state=state, head=lambda: git(repo, "rev-parse", "HEAD"))
@@ -84,3 +86,18 @@ def test_package_dry_run_says_what_it_would_do_and_publishes_nothing(release_rep
     r = release_repo.run("--version", "1.2.0", "--target", release_repo.head(), "--package", "--dry-run")
     assert r.returncode == 0 and "tag only" in r.stdout and "nothing published" in r.stdout
     assert not any("POST" in c or c.startswith("release create") for c in calls_of(release_repo))
+
+
+def test_package_mode_starts_the_release_workflow_when_the_tag_event_never_arrives(release_repo):
+    (release_repo.state / "has-secret").write_text("")
+    r = release_repo.run("--version", "1.2.0", "--target", release_repo.head(), "--package")
+    assert r.returncode == 0, r.stderr
+    started = [c for c in calls_of(release_repo) if c.startswith("workflow run release-on-tag.yml")]
+    assert started and "tag=v1.2.0" in started[0] and "--ref main" in started[0]
+    assert "started directly for v1.2.0" in r.stdout
+
+def test_package_mode_does_not_start_it_twice_when_the_tag_event_arrived(release_repo):
+    (release_repo.state / "has-secret").write_text(""); (release_repo.state / "workflow-started").write_text("")
+    r = release_repo.run("--version", "1.2.0", "--target", release_repo.head(), "--package")
+    assert r.returncode == 0, r.stderr
+    assert not any(c.startswith("workflow run") for c in calls_of(release_repo)) and "release workflow started for v1.2.0" in r.stdout

@@ -10,6 +10,11 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+### Fixed
+
+- **An update that is blocked now says why, next to the Update button.** It lists the work it is waiting for, such as a project in progress, a queued task or a run waiting for a decision. It says that a project can be paused with Pause dispatch and resumed after the update, and links to Projects and Tasks. It used to show only a disabled button.
+- **Release tooling:** `publish-release.sh --package` waits up to two minutes for the tag to start the release workflow, and starts the workflow for that tag itself if GitHub did not. This happened on the MCD repository for 0.6.45 and 0.6.46. A late duplicate run skips, because the release already exists. Release script tests now run in both repositories.
+
 ## [0.6.46] - 2026-10-21
 
 ### Added

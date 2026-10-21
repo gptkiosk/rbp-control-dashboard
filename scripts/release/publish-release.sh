@@ -47,6 +47,19 @@ echo "release: $repo $tag on ${sha:0:7}$([ "$pre" = 1 ] && echo ' (prerelease)')
 if [ "$package" = 1 ]; then
   "$gh_bin" api -X POST "repos/$repo/git/refs" -f "ref=refs/tags/$tag" -f "sha=$sha" >/dev/null || die "could not create the tag $tag"
   echo "tagged: $tag on ${sha:0:7}. The draft release (package, signature, notes) appears at https://github.com/$repo/releases when the workflow finishes; review it and publish it there."
+  # GitHub can deliver a tag's push event late or not at all (seen on the MCD repository for 0.6.45 and 0.6.46). Wait up to two
+  # minutes for the release workflow to start; if it has not, start it for this tag. A late duplicate run finds the release already
+  # there and skips, so this never makes two releases.
+  wait_s=${RELEASE_TRIGGER_WAIT_S:-120}
+  for _ in $(seq 1 $(( (wait_s + 9) / 10 ))); do
+    started=$("$gh_bin" run list --repo "$repo" --workflow release-on-tag.yml --limit 10 --json headBranch,displayTitle,event --jq "[.[] | select(.headBranch == \"$tag\" or (.event == \"workflow_dispatch\" and (.displayTitle | contains(\"$tag\"))))] | length" 2>/dev/null || echo 0)
+    [ "${started:-0}" -gt 0 ] && { echo "release workflow started for $tag"; exit 0; }
+    [ "$wait_s" -gt 0 ] && sleep 10
+  done
+  default_branch=$("$gh_bin" api "repos/$repo" --jq .default_branch)
+  "$gh_bin" workflow run release-on-tag.yml --repo "$repo" --ref "$default_branch" -f "tag=$tag" >/dev/null \
+    || die "the tag exists but the release workflow did not start; start it with: gh workflow run release-on-tag.yml --repo $repo --ref $default_branch -f tag=$tag"
+  echo "the tag's push event had not started the release workflow after two minutes, so it was started directly for $tag"
   exit 0
 fi
 flags=(--repo "$repo" --target "$sha" --title "$tag" --notes-file "$notes")

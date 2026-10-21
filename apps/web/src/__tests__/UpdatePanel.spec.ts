@@ -467,3 +467,18 @@ it('stops offering the release once it is the installed version', async () => {
   expect(w.text()).not.toContain('Update to 1.0')
   w.unmount()
 })
+
+it('says why an available update is blocked, next to the button, and where to pause the work', async () => {
+  stubFetch(url => {
+    if (url === '/api/app-updates') return { body: managed({ blockers: ['1 project(s) dispatching or active: pause them first'] }) }
+    if (url.startsWith('/api/app-updates/check')) return { body: { available: true, candidate: candidate(), installed: '1.0' } }
+    return undefined
+  })
+  const w = mount(UpdatePanel, { global: { stubs: { RouterLink: { props: ['to'], template: '<a :href="to"><slot /></a>' } } } }); await flushPromises()
+  await button(w, 'Check for updates').trigger('click'); await flushPromises()
+  const blocked = w.get('[data-testid="update-blocked"]')
+  expect(blocked.text()).toContain('Finish or pause this work first')
+  expect(blocked.text()).toContain('1 project(s) dispatching or active')
+  expect(blocked.find('a[href="/projects"]').exists()).toBe(true)
+  w.unmount()
+})
