@@ -51,7 +51,9 @@ if [ "$package" = 1 ]; then
   # minutes for the release workflow to start; if it has not, start it for this tag. A late duplicate run finds the release already
   # there and skips, so this never makes two releases.
   wait_s=${RELEASE_TRIGGER_WAIT_S:-120}
-  for _ in $(seq 1 $(( (wait_s + 9) / 10 ))); do
+  checks=$(( (wait_s + 9) / 10 ))
+  [ "$checks" -ge 1 ] || checks=1  # BSD seq 1 0 and GNU seq 1 0 differ; always inspect once.
+  for _ in $(seq 1 "$checks"); do
     started=$("$gh_bin" run list --repo "$repo" --workflow release-on-tag.yml --limit 10 --json headBranch,displayTitle,event --jq "[.[] | select(.headBranch == \"$tag\" or (.event == \"workflow_dispatch\" and (.displayTitle | contains(\"$tag\"))))] | length" 2>/dev/null || echo 0)
     [ "${started:-0}" -gt 0 ] && { echo "release workflow started for $tag"; exit 0; }
     [ "$wait_s" -gt 0 ] && sleep 10
