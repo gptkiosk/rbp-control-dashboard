@@ -1,6 +1,6 @@
 # Queued subscription-route change — 0.6.47
 
-Open a queued/backlog project task and choose **Change model or platform**, select the configured Claude/Codex subscription model, acknowledge quota/overage costs, then **Switch task route**. Running, review and completed tasks cannot change here. A paused project stays paused. Membership billing and host policy must allow the route; existing approvals, scope, mode, dependencies and acceptance remain in force. The original approved map is preserved, with an auditable route amendment. No new prompt/context field or inline instruction is added. The route change records one concise decision in the existing shared-memory budget (decision digests are capped at 300 characters).
+Open a queued/backlog project task and choose **Change model or platform**, select the configured Claude/Codex subscription model, acknowledge quota/overage costs, then **Switch task route**. Running, review and completed tasks cannot change here. A paused project stays paused. Membership billing and host policy must allow the route; existing approvals, scope, mode, dependencies and acceptance remain in force. The original approved map is preserved, with an auditable route amendment. The existing current-story and story-summary route values reflect the approved amendment, avoiding conflicting old Claude instructions. No new prompt/context field or inline instruction is added. The route change records one concise decision in the existing shared-memory budget (decision digests are capped at 300 characters).
 
 ## Safe UI preview
 

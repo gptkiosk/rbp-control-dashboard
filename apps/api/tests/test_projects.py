@@ -1601,6 +1601,8 @@ def test_pending_story_can_switch_subscription_without_changing_work(app, pendin
         assert (card.body,card.mode,card.working_dir)==before
         manifest=json.loads(project.approved_manifest)
         assert manifest['document']==original
+        context=projects.context(db,project,'a')
+        assert '"assignee": "codex"' in context and '"model": "gpt-6-luna"' in context
         assert manifest['route_amendments'][-1]['kind']=='queued_route_change'
         assert {'agent':'codex','model':'gpt-6-luna'} in projects.approved_story_routes(project,projects.binding(db,cid))
     assert c.post(path,json=body).status_code==409
@@ -1631,3 +1633,14 @@ def test_pending_route_options_respect_host_membership_policy(app,pending_subscr
     settings.dispatch_free_only=False
     with s() as db:
         assert {'agent':'codex','model':'gpt-6-luna'} in projects.pending_subscription_routes(db,settings)
+
+
+def test_pending_route_refuses_output_continuation(app,pending_subscriptions):
+    p=active(app,[node('a',assignee='claude',model='claude-sonnet-5-5')]);c,s,_,_=app
+    cid=next(t['card_id'] for t in p['tasks'] if t['node_key']=='a')
+    with s.begin() as db:
+        project=db.get(Project,p['id']);manifest=json.loads(project.approved_manifest)
+        manifest['output_continuations']={'a':{'state':'queued'}};project.approved_manifest=json.dumps(manifest)
+    response=c.post(f'/api/projects/{p["id"]}/stories/{cid}/route',json={'revision':p['revision'],
+        'agent':'codex','model':'gpt-6-luna','expected_agent':'claude','expected_model':'claude-sonnet-5-5','acknowledge':True})
+    assert response.status_code==409 and 'output continuation' in response.text

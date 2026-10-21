@@ -591,6 +591,7 @@ def plan_schedule(p):
 
 def detail(s, p):
     bindings = []
+    approved_routes = json.loads(p.approved_manifest) if p.approved_manifest else {}
     pipeline = json.loads(p.pipeline) if p.pipeline else {}
     planning_role = {'coordinate': 'coordinate', 'plan': 'plan', 'return': 'return plan'}.get(pipeline.get('step'))
     retry_routes = planning_retry_routes(s, get_settings(), pipeline, pipeline.get('step'),p.created_by) if (
@@ -613,6 +614,7 @@ def detail(s, p):
                 and link.revision==p.revision and c and c.column in {'failed','review'} and r and r.stage not in {'queued','running','awaiting_approval'} else [],
             'free_retry_routes':other_free_routes(free_routes,c) if link.role=='story' and can_go_free(c,r) else [],
             'paid_retry_routes':[x for x in paid_routes if not (c and c.agent=='openclaw' and x['model']==c.model and (c.agent_target or x['agent_target'])==x['agent_target'])] if link.role=='story' and c and c.assignee_type=='agent' and c.column=='failed' and r and r.stage in RETRYABLE_STAGES else [],
+            'queued_route_blocker':'This task is an approved output continuation. Review its output approval before changing the route.' if approved_routes.get('output_continuations',{}).get(link.node_key,{}).get('state')=='queued' else None,
             'queued_route_options':[x for x in queued_routes if (x['agent'],x['model'])!=(c.agent,c.model or '')] if link.role=='story' and c and c.assignee_type=='agent' and c.column in {'queued','backlog'} and p.state in {'active','paused'} else [],
             'low_cost_routes':[x for x in cheap_routes if (x['agent'],x['model'])!=(c.agent,c.model or '') or c.mode=='read'] if link.role=='story' and c and c.assignee_type=='agent' and c.column=='failed' and r and r.stage in {'failed','timeout','interrupted'} else [],
             'blocked_by':[b['card_id'] for b in blocks if b['card_id'] is not None],
@@ -1594,6 +1596,11 @@ def context_payload(s,p,story=None,workspace=None):
     if story:
         current=by_key[story]
         payload['current_story']={k:current.get(k) for k in ('key','title','depends_on','assignee','model','agent_target')}
+        if (cost:=manifest.get('cost_retries',{}).get(story)):
+            payload['current_story'].update(assignee=cost['route']['agent'],model=cost['route']['model'],agent_target=None)
+            for summary in nodes:
+                if summary['key']==story: summary.update(assignee=cost['route']['agent'],model=cost['route']['model'])
+
     if story and (free:=manifest.get('free_retries',{}).get(story)):
         payload['free_retry']=free
     if story:
@@ -2100,6 +2107,9 @@ def change_queued_route(s, p, card_id, data, settings, actor):
             link.project_id!=p.id or link.role!='story' or link.revision!=p.revision or not card or
             card.assignee_type!='agent' or card.column not in {'queued','backlog'}):
         fail('Only a queued or backlog agent story in an active or paused project can change route.',409)
+    continuation=json.loads(p.approved_manifest).get('output_continuations',{}).get(link.node_key,{})
+    if continuation.get('state')=='queued':
+        fail('This task is an approved output continuation. Review its output approval before changing the route.',409)
     if (card.agent,card.model or '')!=(data.expected_agent,data.expected_model):
         fail('This task route changed. Refresh before choosing another route.',409)
     if not data.acknowledge: fail('Approve the subscription route change.',422)

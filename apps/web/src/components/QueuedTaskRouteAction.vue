@@ -9,6 +9,7 @@ const props=defineProps<{card:Card}>()
 const emit=defineEmits<{changed:[]}>()
 const visible=computed(()=>props.card.project?.role==='story' && props.card.assignee_type!=='human' && ['queued','backlog'].includes(props.card.column))
 const project=ref<Project|null>(null), selected=ref(''), acknowledged=ref(false), busy=ref(false), loading=ref(false), error=ref(''), notice=ref('')
+const blocker=computed(()=>project.value?.tasks.find(t=>t.card_id===props.card.id)?.queued_route_blocker)
 const options=computed(()=>project.value?.tasks.find(t=>t.card_id===props.card.id)?.queued_route_options ?? [])
 let generation=0
 watch(()=>[props.card.id,props.card.column,props.card.agent,props.card.model],async()=>{
@@ -37,6 +38,7 @@ async function change(){
   <strong>Change model or platform</strong>
   <p class="muted small">Switch this pending task when a membership runs out. Scope and dependencies stay the same.</p>
   <LoadingCard v-if="loading" title="Loading configured subscription routes…" :rows="1" />
+  <p v-else-if="blocker" role="status">{{blocker}}</p>
   <template v-else-if="options.length">
    <label>Subscription route<select aria-label="Subscription route" v-model="selected" :disabled="busy"><option value="">Choose a route…</option><option v-for="r in options" :key="`${r.agent}:${r.model}`" :value="`${r.agent}:${r.model}`">{{agentLabel(r.agent)}} · {{r.model}}</option></select></label>
    <p class="muted small">Uses membership quota. Provider limits and enabled overage still apply.</p>
