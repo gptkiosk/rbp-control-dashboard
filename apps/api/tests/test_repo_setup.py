@@ -82,6 +82,7 @@ def test_submission_runs_setup_after_the_checks_and_records_it(make_client, monk
     from agents import AgentSpec
     from settings import get_settings
     import projects
+    from pathlib import Path
     from project_schemas import Action
     monkeypatch.setattr(AgentSpec, 'available', lambda self, settings: True)
     client = make_client()
@@ -93,6 +94,7 @@ def test_submission_runs_setup_after_the_checks_and_records_it(make_client, monk
         seen.append((pid, name))
         if name == 'broken':
             raise repo_setup.RepoSetupError('gh is not signed in on this host.')
+        (Path(working_dir) / name).mkdir(parents=True, exist_ok=True)
         return {'repo': f'gptkiosk/{name}', 'folder': name, 'branch': f'project-{pid}/setup', 'done': ['Created private repository.']}
 
     monkeypatch.setattr(repo_setup, 'setup', fake)
@@ -110,6 +112,7 @@ def test_submission_runs_setup_after_the_checks_and_records_it(make_client, monk
             s.commit()
             repo = projects.document(p)['repository']
             assert repo == {'name': 'twodoors-website', 'repo': 'gptkiosk/twodoors-website', 'folder': 'twodoors-website', 'branch': f'project-{p.id}/setup'}
+            assert projects.document(p)['working_dir'] == str(workspace / 'twodoors-website')
             assert p.state in ('active', 'dispatching')
             built = projects.context_payload(s, p, 'a') if hasattr(projects, 'context_payload') else projects.context(s, p, 'a')
             text = built if isinstance(built, str) else __import__('json').dumps(built)

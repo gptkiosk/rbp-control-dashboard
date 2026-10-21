@@ -10,6 +10,13 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.6.48] - 2026-10-21
+
+### Fixed
+
+- **Project plans now establish execution readiness before dispatch.** The Coordinator receives the host's Node, Docker-engine and GitHub CLI state, separates sandbox-safe file work from human runtime verification, and blocks plans that assign Docker, browser, signing or similarly privileged checks to an agent.
+- **Repository-backed projects now run from the dashboard-created clone.** The setup branch and Git metadata are retained for every story instead of continuing from the draft's scratch folder.
+
 ## [0.6.47] - 2026-10-21
 
 - **Switch queued project tasks between memberships:** choose Claude or Codex on pending tasks without waiting for a failed run. The operator-approved amendment retains scope, mode, dependencies, history and project pause state; a task that starts before approval is rejected.
@@ -819,6 +826,7 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 
 [0.3.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.0
 [Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.47...HEAD
+[0.6.48]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.47...v0.6.48
 [0.6.29]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.29
 [0.6.28]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.28
 [0.6.27]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.27

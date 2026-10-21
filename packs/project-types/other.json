@@ -26,14 +26,23 @@
   "checks": [
     {
       "id": "container-needs-human",
-      "severity": "warn",
+      "severity": "block",
       "kind": "not_agent_for",
       "match": "docker (build|compose|run)|compose up|colima|smoke test (against|on) (a )?running|build the (container )?image",
       "message": "A story needs a container engine, which agents cannot run. The build and run belong to the final human local verification story."
     },
     {
+      "id": "container-runtime-verification",
+      "severity": "block",
+      "kind": "requires_story",
+      "match": "container|dockerfile|docker compose|compose",
+      "requires_match": "(local|container|docker|compose).{0,50}(verification|test|check|review)|verification.{0,50}(container|docker|compose)",
+      "assignee": "human",
+      "message": "A container plan needs a final human runtime verification story that builds or runs the checked-out repository with Docker/Compose."
+    },
+    {
       "id": "browser-checks-need-a-person",
-      "severity": "warn",
+      "severity": "block",
       "kind": "not_agent_for",
       "match": "console errors|render(s|ed|ing)? (in|without|correctly)|in a browser|browser (render|check|test)|\\b(run|launch|execute|take|capture|generate|make)s?\\s+(the\\s+|a\\s+|all\\s+|some\\s+)?(playwright|puppeteer|lighthouse|screenshots?)\\b",
       "message": "A story asks an agent to render pages or check a browser console, which no agent sandbox can do. It will report itself unfinished. Keep agent verification to static checks and move rendering to the human preview."

@@ -11,7 +11,7 @@ import json
 import re
 from pathlib import Path
 
-CHECK_KINDS = {"has_story", "order", "not_agent_for"}
+CHECK_KINDS = {"has_story", "order", "not_agent_for", "requires_story"}
 ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,39}$")
 MAX_BYTES = 40_000
 
@@ -37,13 +37,15 @@ def _valid(t):
             re.compile(pattern)
         seen = set()
         for c in t.get("checks", []):
-            if c["kind"] not in CHECK_KINDS or c["id"] in seen or c.get("severity", "warn") not in {"warn", "info"} or not isinstance(c["message"], str):
+            if c["kind"] not in CHECK_KINDS or c["id"] in seen or c.get("severity", "warn") not in {"warn", "info", "block"} or not isinstance(c["message"], str):
                 return False
             seen.add(c["id"])
-            for field in ("match", "first", "then"):
+            for field in ("match", "first", "then", "requires_match"):
                 if field in c:
                     re.compile(c[field])
             if c["kind"] == "order" and not (c.get("first") and c.get("then")):
+                return False
+            if c["kind"] == "requires_story" and not (c.get("match") and c.get("requires_match")):
                 return False
         return True
     except (KeyError, TypeError, re.error):
@@ -120,7 +122,9 @@ def planner_section(type_id, settings=None):
     t = load(settings).get(type_id or "")
     if not t:
         return ""
-    lines = [f"Project type: {t['label']}.", t["planner_text"], "Known failure points for this type; plan around each one:"]
+    lines = [f"Project type: {t['label']}.", t["planner_text"],
+             "Execution readiness is part of the plan. Use the installation facts supplied with this request before assigning a story. An agent story may require only tools available inside its sandbox and may only use the checked-out project workspace. When a repository is selected, the dashboard creates the private repository, clone and setup branch before dispatch; every agent story works in that clone, never in a scratch folder. Split file creation and static checks from runtime verification. Docker/Compose engines, browsers, target hardware, signing, credentials, billing, cloud applies and other host-only actions are human or CI work with a clear prerequisite and acceptance check. Do not put an unavailable tool or privileged host access in an agent story's definition of done.",
+             "Known failure points for this type; plan around each one:"]
     lines += [f"- {fp}" for fp in t.get("failure_points", [])]
     if t.get("visual_checks"):
         lines.append("Visual checks: " + t["visual_checks"])
@@ -170,6 +174,12 @@ def check(type_id, nodes, settings=None):
             continue
         if kind == "not_agent_for":
             bad = [n["key"] for n in stories if n.get("assignee") != "human" and re.search(c["match"], _text(n, c.get("scope", "all")))]
+        elif kind == "requires_story":
+            triggered = any(re.search(c["match"], _text(n, c.get("scope", "all"))) for n in stories)
+            ok = any(re.search(c["requires_match"], _text(n, c.get("requires_scope", "title"))) and _who(n, c.get("assignee")) for n in stories)
+            if triggered and not ok:
+                findings.append({"id": c["id"], "severity": c.get("severity", "warn"), "message": c["message"], "stories": []})
+            continue
         elif kind == "order":
             firsts = {n["key"] for n in stories if re.search(c["first"], _text(n, c.get("scope", "title")))}
             for n in stories:
@@ -180,3 +190,9 @@ def check(type_id, nodes, settings=None):
         if bad:
             findings.append({"id": c["id"], "severity": c.get("severity", "warn"), "message": c["message"], "stories": bad})
     return findings
+
+
+def blocking_findings(type_id, nodes, settings=None):
+    """The small safety subset that must be repaired before dispatch, rather than
+    predictably consuming a run on unavailable or privileged host access."""
+    return [f for f in check(type_id, nodes, settings) if f["severity"] == "block"]

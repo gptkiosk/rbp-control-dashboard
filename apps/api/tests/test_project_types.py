@@ -75,6 +75,14 @@ def test_web_app_and_packaged_app_checks():
     assert pt.check("packaged-app", ok) == []
 
 
+def test_impossible_agent_runtime_checks_block_dispatch_and_require_a_human_verification():
+    bad = [story("a", "Container configuration", assignee="codex", description="Run docker compose build and start the stack.")]
+    findings = pt.blocking_findings("website-property", bad)
+    assert {f["id"] for f in findings} == {"container-needs-human", "container-runtime-verification"}
+    fixed = bad + [story("b", "Local Docker container verification", ["a"], assignee="human")]
+    assert {f["id"] for f in pt.blocking_findings("website-property", fixed)} == {"container-needs-human"}
+
+
 def test_no_type_or_an_unknown_type_checks_nothing():
     assert pt.check(None, GOOD_SITE) == [] and pt.check("nonsense", []) == []
     assert pt.planner_section(None) == "" and pt.planner_section("nonsense") == ""
@@ -153,7 +161,7 @@ def test_the_consultant_is_told_the_types_and_the_media_rules():
 
 def test_a_chosen_type_focuses_the_consultant_and_other_is_a_real_type():
     other = pt.load()["other"]
-    assert other["label"].startswith("Other") and other["suggest"] == [] and {c["id"] for c in other["checks"]} == {"container-needs-human", "browser-checks-need-a-person", "delivery-to-remote", "readme-story", "screenshots-by-a-person-or-ci"}     # never suggested; only the limits and the delivery and documentation gates every project has
+    assert other["label"].startswith("Other") and other["suggest"] == [] and {c["id"] for c in other["checks"]} == {"container-needs-human", "container-runtime-verification", "browser-checks-need-a-person", "delivery-to-remote", "readme-story", "screenshots-by-a-person-or-ci"}     # never suggested; only the limits and the delivery and documentation gates every project has
     assert "most resembles" in other["planner_text"]
     text = pt.consultant_text(type_id="website-property")
     assert "The operator chose the project type Website property" in text and "A person signs off:" in text and "Known failure:" in text
