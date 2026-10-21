@@ -57,3 +57,17 @@ it('shows a multi-line server refusal one line at a time', () => {
   expect(alert.textContent).toContain('- a: bad'); expect(alert.textContent).toContain('- b: bad')
   w.unmount()
 })
+
+it('offers Fix automatically when the server can fix the problems, and lists what it changed', async () => {
+  const problems = ['deploy-verify: risk low is below the standards minimum high for area infrastructure-and-deployment']
+  const w = open(base({ standardsCheck: { source: 'starter', problems, areas: [], fixable: 1 } }))
+  const fix = dlg().querySelector('[data-action=standards-fix]') as HTMLButtonElement
+  expect(fix.textContent).toContain('Fix automatically (1)')
+  fix.click(); await w.vm.$nextTick()
+  expect(w.emitted('fix')).toHaveLength(1)
+  await w.setProps({ standardsCheck: { source: 'starter', problems: [], areas: [], fixable: 0 }, fixed: ['deploy-verify: risk low raised to high, the minimum for area infrastructure-and-deployment'] } as never)
+  expect(dlg().querySelector('[data-testid=standards-fixed]')!.textContent).toContain('raised to high')
+  expect(dlg().querySelector('[data-action=standards-fix]')).toBeNull()
+  expect(confirmButton().disabled).toBe(false)
+  w.unmount()
+})

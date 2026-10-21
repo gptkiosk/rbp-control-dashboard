@@ -16,6 +16,7 @@ import PlanningBiasSlider from '@/components/PlanningBiasSlider.vue'
 import StandardsLine from '@/components/StandardsLine.vue'
 import ProjectGitAccess from '@/components/ProjectGitAccess.vue'
 import ProjectSchedule from '@/components/ProjectSchedule.vue'
+import RouteForAllStories from '@/components/RouteForAllStories.vue'
 import ProjectReviewDialog from '@/components/ProjectReviewDialog.vue'
 import RouteAdvice from '@/components/RouteAdvice.vue'
 import { usePolledJson } from '@/composables/usePolledJson'
@@ -107,7 +108,26 @@ async function loadProjectMedia() {
 watch(() => [project.value?.id, project.value?.revision, project.value?.state] as const, () => { void loadProjectMedia() }, { immediate: true })
 watch(() => route.query.view, v => { if (v === 'media' && projectMedia.value?.available) tab.value = 'media' })
 watch(projectMedia, m => { if (route.query.view === 'media' && m?.available) tab.value = 'media' })
-watch(selectedId, () => { project.value = null; draft.value = emptyProject(); baseline.value = ''; conflict.value = false; error.value = '' })
+watch(selectedId, () => { routedNote.value = ''; project.value = null; draft.value = emptyProject(); baseline.value = ''; conflict.value = false; error.value = '' })
+// One route (and its backups) for every agent story, saved by the server as a new revision.
+const routedNote = ref('')
+async function routeAll(main: { agent: string; model: string }, backups: { agent: string; model: string }[]) { await perform(async () => {
+  if (!project.value) return
+  const r = await postJson<Project & { routed: string[]; skipped: string[] }>(`/api/projects/${project.value.id}/route-all`, { revision: project.value.revision, ...main, backups })
+  apply(r); refreshDetail()
+  routedNote.value = `${r.routed.length} ${r.routed.length === 1 ? 'story now runs' : 'stories now run'} on ${main.model}${backups.length ? ` with ${backups.length} backup${backups.length === 1 ? '' : 's'}` : ''}.`
+    + (r.skipped.length ? ` ${r.skipped.length} high-risk ${r.skipped.length === 1 ? 'story keeps its' : 'stories keep their'} route, because a free route is not allowed there.` : '') + ' Review the map, then submit.'
+}) }
+// Fix automatically from the submission review: the server saves a new revision with the safe standards fixes, which this view then shows.
+const standardsFixed = ref<string[]>([])
+async function fixStandards() {
+  if (!project.value || busy.value) return
+  busy.value = true; error.value = ''
+  try {
+    const r = await postJson<Project & { fixed: string[] }>(`/api/projects/${project.value.id}/standards-fix`, { revision: project.value.revision })
+    apply(r); standardsFixed.value = r.fixed
+  } catch (e) { error.value = e instanceof Error ? e.message : String(e) } finally { busy.value = false }
+}
 function apply(value: Project) {
   project.value = value; draft.value = { ...emptyProject(), ...structuredClone(value.document) }
   // Newly generated maps have default positions; arrange before the operator saves/reviews.
@@ -186,12 +206,12 @@ async function resumePlan() { await perform(async () => { if (!project.value) re
   apply(await postJson<Project>(`/api/projects/${project.value.id}/resume-plan`, { revision: project.value.revision })); refreshDetail()
 }) }
 function add(kind: 'phase' | 'story') {
-  const n = newNode(kind, draft.value.nodes.length, node.value?.kind === 'phase' ? node.value.key : null, draft.value.planning_bias, targets.value.find(t => t.id === 'mm-developer')?.id || '')
+  const n = newNode(kind, draft.value.nodes.length, node.value?.kind === 'phase' ? node.value.key : null, draft.value.planning_bias, (targets.value.find(t => t.id === 'mm-developer') ?? targets.value.find(t => t.id.endsWith('-oc-developer')))?.id || '')
   if (kind === 'story') {
     // A new story starts on an agent that is installed, whichever mix this machine has.
     const order = draft.value.planning_bias < 50 ? ['openclaw', 'codex', 'claude', 'grok', 'hermes'] : ['codex', 'claude', 'grok', 'openclaw', 'hermes']
     const chosen = firstInstalled(id => agents.value?.agents.find(a => a.id === id)?.available, order)
-    if (chosen && chosen !== n.assignee) { n.assignee = chosen as ProjectNode['assignee']; n.model = ''; n.agent_target = chosen === 'openclaw' ? n.agent_target || (targets.value.find(t => t.id === 'mm-developer')?.id || '') : '' }
+    if (chosen && chosen !== n.assignee) { n.assignee = chosen as ProjectNode['assignee']; n.model = ''; n.agent_target = chosen === 'openclaw' ? n.agent_target || ((targets.value.find(t => t.id === 'mm-developer') ?? targets.value.find(t => t.id.endsWith('-oc-developer')))?.id || '') : '' }
   }
   draft.value.nodes.push(n); selectedNode.value = n.key
 }
@@ -375,6 +395,8 @@ function human(task: ProjectTask) { return draft.value.nodes.find(n => n.key ===
       <div v-if="!project" class="card welcome"><span class="eyebrow">SHARED PROJECT WORKSPACE</span><h2>Start with a goal. Approve each next step.</h2><p>Review the plan before submission, then accept each handoff before dependent stories start. <RouterLink to="/help?topic=projects">Project how-to</RouterLink></p><button class="btn primary" @click="startNew">Create project brief</button><ProjectConsultant :preferences="profile?.preferences" :workdirs="workdirs?.workdirs || []" :scratch-root="workdirs?.scratch_root" :available="!!agents?.agents.find(a=>a.id === (profile?.preferences.ai_agent || 'hermes'))?.available" :resume-id="Number(route.query.consultant) || undefined" @review="reviewConsultant" @started="consultantStarted" /></div>
       <div v-else class="project-main">
         <header class="card project-heading"><div><span class="eyebrow">PROJECT {{ project.id }} · REVISION {{ project.revision }}</span><h2>{{ draft.title }}</h2><span class="status-label">{{ label(project.state) }}</span><span v-if="dirty" class="dirty">Unsaved edits</span></div><div class="actions"><button v-if="closable" class="btn" :disabled="busy" @click="closeProject">Close project…</button><button v-if="project.state === 'closed' && project.tasks.length" class="btn" :disabled="busy" @click="removeProjectTasks">Remove tasks from the board</button><button v-if="deletable" class="btn" :disabled="busy" @click="deleteProject">Delete project…</button><button v-if="!locked" class="btn" :disabled="busy || !dirty || conflict" @click="save">Save revision</button><button v-if="project.can_resume_plan" class="btn primary" :disabled="busy || dirty || conflict" @click="resumePlan">Resume saved plan</button><button v-if="!locked && !project.bootstrap" class="btn" :disabled="busy || dirty || conflict" @click="openConfirm('plan')">{{ project.state === 'planning_failed' ? 'Restart planning' : 'Plan with Hermes' }}</button><button v-if="!locked && stories.length" class="btn primary" :disabled="busy || dirty || conflict" @click="openConfirm('submit')">Review & submit</button><button v-if="project.state === 'active' || project.state === 'paused'" class="btn" :disabled="busy" @click="dispatchControl(project.state === 'paused' ? 'resume' : 'pause')">{{ project.state === 'paused' ? 'Resume dispatch' : 'Pause dispatch' }}</button><button v-if="project.state === 'paused' && retierableTasks.length" class="btn" :disabled="busy" @click="openRetier">Use lower-cost models…</button><button class="btn" :disabled="busy || dirty" @click="exportContext">Export context</button></div></header><PlanChecks v-if="['review','draft','planning_failed'].includes(project.state)" :project-id="project.id" :revision="project.revision" />
+        <RouteForAllStories v-if="!locked && stories.length" :busy="busy" :disabled="dirty || conflict" @apply="routeAll" />
+        <p v-if="routedNote" class="notice muted" role="status" data-testid="route-all-result">{{ routedNote }}</p>
         <section v-if="locked" class="card live-project" aria-label="Live project status">
           <div class="live-summary"><div class="project-bubble" :class="`status-${projectStatus}`"><span class="status-dot" aria-hidden="true" /><strong>{{ statusLabel(projectStatus) }}</strong><span>{{ doneCount }} / {{ nodeTasks.length }} stories done</span></div><span class="small muted">View only · refreshes every 3 seconds</span></div>
           <progress v-if="nodeTasks.length" :value="doneCount" :max="nodeTasks.length" aria-label="Completed project stories" />
@@ -432,7 +454,7 @@ function human(task: ProjectTask) { return draft.value.nodes.find(n => n.key ===
     <ProjectReviewDialog v-if="confirmation && project" v-model:coordination="coordination" v-model:paid-planner="paidPlanner" v-model:paid-work="paidWork" v-model:fresh="planFresh"
       :mode="confirmation" :project-id="project.id" :revision="project.revision" :title="draft.title" :working-dir="draft.working_dir" :planning-bias="draft.planning_bias"
       :planner-agent="draft.planner_agent" :planner-model="draft.planner_model" :dispatch-mode="draft.dispatch_mode" :delegator="delegator?.delegator ? agentLabel(delegator.delegator) : ''"
-      :stories="stories" :titles="nodeTitles" :needs-paid-work="needsPaidWork" :standards-check="project.standards_check" :error="error" :busy="busy" @close="confirmation = null" @confirm="confirmAction" />
+      :stories="stories" :titles="nodeTitles" :needs-paid-work="needsPaidWork" :standards-check="project.standards_check" :fixed="standardsFixed" :error="error" :busy="busy" @close="confirmation = null; standardsFixed = []" @confirm="confirmAction" @fix="fixStandards" />
     <ModalShell class="project-dialog" v-if="accepting" labelledby="accept-handoff-title" @close="accepting = null"><form @submit.prevent="accept"><h2 id="accept-handoff-title">{{ integrationReview ? 'Confirm prerequisite integration' : 'Accept story handoff' }}</h2><p><strong>{{ accepting.title }}</strong></p><p class="muted">Verify its definition of done in the task and review artifacts/checks. Edit the summary below into the context the next agent should receive.</p><p v-if="integrationReview" class="notice-warn">Resolve the prerequisite changes in this story workspace, then verify the integrated files. Confirming this records your decision; the story remains Failed until you explicitly retry it and review its result.</p><RouterLink :to="`/tasks?card=${accepting.card_id}`">Open task and run evidence</RouterLink><p v-if="project?.workspaces[accepting.node_key]" class="notice-warn">Review the story branch {{ project.workspaces[accepting.node_key]?.branch }}. Review and select each changed file below, or commit your reviewed changes locally before acceptance. Dependent stories receive the accepted commits. Nothing is merged into the source repository.</p><div v-if="artifact?.files.length" class="choices"><h3>Files for this local snapshot</h3><p class="small muted">Select only after reviewing these changes. Untracked file contents must be checked in the workspace; the diff below covers tracked files. Every changed file must be selected or committed/reverted outside RCD.</p><label v-for="file in artifact.files" :key="file" class="check"><input v-model="selectedFiles" type="checkbox" :value="file" />{{ file }}</label><details><summary>Review tracked changes</summary><pre>{{ artifact.diff || 'No tracked diff. Inspect the new files in the workspace.' }}</pre></details></div><section v-if="artifact?.output"><h3>Proposed Markdown document</h3><p class="workspace-path">{{ artifact.output.path }}</p><pre class="output-preview">{{ artifact.output.markdown }}</pre><label class="check"><input v-model="outputReviewed" type="checkbox" />I reviewed this document against the story’s definition of done.</label></section><label>Verified handoff<textarea v-model="handoff" class="input" rows="8" required maxlength="12000" placeholder="Changes and paths, checks/results, decisions, remaining risks and next steps" /></label><p v-if="error" class="notice-warn" role="alert">{{ error }}</p><div class="dialog-actions"><button type="button" class="btn" @click="accepting = null">Keep in review</button><button class="btn primary" :disabled="busy || !handoff.trim() || !artifact || (!!artifact.output && !outputReviewed)">{{ integrationReview ? 'Confirm integration' : 'Accept handoff' }}</button></div></form></ModalShell>
     <ModalShell class="project-dialog" v-if="retierDialog" labelledby="retier-title" @close="retierDialog = false">
       <form @submit.prevent="retierProject">

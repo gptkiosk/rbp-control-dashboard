@@ -10,19 +10,20 @@ import { agentLabel } from '@/lib/cards'
 import { planningBiasLabel, type ProjectNode } from '@/lib/projects'
 
 // The confirmation step before planning or submitting a project: what will happen, what the standards check says, and the approvals it needs.
-interface Check { source?: string | null; property?: string | null; problems: string[]; areas: string[] }
+interface Check { source?: string | null; property?: string | null; problems: string[]; areas: string[]; fixable?: number }
 const props = defineProps<{
   mode: 'plan' | 'submit'
   projectId: number; revision: number; title: string; workingDir: string; planningBias: number
   plannerAgent: string; plannerModel: string; dispatchMode: 'sequential' | 'parallel'
   delegator: string; stories: ProjectNode[]; titles: Record<string, string>
   needsPaidWork: boolean; standardsCheck?: Check | null; error: string; busy: boolean
+  fixed?: string[]
 }>()
 const coordination = defineModel<boolean>('coordination', { required: true })
 const paidPlanner = defineModel<boolean>('paidPlanner', { required: true })
 const paidWork = defineModel<boolean>('paidWork', { required: true })
 const fresh = defineModel<boolean>('fresh', { required: true })
-const emit = defineEmits<{ close: []; confirm: [] }>()
+const emit = defineEmits<{ close: []; confirm: []; fix: [] }>()
 
 const recovery = ref<RecoveryInfo|null>(null)
 onMounted(async () => { if (props.mode === 'plan') { try { recovery.value = await getJson('/api/profile/route-reliability') } catch { recovery.value = null } } })
@@ -67,7 +68,15 @@ const unknownArea = computed(() => problems.value.some(p => p.includes("this rep
           <h3 class="result-title">{{ blocked ? `Standards check: ${problems.length} ${problems.length === 1 ? 'thing needs' : 'things need'} fixing` : 'Standards check: passes' }}</h3>
           <ul v-if="blocked"><li v-for="p in problems" :key="p">{{ p }}</li></ul>
           <p v-if="unknownArea && standardsCheck.areas.length" class="small">Areas these standards list: {{ standardsCheck.areas.join(', ') }}.</p>
-          <p v-if="blocked" class="small">Go back to the map and fix these, or plan again from scratch. This cannot be submitted until they are fixed.</p>
+          <template v-if="blocked">
+            <p v-if="standardsCheck.fixable" class="small">Fix automatically raises each risk to its area’s minimum and moves high-risk stories off free routes onto a fallback this plan already approved. It saves a new revision for you to review.</p>
+            <div v-if="standardsCheck.fixable" class="fix-row"><button type="button" class="btn primary" data-action="standards-fix" :disabled="busy" @click="emit('fix')">Fix automatically ({{ standardsCheck.fixable }})</button></div>
+            <p class="small">{{ standardsCheck.fixable ? 'Anything left after that needs an edit on the map: choose a subscription route or make it a human review.' : 'Go back to the map and fix these, or plan again from scratch. This cannot be submitted until they are fixed.' }}</p>
+          </template>
+        </section>
+        <section v-if="fixed?.length" class="result good" role="status" data-testid="standards-fixed">
+          <h3 class="result-title">Fixed automatically</h3>
+          <ul><li v-for="f in fixed" :key="f">{{ f }}</li></ul>
         </section>
 
         <details class="fold">
@@ -144,4 +153,5 @@ p { margin: 0; line-height: var(--line-height); }
   .facts > div { grid-template-columns: 1fr; gap: var(--gap-xs); }
   .actions .btn { flex: 1 1 100%; }
 }
+.fix-row { display:flex; gap:var(--gap-sm); margin:var(--gap-xs) 0; }
 </style>
