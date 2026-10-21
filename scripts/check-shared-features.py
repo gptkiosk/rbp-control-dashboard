@@ -5,16 +5,16 @@ import ast
 import json
 from pathlib import Path
 
-SHARED_FILES = ['apps/web/src/components/OverviewAgents.vue', 'apps/web/src/__tests__/OverviewAgents.spec.ts', 'apps/api/route_reliability.py', 'apps/api/agent_setup.py',
+SHARED_FILES = ['apps/web/src/components/QueuedTaskRouteAction.vue', 'apps/web/src/__tests__/QueuedTaskRouteAction.spec.ts', 'apps/web/src/components/OverviewAgents.vue', 'apps/web/src/__tests__/OverviewAgents.spec.ts', 'apps/api/route_reliability.py', 'apps/api/agent_setup.py',
     'apps/api/routes/profiles.py', 'apps/api/routes/billing.py',
     'apps/web/src/lib/routeRecovery.ts', 'apps/web/src/lib/profile.ts',
     'apps/web/src/components/RouteRecoveryPanel.vue', 'apps/web/src/components/RouteRecoveryNotice.vue',
     'apps/web/src/components/ProjectPlanningRetryAction.vue', 'apps/web/src/components/TaskRetryAction.vue',
     'apps/api/tests/test_route_reliability.py', 'apps/web/src/__tests__/RouteRecoveryPanel.spec.ts',
     'apps/web/src/__tests__/ProjectPlanningRetryAction.spec.ts']
-SHARED_FUNCTIONS = ['_queue', '_next_planning_route', 'planning_retry_routes', '_planning_route_allowed',
+SHARED_FUNCTIONS = ['change_queued_route', 'pending_subscription_routes', '_queue', '_next_planning_route', 'planning_retry_routes', '_planning_route_allowed',
     '_retry_unusable_planning_result', 'plan', 'retry_planning_task', 'add_recovery_routes', 'submit']
-SHARED_SCHEMAS = ['Route', 'Node', 'Document', 'Action', 'Retry', 'GoFree', 'LowCostRetry', 'PayRetry']
+SHARED_SCHEMAS = ['QueuedRouteChange', 'Route', 'Node', 'Document', 'Action', 'Retry', 'GoFree', 'LowCostRetry', 'PayRetry']
 
 
 def normalized(value):
