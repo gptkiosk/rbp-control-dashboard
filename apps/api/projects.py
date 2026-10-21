@@ -38,6 +38,7 @@ from settings import get_settings
 BUSY = {'planning', 'dispatching', 'active', 'paused', 'complete'}
 AUTO_HANDOFF_PREFIX = 'Agent-reported completion passed under operator project-wide handoff approval; not independently verified.\n'
 CONTEXT_PAYLOAD_BUDGET = 16 * 1024
+BRIEF_LIMIT = 6000    # what every story carries of the brief; a longer one is cut with a pointer to the full file (brief_path)
 CONTEXT_MEMORY_LIMIT = 2000
 CONTEXT_DIRECT_LIMIT = 3500   # a direct prerequisite's handoff keeps this much of its own text
 CONTEXT_DIGEST_LIMIT = 700    # an earlier story in the lineage is a digest; the rest is in the ledger file
@@ -503,7 +504,7 @@ def standards_message(std,broken):
     tail=["Areas these standards list: "+', '.join(areas)+'.'] if areas and any("this repository's areas" in b for b in broken) else []
     return '\n'.join([head,*lines,*tail])
 
-def standards_check(p,settings=None):
+def standards_check(p,settings=None,s=None):
     """The standards check a submission would run, for the Projects page: what the plan breaks right now. None when there is nothing to check."""
     d=document(p)
     if not d.get('nodes'): return None
@@ -517,15 +518,16 @@ def standards_check(p,settings=None):
     except Exception:
         return None
     try:
-        fixable=len(standards_fixes(p,settings)[1]) if broken else 0
+        fixable=len(standards_fixes(p,settings,s)[1]) if broken else 0
     except Exception:
         fixable=0
     return {'source':std.get('source'),'property':std.get('property'),'problems':list(dict.fromkeys(broken)),'areas':sorted(a['slug'] for a in std.get('areas',[])),'fixable':fixable}
 
-def standards_fixes(p,settings=None):
+def standards_fixes(p,settings=None,s=None):
     """What Fix automatically would change, without changing anything: (document, change sentences). Every change is in the safe direction or
     uses a route the plan already approved: a story's risk is raised to its area's minimum; a high-risk story loses its free fallback routes; and a
-    high-risk story on a free main route moves to its first fallback that is not free. A high-risk story with no such fallback is left for the operator."""
+    high-risk story on a free main route moves to its first fallback that is not free, or, with none, to the cheapest subscription route this host
+    allows (membership quota, not API billing; listed in the changes). A high-risk story with neither is left for the operator."""
     import copy
     d=document(p)
     std=standards.resolve(d['working_dir'],(settings or get_settings()).data_dir)
@@ -534,6 +536,10 @@ def standards_fixes(p,settings=None):
     free_ok=(std.get('rules') or {}).get('high_risk_free_routes')=='allowed'
     nodes=copy.deepcopy(d['nodes']);changes=[]
     name=lambda r:f"{r['agent']} · {r['model'] or 'default'}"
+    subscription_routes=[]
+    if s is not None:
+        try: subscription_routes=[{'agent':r['agent'],'model':r['model']} for r in recovery.options(s,settings or get_settings()) if r['allowed'] and r['price_class']=='subscription']
+        except Exception: subscription_routes=[]
     for n in nodes:
         if n.get('kind')!='story': continue
         floor=floors.get(n.get('area') or '')
@@ -549,11 +555,16 @@ def standards_fixes(p,settings=None):
             changes.append(f"{n['key']}: moved from {name({'agent':n['assignee'],'model':n['model']})} to {name(new)}, its first approved fallback that is not free")
             n['assignee'],n['model']=new['agent'],new['model']
             if new['agent']!='openclaw': n['agent_target']=''
+        elif _tier_of(n)=='free' and subscription_routes:
+            new=subscription_routes[0]
+            changes.append(f"{n['key']}: moved from {name({'agent':n['assignee'],'model':n['model']})} to {name(new)}, the cheapest subscription route on this host, because it has no approved fallback that is not free")
+            n['assignee'],n['model']=new['agent'],new['model']
+            if new['agent']!='openclaw': n['agent_target']=''
     return {**d,'nodes':nodes},changes
 
 def fix_standards(s,p,revision,settings,actor):
     """Apply standards_fixes as a new plan revision, recorded in project memory. Returns the change sentences."""
-    fixed,changes=standards_fixes(p,settings)
+    fixed,changes=standards_fixes(p,settings,s)
     if not changes: fail('Nothing here can be fixed automatically. Edit the stories the standards check lists.',409)
     save(s,p,fixed,revision,settings,actor)
     memory(s,p,'decision','Standards fixed automatically: '+'; '.join(changes),actor)
@@ -614,7 +625,7 @@ def detail(s, p):
         'pipeline':json.loads(p.pipeline) if p.pipeline else None, 'error':p.error,
         'route_reliability':recovery.payload(s,get_settings(),p.created_by) if p.state in {'planning_failed','dispatch_failed','active','paused'} else None,
         'handoff_approval':handoff_approval(s,p), 'model_lock':model_locked(p),
-        'schedule':plan_schedule(p), 'timing':plan_timing(s,p), 'standards_check':standards_check(p),
+        'schedule':plan_schedule(p), 'timing':plan_timing(s,p), 'standards_check':standards_check(p,None,s),
         'workspaces':json.loads(p.approved_manifest).get('workspaces',{}) if p.approved_manifest else {},
         'artifacts':json.loads(p.approved_manifest).get('artifacts',{}) if p.approved_manifest else {},
         'created_by':p.created_by, 'created_at':p.created_at, 'updated_at':p.updated_at,
@@ -718,7 +729,24 @@ def _brief(p, include_nodes=False):
     d=document(p)
     payload={k:d[k] for k in (('title','brief','constraints','nodes') if include_nodes else ('title','brief','constraints'))}
     payload.update(planning_bias=d['planning_bias'], assignment_policy=planning_policy(d['planning_bias']), dispatch_mode=d['dispatch_mode'])
+    if (art:=_reference_art(d)): payload['reference_art']=art
+    if d.get('repository'): payload['repository']=_repository_note(d)
     return json.dumps(payload,ensure_ascii=False)
+
+def _repository_note(d):
+    """What the planner and stories are told about the project's repository: a few words, no paths beyond the clone folder."""
+    r=d['repository']
+    if r.get('repo'):
+        return {'repo':r['repo'],'folder':r['folder'],'branch':r['branch'],'use':'Work inside this clone folder on this branch; the dashboard created the repository and the branch grant.'}
+    return {'name':r['name'],'use':'The dashboard creates this private repository, clones it into the project folder and grants its setup branch when the plan is submitted. Do not plan repository creation, cloning or branch grants.'}
+
+def _reference_art(d):
+    """Where the operator's reference images for this project are, for the planner and every story. None without any."""
+    try:
+        import media_references
+        return media_references.context_note(Path(d['working_dir']).expanduser())
+    except (OSError, KeyError, ValueError):
+        return None
 
 CONSULTANT_CONTEXT_MAX = 20000
 
@@ -1086,7 +1114,7 @@ def _planner_prompt(p,catalog=None,s=None,fresh=False):
     return text+('\n\n'+typed if typed else '')+('\n\nThis installation:\n'+where if where else '')+('\n'+extra if extra else '')
 
 
-def submit(s,p,action,settings,actor):
+def submit(s,p,action,settings,actor,github_store=None):
     check_revision(p,action.revision)
     if p.state in {'dispatching','active','paused','complete'}: return
     if p.state=='planning': fail('Wait for planning to finish.')
@@ -1126,6 +1154,15 @@ def submit(s,p,action,settings,actor):
     for n in d['nodes']:
         if n['kind']=='story':
             probe=cards.create(s,_story_data(p,d,n),settings,'hermes'); s.delete(probe); s.flush()
+    if (repo:=d.get('repository')) and not repo.get('repo'):
+        # Step 1 of the plan, run by the dashboard itself once everything else has been checked: the private repository, its clone and branch grant.
+        import repo_setup, agent_git
+        try: made=repo_setup.setup(settings,p.id,d['working_dir'],repo['name'],d['title'],github_store=github_store)
+        except repo_setup.RepoSetupError as exc: fail(str(exc),exc.status)
+        except agent_git.GrantError as exc: fail('The branch grant could not be written: '+str(exc),422)
+        d['repository']={**repo,'repo':made['repo'],'folder':made['folder'],'branch':made['branch']}
+        p.document=json.dumps({**document(p),'repository':d['repository']})
+        memory(s,p,'decision','Repository set up by the dashboard: '+' '.join(made['done']),actor)
     manifest={'revision':p.revision,'document':d,'order':ordered(d['nodes']),
         'branch':approval.current_branch(Path(d['working_dir'])),'approved_by':actor,'approved_at':now(),
         'fallback_models':{a:subscription_model(a,d['planning_bias']) for a in ('claude','codex')},
@@ -1395,12 +1432,12 @@ def forget_project_files(settings,pid):
 def protect(s,card):
     if binding(s,card.id): fail('This task belongs to an approved project. Use Projects for handoff acceptance/retry; its scope and dependencies cannot be changed on the board.')
 
-def _context_excerpt(value,limit):
-    """Bound repeated context without changing the append-only source evidence."""
+def _context_excerpt(value,limit,where='Projects'):
+    """Bound repeated context without changing the append-only source evidence. `where` tells the agent where the full text is."""
     value=str(value or '')
     if len(value)<=limit:return value
     digest=hashlib.sha256(value.encode()).hexdigest()[:12]
-    marker=f'\n[… {len(value)-limit} characters omitted; full text in Projects; sha256 {digest}]'
+    marker=f'\n[… {len(value)-limit} characters omitted; read the full text in {where}; sha256 {digest}]'
     return value[:max(0,limit-len(marker))]+marker
 
 
@@ -1423,6 +1460,23 @@ def _digest(value, limit, ref=''):
 
 def ledger_path(settings, p):
     return settings.data_dir / 'project-ledgers' / f'project-{p.id}.md'
+
+def write_brief(p, d):
+    """The full brief as a file beside the ledger, for the stories whose prompt carries only its first BRIEF_LIMIT characters.
+    Written only when the brief is longer than that, and only when it changed. Returns the path, or None."""
+    brief=str(d.get('brief') or '')
+    if len(brief)<=BRIEF_LIMIT: return None
+    try:
+        path=ledger_path(get_settings(),p).with_name(f'project-{p.id}-brief.md')
+        if path.exists() and path.read_text(encoding='utf-8')==brief: return str(path)
+        path.parent.mkdir(mode=0o700,parents=True,exist_ok=True)
+        tmp=path.with_suffix('.tmp')
+        fd=os.open(tmp,os.O_WRONLY|os.O_CREAT|os.O_TRUNC,0o600)
+        with os.fdopen(fd,'w',encoding='utf-8') as f: f.write(brief)
+        os.replace(tmp,path)
+        return str(path)
+    except OSError:
+        return None
 
 def write_ledger(s, p):
     """The complete, uncompacted ledger as one Markdown file, rewritten only when it changed.
@@ -1494,12 +1548,14 @@ def context_payload(s,p,story=None,workspace=None):
     nodes=[{k:n.get(k) for k in ('key','title','assignee','model','depends_on')} for n in story_nodes]
     artifact_keys=visible if story else set(manifest.get('artifacts',{}))
     payload={'execution_workspace':workspace or d['working_dir'],'project_id':p.id,'revision':manifest['revision'],'title':d['title'],
-        'brief':_context_excerpt(d['brief'],5000),'constraints':_context_excerpt(d['constraints'],3000),'stories':nodes,'accepted_memory':[],
+        'brief':_context_excerpt(d['brief'],BRIEF_LIMIT,write_brief(p,d) or 'Projects'),'constraints':_context_excerpt(d['constraints'],3000),'stories':nodes,'accepted_memory':[],
         'accepted_artifacts':{k:{f:(a.get(f)[:50] if isinstance(a.get(f),list) else a.get(f)) for f in ('workspace','branch','head','commits','files')} for k,a in manifest.get('artifacts',{}).items() if k in artifact_keys},
         'memory_compaction':{'mode':'deterministic_dependency_aware','budget_bytes':CONTEXT_PAYLOAD_BUDGET,
             'ledger_entries_scanned':len(rows),'entries_included':0,'entries_omitted':0,'digested':0,
             'full_ledger':ledger or 'Projects > Shared memory'}}
     payload['accepted_outputs']={k:{f:g[f] for f in ('path','sha256')} for k,g in manifest.get('output_continuations',{}).items() if g['state']=='accepted' and (not story or k in visible)}
+    if (art:=_reference_art(d)): payload['reference_art']=art
+    if d.get('repository'): payload['repository']=_repository_note(d)
     if story:
         current=by_key[story]
         payload['current_story']={k:current.get(k) for k in ('key','title','depends_on','assignee','model','agent_target')}
@@ -1522,6 +1578,8 @@ def context_payload(s,p,story=None,workspace=None):
                 'result_text':_digest((run.result_text or '') if run else handoff.text,CONTEXT_DIRECT_LIMIT,f'run {handoff.run_id}')}
     selected=[]
     digested=0
+    # A bounded brief keeps every story's prompt small; the cut-off names the file with the rest, so nothing is lost.
+    budget=CONTEXT_PAYLOAD_BUDGET+max(0,len(str(d['brief'])[:BRIEF_LIMIT].encode())-5000)
     for r in candidates:
         ref=f'ledger #{r.id}'
         # Full text for what the story builds on directly, a digest for the rest of the lineage and a
@@ -1533,14 +1591,14 @@ def context_payload(s,p,story=None,workspace=None):
         record={'id':r.id,'kind':r.kind,'actor':r.actor,'card_id':r.card_id,'run_id':r.run_id,'text':text}
         digested+=len(text)<len(str(r.text or '').strip())
         payload['accepted_memory'].append(record)
-        if len(json.dumps(payload,ensure_ascii=False).encode())>CONTEXT_PAYLOAD_BUDGET:
+        if len(json.dumps(payload,ensure_ascii=False).encode())>budget:
             payload['accepted_memory'].pop()
         else:selected.append(record)
     payload['accepted_memory']=list(reversed(selected))
     payload['memory_compaction']['digested']=sum(1 for m in payload['accepted_memory'] if '[digest of' in m['text'])
     # Stable keys first (identical across the stories of a revision, so a prompt cache can reuse
     # them), what varies per story after, and the story's own location and identity last.
-    order=['project_id','revision','title','brief','constraints','stories','accepted_artifacts','accepted_outputs',
+    order=['project_id','revision','title','brief','constraints','reference_art','repository','stories','accepted_artifacts','accepted_outputs',
         'memory_compaction','accepted_memory','upstream_outputs','execution_workspace','current_story','free_retry']
     payload={k:payload[k] for k in order if k in payload}
     payload['memory_compaction']['entries_included']=len(payload['accepted_memory'])
@@ -1970,6 +2028,7 @@ def pin_free_routes(s,proposed,settings):
         if n.get('kind')!='story' or n['assignee'] not in free: continue
         models=free[n['assignee']]
         priced=n['model'] and reviewed_route_class(s,settings,SimpleNamespace(agent=n['assignee'],agent_target=n.get('agent_target') or '',id=None),n['model']) in {'free','subscription','paid'}
+        if not priced and n.get('risk')=='high': continue   # a free main route is not allowed there; the standards check asks for a choice
         if not priced:
             own=(targets.get(n.get('agent_target') or '') or {}).get('model') if n['assignee']=='openclaw' else None
             n['model']=own if own in models else models[0]

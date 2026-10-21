@@ -3,6 +3,7 @@ import NoteFold from '@/components/NoteFold.vue'
 import PanelHead from '@/components/PanelHead.vue'
 import { computed, onMounted, ref } from 'vue'
 import { ApiError, getJson, postJson } from '@/lib/api'
+import { formatBytes } from '@/lib/format'
 
 // Housekeeping: findings the server worked out by fixed rules (no model), and fixes only the operator can approve.
 // The coordinator (Hermes) may read the findings and propose a fix, which appears here for a decision.
@@ -10,6 +11,7 @@ interface Finding { id: string; kind: string; reason: string; action: string; ev
 interface Outcome { id: string; status: string; reason?: string }
 interface Proposal { id: number; created_by: string; summary: string; finding_ids: string[]; status: string; decided_by: string | null; result: Outcome[] | null }
 interface AutoStatus { enabled: boolean; classes: string[]; window: string; last_run: number | null; last_applied: number; last_summary: string | null; in_window: boolean }
+interface MediaStorage { projects: { project_id: number; title: string; references_bytes: number; candidates_bytes: number; media_bytes: number }[]; total_media_bytes: number; total_candidates_bytes: number; disk: { free_bytes: number; total_bytes: number } | null }
 interface Overview { findings: Finding[]; proposals: Proposal[]; retention: { keep_newest_backups: number; backup_min_age_days: number }; auto?: AutoStatus }
 
 const data = ref<Overview | null>(null)
@@ -47,7 +49,11 @@ const decide = (p: Proposal, approve: boolean) => run(async () => {
   const r = await postJson<Proposal>(`/api/maintenance/proposals/${p.id}/${approve ? 'approve' : 'reject'}`)
   notice.value = approve ? summarize(r.result ?? []) : 'Proposal rejected. Nothing was changed.'; await load()
 })
-onMounted(load)
+// Project media space, read separately so a problem reading folders never hides the findings above.
+const storage = ref<MediaStorage | null>(null)
+async function loadStorage() { try { storage.value = await getJson<MediaStorage>('/api/media/storage') } catch { storage.value = null } }
+const diskUsed = computed(() => storage.value?.disk ? 1 - storage.value.disk.free_bytes / storage.value.disk.total_bytes : null)
+onMounted(() => { void load(); void loadStorage() })
 </script>
 <template>
   <section id="housekeeping" class="card housekeeping" aria-labelledby="housekeeping-title">
@@ -73,6 +79,17 @@ onMounted(load)
           <button class="btn" :disabled="busy" @click="decide(p, false)">Reject</button>
         </div>
       </article>
+    </section>
+
+    <section v-if="storage" class="block storage" aria-label="Project media storage" data-testid="media-storage">
+      <h3>Project media storage</h3>
+      <p class="small">Project media uses {{ formatBytes(storage.total_media_bytes) }}, of which generated takes are {{ formatBytes(storage.total_candidates_bytes) }}.<template v-if="storage.disk"> Disk: {{ formatBytes(storage.disk.free_bytes) }} free of {{ formatBytes(storage.disk.total_bytes) }}.</template></p>
+      <div v-if="diskUsed !== null" class="bar" :class="{ low: diskUsed > 0.9 }" role="meter" :aria-valuenow="Math.round(diskUsed * 100)" aria-valuemin="0" aria-valuemax="100" aria-label="Disk space used"><span :style="{ width: `${Math.round(diskUsed * 100)}%` }" /></div>
+      <ul v-if="storage.projects.length" class="largest">
+        <li v-for="p in storage.projects.slice(0, 5)" :key="p.project_id"><span>{{ p.title || `Project ${p.project_id}` }}</span><span class="muted">{{ formatBytes(p.media_bytes) }}<template v-if="p.candidates_bytes"> · takes {{ formatBytes(p.candidates_bytes) }}</template></span><RouterLink :to="`/projects?project=${p.project_id}&view=media`">Open media studio</RouterLink></li>
+      </ul>
+      <p v-else class="muted small">No project has media yet.</p>
+      <p class="muted small">Generated takes you have already decided can be cleared in each project's Media studio; published files and reference art are kept.</p>
     </section>
 
     <section class="block" aria-label="Findings">
@@ -109,4 +126,10 @@ h3 { font-size: var(--font-size); font-weight: var(--font-weight-strong); }
 .check { display: flex; align-items: flex-start; gap: var(--gap-sm); line-height: var(--line-height); }
 .check input { flex: none; margin-top: 0.3rem; accent-color: var(--accent); }
 summary { cursor: pointer; padding: var(--gap-xs) 0; }
+.storage .bar { height: 0.4rem; border-radius: var(--radius-pill); background: var(--surface-border); overflow: hidden; }
+.storage .bar span { display: block; height: 100%; background: var(--accent); }
+.storage .bar.low span { background: var(--warn); }
+.largest { display: grid; gap: var(--gap-xs); padding: 0; margin: 0; list-style: none; }
+.largest li { display: flex; flex-wrap: wrap; gap: var(--gap-sm); align-items: baseline; }
+.largest li a { margin-left: auto; }
 </style>

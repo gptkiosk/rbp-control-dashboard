@@ -71,3 +71,14 @@ it('offers Fix automatically when the server can fix the problems, and lists wha
   expect(confirmButton().disabled).toBe(false)
   w.unmount()
 })
+
+
+it('shows the dashboard-run repository setup as step 1, and the repository once it exists', async () => {
+  const w = open(base({ repository: { name: 'twodoors-website', repo: '', folder: '', branch: '' } }))
+  expect(dlg().querySelector('[data-testid=repo-step]')!.textContent).toContain('twodoors-website')
+  expect(dlg().querySelector('[data-testid=repo-step]')!.textContent).toContain('before any story runs')
+  await w.setProps({ repository: { name: 'twodoors-website', repo: 'gptkiosk/twodoors-website', folder: 'twodoors-website', branch: 'project-5/setup' } } as never)
+  expect(dlg().querySelector('[data-testid=repo-step]')).toBeNull()
+  expect(dlg().textContent).toContain('gptkiosk/twodoors-website · twodoors-website/ · project-5/setup')
+  w.unmount()
+})

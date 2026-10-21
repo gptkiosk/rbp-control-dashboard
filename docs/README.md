@@ -12,6 +12,7 @@ The public RCD repository currently contains documentation, license and communit
 | Release gates and source publication | [Readiness](release/readiness.md) |
 | Reachable preview and temporary VM lifecycle | [UI testing](development/ui-testing.md) |
 | Agent-managed collaboration | [Agent workflow](development/agent-workflow.md) |
+| Standing rules agents must not undo (parity, bounded prompts, setup, models and failover) | [Engineering rules](development/engineering-rules.md) |
 | How a release reaches users (changelog, tag, signed package, verification, publishing, updates) | [Release and update pipeline](development/distribution.md) |
 | What an update keeps, replaces and never touches | [What survives an update](configuration/upgrades-and-your-data.md) |
 | Model profiles: facts, observed numbers and notes | [Model profiles](configuration/model-profiles.md) |

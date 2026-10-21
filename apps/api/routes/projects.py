@@ -107,7 +107,7 @@ def plan(project_id:int,body:Action,request:Request,s:Session=Depends(get_sessio
 @router.post('/{project_id}/submit')
 def submit(project_id:int,body:Action,request:Request,s:Session=Depends(get_session)):
     identity=actor(request);write(s);p=projects.get(s,project_id)
-    projects.submit(s,p,body,get_settings(),identity);s.commit();return projects.detail(s,p)
+    projects.submit(s,p,body,get_settings(),identity,getattr(request.app.state,'github_config',None));s.commit();return projects.detail(s,p)
 
 @router.post('/{project_id}/resume-plan')
 def resume_plan(project_id:int,body:Action,request:Request,s:Session=Depends(get_session)):

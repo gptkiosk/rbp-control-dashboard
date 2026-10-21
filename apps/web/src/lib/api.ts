@@ -69,6 +69,14 @@ async function send<T>(method: 'POST' | 'PATCH' | 'PUT' | 'DELETE', path: string
   return (await res.json()) as T
 }
 
+/** POST a file as the raw request body (no multipart), with the request-guard header. Throws ApiError with the server's `detail`. */
+export async function postFile<T>(path: string, file: Blob): Promise<T> {
+  const res = await fetch(path, { method: 'POST', cache: 'no-store', body: file,
+    headers: { Accept: 'application/json', [GUARD_HEADER]: '1', 'Content-Type': file.type || 'application/octet-stream' } })
+  if (!res.ok) throw await toApiError(res)
+  return (await res.json()) as T
+}
+
 /** POST JSON (or nothing) with the request-guard header. Throws ApiError with the server's `detail`. */
 export function postJson<T>(path: string, body?: unknown): Promise<T> {
   return send<T>('POST', path, body)

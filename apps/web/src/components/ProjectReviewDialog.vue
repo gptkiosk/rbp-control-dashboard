@@ -18,6 +18,7 @@ const props = defineProps<{
   delegator: string; stories: ProjectNode[]; titles: Record<string, string>
   needsPaidWork: boolean; standardsCheck?: Check | null; error: string; busy: boolean
   fixed?: string[]
+  repository?: { name: string; repo: string; folder: string; branch: string } | null
 }>()
 const coordination = defineModel<boolean>('coordination', { required: true })
 const paidPlanner = defineModel<boolean>('paidPlanner', { required: true })
@@ -54,6 +55,8 @@ const unknownArea = computed(() => problems.value.some(p => p.includes("this rep
         <div><dt>Story preference</dt><dd>{{ planningBiasLabel(planningBias) }}</dd></div>
         <div v-if="mode === 'plan'"><dt>Planner</dt><dd>{{ planner }}</dd></div>
         <div v-else><dt>Build</dt><dd>{{ dispatchMode === 'parallel' ? 'In parallel, in separate branches' : 'One story at a time, in dependency order' }}</dd></div>
+        <div v-if="repository && !repository.repo" data-testid="repo-step"><dt>Step 1</dt><dd>The dashboard creates the private repository <strong>{{ repository.name }}</strong> with this host's gh sign-in, clones it into the working directory and gives agents its setup branch{{ mode === 'submit' ? ', before any story runs' : ' when you submit' }}.</dd></div>
+        <div v-else-if="repository?.repo"><dt>Repository</dt><dd class="mono">{{ repository.repo }} · {{ repository.folder }}/ · {{ repository.branch }}</dd></div>
       </dl>
 
       <template v-if="mode === 'plan'">
@@ -69,7 +72,7 @@ const unknownArea = computed(() => problems.value.some(p => p.includes("this rep
           <ul v-if="blocked"><li v-for="p in problems" :key="p">{{ p }}</li></ul>
           <p v-if="unknownArea && standardsCheck.areas.length" class="small">Areas these standards list: {{ standardsCheck.areas.join(', ') }}.</p>
           <template v-if="blocked">
-            <p v-if="standardsCheck.fixable" class="small">Fix automatically raises each risk to its area’s minimum and moves high-risk stories off free routes onto a fallback this plan already approved. It saves a new revision for you to review.</p>
+            <p v-if="standardsCheck.fixable" class="small">Fix automatically raises each risk to its area’s minimum and moves high-risk stories off free routes: onto a fallback this plan already approved, or else onto the cheapest subscription route on this host. It saves a new revision for you to review.</p>
             <div v-if="standardsCheck.fixable" class="fix-row"><button type="button" class="btn primary" data-action="standards-fix" :disabled="busy" @click="emit('fix')">Fix automatically ({{ standardsCheck.fixable }})</button></div>
             <p class="small">{{ standardsCheck.fixable ? 'Anything left after that needs an edit on the map: choose a subscription route or make it a human review.' : 'Go back to the map and fix these, or plan again from scratch. This cannot be submitted until they are fixed.' }}</p>
           </template>
