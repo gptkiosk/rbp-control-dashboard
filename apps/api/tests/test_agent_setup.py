@@ -36,7 +36,9 @@ def setup_app(make_client, monkeypatch, tmp_path):
         if argv[1:3] == ['agents', 'add']:
             cfg = json.loads(openclaw.read_text())
             cfg['agents']['list'].append({'id': argv[3]})
-            openclaw.write_text(json.dumps(cfg))
+            staged = openclaw.with_suffix('.tmp')
+            staged.write_text(json.dumps(cfg))
+            staged.replace(openclaw)  # background list queries must see a complete fixture snapshot
             return 0, '{}'
         return 1, 'unexpected'
 
