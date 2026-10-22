@@ -7,7 +7,7 @@ const release = ref<ReleaseEnvelope | null>(null)
 const year = new Date().getFullYear()
 const webSha = import.meta.env.VITE_APP_VERSION ?? ''
 const label = computed(() => releaseLabel(release.value, webSha))
-const owner = computed(() => release.value?.owner || 'Pi Control')
+const owner = 'Bamcio LLC'
 const product = computed(() => release.value?.product || 'Raspberry Pi Control Dashboard')
 
 onMounted(async () => {

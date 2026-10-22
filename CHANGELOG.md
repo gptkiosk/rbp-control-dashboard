@@ -12,6 +12,10 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [0.6.51] - 2026-10-22
 
+### Changed
+
+- **Bamcio LLC is now the fixed product footer owner.** The standard footer identifies the product and Bamcio LLC, then reports version, environment and API/web commit identifiers. The signed-out screen uses the same ownership.
+
 ### Fixed
 
 - **Repository-backed plans now require verified delivery.** Coordinator guidance requires a final branch-publish story after checks, confirmation that the remote has the exact commit, an optional pull request when requested, and a recorded pipeline result. A local commit or an empty setup branch no longer counts as delivery evidence.

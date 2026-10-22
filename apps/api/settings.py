@@ -68,7 +68,7 @@ class Settings(BaseSettings):
     )
 
     environment: str = Field(default="local", description="local | test")
-    organization_name: str = Field(default="RCD")
+    organization_name: str = Field(default="Bamcio LLC")
     product_name: str = Field(default="Raspberry Pi Control Dashboard")
     product_short_name: str = Field(default="RCD")
     host: str = Field(
