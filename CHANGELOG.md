@@ -10,6 +10,12 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.6.50] - 2026-10-22
+
+### Fixed
+
+- **Managed agent tools now survive Codex login-shell startup.** Agent runs restore their scrubbed dashboard tool path after `bash -lc` loads a user profile, so installed Node is available to `node --test` and other task commands.
+
 ## [0.6.49] - 2026-10-21
 
 ### Fixed
@@ -833,7 +839,8 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 - Claude Code stories may use web search and fetch without any shell, credential or publish permission.
 
 [0.3.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.0
-[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.49...HEAD
+[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.50...HEAD
+[0.6.50]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.49...v0.6.50
 [0.6.49]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.48...v0.6.49
 [0.6.48]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.47...v0.6.48
 [0.6.29]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.6.29
