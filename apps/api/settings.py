@@ -36,7 +36,13 @@ def tool_search_dirs() -> tuple[str, ...]:
     extra = [str(Path.home() / ".local" / "bin"), str(Path.home() / ".grok" / "bin"), "/usr/local/bin"]
     if IS_MACOS:
         extra.append("/opt/homebrew/bin")  # Homebrew's standard Apple-silicon prefix
-    return tuple(dict.fromkeys(d for d in (os.path.join(managed, "bin"), *os.environ.get("PATH", "").split(os.pathsep), *extra) if d))
+    # Node is a managed runtime rather than a wrapper in bin/.  Include it in
+    # agent processes as well as interactive tool discovery, otherwise a
+    # project can see Node as installed while `node --test` is unavailable to
+    # every dispatched story.
+    managed_node = os.path.join(managed, "tools", "node", "current", "bin")
+    return tuple(dict.fromkeys(d for d in (os.path.join(managed, "bin"), managed_node,
+                                           *os.environ.get("PATH", "").split(os.pathsep), *extra) if d))
 
 
 def find_tool(name: str) -> str:

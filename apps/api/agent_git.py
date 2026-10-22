@@ -217,7 +217,15 @@ def grant_for(settings, project_id: int, card) -> Grant | None:
     root = getattr(card, "working_dir", None)
     if not root:
         return grant
-    present = tuple(c for c in grant.clones if (Path(root) / c.dir / ".git").exists())
+    root_path = Path(root)
+    # Dashboard-created repositories become the project working directory at
+    # approval.  Their grant is recorded relative to the former parent, so
+    # recognise the clone itself and make its git commands relative to `.`.
+    direct = tuple(replace(c, dir=".") for c in grant.clones
+                   if c.dir == root_path.name and (root_path / ".git").exists())
+    if direct:
+        return replace(grant, clones=direct)
+    present = tuple(c for c in grant.clones if (root_path / c.dir / ".git").exists())
     if not present:
         return None
     return grant if len(present) == len(grant.clones) else replace(grant, clones=present)
