@@ -15,6 +15,7 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 ### Fixed
 
 - **Managed agent tools now survive Codex login-shell startup.** Agent runs restore their scrubbed dashboard tool path after `bash -lc` loads a user profile, so installed Node is available to `node --test` and other task commands.
+- **Story reruns are available from task details.** A successful agent story awaiting handoff now offers the same rerun action as the Project view.
 
 ## [0.6.49] - 2026-10-21
 
