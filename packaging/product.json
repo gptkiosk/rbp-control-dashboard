@@ -21,6 +21,7 @@
     "CHANGELOG.md",
     "SECURITY.md",
     "apps/api/*.py",
+    "apps/api/*.sh",
     "apps/api/alembic.ini",
     "apps/api/.env.example",
     "apps/api/requirements.in",

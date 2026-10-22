@@ -10,8 +10,12 @@ const props = defineProps<{ card: Card }>()
 const emit = defineEmits<{ changed: [] }>()
 const project = ref<Project | null>(null)
 const busy = ref(false), error = ref(''), notice = ref('')
-const visible = computed(() => props.card.project?.role === 'story' && props.card.assignee_type !== 'human' && props.card.column === 'failed')
+const story = computed(() => props.card.project?.role === 'story' && props.card.assignee_type !== 'human')
+const visible = computed(() => story.value && ['failed', 'review', 'done'].includes(props.card.column))
 const task = computed(() => project.value?.tasks.find(t => t.card_id === props.card.id && t.role === 'story'))
+const succeededRerunnable = computed(() => story.value && task.value?.run_stage === 'succeeded' &&
+  ((task.value.column === 'review' && project.value?.state === 'active') ||
+   (task.value.column === 'done' && ['active', 'complete'].includes(project.value?.state ?? ''))))
 // A run that finished and reported unfinished work can be accepted on the operator's say-so; a crash or timeout cannot (there is no report to accept).
 const acceptable = computed(() => !!task.value?.incomplete_reason && !!task.value.run_id && task.value.run_id === props.card.last_run?.id && ['active', 'paused'].includes(project.value?.state ?? '') && !notice.value)
 const timedOut = computed(() => props.card.last_run?.stage === 'timeout')
@@ -19,6 +23,7 @@ const timeoutAck = ref(false)
 // After a timeout RCD cannot tell what the attempt changed or whether it is still running, so a new attempt needs the operator's word that the partial work was reviewed.
 const ack = () => (timedOut.value ? { acknowledge_timeout: true } : {})
 const ready = computed(() => visible.value && !notice.value && project.value?.state === 'active' && task.value?.column === 'failed' && task.value.run_id === props.card.last_run?.id && (!timedOut.value || timeoutAck.value))
+const rerunReady = computed(() => ready.value || (!!succeededRerunnable.value && !busy.value && !notice.value && task.value?.run_id === props.card.last_run?.id))
 const alternatives = computed(() => (task.value?.retry_routes ?? []).filter(r => r.agent !== props.card.agent || r.model !== (props.card.model ?? '')))
 const limited = computed(() => /session limit|usage limit|quota|rate.?limit|limit reached/i.test(props.card.last_run?.error ?? ''))
 const freeRoutes = computed(() => task.value?.free_retry_routes ?? [])
@@ -79,7 +84,8 @@ function choosePaid() {
 async function current(base: string) {
   const p = await getJson<Project>(base)
   const t = p.tasks.find(x => x.card_id === props.card.id && x.role === 'story')
-  if (p.state !== 'active' || t?.column !== 'failed' || t.run_id !== props.card.last_run?.id) throw new Error('The task changed. Refresh before rerunning it.')
+  if (!['active', 'complete'].includes(p.state) || !t || !['failed', 'review', 'done'].includes(t.column) || t.run_id !== props.card.last_run?.id ||
+      (['review', 'done'].includes(t.column) && t.run_stage !== 'succeeded')) throw new Error('The task changed. Refresh before rerunning it.')
   return { p, t }
 }
 async function goCheap() {
@@ -110,13 +116,14 @@ async function goPaid() {
 }
 
 async function goFree() {
-  if (busy.value || !ready.value) return
+  if (busy.value || !rerunReady.value) return
   busy.value = true; error.value = ''
   try {
     const base = `/api/projects/${props.card.project!.id}`
     const p = await getJson<Project>(base)
     const current = p.tasks.find(t => t.card_id === props.card.id && t.role === 'story')
-    if (p.state !== 'active' || current?.column !== 'failed' || current.run_id !== props.card.last_run?.id)
+    if (!['active', 'complete'].includes(p.state) || !current || !['failed', 'review', 'done'].includes(current.column) || current.run_id !== props.card.last_run?.id ||
+        (['review', 'done'].includes(current.column) && current.run_stage !== 'succeeded'))
       throw new Error('The task changed. Refresh before rerunning it.')
     if (!current.free_retry_routes?.some(r => r.model === freeModel.value && r.agent_target === freeTarget.value))
       throw new Error('This free route is no longer configured. Refresh before selecting a model.')
@@ -148,20 +155,22 @@ async function retry(route?: ProjectNode['routes'][number]) {
 </script>
 
 <template>
-  <section v-if="visible" class="task-retry" aria-label="Rerun failed task">
-    <RouteRecoveryNotice :info="project?.route_reliability" :agent="card.agent" :model="card.model" failed />
-    <div v-if="timedOut" class="timeout-ack notice-warn" role="group" aria-label="Timed-out attempt">
+  <section v-if="visible" class="task-retry" :aria-label="card.column === 'failed' ? 'Rerun failed task' : 'Rerun completed task'">
+    <RouteRecoveryNotice v-if="card.column === 'failed'" :info="project?.route_reliability" :agent="card.agent" :model="card.model" failed />
+    <div v-if="card.column === 'failed' && timedOut" class="timeout-ack notice-warn" role="group" aria-label="Timed-out attempt">
       <p>The last attempt timed out. RCD cannot tell what it changed or whether the provider is still working on it, so a new attempt needs your confirmation.</p>
       <label class="check"><input v-model="timeoutAck" type="checkbox" :disabled="busy" />I reviewed the partial work and want a new attempt.</label>
     </div>
     <div class="retry-actions">
-      <button type="button" class="btn primary" :disabled="busy || !ready" @click="retry()"><AppIcon name="run" size="sm" />{{ busy ? 'Queueing…' : 'Rerun task' }}</button>
+      <button type="button" class="btn primary" :disabled="busy || !rerunReady" @click="retry()"><AppIcon name="run" size="sm" />{{ busy ? 'Queueing…' : card.column === 'failed' ? 'Rerun task' : 'Rerun same story' }}</button>
+      <template v-if="card.column === 'failed'">
       <button v-for="route in alternatives" :key="`${route.agent}:${route.model}`" type="button" class="btn" :disabled="busy || !ready" @click="retry(route)">Rerun with {{ agentLabel(route.agent) }} · {{ route.model || 'Agent default' }}</button>
       <button v-if="card.agent === 'openclaw' && freeRoutes.length" type="button" class="btn" :disabled="busy || !ready" @click="chooseFree">Try another free model</button>
       <button v-for="r in lowCost" :key="`${r.agent}:${r.model}`" type="button" class="btn" :disabled="busy || !ready" @click="chooseCheap(r)">Use {{ cheapLabel(r) }} (subscription)</button>
       <button v-if="paidRoutes.length" type="button" class="btn" :disabled="busy || !ready" @click="choosePaid">Pay for this task…</button>
       <button v-if="limited && (card.agent === 'claude' || card.agent === 'codex')" type="button" class="btn" :disabled="busy || !ready || !freeRoutes.length" @click="chooseFree">Go Free!</button>
       <button v-if="acceptable" type="button" class="btn" :disabled="busy" data-testid="accept-anyway" @click="acceptAnyway">Accept anyway…</button>
+      </template>
     </div>
     <div v-if="showFree" class="free-choice" aria-label="Choose free retry">
       <p><strong>Continue this task with OpenClaw</strong></p>

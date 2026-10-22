@@ -43,6 +43,7 @@ POLL_S = 0.2
 READ_CHUNK = 1024 * 1024
 EXTRA_PATH = tool_search_dirs()
 SUPERVISOR = Path(__file__).resolve().parent / "run_supervisor.py"
+SHELL_ENV = Path(__file__).resolve().parent / "agent_shell_env.sh"
 LOST_ERROR = ("The agent process was killed outside MCD (for example kill -9 or the out-of-memory "
               "killer) before it recorded a result.")
 
@@ -496,6 +497,10 @@ class LegacyAgentAdapter:
         # Run-specific RCD_RUN_ID and RCD_IDEMPOTENCY_KEY are added after this.
         env = runner_env()
         env["PATH"] = ":".join((*EXTRA_PATH, env.get("PATH", "/usr/bin:/bin")))
+        # Codex invokes shell commands as `bash -lc`; a login profile can
+        # overwrite PATH. BASH_ENV restores this tool-only path afterwards.
+        env["DASHBOARD_AGENT_RUNTIME_PATH"] = env["PATH"]
+        env["BASH_ENV"] = str(SHELL_ENV)
         env.setdefault("HOME", str(Path.home()))
         return env
 

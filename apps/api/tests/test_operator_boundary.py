@@ -87,6 +87,17 @@ def test_runner_env_drops_operator_settings(monkeypatch):
     assert Dispatcher._env()["PATH"].startswith(":".join(EXTRA_PATH))
 
 
+def test_agent_shell_env_restores_managed_tools_after_a_login_shell(tmp_path):
+    node = tmp_path / "node"
+    node.write_text("#!/bin/sh\nexit 0\n")
+    node.chmod(0o755)
+    env = {"PATH": "/usr/bin:/bin", "DASHBOARD_AGENT_RUNTIME_PATH": str(tmp_path),
+           "BASH_ENV": str(HERE.parent / "agent_shell_env.sh")}
+    result = subprocess.run(["/bin/bash", "-lc", "command -v node"], env=env,
+                            text=True, capture_output=True, check=True)
+    assert result.stdout.strip() == str(node)
+
+
 def test_only_scoped_agent_routes_are_open_to_agents():
     assert agent_route("GET", "/healthz", False)
     assert agent_route("GET", "/api/agent-tools/tasks", True)
