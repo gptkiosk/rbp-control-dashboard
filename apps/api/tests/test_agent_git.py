@@ -100,6 +100,15 @@ def test_a_grant_means_nothing_where_its_clone_does_not_exist(tmp_path):
     assert [c.dir for c in only.clones] == ["mcd"]                                                       # only the clone that exists keeps its access
 
 
+def test_grant_for_recognizes_a_dashboard_clone_as_the_execution_root(tmp_path):
+    s = SimpleNamespace(agent_git_grants_file=write(tmp_path, GOOD))
+    clone = tmp_path / "mcd"
+    (clone / ".git").mkdir(parents=True)
+    active = agent_git.grant_for(s, 5, card("codex", "edit", working_dir=str(clone)))
+    assert active is not None and [c.dir for c in active.clones] == ["."]
+    assert "git -C . commit" in " ".join(agent_git.claude_allowed(active))
+
+
 # ------------------------------------------------------------------ agent command lines
 
 

@@ -379,8 +379,8 @@ it('does not prompt for a routine review while automatic handoffs are enabled',a
  w.unmount()
 })
 
-it('reruns an unaccepted successful story without accepting its old handoff',async()=>{
- const {w,f}=await setup('active',[{card_id:5,node_key:'a',role:'story',revision:1,column:'review',title:'Inventory',agent:'codex',model:'gpt-6.1-sol',run_id:6,run_stage:'succeeded'}])
+it('reruns an unaccepted successful story while the project is paused without accepting its old handoff',async()=>{
+ const {w,f}=await setup('paused',[{card_id:5,node_key:'a',role:'story',revision:1,column:'review',title:'Inventory',agent:'codex',model:'gpt-6.1-sol',run_id:6,run_stage:'succeeded'}])
  await w.findAll('button').find(b=>b.text()==='Stories & runs')!.trigger('click');await flushPromises()
  await w.findAll('button').find(b=>b.text()==='Rerun same story')!.trigger('click');await flushPromises()
  const writes=f.mock.calls.filter(([u,init])=>init?.method==='POST'&&u!=='/api/keys/check')
