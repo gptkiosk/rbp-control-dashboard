@@ -54,7 +54,7 @@ async function recover() {
           </form>
         </details>
       </template>
-      <footer class="small muted">© {{ new Date().getFullYear() }} Pi Control</footer>
+      <footer class="small muted">© { new Date().getFullYear() } Raspberry Pi Control Dashboard · Bamcio LLC</footer>
     </section>
   </main>
 </template>

@@ -6,6 +6,7 @@ These rules come from operator decisions and from real failures on hardware. A c
 - MCD and RCD match in function, look and ease of use wherever the platform allows. An improvement made to one goes to both in the same release.
 - Run `python3 scripts/check-shared-features.py --peer <other checkout>` before release; it must report 0 contract failures.
 - Shared code never imports a module that only one product has. For example, build an agent's environment with `Dispatcher._env(agent)`, not RCD's `legacy_adapters`.
+- Every Bamcio-owned product uses the standard footer: `© <year> <product> · Bamcio LLC`, followed by its version, environment/channel and API/web commit identifiers. Do not permit local settings to remove this ownership or release evidence.
 
 ## Token efficiency (agent prompts)
 - Every story run pays for its whole prompt, and free models have small context windows. Keep prompts bounded.

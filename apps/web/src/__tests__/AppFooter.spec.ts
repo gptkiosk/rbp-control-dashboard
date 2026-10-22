@@ -18,7 +18,7 @@ describe('AppFooter', () => {
     )
     const w = mount(AppFooter)
     await flushPromises()
-    expect(w.get('.copyright').text()).toBe(`© ${new Date().getFullYear()} Raspberry Pi Control Dashboard · Example Organization`)
+    expect(w.get('.copyright').text()).toBe(`© ${new Date().getFullYear()} Raspberry Pi Control Dashboard · Bamcio LLC`)
     expect(w.get('[data-testid="release-label"]').text()).toContain('v0.1.0 • local • ')
     expect(w.get('[data-testid="release-label"]').text()).toContain('b2bf245')
   })
@@ -27,7 +27,7 @@ describe('AppFooter', () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')))
     const w = mount(AppFooter)
     await flushPromises()
-    expect(w.text()).toContain('Raspberry Pi Control Dashboard · Pi Control')
+    expect(w.text()).toContain('Raspberry Pi Control Dashboard · Bamcio LLC')
     expect(w.find('[data-testid="release-label"]').exists()).toBe(false)
   })
 

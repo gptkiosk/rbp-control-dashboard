@@ -10,6 +10,17 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.6.51] - 2026-10-22
+
+### Changed
+
+- **Bamcio LLC is now the fixed product footer owner.** The standard footer identifies the product and Bamcio LLC, then reports version, environment and API/web commit identifiers. The signed-out screen uses the same ownership.
+
+### Fixed
+
+- **Repository-backed plans now require verified delivery.** Coordinator guidance requires a final branch-publish story after checks, confirmation that the remote has the exact commit, an optional pull request when requested, and a recorded pipeline result. A local commit or an empty setup branch no longer counts as delivery evidence.
+
+
 ## [0.6.50] - 2026-10-22
 
 ### Fixed
@@ -923,3 +934,4 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 [0.6.46]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.45...v0.6.46
 
 [0.6.47]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.46...v0.6.47
+[0.6.51]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.50...v0.6.51

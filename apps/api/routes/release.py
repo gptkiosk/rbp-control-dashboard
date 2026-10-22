@@ -20,7 +20,7 @@ def release(request: Request) -> dict[str, object]:
         "commit_sha": git_sha(),
         "dirty": git_dirty(),
         "has_migrations": migrations_pending(request.app.state.engine),
-        "owner": settings.organization_name,
+        "owner": "Bamcio LLC",
         "product": settings.product_name,
         "product_short": settings.product_short_name,
     }
