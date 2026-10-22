@@ -13,7 +13,6 @@ def _app_sessions(client):
 
 def test_release_envelope(make_client):
     body = make_client().get("/api/release").json()
-    assert body["owner"] == "RCD"
     assert body["product"] == "Raspberry Pi Control Dashboard"
     assert body["owner"] == "Bamcio LLC"
     assert body["product_short"] == "RCD"
