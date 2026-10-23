@@ -609,7 +609,7 @@ def detail(s, p):
             'working_dir':c.working_dir if c else None, 'agent':c.agent if c else None, 'model':c.model if c else None,
             'mode':c.mode if c else None, 'incomplete_reason':project_outputs.incomplete_error(r) if r else None,
             'revision':link.revision, 'column':c.column if c else 'missing', 'title':c.title if c else '',
-            'run_id':r.id if r else None, 'run_stage':r.stage if r else None,
+            'run_id':r.id if r else None, 'run_stage':r.stage if r else None, 'superseded':bool(link.role=='story' and link.revision < p.revision and c and c.column in {'backlog','queued'}),
             'planning_retry_routes':retry_routes if link.card_id==pipeline.get('card_id') and link.role==planning_role
                 and link.revision==p.revision and c and c.column in {'failed','review'} and r and r.stage not in {'queued','running','awaiting_approval'} else [],
             'free_retry_routes':other_free_routes(free_routes,c) if link.role=='story' and can_go_free(c,r) else [],
@@ -627,6 +627,7 @@ def detail(s, p):
     records = list(s.scalars(select(ProjectMemory).where(ProjectMemory.project_id==p.id,ProjectMemory.kind!='scorecard').order_by(ProjectMemory.id.desc()).limit(100)))
     return {'id':p.id, 'bootstrap':(p.intake_key or '').startswith('bootstrap:'), 'document':document(p), 'revision':p.revision, 'state':p.state, 'can_resume_plan':recoverable(s,p),
         'approved_revision':json.loads(p.approved_manifest)['revision'] if p.approved_manifest else None,
+        'can_cancel_replan': bool(p.state=='review' and p.approved_manifest and json.loads(p.approved_manifest).get('revision') != p.revision),
         'pipeline':json.loads(p.pipeline) if p.pipeline else None, 'error':p.error,
         'route_reliability':recovery.payload(s,get_settings(),p.created_by) if p.state in {'planning_failed','dispatch_failed','active','paused'} else None,
         'handoff_approval':handoff_approval(s,p), 'model_lock':model_locked(p),
@@ -953,6 +954,57 @@ def _retry_unusable_planning_result(s, p, pipeline, step, run, card, settings, e
 
 
 
+def replan(s,p,action,settings,actor,subagents=None):
+    """Start an idempotent continuation-plan pipeline from a paused revision.
+
+    Existing cards and runs remain intact.  Nothing in the old queue is dispatched while
+    planning/review is underway because `claim_context` admits only the approved revision.
+    The old queue is marked backlog only after the replacement revision is approved.
+    """
+    check_revision(p,action.revision)
+    if p.state == 'planning' and p.pipeline:
+        pipeline=json.loads(p.pipeline)
+        if pipeline.get('replan') and pipeline.get('revision') == p.revision:
+            return
+    if p.state != 'paused' or not p.approved_manifest:
+        fail('Pause an approved project before replanning its remaining work.',409)
+    if not action.acknowledge:
+        fail('Acknowledge that replanning preserves completed history and replaces only untouched work.',422)
+    manifest=json.loads(p.approved_manifest)
+    if manifest.get('revision') != p.revision:
+        fail('The approved revision changed. Reload the project before replanning.',409)
+    live=[]
+    for link in s.scalars(select(ProjectTask).where(ProjectTask.project_id==p.id, ProjectTask.role=='story', ProjectTask.revision==p.revision)):
+        card=s.get(Card,link.card_id)
+        if card and card.column in {'running','review'}:
+            live.append('#'+str(card.id)+' '+card.title[:80])
+    if live:
+        fail('Finish, accept, or explicitly resolve these running/review stories before replanning: '+', '.join(live),409)
+    reason=action.reason.strip()
+    context=_replan_context(s,p,reason)
+    # Reuse the reviewed planning pipeline.  Temporarily Draft is an internal transition;
+    # `plan` writes the planning state atomically before the request returns.
+    p.state='draft'; p._replan_context=context
+    try:
+        plan(s,p,action,settings,actor,subagents)
+    finally:
+        p.__dict__.pop('_replan_context',None)
+    pipeline=json.loads(p.pipeline)
+    pipeline['replan']=context
+    p.pipeline=json.dumps(pipeline)
+    memory(s,p,'decision',f'Operator requested a continuation replan from approved revision {context["source_revision"]}. Completed and attempted stories remain historical; untouched queued work stays paused until the replacement revision is reviewed and submitted. Reason: {reason}',actor)
+
+def cancel_replan(s,p,revision,actor):
+    """Discard an unapproved continuation proposal and reactivate its approved source revision."""
+    check_revision(p,revision)
+    if p.state != 'review' or not p.approved_manifest:
+        fail('There is no unapproved replacement plan to discard.',409)
+    manifest=json.loads(p.approved_manifest)
+    if manifest.get('revision') == p.revision:
+        fail('There is no replacement revision to discard.',409)
+    p.document=json.dumps(manifest['document']); p.revision=manifest['revision']; p.state='paused'; p.pipeline=None; p.error=None
+    memory(s,p,'decision',f'Operator discarded unapproved replacement revision {revision}; approved revision {p.revision} remains paused and unchanged.',actor)
+
 def plan(s,p,action,settings,actor,subagents=None):
     check_revision(p,action.revision)
     if p.state=='planning': return
@@ -1003,7 +1055,7 @@ def plan(s,p,action,settings,actor,subagents=None):
         fail('This planner uses API billing. Separate paid-planning approval is required.',422)
     if settings.dispatch_free_only and retrying and not any(_planning_route_allowed(s,settings,c) for c in choices):
         fail('No configured free planner route is available. Configure a reviewed-free Hermes model/provider route; this project remains saved for retry.',422)
-    prompt = role_prompt('coordinate', candidates=json.dumps(choices), project=_brief(p))
+    prompt = role_prompt('coordinate', candidates=json.dumps(choices), project=_brief(p)) + _replan_prompt(getattr(p,'_replan_context',None))
     c=_queue(s,p,'coordinate',delegate['agent'],delegate['model'],prompt,settings)
     recovery_routes=[route for route in free_routes if route not in choices]
     p.state='planning'; p.error=None; p.pipeline=json.dumps({'step':'coordinate','delegator':delegate,'card_id':c.id,'choices':choices,
@@ -1124,10 +1176,26 @@ def proposal(doc, nodes, settings):
         normalized.append(row)
     return validate({**doc, 'nodes': normalized}, settings, True)
 
-def _planner_prompt(p,catalog=None,s=None,fresh=False):
+def _replan_context(s,p,reason):
+    """Bounded history for a continuation plan. Completed and attempted work stays immutable."""
+    rows=[]
+    for link in s.scalars(select(ProjectTask).where(ProjectTask.project_id==p.id, ProjectTask.role=='story', ProjectTask.revision==p.revision)):
+        card=s.get(Card,link.card_id)
+        if card and card.column not in {'backlog','queued'}:
+            rows.append({'key':link.node_key,'title':card.title[:200],'status':card.column})
+    return {'source_revision':p.revision,'reason':reason,'preserve':rows[:100],
+        'instruction':'Create only the remaining work. Do not repeat, rename, or modify preserved stories. Their history is immutable. Dependencies on completed work are already satisfied; do not include those keys.'}
+
+def _replan_prompt(context):
+    if not context: return ''
+    return ('\n\nMID-PROJECT REPLAN (operator approved): '+json.dumps(context, ensure_ascii=False)+
+        '\nReturn a continuation map for untouched work only. Preserve the completed and attempted history exactly as context; do not duplicate it.')
+
+def _planner_prompt(p,catalog=None,s=None,fresh=False,replan=None):
     settings=get_settings()
     text=role_prompt('plan', schema=json.dumps(Node.model_json_schema()), catalog=json.dumps(catalog or []), project=_brief(p, not fresh),
         standards=standards.prompt_section(standards.resolve(document(p)['working_dir'],settings.data_dir)))
+    text += _replan_prompt(replan)
     # Appended after substitution, so a user's own plan.txt keeps working without a new placeholder.
     extra=model_profiles.guidance_text(s,settings.data_dir,catalog) if s is not None else ''
     where=installation_text(s,settings) if s is not None else ''
@@ -1255,8 +1323,16 @@ def _materialize(s,p,order,settings):
         # Hermes' order is checked above; a parallel build then starts the longest remaining chain first so the stories that set the finish time never wait.
         order=schedule.critical_order(d['nodes'])
     if approval.current_branch(Path(d['working_dir']))!=m['branch']: fail('Working-directory branch changed since approval. Review a new project before dispatch.')
-    if s.scalar(select(ProjectTask).where(ProjectTask.project_id==p.id,ProjectTask.role=='story')):
-        fail('This project already has story cards; duplicate dispatch refused.')
+    current_links=list(s.scalars(select(ProjectTask).where(ProjectTask.project_id==p.id,ProjectTask.role=='story',ProjectTask.revision==p.revision)))
+    if current_links:
+        fail('This project revision already has story cards; duplicate dispatch refused.')
+    superseded=[]
+    for old in s.scalars(select(ProjectTask).where(ProjectTask.project_id==p.id,ProjectTask.role=='story',ProjectTask.revision<p.revision)):
+        old_card=s.get(Card,old.card_id)
+        if old_card and old_card.column in {'queued','backlog'}:
+            old_card.column='backlog'; old_card.updated_at=now(); superseded.append(old_card.id)
+    if superseded:
+        memory(s,p,'decision','Approved replacement revision superseded untouched story cards: '+', '.join('#'+str(v) for v in superseded)+'. Their cards and all historical runs remain visible; they will not dispatch.', 'operator')
     if m['dispatch_mode']=='parallel' and workspaces.snapshot(d['working_dir'])!=m['base_commit']: fail('Source commit changed since approval. Review a new project before dispatch.')
     bindings={}; previous=None
     for key in order:
@@ -1330,13 +1406,13 @@ def advance(s,settings):
                 if step=='coordinate':
                     chosen=next((v for v in pipeline['choices'] if v['agent']==data.get('agent') and v['model']==data.get('model')),None)
                     if not chosen: fail('Delegator selected an unapproved planner/model. No fallback was run.',422)
-                    c=_queue(s,p,'plan',chosen['agent'],chosen['model'],_planner_prompt(p,pipeline.get('execution_catalog'),s,pipeline.get('fresh',False)),settings)
+                    c=_queue(s,p,'plan',chosen['agent'],chosen['model'],_planner_prompt(p,pipeline.get('execution_catalog'),s,pipeline.get('fresh',False),pipeline.get('replan')),settings)
                     p.pipeline=json.dumps({**pipeline,'step':'plan','card_id':c.id,'chosen':chosen})
                     memory(s,p,'proposal','Planner choice: '+json.dumps(data),r.agent,r.card_id,r.id)
                 elif step=='plan':
                     if not isinstance(data,dict) or set(data)!={'nodes'}: fail('Planner response must contain only nodes.',422)
                     proposed=proposal(document(p),data['nodes'],settings)
-                    c=_queue(s,p,'return plan',pipeline.get('delegator', {'agent':'hermes'})['agent'],pipeline.get('delegator', {}).get('model',''),role_prompt('review', schema=json.dumps(Node.model_json_schema()), catalog=json.dumps(pipeline.get('execution_catalog',[])), project=_brief(p), proposal=json.dumps(proposed['nodes'])),settings)
+                    c=_queue(s,p,'return plan',pipeline.get('delegator', {'agent':'hermes'})['agent'],pipeline.get('delegator', {}).get('model',''),role_prompt('review', schema=json.dumps(Node.model_json_schema()), catalog=json.dumps(pipeline.get('execution_catalog',[])), project=_brief(p)+_replan_prompt(pipeline.get('replan')), proposal=json.dumps(proposed['nodes'])),settings)
                     p.pipeline=json.dumps({**pipeline,'step':'return','card_id':c.id})
                     memory(s,p,'proposal','Subscription/API planner returned a validated proposal. It is not approved for execution.',r.agent,r.card_id,r.id)
                 elif step=='return':
@@ -1346,11 +1422,12 @@ def advance(s,settings):
                     add_recovery_routes(s,p,proposed,settings)
                     fixed_modes=fix_implement_modes(proposed)
                     if pinned: memory(s,p,'checkpoint','MCD gave '+str(len(pinned))+' stor'+('y' if len(pinned)==1 else 'ies')+' with no priced model a reviewed free model and free fallbacks, so they run without a per-task model choice: '+'; '.join(t[:60] for t in pinned[:12])+'.','mcd',r.card_id,r.id)
+                    source_revision=(pipeline.get('replan') or {}).get('source_revision')
                     p.document=json.dumps(proposed);p.revision+=1;p.state='review'
                     try: scorecard.record_returned(s,p,proposed['nodes'],settings,pipeline.get('chosen'),{'agent':r.agent,'model':r.model_reported or r.model_requested})
                     except Exception: pass   # a scorecard problem must never block planning
                     p.pipeline=None
-                    memory(s,p,'proposal',f'Delegator returned editable map revision {p.revision}; operator review required.',r.agent,r.card_id,r.id)
+                    memory(s,p,'proposal',f'Delegator returned editable map revision {p.revision}; operator review required.' + (f' This is a continuation replacement for untouched work from revision {source_revision}; completed and attempted cards remain historical.' if source_revision else ''),r.agent,r.card_id,r.id)
                     if fixed_modes: memory(s,p,'checkpoint','MCD set '+str(len(fixed_modes))+' implementation or documentation stor'+('y' if len(fixed_modes)==1 else 'ies')+' from Read to Edit mode, because a story that writes files cannot run read-only: '+'; '.join(t[:60] for t in fixed_modes[:12])+'. Review each story\'s Mode before submitting.','mcd',r.card_id,r.id)
                 elif step=='dispatch': _materialize(s,p,data.get('order'),settings)
                 else: fail('Unknown project pipeline stage.',422)

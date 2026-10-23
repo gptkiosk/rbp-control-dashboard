@@ -10,7 +10,7 @@ from deps import get_session
 from dispatcher import remove_run_logs
 from settings import get_settings
 from models import Project, ProjectTask, Card, CardDependency, Run
-from project_schemas import QueuedRouteChange, Route, AcceptDespiteReport, Close, Document, Save, Action, Retry, GoFree, ContinueOutput, Note, Accept, HandoffPolicy, Retier, RepairExecution, ModelLock, LowCostRetry, PayRetry
+from project_schemas import QueuedRouteChange, Route, AcceptDespiteReport, Close, Document, Save, Action, Replan, Retry, GoFree, ContinueOutput, Note, Accept, HandoffPolicy, Retier, RepairExecution, ModelLock, LowCostRetry, PayRetry
 import agent_git
 import projects
 import standards
@@ -112,6 +112,16 @@ def standards_fix(project_id:int,body:StandardsFix,request:Request,s:Session=Dep
 def plan(project_id:int,body:Action,request:Request,s:Session=Depends(get_session)):
     identity=actor(request);write(s);p=projects.get(s,project_id)
     projects.plan(s,p,body,get_settings(),identity,getattr(getattr(request.app.state,'collector',None),'subagents',None));s.commit();return projects.detail(s,p)
+
+@router.post('/{project_id}/replan')
+def replan(project_id:int,body:Replan,request:Request,s:Session=Depends(get_session)):
+    identity=actor(request);write(s);p=projects.get(s,project_id)
+    projects.replan(s,p,body,get_settings(),identity,getattr(getattr(request.app.state,'collector',None),'subagents',None));s.commit();return projects.detail(s,p)
+
+@router.post('/{project_id}/cancel-replan')
+def cancel_replan(project_id:int,body:Action,request:Request,s:Session=Depends(get_session)):
+    identity=actor(request);write(s);p=projects.get(s,project_id)
+    projects.cancel_replan(s,p,body.revision,identity);s.commit();return projects.detail(s,p)
 
 @router.post('/{project_id}/submit')
 def submit(project_id:int,body:Action,request:Request,s:Session=Depends(get_session)):

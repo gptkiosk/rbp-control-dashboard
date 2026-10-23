@@ -92,6 +92,11 @@ class Action(Strict):
     # Plan again from the brief alone: the planner is not shown the stories the project has now (it tends to repeat them).
     fresh: bool = False
 
+class Replan(Action):
+    """A bounded, operator-approved request to replace only unstarted work."""
+    reason: str = Field(min_length=3, max_length=4000)
+    acknowledge: bool = False
+
 class Close(Strict):
     revision: int = Field(ge=1)
     reason: str = Field(min_length=3, max_length=300)
