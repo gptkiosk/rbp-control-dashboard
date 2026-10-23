@@ -10,6 +10,12 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.6.54] - 2026-10-23
+
+### Changed
+
+- **Task identifiers are now visible wherever tasks are reviewed.** Every task-list row and task-detail heading displays its `Task #`, including Hermes planning tasks.
+
 ## [0.6.53] - 2026-10-23
 
 ### Added
@@ -954,5 +960,7 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 [0.6.51]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.50...v0.6.51
 
 [0.6.52]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.51...v0.6.52
+
+[0.6.54]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.53...v0.6.54
 
 [0.6.53]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.52...v0.6.53

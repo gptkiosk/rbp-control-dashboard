@@ -66,6 +66,7 @@ const elapsed = computed(() => {
   >
     <div class="cell name" role="cell">
       <span class="dot" aria-hidden="true"></span>
+      <span class="task-id" data-testid="task-id">Task #{{ card.id }}</span>
       <button
         type="button"
         class="open"
@@ -201,6 +202,14 @@ const elapsed = computed(() => {
   height: var(--dot-size);
   border-radius: var(--radius-pill);
   background: var(--pill-color);
+}
+
+.task-id {
+  color: var(--accent);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-strong);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .open {
