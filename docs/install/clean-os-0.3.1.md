@@ -48,11 +48,11 @@ For building the web UI from source, install the pinned Node24 arm64 release. It
 ```sh
 mkdir -p "$HOME/rcd-prerequisites"
 cd "$HOME/rcd-prerequisites"
-curl -fSLO https://nodejs.org/dist/v24.21.0/node-v24.21.0-linux-arm64.tar.xz
-curl -fSLO https://nodejs.org/dist/v24.21.0/SHASUMS256.txt
-awk '$2=="node-v24.21.0-linux-arm64.tar.xz"' SHASUMS256.txt | sha256sum --check -
-tar -xf node-v24.21.0-linux-arm64.tar.xz
-export PATH="$HOME/rcd-prerequisites/node-v24.21.0-linux-arm64/bin:$HOME/.local/bin:$PATH"
+curl -fSLO https://nodejs.org/dist/v24.22.1/node-v24.22.1-linux-arm64.tar.xz
+curl -fSLO https://nodejs.org/dist/v24.22.1/SHASUMS256.txt
+awk '$2=="node-v24.22.1-linux-arm64.tar.xz"' SHASUMS256.txt | sha256sum --check -
+tar -xf node-v24.22.1-linux-arm64.tar.xz
+export PATH="$HOME/rcd-prerequisites/node-v24.22.1-linux-arm64/bin:$HOME/.local/bin:$PATH"
 node --version
 npm --version
 systemctl --user show-environment >/dev/null
