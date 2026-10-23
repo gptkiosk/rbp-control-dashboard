@@ -22,9 +22,9 @@ const status = (over: Record<string, unknown> = {}, tools = [tool('claude-code',
 })
 const plan = (over: Record<string, unknown> = {}) => ({
   tool: 'codex', name: 'Codex CLI', action: 'install', from: null, to: '0.162.1', plan_sha256: 'f'.repeat(64),
-  commands: ['download https://nodejs.org/dist/v24.21.0/node-v24.21.0-linux-arm64.tar.xz (29.4 MB) and check its sha256 6ad1325edbdb5649…', '/home/pi/.local/share/rcd-agent-tools/tools/node/current/bin/npm ci --ignore-scripts --no-audit --no-fund --no-progress --loglevel=error'],
-  downloads: [{ url: 'https://nodejs.org/dist/v24.21.0/node-v24.21.0-linux-arm64.tar.xz', sha256: '6ad1325e'.padEnd(64, '0'), size: 30843004 }],
-  runtimes: [{ id: 'node', name: 'Node.js', version: '24.21.0', action: 'install', from: null }], removes: [],
+  commands: ['download https://nodejs.org/dist/v24.22.1/node-v24.22.1-linux-arm64.tar.xz (29.5 MB) and check its sha256 dbabf7a1cbf947e6…', '/home/pi/.local/share/rcd-agent-tools/tools/node/current/bin/npm ci --ignore-scripts --no-audit --no-fund --no-progress --loglevel=error'],
+  downloads: [{ url: 'https://nodejs.org/dist/v24.22.1/node-v24.22.1-linux-arm64.tar.xz', sha256: 'dbabf7a1'.padEnd(64, '0'), size: 30978868 }],
+  runtimes: [{ id: 'node', name: 'Node.js', version: '24.22.1', action: 'install', from: null }], removes: [],
   unchanged: ['Dispatch routes and the free-only setting', 'Billing mode and prices'], login: { command: 'codex login --device-auth', note: 'x' },
   system_packages: { apt_command: null, missing_required: [], missing_recommended: [], note: '' },
   disk: { free_mb: 20480, required_mb: 620, min_free_mb: 2048, headroom_mb: 512 }, memory: { total_mb: 3880, available_mb: 3000, recommended_mb: 4096 },
@@ -58,9 +58,9 @@ it('shows the confirmation with versions, sources, commands, disk, memory and wh
   const c = w.get('[data-test="confirm"]').text()
   expect(c).toContain('Install Codex CLI 0.162.1')
   expect(c).toContain('not installed → 0.162.1')
-  expect(c).toContain('Node.js 24.21.0 (will be installed)')
+  expect(c).toContain('Node.js 24.22.1 (will be installed)')
   expect(c).toContain('npm ci --ignore-scripts')
-  expect(c).toContain('https://nodejs.org/dist/v24.21.0/node-v24.21.0-linux-arm64.tar.xz')
+  expect(c).toContain('https://nodejs.org/dist/v24.22.1/node-v24.22.1-linux-arm64.tar.xz')
   expect(c).toContain('20.0 GB free')
   expect(c).toContain('3.8 GB total')
   expect(c).toContain('Dispatch routes and the free-only setting')

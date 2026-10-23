@@ -4,6 +4,6 @@
   "private": true,
   "description": "Pinned install of openclaw for the dashboard's Agent tools panel. Bumped only by scripts/tools/check.py.",
   "dependencies": {
-    "openclaw": "2026.10.3"
+    "openclaw": "2026.10.6"
   }
 }
