@@ -304,7 +304,7 @@ const elapsed = computed(() => {
     grid-template-columns: var(--dot-size) minmax(0, 1fr);
     align-items: start;
   }
-  .cell.name > :not(.dot):not(.open) {
+  .cell.name > :not(.dot) {
     grid-column: 2;
   }
   .cell.name .dot {
