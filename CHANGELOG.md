@@ -10,6 +10,13 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.6.59] - 2026-10-23
+
+### Fixed
+
+- **MCD source-checkout updates can apply the issue-task schema.** The MCD GitHub issue-task migration now follows its existing `0020` schema migration, so its source-checkout updates start cleanly instead of rolling back.
+
+
 ## [0.6.58] - 2026-10-23
 
 ### Fixed
