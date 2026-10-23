@@ -106,7 +106,7 @@ describe('Tasks board', () => {
       }),
     ])
     const first = w.get('[data-card-id="1"]').text()
-    for (const text of ['Hermes', 'via Hermes', 'ops', 'Blocked by #8', 'High', '1h 30m', 'Oct 20'])
+    for (const text of ['Task #1', 'Hermes', 'via Hermes', 'ops', 'Blocked by #8', 'High', '1h 30m', 'Oct 20'])
       expect(first).toContain(text)
     expect(w.get('[data-card-id="2"]').text()).toContain('You')
     expect(w.get('[data-card-id="3"] [data-testid="elapsed"]').text()).toMatch(/^1[2-4] s$/)

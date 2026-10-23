@@ -42,6 +42,13 @@ const reviewCard = (): CardDetail => ({
 })
 
 describe('CardDetailPanel', () => {
+  it('shows the task identifier in the detail heading', async () => {
+    const { w } = mountPanel({ ...card({ id: 27, title: 'Return plan' }), runs: [] })
+    await flushPromises()
+    expect(w.get('#card-detail-title').text()).toBe('Task #27 · Return plan')
+    w.unmount()
+  })
+
   it('shows the job envelope, who it is assigned to and why this route, only when the card has them', async () => {
     const withEnvelope = { ...card({ id: 7 }), runs: [], kind: 'implement', size: 'm', risk: 'low', area: 'web', route_tier: 'free', route_reason: 'Reversible and low risk: free is enough.' } as unknown as CardDetail
     const { w } = mountPanel(withEnvelope)

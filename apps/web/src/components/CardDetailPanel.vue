@@ -374,7 +374,7 @@ async function save(): Promise<void> {
     <div class="panel">
       <header class="head">
         <h2 id="card-detail-title" class="section-title">
-          {{ card?.title ?? `Card ${cardId}` }}
+          Task #{{ card?.id ?? cardId }} · {{ card?.title ?? 'Loading task…' }}
         </h2>
         <button type="button" class="btn" aria-label="Close card" data-autofocus @click="emit('close')">
           ×
