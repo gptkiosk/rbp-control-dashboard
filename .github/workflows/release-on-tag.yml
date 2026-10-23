@@ -31,7 +31,7 @@ jobs:
       TAG: ${{ inputs.tag || github.ref_name }}
     steps:
       - name: Check out the pushed tag without credentials
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: ${{ inputs.tag && format('refs/tags/{0}', inputs.tag) || github.ref }}
           fetch-depth: 1
@@ -148,7 +148,7 @@ jobs:
       contents: write
     steps:
       - name: Check out the release notes source
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: ${{ inputs.tag && format('refs/tags/{0}', inputs.tag) || github.ref }}
           persist-credentials: false
