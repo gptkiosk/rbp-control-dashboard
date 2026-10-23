@@ -10,6 +10,13 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.6.56] - 2026-10-23
+
+### Fixed
+
+- **Task titles remain readable on phones.** The mobile task row now keeps the title in its text column after the Task ID label is shown.
+
+
 ## [0.6.55] - 2026-10-23
 
 ### Fixed
@@ -968,6 +975,8 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 [0.6.51]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.50...v0.6.51
 
 [0.6.52]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.51...v0.6.52
+
+[0.6.56]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.55...v0.6.56
 
 [0.6.55]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.54...v0.6.55
 
