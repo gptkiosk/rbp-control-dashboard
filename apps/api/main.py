@@ -27,6 +27,7 @@ from github_config import GithubConfigStore
 from github_actions import GithubActionGuard
 from routes import github_actions as github_action_routes
 from routes import bug_reports as bug_report_routes
+from routes import issue_tasks as issue_task_routes
 from bug_intake import BugIntakeService
 from routes import limits as limit_routes
 from routes import failures as failure_routes
@@ -257,6 +258,7 @@ def create_app() -> FastAPI:
     app.include_router(operations.router)
     app.include_router(github_action_routes.router)
     app.include_router(bug_report_routes.router)
+    app.include_router(issue_task_routes.router)
     app.include_router(project_routes.router)
     app.include_router(limit_routes.router)
     app.include_router(failure_routes.router)
