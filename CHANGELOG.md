@@ -1010,3 +1010,5 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 [0.6.54]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.53...v0.6.54
 
 [0.6.53]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.52...v0.6.53
+
+[0.6.60]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.59...v0.6.60
