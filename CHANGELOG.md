@@ -10,6 +10,12 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.6.57] - 2026-10-23
+
+### Added
+
+- **Hermes can turn a linked GitHub issue into a tracked task.** Chat now has a “Give Hermes an issue” action, and paired Discord has an opt-in Issue tasks capability. The configured GitHub connection reads private issues without public page extraction, creates one idempotent Hermes-assigned task, and keeps normal route approval, run history, handoff, retry and review controls.
+
 ## [0.6.56] - 2026-10-23
 
 ### Fixed

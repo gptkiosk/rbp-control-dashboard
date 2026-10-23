@@ -73,3 +73,11 @@ remove_dependency and list_agents. Legacy queue/status parameters return an expl
 review requirement. Credentials are not printed, captured in command arguments, or sent to
 an LLM. Tests use temporary grants/databases; the stdio proof invokes the tool server directly,
 without invoking Hermes's model or changing its configuration.
+
+## GitHub issue tasks
+
+A paired Discord request may use the `issue_task` project-bridge action only after the operator enables **Issue tasks** in Profile. Hermes sends one canonical GitHub issue URL, a configured working directory, and the selected Codex, Claude Code, or OpenClaw route. The dashboard reads the issue through its configured `gh` account, never a public page extractor, and creates one idempotent Backlog task marked **Created by Hermes**. The issue body is untrusted evidence. The task is edit-mode and remains approval-gated before code runs; task runs, handoffs, retries, and review use the normal board flow. Hermes must link an existing task on repeated submission and must never claim the issue is fixed before its reviewed handoff is accepted.
+
+## GitHub issue tasks
+
+A paired Discord request may use the issue_task project-bridge action only after the operator enables **Issue tasks** in Profile. Hermes sends one canonical GitHub issue URL, a configured working directory, and the selected Codex, Claude Code, or OpenClaw route. The dashboard reads the issue through its configured gh account, never a public page extractor, and creates one idempotent Backlog task marked **Created by Hermes**. The issue body is untrusted evidence. The task is edit-mode and remains approval-gated before code runs; task runs, handoffs, retries, and review use the normal board flow. Hermes must link an existing task on repeated submission and must never claim the issue is fixed before its reviewed handoff is accepted.

@@ -33,7 +33,7 @@ const bootstrapReadiness = ref<{ ready: boolean; checks: {id:string;label:string
 // Keep coordinator bootstrap choices in their own profile section; old hash links still open the right group.
 const TABS = [{ id: 'settings', label: 'Settings' }, { id: 'coordinator', label: 'Coordinator setup' }, { id: 'updates', label: 'Updates & installs' }, { id: 'maintenance', label: 'Maintenance & access' }] as const
 type Tab = typeof TABS[number]['id']
-const HOME: Record<string, Tab> = { 'coordinator-bootstrap': 'coordinator', 'route-recovery': 'coordinator', updates: 'updates', 'agent-tools': 'updates', 'system-tools': 'updates', 'agent-roles': 'maintenance', housekeeping: 'maintenance', 'github-settings': 'maintenance', 'github-actions': 'maintenance', 'bug-intake': 'maintenance', roles: 'maintenance', reports: 'maintenance' }
+const HOME: Record<string, Tab> = { 'coordinator-bootstrap': 'coordinator', 'route-recovery': 'coordinator', updates: 'updates', 'agent-tools': 'updates', 'system-tools': 'updates', 'agent-roles': 'maintenance', housekeeping: 'maintenance', 'github-settings': 'maintenance', 'github-actions': 'maintenance', 'bug-intake': 'maintenance', 'issue-tasks': 'maintenance', roles: 'maintenance', reports: 'maintenance' }
 const THEMES = [{ id: 'system', label: 'Device' }, { id: 'light', label: 'Light' }, { id: 'dark', label: 'Dark' }] as const
 const tab = ref<Tab>('settings')
 function fromHash() {
@@ -164,6 +164,7 @@ async function importPreferences(event: Event) { await action(async () => {
             <ToggleSwitch v-model="preferences.allow_discord_diagnostics" label="Read failed runs" hint="Errors, short handoff excerpts and log tails, with credentials and addresses removed. Read only." />
             <ToggleSwitch v-model="preferences.allow_discord_standards" label="Project standards" hint="Read a project's standards and propose additions. You approve on the project page." />
             <ToggleSwitch v-model="preferences.allow_discord_repositories" label="New repositories" hint="Propose a new private GitHub repository. It waits for your approval here." />
+            <ToggleSwitch v-model="preferences.allow_discord_issue_tasks" label="Issue tasks" hint="Turn one linked configured GitHub issue into a Hermes-assigned task. Code still waits for task approval." />
             <ToggleSwitch v-model="preferences.allow_discord_maintenance" label="Housekeeping" hint="Read Housekeeping findings and propose fixes. You approve here." />
           </div>
           <div class="actions"><button class="btn primary" :disabled="busy || !preferences.discord_channel_id" @click="pair">{{ profile.discord_linked ? 'Pair again' : 'Get pairing code' }}</button><button class="btn" :disabled="busy" @click="save">Save connection</button><button class="btn" :disabled="busy" @click="refresh">Check pairing</button><button v-if="profile.discord_linked" class="btn" :disabled="busy" @click="unlink">Unlink Discord</button></div>

@@ -6,7 +6,7 @@ export interface SetupProgress {
 export interface Preferences {
   ai_agent?: 'hermes' | 'openclaw' | 'claude' | 'codex' | 'grok'; ai_model?: string
   theme: 'system' | 'light' | 'dark'; planning_bias: number; working_dir: string
-  dashboard_origin: string; discord_channel_id: string; notify_plans: boolean; use_saved_openrouter_key?: boolean; allow_discord_planning: boolean; allow_discord_control: boolean; allow_discord_diagnostics: boolean; allow_discord_maintenance?: boolean; allow_discord_standards?: boolean; allow_discord_repositories?: boolean
+  dashboard_origin: string; discord_channel_id: string; notify_plans: boolean; use_saved_openrouter_key?: boolean; allow_discord_planning: boolean; allow_discord_control: boolean; allow_discord_diagnostics: boolean; allow_discord_maintenance?: boolean; allow_discord_standards?: boolean; allow_discord_repositories?: boolean; allow_discord_issue_tasks?: boolean
   route_recovery?: RecoveryPolicy
   setup?: SetupProgress
   coordinator_bootstrap?: CoordinatorBootstrapPreferences

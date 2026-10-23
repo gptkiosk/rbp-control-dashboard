@@ -10,12 +10,12 @@ from models import UserProfile,Project
 from settings import get_settings
 from auth import digest
 from project_schemas import Document,Action
-import cards,github_actions,profiles,projects,project_delivery,project_diagram,provider_limits,failure_mining,maintenance,standards,standards_proposals
+import cards,github_actions,profiles,projects,project_delivery,project_diagram,provider_limits,failure_mining,maintenance,standards,standards_proposals,issue_tasks
 router=APIRouter(prefix='/api/hermes-projects')
 
 class Bridge(BaseModel):
     model_config=ConfigDict(extra='forbid',hide_input_in_errors=True)
-    action:Literal['pair','intake','list','get','save','plan','diagram','limits','limits_reroute','failures','failure','maintenance','maintenance_propose','standards','standards_propose','propose_repository','bootstrap_status']
+    action:Literal['pair','intake','list','get','save','plan','diagram','limits','limits_reroute','failures','failure','maintenance','maintenance_propose','standards','standards_propose','propose_repository','bootstrap_status','issue_task']
     discord_user_id:str=Field(pattern=r'^[0-9]{16,22}$')
     discord_channel_id:str=Field(pattern=r'^[0-9]{16,22}$')
     source_message_id:str=Field(default='',pattern=r'^([0-9]{16,22})?$')
@@ -42,6 +42,7 @@ class Bridge(BaseModel):
     summary:str=Field(default='',max_length=500)
     repo_name:str=Field(default='',max_length=100)
     repo_description:str=Field(default='',max_length=200)
+    issue_url:str=Field(default='',max_length=500)
     document:Document|None=None
 
 def authorize(request):
@@ -107,6 +108,14 @@ def command(body:Bridge,request:Request,s:Session=Depends(get_session)):
         try:row=standards_proposals.propose(s,'hermes:'+profile.owner,p.id,workdir,body.section,body.items,body.summary)
         except standards_proposals.ProposalError as exc:raise HTTPException(422,str(exc)) from None
         return {'proposal':standards_proposals.proposal_dict(row),'instructions':'Tell the operator an addition to the standards is waiting for their approval on the project page in MCD, with the summary and the diff. Nothing has changed yet; approval only creates a new branch to review.'}
+    if body.action=='issue_task':
+        if not pref.allow_discord_issue_tasks:raise HTTPException(403,'Enable Discord issue tasks in your RCD profile first.')
+        if not body.source_message_id:raise HTTPException(422,'A trusted Discord message ID is required for issue intake.')
+        wd=body.working_dir or pref.working_dir
+        if not body.issue_url or not wd:raise HTTPException(422,'Send one GitHub issue URL and configure a working directory in your profile.')
+        card,created,issue=issue_tasks.create_or_get(s,settings,request.app.state.github,body.issue_url,wd,body.agent or 'codex')
+        s.commit()
+        return {'created':created,'issue':issue,'card_id':card.id,'column':card.column,'needs_approval':card.needs_approval,'instructions':'Tell the operator the linked GitHub issue is now task #'+str(card.id)+(' and is waiting for approval before code can run.' if card.needs_approval else '. Review the task in RCD before queueing it.')+' If it was already submitted, link the existing task instead. Do not claim the issue is fixed.'}
     if body.action in ('propose_repository','bootstrap_status'):
         if not pref.allow_discord_repositories:raise HTTPException(403,'Enable Discord repository proposals in your MCD profile first.')
         guard=request.app.state.github_actions;config=request.app.state.github.config()

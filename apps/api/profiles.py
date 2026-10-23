@@ -66,6 +66,7 @@ class Preferences(BaseModel):
     allow_discord_standards: bool = False     # Hermes may propose additions to a repository's standards; only the operator's approval acts
     allow_discord_maintenance: bool = False   # Hermes may read housekeeping findings and propose fixes; only the operator's approval acts
     allow_discord_repositories: bool = False  # Hermes may propose a new private GitHub repository for a project; only the operator's approval creates it
+    allow_discord_issue_tasks: bool = False   # Hermes may turn a linked configured GitHub issue into one approval-gated task
     github: GithubPreferences = Field(default_factory=GithubPreferences)
     coordinator_bootstrap: CoordinatorBootstrapPreferences = Field(default_factory=CoordinatorBootstrapPreferences)
     route_recovery: RecoveryPolicy = Field(default_factory=RecoveryPolicy)

@@ -368,6 +368,18 @@ class AlertState(Base):
     value: Mapped[str] = mapped_column(Text)
 
 
+class IssueTask(Base):
+    """A user-selected GitHub issue becomes one approval-gated Hermes task."""
+    __tablename__ = "issue_task"
+    __table_args__ = (UniqueConstraint("repo", "number", name="uq_issue_task_issue"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    repo: Mapped[str] = mapped_column(String(140), nullable=False)
+    number: Mapped[int] = mapped_column(Integer, nullable=False)
+    card_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[int] = mapped_column(Integer, nullable=False)
+
+
 class BugIntake(Base):
     """One accepted bug-report issue turned into one task, kept even if the task is later deleted so it is never created twice."""
     __tablename__ = "bug_intake"

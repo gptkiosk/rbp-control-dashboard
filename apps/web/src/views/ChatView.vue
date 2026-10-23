@@ -6,6 +6,7 @@ import PageHead from '@/components/PageHead.vue'
 import ChatConversation from '@/components/ChatConversation.vue'
 import ChipTag from '@/components/ChipTag.vue'
 import NewChatDialog from '@/components/NewChatDialog.vue'
+import IssueTaskDialog from '@/components/IssueTaskDialog.vue'
 import { useNow } from '@/composables/useNow'
 import { usePolledJson } from '@/composables/usePolledJson'
 import type { ChatThread, ChatThreadsPayload } from '@/lib/api'
@@ -22,6 +23,7 @@ const { data, error, loaded, refresh } = usePolledJson<ChatThreadsPayload>('/api
 
 const threads = computed(() => data.value?.threads ?? [])
 const showNew = ref(false)
+const showIssueTask = ref(false)
 useGuideAction('new', () => { showNew.value = true })
 
 // The open thread lives in ?thread= so it can be linked to and survives a reload.
@@ -63,7 +65,7 @@ function preview(t: ChatThread): string {
 <template>
   <section class="page" aria-labelledby="chat-title">
     <PageHead id="chat-title" title="Chat" :icon="navIcon('chat')" sub="Talk to an agent." help="agent-chat">
-      <button type="button" class="btn primary" @click="showNew = true"><AppIcon name="plus" />New chat</button>
+      <button type="button" class="btn" @click="showIssueTask = true">Give Hermes an issue</button><button type="button" class="btn primary" @click="showNew = true"><AppIcon name="plus" />New chat</button>
     </PageHead>
 
     <div class="chat" :data-open="selectedId !== null ? 'true' : 'false'">
@@ -111,6 +113,7 @@ function preview(t: ChatThread): string {
     </div>
 
     <NewChatDialog v-if="showNew" @close="showNew = false" @created="onCreated" />
+    <IssueTaskDialog v-if="showIssueTask" @close="showIssueTask = false" @created="id => { showIssueTask = false; void router.push({ path: '/tasks', query: { card: String(id) } }) }" />
   </section>
 </template>
 

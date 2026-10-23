@@ -79,6 +79,15 @@ class GithubReader:
   if not SLUG.fullmatch(repo) or any(x in {".",".."} for x in repo.split("/")) or not re.fullmatch(r"[A-Za-z0-9 ._-]{1,50}",label):raise GithubUnavailable()
   fields='[.[] | select(.pull_request == null) | {number: .number, title: .title, user: .user.login, body: ((.body // "") | .[0:6000]), labels: [.labels[].name], url: .html_url, updated_at: .updated_at}]'
   return self.query(f"repos/{repo}/issues?state=open&labels={label}&per_page=30&sort=updated",fields)
+ def issue(self,repo,number):
+  """Read one configured GitHub issue, including bounded text. Pull requests never qualify."""
+  config=self.config()
+  if not SLUG.fullmatch(repo) or not isinstance(number,int) or number<1:raise GithubUnavailable()
+  if self.config_store and (config is None or repo not in config.repos):raise GithubNotFound()
+  fields='{number: .number, title: .title, body: ((.body // "") | .[0:6000]), labels: [.labels[].name], url: .html_url, is_pull: (.pull_request != null), updated_at: .updated_at}'
+  row=self.query(f"repos/{repo}/issues/{number}",fields,object_result=True)
+  if row.get("number")!=number or row.get("is_pull") or not isinstance(row.get("title"),str) or not isinstance(row.get("url"),str):raise GithubNotFound()
+  return row
  def missing(self,repos):
   """Names that GitHub says do not exist for this login, each with a hint. Other failures are not blockers."""
   found=[]
