@@ -10,6 +10,13 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.6.58] - 2026-10-23
+
+### Fixed
+
+- **Discord can now create reviewed issue tasks.** The bundled Hermes plugin exposes the opted-in `issue_task` action, restricts it to Codex, Claude Code, or OpenClaw, and has an explicit safe `--upgrade` installer path for an already installed plugin.
+
+
 ## [0.6.57] - 2026-10-23
 
 ### Added
