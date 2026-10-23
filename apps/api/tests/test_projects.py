@@ -1645,6 +1645,32 @@ def test_pending_route_refuses_output_continuation(app,pending_subscriptions):
         'agent':'codex','model':'gpt-6-luna','expected_agent':'claude','expected_model':'claude-sonnet-5-5','acknowledge':True})
     assert response.status_code==409 and 'output continuation' in response.text
 
+def test_reviewed_map_can_be_replanned_before_dispatch_and_restored(app):
+    """A reviewed map has no execution to pause; revision planning remains reversible."""
+    c, s, wd, settings = app
+    original = new(app, [node('old-map')])
+    with s.begin() as db:
+        db.get(Project, original['id']).state = 'review'
+    source = c.get(f'/api/projects/{original["id"]}').json()
+    assert source['state'] == 'review' and not source['tasks']
+    planned = c.post(f'/api/projects/{source["id"]}/replan', json={
+        'revision': source['revision'], 'reason': 'Add automated preview verification before dispatch.',
+        'acknowledge': True, 'approve_coordination': True}).json()
+    assert planned['state'] == 'planning'
+    assert planned['pipeline']['replan']['source_state'] == 'review'
+    assert planned['pipeline']['replan']['source_document']['nodes'][0]['key'] == 'old-map'
+    finish(app, planned['pipeline']['card_id'], json.dumps(next(v for v in planned['pipeline']['choices'] if v['agent'] == 'codex'))); advance(app)
+    planned = c.get(f'/api/projects/{source["id"]}').json()
+    finish(app, planned['pipeline']['card_id'], json.dumps({'nodes': [node('preview-check')]})); advance(app)
+    planned = c.get(f'/api/projects/{source["id"]}').json()
+    finish(app, planned['pipeline']['card_id'], json.dumps({'nodes': [node('preview-check')]})); advance(app)
+    replacement = c.get(f'/api/projects/{source["id"]}').json()
+    assert replacement['state'] == 'review' and replacement['revision'] == 2 and replacement['can_cancel_replan']
+    restored = c.post(f'/api/projects/{source["id"]}/cancel-replan', json={'revision': replacement['revision']}).json()
+    assert restored['state'] == 'review' and restored['revision'] == 1
+    assert restored['document']['nodes'][0]['key'] == 'old-map'
+    assert not restored['can_cancel_replan']
+
 def test_paused_project_replan_replaces_only_unstarted_work_and_can_be_discarded(app):
     """A continuation plan is idempotent: old cards/runs survive and old queued work cannot dispatch."""
     c, s, wd, settings = app

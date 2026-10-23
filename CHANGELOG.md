@@ -10,6 +10,14 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.6.55] - 2026-10-23
+
+### Fixed
+
+- **Reviewed project maps can now be revised before dispatch.** Replanning no longer requires an impossible dispatch pause when no story has started. The prior reviewed map remains recoverable until its replacement is submitted.
+- **Replacement-plan recovery remains available through map review.** “Keep current plan” restores the original reviewed or paused revision without losing the prior map.
+
+
 ## [0.6.54] - 2026-10-23
 
 ### Changed
@@ -960,6 +968,8 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 [0.6.51]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.50...v0.6.51
 
 [0.6.52]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.51...v0.6.52
+
+[0.6.55]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.54...v0.6.55
 
 [0.6.54]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.53...v0.6.54
 
