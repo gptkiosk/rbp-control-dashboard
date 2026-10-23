@@ -1,6 +1,6 @@
 name: mcd-projects
-version: 1.0.0
-description: Profile-linked MCD project planning and diagrams from Discord. No execution actions.
+version: 1.1.0
+description: Profile-linked dashboard planning, review-gated issue tasks, and diagrams from Discord.
 author: Mac Control Dashboard
 kind: standalone
 platforms: [macos, linux]

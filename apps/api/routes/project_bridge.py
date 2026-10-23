@@ -113,6 +113,7 @@ def command(body:Bridge,request:Request,s:Session=Depends(get_session)):
         if not body.source_message_id:raise HTTPException(422,'A trusted Discord message ID is required for issue intake.')
         wd=body.working_dir or pref.working_dir
         if not body.issue_url or not wd:raise HTTPException(422,'Send one GitHub issue URL and configure a working directory in your profile.')
+        if body.agent not in (None,'codex','claude','openclaw'):raise HTTPException(422,'Choose Codex, Claude Code, or OpenClaw for an issue task.')
         card,created,issue=issue_tasks.create_or_get(s,settings,request.app.state.github,body.issue_url,wd,body.agent or 'codex')
         s.commit()
         return {'created':created,'issue':issue,'card_id':card.id,'column':card.column,'needs_approval':card.needs_approval,'instructions':'Tell the operator the linked GitHub issue is now task #'+str(card.id)+(' and is waiting for approval before code can run.' if card.needs_approval else '. Review the task in RCD before queueing it.')+' If it was already submitted, link the existing task instead. Do not claim the issue is fixed.'}
