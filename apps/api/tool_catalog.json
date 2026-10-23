@@ -1,6 +1,6 @@
 {
   "schema": "dashboard-tool-catalog/v1",
-  "checked": "2026-10-13",
+  "checked": "2026-10-23",
   "requirements": {
     "platforms": [
       "linux-arm64",
@@ -49,25 +49,25 @@
     "node": {
       "name": "Node.js",
       "installer": "archive",
-      "version": "24.21.0",
+      "version": "24.22.1",
       "size_mb": 230,
       "note": "Shared pinned Node.js runtime for npm tools on Linux arm64 and Apple Silicon Macs.",
       "archive": {
         "linux-arm64": {
-          "url": "https://nodejs.org/dist/v24.21.0/node-v24.21.0-linux-arm64.tar.xz",
-          "sha256": "6ad1325edbdb5649c379b75a237147a666c95d4f9ae8d340fef2d1575d289ad2",
-          "size": 30843004,
+          "url": "https://nodejs.org/dist/v24.22.1/node-v24.22.1-linux-arm64.tar.xz",
+          "sha256": "dbabf7a1cbf947e6059ffad2c27b80041db97dea1e553b62afdee7f13fca336e",
+          "size": 30978868,
           "format": "tar.xz",
-          "root": "node-v24.21.0-linux-arm64",
-          "shasums_url": "https://nodejs.org/dist/v24.21.0/SHASUMS256.txt"
+          "root": "node-v24.22.1-linux-arm64",
+          "shasums_url": "https://nodejs.org/dist/v24.22.1/SHASUMS256.txt"
         },
         "darwin-arm64": {
-          "url": "https://nodejs.org/dist/v24.21.0/node-v24.21.0-darwin-arm64.tar.gz",
-          "sha256": "bed7eea5325e1108f32ce5228ddd6a5f0f08a499ee42aa7442aea583702f6057",
-          "size": 52909993,
+          "url": "https://nodejs.org/dist/v24.22.1/node-v24.22.1-darwin-arm64.tar.gz",
+          "sha256": "89c682593d76cd44233fa53b1563264e7de9cbb189cad169135c5b4fadfbc0a7",
+          "size": 53062778,
           "format": "tar.gz",
-          "root": "node-v24.21.0-darwin-arm64",
-          "shasums_url": "https://nodejs.org/dist/v24.21.0/SHASUMS256.txt"
+          "root": "node-v24.22.1-darwin-arm64",
+          "shasums_url": "https://nodejs.org/dist/v24.22.1/SHASUMS256.txt"
         }
       },
       "bins": [],
@@ -76,7 +76,7 @@
           "bin/node",
           "--version"
         ],
-        "expect": "v24.21.0"
+        "expect": "v24.22.1"
       }
     }
   },
@@ -173,12 +173,12 @@
     "openclaw": {
       "name": "OpenClaw",
       "installer": "npm-lock",
-      "version": "2026.10.3",
+      "version": "2026.10.6",
       "package": "openclaw",
       "lock_dir": "tool_locks/openclaw",
       "lock": {
-        "package_json_sha256": "f651964ce0488383e96b87ba2c662fc68f045b18ed122130292d060c0523fe7a",
-        "package_lock_sha256": "00a45a58787eb5f94a710f92a99f61fcb926786b8cd1939942128ec0b2d870e7"
+        "package_json_sha256": "8b1d6375533057376f0a5cf8eb5ed60da97ec307c341686d6c9aae797f140791",
+        "package_lock_sha256": "1a32e8ffb84c2065a03c1ac3524601c54ea0a0cf2a65c5c0803d255060f7689b"
       },
       "allow_scripts": [],
       "requires": [
@@ -198,7 +198,7 @@
           "openclaw",
           "--version"
         ],
-        "expect": "2026.10.3"
+        "expect": "2026.10.6"
       },
       "login": {
         "command": "openclaw onboard",

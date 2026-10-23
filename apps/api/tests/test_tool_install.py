@@ -368,7 +368,7 @@ def test_installing_a_npm_tool_installs_node_first_then_the_tool_and_both_run(cf
     assert ci[1:] == ["ci", "--ignore-scripts", "--no-audit", "--no-fund", "--no-progress", "--loglevel=error"]
     view = ti.installed_view(cfg, "codex")
     assert view["installed"] and view["current"]["version"] == "0.162.1" and view["previous"] is None
-    assert ti.installed_view(cfg, "node")["current"]["version"] == "24.21.0"
+    assert ti.installed_view(cfg, "node")["current"]["version"] == "24.22.1"
     wrapper = cfg.bin / "codex"
     assert os.access(wrapper, os.X_OK) and ti.WRAPPER_MARK in wrapper.read_text()
     assert subprocess.run([str(wrapper), "--version"], capture_output=True, text=True).stdout.strip() == "Codex CLI 0.162.1"
@@ -445,12 +445,12 @@ def test_install_writes_only_inside_the_tools_root_and_the_named_hermes_folder(c
 
 def test_the_plan_confirmation_shows_exact_versions_commands_disk_and_memory(cfg, catalog):
     p = plan(cfg, catalog, "openclaw", "install", facts(disk_free_mb=15000, mem_total_mb=3880, mem_available_mb=3100))
-    assert (p["tool"], p["action"], p["from"], p["to"]) == ("openclaw", "install", None, "2026.10.3")
-    assert [r["id"] for r in p["runtimes"]] == ["node"] and p["runtimes"][0]["version"] == "24.21.0"
+    assert (p["tool"], p["action"], p["from"], p["to"]) == ("openclaw", "install", None, "2026.10.6")
+    assert [r["id"] for r in p["runtimes"]] == ["node"] and p["runtimes"][0]["version"] == "24.22.1"
     text = "\n".join(p["commands"])
-    assert "download https://nodejs.org/dist/v24.21.0/node-v24.21.0-linux-arm64.tar.xz" in text
+    assert "download https://nodejs.org/dist/v24.22.1/node-v24.22.1-linux-arm64.tar.xz" in text
     assert "SHASUMS256.txt" in text and "npm ci --ignore-scripts" in text
-    assert [d["sha256"] for d in p["downloads"]] == ["6ad1325edbdb5649c379b75a237147a666c95d4f9ae8d340fef2d1575d289ad2"]
+    assert [d["sha256"] for d in p["downloads"]] == ["dbabf7a1cbf947e6059ffad2c27b80041db97dea1e553b62afdee7f13fca336e"]
     assert p["disk"] == {"free_mb": 15000, "required_mb": 850, "min_free_mb": 2048, "headroom_mb": 512}
     assert p["memory"]["total_mb"] == 3880 and p["memory"]["available_mb"] == 3100
     assert p["login"]["command"] == "openclaw onboard"
@@ -629,7 +629,7 @@ def test_remove_deletes_the_program_and_its_wrapper_and_the_orphaned_runtime(cfg
     assert not (cfg.bin / "codex").exists() and not cfg.comp_dir("codex").exists()
     assert (cfg.bin / "openclaw").exists() and ti.installed_view(cfg, "node")["installed"]
     p = plan(cfg, catalog, "openclaw", "remove")
-    assert p["removes"] == ["Node.js 24.21.0 (nothing else uses it)"]
+    assert p["removes"] == ["Node.js 24.22.1 (nothing else uses it)"]
     out = run(cfg, catalog, "openclaw", "remove")
     assert out["outcome"] == "done"
     assert not ti.installed_view(cfg, "node")["installed"] and not cfg.comp_dir("node").exists()
@@ -883,7 +883,7 @@ def test_redirects_may_only_land_on_allowlisted_https_hosts():
 def test_shasums_must_list_the_pinned_hash(cfg, catalog):
     class Liar(FakeOps):
         def fetch_text(self, url):
-            return f"{'0' * 64}  node-v24.21.0-linux-arm64.tar.xz\n"
+            return f"{'0' * 64}  node-v24.22.1-linux-arm64.tar.xz\n"
 
     with pytest.raises(ti.ToolError, match="SHASUMS256.txt does not list the pinned sha256"):
         run(cfg, catalog, "codex", "install", ops=Liar(catalog))
