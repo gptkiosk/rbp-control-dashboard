@@ -10,6 +10,12 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.6.52] - 2026-10-22
+
+### Changed
+
+- **Preview verification is now planned as a one-command, evidence-producing checkpoint.** Visual and container work requires a repository verifier that starts only its own loopback preview, waits for health, checks the planned URLs, captures screenshots when the declared runner supports them, records the checked commit and results, then stops its own PID on success, failure or cancellation before human review.
+
 ## [0.6.51] - 2026-10-22
 
 ### Changed
@@ -935,3 +941,5 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 
 [0.6.47]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.46...v0.6.47
 [0.6.51]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.50...v0.6.51
+
+[0.6.52]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.51...v0.6.52

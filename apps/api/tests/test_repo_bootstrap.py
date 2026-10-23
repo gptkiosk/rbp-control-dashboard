@@ -262,7 +262,7 @@ def test_the_planner_requires_verification_and_a_viewable_preview_before_a_visua
     plan = (pack / 'plan.txt').read_text()
     assert "never let the producing story's own report stand as proof" in plan
     assert 'exists, is not empty' in plan and 'referenced by the page or stylesheet' in plan
-    assert 'clickable URL' in plan and '127.0.0.1' in plan and 'stops it' in plan
-    assert 'stopped, by its own process id and never by name, only when the operator records approval' in plan
-    assert 'preview checkpoint' in (pack / 'review.txt').read_text() or 'localhost preview checkpoint' in (pack / 'review.txt').read_text()
+    assert 'clickable URL' in plan and '127.0.0.1' in plan and 'stops it' in plan and 'tools/verify-preview.sh' in plan and 'trap' in plan
+    assert 'PID-specific stop' in plan and 'on failure, and on cancellation' in plan and 'leave the preview running while approval waits' in plan
+    assert 'automated preview-verification checkpoint' in (pack / 'review.txt').read_text()
     assert int((pack / 'VERSION').read_text().strip()) >= 9
