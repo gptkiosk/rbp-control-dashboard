@@ -627,7 +627,7 @@ def detail(s, p):
     records = list(s.scalars(select(ProjectMemory).where(ProjectMemory.project_id==p.id,ProjectMemory.kind!='scorecard').order_by(ProjectMemory.id.desc()).limit(100)))
     return {'id':p.id, 'bootstrap':(p.intake_key or '').startswith('bootstrap:'), 'document':document(p), 'revision':p.revision, 'state':p.state, 'can_resume_plan':recoverable(s,p),
         'approved_revision':json.loads(p.approved_manifest)['revision'] if p.approved_manifest else None,
-        'can_cancel_replan': bool(p.state=='review' and p.approved_manifest and json.loads(p.approved_manifest).get('revision') != p.revision),
+        'can_cancel_replan': bool(p.state=='review' and p.pipeline and (json.loads(p.pipeline).get('replan') or {}).get('source_revision') != p.revision),
         'pipeline':json.loads(p.pipeline) if p.pipeline else None, 'error':p.error,
         'route_reliability':recovery.payload(s,get_settings(),p.created_by) if p.state in {'planning_failed','dispatch_failed','active','paused'} else None,
         'handoff_approval':handoff_approval(s,p), 'model_lock':model_locked(p),
@@ -955,24 +955,23 @@ def _retry_unusable_planning_result(s, p, pipeline, step, run, card, settings, e
 
 
 def replan(s,p,action,settings,actor,subagents=None):
-    """Start an idempotent continuation-plan pipeline from a paused revision.
-
-    Existing cards and runs remain intact.  Nothing in the old queue is dispatched while
-    planning/review is underway because `claim_context` admits only the approved revision.
-    The old queue is marked backlog only after the replacement revision is approved.
-    """
+    """Plan a replacement revision without dispatching the current reviewed map."""
     check_revision(p,action.revision)
     if p.state == 'planning' and p.pipeline:
         pipeline=json.loads(p.pipeline)
         if pipeline.get('replan') and pipeline.get('revision') == p.revision:
             return
-    if p.state != 'paused' or not p.approved_manifest:
-        fail('Pause an approved project before replanning its remaining work.',409)
+    source_state=p.state
+    if source_state not in {'paused','review'}:
+        fail('Replanning is available for a reviewed map awaiting dispatch or a paused project with no running/review stories.',409)
+    if source_state == 'paused':
+        if not p.approved_manifest:
+            fail('The approved project record is unavailable. Reload the project before replanning.',409)
+        manifest=json.loads(p.approved_manifest)
+        if manifest.get('revision') != p.revision:
+            fail('The approved revision changed. Reload the project before replanning.',409)
     if not action.acknowledge:
         fail('Acknowledge that replanning preserves completed history and replaces only untouched work.',422)
-    manifest=json.loads(p.approved_manifest)
-    if manifest.get('revision') != p.revision:
-        fail('The approved revision changed. Reload the project before replanning.',409)
     live=[]
     for link in s.scalars(select(ProjectTask).where(ProjectTask.project_id==p.id, ProjectTask.role=='story', ProjectTask.revision==p.revision)):
         card=s.get(Card,link.card_id)
@@ -981,9 +980,9 @@ def replan(s,p,action,settings,actor,subagents=None):
     if live:
         fail('Finish, accept, or explicitly resolve these running/review stories before replanning: '+', '.join(live),409)
     reason=action.reason.strip()
-    context=_replan_context(s,p,reason)
-    # Reuse the reviewed planning pipeline.  Temporarily Draft is an internal transition;
-    # `plan` writes the planning state atomically before the request returns.
+    context=_replan_context(s,p,reason,source_state=source_state,source_document=document(p))
+    # A reviewed map has no execution to pause. Draft is only the atomic transition
+    # into the normal planning pipeline; the existing map remains recoverable.
     p.state='draft'; p._replan_context=context
     try:
         plan(s,p,action,settings,actor,subagents)
@@ -992,18 +991,25 @@ def replan(s,p,action,settings,actor,subagents=None):
     pipeline=json.loads(p.pipeline)
     pipeline['replan']=context
     p.pipeline=json.dumps(pipeline)
-    memory(s,p,'decision',f'Operator requested a continuation replan from approved revision {context["source_revision"]}. Completed and attempted stories remain historical; untouched queued work stays paused until the replacement revision is reviewed and submitted. Reason: {reason}',actor)
+    phase='before dispatch' if source_state == 'review' else 'from paused work'
+    memory(s,p,'decision',f'Operator requested a replan {phase} from revision {context["source_revision"]}. Completed and attempted stories remain historical; the replacement requires review and submit. Reason: {reason}',actor)
 
 def cancel_replan(s,p,revision,actor):
-    """Discard an unapproved continuation proposal and reactivate its approved source revision."""
+    """Discard an unapproved replacement and restore the source map and state."""
     check_revision(p,revision)
-    if p.state != 'review' or not p.approved_manifest:
+    if p.state != 'review':
         fail('There is no unapproved replacement plan to discard.',409)
-    manifest=json.loads(p.approved_manifest)
-    if manifest.get('revision') == p.revision:
+    pipeline=json.loads(p.pipeline or '{}')
+    replan_context=pipeline.get('replan') or {}
+    source_state=replan_context.get('source_state')
+    source_revision=replan_context.get('source_revision')
+    source_document=replan_context.get('source_document')
+    if source_state not in {'paused','review'} or not isinstance(source_revision,int) or not isinstance(source_document,dict):
+        fail('There is no unapproved replacement plan to discard.',409)
+    if source_revision == p.revision:
         fail('There is no replacement revision to discard.',409)
-    p.document=json.dumps(manifest['document']); p.revision=manifest['revision']; p.state='paused'; p.pipeline=None; p.error=None
-    memory(s,p,'decision',f'Operator discarded unapproved replacement revision {revision}; approved revision {p.revision} remains paused and unchanged.',actor)
+    p.document=json.dumps(source_document); p.revision=source_revision; p.state=source_state; p.pipeline=None; p.error=None
+    memory(s,p,'decision',f'Operator discarded unapproved replacement revision {revision}; source revision {p.revision} remains {source_state} and unchanged.',actor)
 
 def plan(s,p,action,settings,actor,subagents=None):
     check_revision(p,action.revision)
@@ -1176,14 +1182,14 @@ def proposal(doc, nodes, settings):
         normalized.append(row)
     return validate({**doc, 'nodes': normalized}, settings, True)
 
-def _replan_context(s,p,reason):
+def _replan_context(s,p,reason,source_state='paused',source_document=None):
     """Bounded history for a continuation plan. Completed and attempted work stays immutable."""
     rows=[]
     for link in s.scalars(select(ProjectTask).where(ProjectTask.project_id==p.id, ProjectTask.role=='story', ProjectTask.revision==p.revision)):
         card=s.get(Card,link.card_id)
         if card and card.column not in {'backlog','queued'}:
             rows.append({'key':link.node_key,'title':card.title[:200],'status':card.column})
-    return {'source_revision':p.revision,'reason':reason,'preserve':rows[:100],
+    return {'source_revision':p.revision,'source_state':source_state,'source_document':source_document,'reason':reason,'preserve':rows[:100],
         'instruction':'Create only the remaining work. Do not repeat, rename, or modify preserved stories. Their history is immutable. Dependencies on completed work are already satisfied; do not include those keys.'}
 
 def _replan_prompt(context):
@@ -1426,7 +1432,9 @@ def advance(s,settings):
                     p.document=json.dumps(proposed);p.revision+=1;p.state='review'
                     try: scorecard.record_returned(s,p,proposed['nodes'],settings,pipeline.get('chosen'),{'agent':r.agent,'model':r.model_reported or r.model_requested})
                     except Exception: pass   # a scorecard problem must never block planning
-                    p.pipeline=None
+                    # Keep only the source metadata through map review so the operator can
+                    # discard this replacement. Submit replaces it with the dispatch pipeline.
+                    p.pipeline=json.dumps({'replan': pipeline['replan']}) if pipeline.get('replan') else None
                     memory(s,p,'proposal',f'Delegator returned editable map revision {p.revision}; operator review required.' + (f' This is a continuation replacement for untouched work from revision {source_revision}; completed and attempted cards remain historical.' if source_revision else ''),r.agent,r.card_id,r.id)
                     if fixed_modes: memory(s,p,'checkpoint','MCD set '+str(len(fixed_modes))+' implementation or documentation stor'+('y' if len(fixed_modes)==1 else 'ies')+' from Read to Edit mode, because a story that writes files cannot run read-only: '+'; '.join(t[:60] for t in fixed_modes[:12])+'. Review each story\'s Mode before submitting.','mcd',r.card_id,r.id)
                 elif step=='dispatch': _materialize(s,p,data.get('order'),settings)
