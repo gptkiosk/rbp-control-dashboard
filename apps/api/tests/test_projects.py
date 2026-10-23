@@ -1644,3 +1644,41 @@ def test_pending_route_refuses_output_continuation(app,pending_subscriptions):
     response=c.post(f'/api/projects/{p["id"]}/stories/{cid}/route',json={'revision':p['revision'],
         'agent':'codex','model':'gpt-6-luna','expected_agent':'claude','expected_model':'claude-sonnet-5-5','acknowledge':True})
     assert response.status_code==409 and 'output continuation' in response.text
+
+def test_paused_project_replan_replaces_only_unstarted_work_and_can_be_discarded(app):
+    """A continuation plan is idempotent: old cards/runs survive and old queued work cannot dispatch."""
+    c, s, wd, settings = app
+    p = active(app, [node('old-a'), node('old-b', depends_on=['old-a'])])
+    old = [t for t in p['tasks'] if t['role'] == 'story']
+    paused = c.post(f'/api/projects/{p["id"]}/pause', json={'revision': p['revision']}).json()
+    assert paused['state'] == 'paused'
+    missing = c.post(f'/api/projects/{p["id"]}/replan', json={'revision': paused['revision'], 'reason': 'The delivery scope changed.', 'acknowledge': False, 'approve_coordination': True})
+    assert missing.status_code == 422
+    planned = c.post(f'/api/projects/{p["id"]}/replan', json={'revision': paused['revision'], 'reason': 'The delivery scope changed.', 'acknowledge': True, 'approve_coordination': True}).json()
+    assert planned['state'] == 'planning' and planned['pipeline']['replan']['source_revision'] == 1
+    # A duplicate click does not create a second planning card.
+    again = c.post(f'/api/projects/{p["id"]}/replan', json={'revision': planned['revision'], 'reason': 'The delivery scope changed.', 'acknowledge': True, 'approve_coordination': True}).json()
+    assert again['pipeline']['card_id'] == planned['pipeline']['card_id']
+    finish(app, planned['pipeline']['card_id'], json.dumps(next(v for v in planned['pipeline']['choices'] if v['agent'] == 'codex'))); advance(app)
+    planned = c.get(f'/api/projects/{p["id"]}').json()
+    finish(app, planned['pipeline']['card_id'], json.dumps({'nodes': [node('new-work')]})); advance(app)
+    planned = c.get(f'/api/projects/{p["id"]}').json()
+    finish(app, planned['pipeline']['card_id'], json.dumps({'nodes': [node('new-work')]})); advance(app)
+    proposed = c.get(f'/api/projects/{p["id"]}').json()
+    assert proposed['state'] == 'review' and proposed['revision'] == 2 and proposed['can_cancel_replan']
+    # The operator can keep the approved revision without deleting any history.
+    restored = c.post(f'/api/projects/{p["id"]}/cancel-replan', json={'revision': 2}).json()
+    assert restored['state'] == 'paused' and restored['revision'] == 1
+    # Replan again and approve it: old unstarted cards are retained but cannot dispatch.
+    planned = c.post(f'/api/projects/{p["id"]}/replan', json={'revision': 1, 'reason': 'The delivery scope changed.', 'acknowledge': True, 'approve_coordination': True}).json()
+    finish(app, planned['pipeline']['card_id'], json.dumps(next(v for v in planned['pipeline']['choices'] if v['agent'] == 'codex'))); advance(app)
+    planned = c.get(f'/api/projects/{p["id"]}').json(); finish(app, planned['pipeline']['card_id'], json.dumps({'nodes': [node('new-work')]})); advance(app)
+    planned = c.get(f'/api/projects/{p["id"]}').json(); finish(app, planned['pipeline']['card_id'], json.dumps({'nodes': [node('new-work')]})); advance(app)
+    proposed = c.get(f'/api/projects/{p["id"]}').json()
+    dispatched = c.post(f'/api/projects/{p["id"]}/submit', json={'revision': 2, 'approve_coordination': True, 'approve_api_work': True}).json()
+    finish(app, dispatched['pipeline']['card_id'], json.dumps({'order': ['new-work']})); advance(app)
+    final = c.get(f'/api/projects/{p["id"]}').json()
+    old_after = {t['card_id']: t for t in final['tasks'] if t['card_id'] in {x['card_id'] for x in old}}
+    assert final['state'] == 'active'
+    assert all(t['column'] == 'backlog' and t['superseded'] for t in old_after.values())
+    assert any(t['node_key'] == 'new-work' and t['revision'] == 2 for t in final['tasks'])

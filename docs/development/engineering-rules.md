@@ -35,7 +35,7 @@ These rules come from operator decisions and from real failures on hardware. A c
 
 ## Interface
 - A slow load says what is loading (LoadingCard), and says it is still working after a few seconds.
-- An approved plan is never edited; a project in progress takes dated brief amendments instead, given to later stories within a bounded size.
+- An approved plan revision is never edited. A paused project with no running or review stories may request a bounded continuation replan: Hermes proposes a new revision for untouched work only, the app preserves completed and attempted cards/runs, shows the replacement for operator review, and supersedes old queued work only after approval. Dated brief amendments remain available for smaller changes.
 - A long action shows that it is working (state, progress and a log) and cannot be started twice.
 - Say where work comes from. For example, Coordinator setup itself creates no tasks; its validation project does.
 - Reference art lives in a project's `media/references/`. Uploads are checked by their bytes, not their name, and are sent as the raw request body, so no new upload dependency is needed.

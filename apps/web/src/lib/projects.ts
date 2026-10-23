@@ -12,7 +12,7 @@ export interface ProjectDocument {
   repository?: { name: string; repo: string; folder: string; branch: string } | null
   project_type?: string | null; planner_agent: 'auto' | 'claude' | 'codex' | 'grok' | 'hermes' | 'openclaw'; planner_model: string; planning_bias: number; dispatch_mode: 'sequential' | 'parallel'; nodes: ProjectNode[]
 }
-export interface ProjectTask { queued_route_blocker?: string | null; queued_route_options?: {agent: 'claude' | 'codex'; model: string}[]; blocked_by?: number[]; working_dir?: string; agent?: string; model?: string; mode?: 'read'|'edit'; incomplete_reason?: string | null; card_id: number; node_key: string; role: string; revision: number; column: string; title: string; run_id: number | null; run_stage: string | null; planning_retry_routes?: {agent: ProjectNode['assignee']; model: string}[]; retry_routes?: ProjectNode['routes']; free_retry_routes?: { agent: 'openclaw'; model: string; agent_target: string }[]; paid_retry_routes?: { agent: 'openclaw'; model: string; agent_target: string }[]; low_cost_routes?: { agent: 'claude' | 'codex'; model: string }[]; output_approval?: { run_id: number; path: string; plan: string } | null }
+export interface ProjectTask { queued_route_blocker?: string | null; queued_route_options?: {agent: 'claude' | 'codex'; model: string}[]; blocked_by?: number[]; working_dir?: string; agent?: string; model?: string; mode?: 'read'|'edit'; incomplete_reason?: string | null; card_id: number; node_key: string; role: string; revision: number; column: string; title: string; run_id: number | null; run_stage: string | null; superseded?: boolean; planning_retry_routes?: {agent: ProjectNode['assignee']; model: string}[]; retry_routes?: ProjectNode['routes']; free_retry_routes?: { agent: 'openclaw'; model: string; agent_target: string }[]; paid_retry_routes?: { agent: 'openclaw'; model: string; agent_target: string }[]; low_cost_routes?: { agent: 'claude' | 'codex'; model: string }[]; output_approval?: { run_id: number; path: string; plan: string } | null }
 export interface Memory { id: number; kind: string; text: string; actor: string; card_id: number | null; run_id: number | null; created_at: number }
 export interface Project {
   route_reliability?: RecoveryInfo | null
@@ -22,6 +22,7 @@ export interface Project {
   model_lock?: boolean
   amendments?: { id: number; text: string; actor: string; created_at: number }[]
   can_resume_plan?: boolean
+  can_cancel_replan?: boolean
   standards_check?: { source?: string | null; property?: string | null; problems: string[]; areas: string[]; fixable?: number } | null
   timing?: { runs: number; busy_minutes: number; elapsed_minutes: number; overlap: number } | null
   schedule?: { stories: number; total_minutes: number; critical_minutes: number; speedup: number; width: number; critical_path: string[]; problems: string[]; max_concurrent_runs: number } | null

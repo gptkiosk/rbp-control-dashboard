@@ -10,6 +10,17 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.6.53] - 2026-10-23
+
+### Added
+
+- **Paused projects can now replan remaining work safely.** The operator records what changed, Hermes returns a new continuation revision for unstarted work, and the original plan stays available until the replacement is approved. Completed and attempted cards, run history, accepted handoffs and shared memory remain intact.
+
+### Changed
+
+- **Superseded work is explicit and non-destructive.** On approval of a replacement revision, untouched old cards remain visible as `Superseded by replan` backlog records and cannot dispatch. A duplicate replan request reuses its existing planning pipeline.
+
+
 ## [0.6.52] - 2026-10-22
 
 ### Changed
