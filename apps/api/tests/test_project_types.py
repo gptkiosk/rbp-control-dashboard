@@ -208,5 +208,5 @@ def test_every_type_asks_for_a_readme_with_diagrams_and_screenshots_made_by_a_pe
 
 def test_a_website_preview_leaves_a_script_with_urls_a_health_file_and_a_check():
     t = pt.load()["website-property"]
-    assert "tools/preview.sh" in t["planner_text"] and "/health.txt" in t["planner_text"] and "tailscale ip -4" in t["planner_text"]
+    assert "tools/preview.sh" in t["planner_text"] and "tools/verify-preview.sh" in t["planner_text"] and "/health.txt" in t["planner_text"] and "tailscale ip -4" in t["planner_text"] and "trap" in t["planner_text"]
     assert any("clickable URLs" in fp and "/health.txt" in fp for fp in t["failure_points"])
