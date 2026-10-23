@@ -10,6 +10,13 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.6.60] - 2026-10-23
+
+### Fixed
+
+- **Discord issue intake uses the correct Hermes action.** Coordinator guidance now directs Hermes to call `mcd_project` with `issue_task`, so a linked GitHub issue can create one review-gated, idempotent work card without asking the operator to paste its body or provide a board-card number.
+
+
 ## [0.6.59] - 2026-10-23
 
 ### Fixed
