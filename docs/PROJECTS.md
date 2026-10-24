@@ -268,6 +268,7 @@ planner/return/dispatch validation, revision conflicts, duplicate dispatch, depe
 operator acceptance, pause/resume, finite quota handoffs (including stderr-only failures),
 workspace separation, accepted prerequisite integration, conflicts and reviewed snapshots.
 Browser verification uses an isolated loopback preview with dispatch/collection disabled;
+see [Remote project preview access](configuration/remote-project-previews.md) for the reserved 41350–41399 port group and Tailscale SSH review tunnel.
 the example map is not a submitted live project.
 
 Verification: API 237 tests, web 155 tests and MCP 13 tests; production type-check/build pass. Frozen project dependencies are enforced even through curated agent draft tools, and managed workspace symlinks cannot escape the approved root. No real planning/model turn was invoked during verification.
