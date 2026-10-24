@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  stripAnsi,
   formatAge, formatBytes, formatModelShort, unpricedModels, formatGB, formatKBps, formatPct, formatRate, formatRpm, formatTemp, formatWatts,
 } from '@/lib/format'
 
@@ -73,5 +74,17 @@ describe('format helpers', () => {
     expect(unpricedModels([])).toBe('')
     expect(unpricedModels(['a'])).toBe('no price for a')
     expect(unpricedModels(['a', 'b', 'c', 'd'])).toBe('no price for a, b +2 more')
+  })
+})
+
+describe('stripAnsi', () => {
+  it('removes colour codes and keeps the words', () => {
+    expect(stripAnsi('\u001b[90m9:51PM\u001b[0m \u001b[32mINF\u001b[0m no leaks found')).toBe('9:51PM INF no leaks found')
+  })
+  it('keeps only the last draw of a progress line redrawn with a carriage return, and normalises CRLF', () => {
+    expect(stripAnsi('10%\r50%\r100%\nnext\r\nline')).toBe('100%\nnext\nline')
+  })
+  it('leaves ordinary text, tabs and symbols alone', () => {
+    expect(stripAnsi('a\tb [x] 100% ✔')).toBe('a\tb [x] 100% ✔')
   })
 })
