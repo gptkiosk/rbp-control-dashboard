@@ -454,7 +454,7 @@
         "required": [],
         "recommended": []
       },
-      "note": "csstree-validator (MIT), locked by the dashboard with install scripts off. Checks CSS syntax, unknown properties and invalid values, so a verification story can say a stylesheet parses without installing a parser into the project. Give it explicit files or folders (csstree-validator styles src); a bare project folder also scans node_modules. Exit code 1 means a problem was found. Reads files only. No sign-in."
+      "note": "csstree-validator (MIT), locked by the dashboard with install scripts off. Checks CSS syntax, unknown properties and invalid values, so a verification story can say a stylesheet parses without installing a parser into the project. It takes one file or folder per call: check a project with git ls-files '*.css' | xargs -n1 csstree-validator (a bare project folder also scans node_modules). Exit code 1 means a problem was found. Reads files only. No sign-in."
     }
   }
 }

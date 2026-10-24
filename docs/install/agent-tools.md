@@ -32,7 +32,7 @@ Agent tools also installs two small tools that verification stories rely on, so 
 | Tool | Command | Use |
 |---|---|---|
 | Gitleaks | `gitleaks git --staged --redact` | The secret scan before a commit. `gitleaks git --redact` scans all history. |
-| CSS syntax check | `csstree-validator styles src` | Confirms stylesheets parse, and flags unknown properties and invalid values. Exit code 1 means a problem was found. Give it explicit folders: a bare project folder also scans `node_modules`. |
+| CSS syntax check | `git ls-files '*.css' \| xargs -n1 csstree-validator` | Confirms stylesheets parse, and flags unknown properties and invalid values. It takes one file or folder per call, so pass the files one at a time; a bare project folder also scans `node_modules`. Exit code 1 means a problem was found. |
 
 Install them from Settings, Agent tools (or the manual helper) like any other tool; the Optional tools row in Host readiness links there when one is missing. They land in the managed `bin` folder, which every dispatched agent already has on its PATH.
 
