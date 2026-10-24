@@ -1,0 +1,9 @@
+{
+  "name": "rcd-tool-css-check",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Pinned install of csstree-validator for the dashboard's Agent tools panel. Bumped only by scripts/tools/check.py.",
+  "dependencies": {
+    "csstree-validator": "4.0.1"
+  }
+}

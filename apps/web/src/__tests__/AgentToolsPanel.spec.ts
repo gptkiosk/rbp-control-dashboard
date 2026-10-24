@@ -241,6 +241,19 @@ it('shows and copies the sign-in command with the tool’s full path when its fo
   w.unmount()
 })
 
+it('shows no sign-in line for a verification tool that needs none, and keeps it for a tool that does', async () => {
+  const gitleaks = tool('gitleaks', 'Gitleaks', { installed: true, installed_version: '8.30.1', path: '/home/pi/.local/share/rcd-agent-tools/bin/gitleaks',
+    login: null, login_command: null, actions: { install: null, update: null, remove: [], rollback: null } })
+  const codex = tool('codex', 'Codex CLI', { installed: true, installed_version: '0.162.1', path: '/home/pi/.local/share/rcd-agent-tools/bin/codex',
+    actions: { install: null, update: null, remove: [], rollback: null } })
+  stubFetch(url => url === '/api/agent-installs' ? { body: status({}, [gitleaks, codex]) } : undefined)
+  const w = mount(AgentToolsPanel, stubs); await flushPromises()
+  expect(w.find('[data-login="gitleaks"]').exists()).toBe(false)
+  expect(w.find('[data-login="codex"]').exists()).toBe(true)
+  expect(w.get('[data-tool="gitleaks"]').text()).toContain('Gitleaks')
+  w.unmount()
+})
+
 it('shows each installed tool as a card with its version, runs a read-only health check on request and lists the next steps', async () => {
   const installed = tool('hermes', 'Hermes', { installed: true, installed_version: '0.21.5', installation_source: 'native', path: '/home/pi/.local/bin/hermes', actions: { install: null, update: [], remove: null, rollback: null }, pinned_version: '0.22.0' })
   const f = stubFetch(url => {

@@ -160,7 +160,7 @@
       },
       "login": {
         "command": "codex login --device-auth",
-        "note": "For this dashboard’s Codex CLI subscription route, use an eligible ChatGPT plan such as Plus ($20/month US), Pro, or an eligible organizational seat and choose ChatGPT sign-in. API-key authentication is billed separately. Free/Go desktop access does not establish CLI entitlement."
+        "note": "For this dashboard\u2019s Codex CLI subscription route, use an eligible ChatGPT plan such as Plus ($20/month US), Pro, or an eligible organizational seat and choose ChatGPT sign-in. API-key authentication is billed separately. Free/Go desktop access does not establish CLI entitlement."
       },
       "system_packages": {
         "required": [],
@@ -370,6 +370,91 @@
         "recommended": []
       },
       "note": "The official GitHub CLI release, version and SHA-256 pinned by this dashboard and checked against GitHub's published checksums. No auto-update runs. Needed only for opening pull requests from this machine."
+    },
+    "gitleaks": {
+      "name": "Gitleaks",
+      "installer": "archive",
+      "version": "8.30.1",
+      "archive": {
+        "linux-arm64": {
+          "url": "https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_arm64.tar.gz",
+          "sha256": "e4a487ee7ccd7d3a7f7ec08657610aa3606637dab924210b3aee62570fb4b080",
+          "size": 7601421,
+          "format": "tar.gz",
+          "root": ".",
+          "shasums_url": "https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_checksums.txt"
+        },
+        "darwin-arm64": {
+          "url": "https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_darwin_arm64.tar.gz",
+          "sha256": "b40ab0ae55c505963e365f271a8d3846efbc170aa17f2607f13df610a9aeb6a5",
+          "size": 7897593,
+          "format": "tar.gz",
+          "root": ".",
+          "shasums_url": "https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_checksums.txt"
+        }
+      },
+      "signin": false,
+      "requires": [],
+      "bins": [
+        {
+          "name": "gitleaks",
+          "argv": [
+            "gitleaks"
+          ]
+        }
+      ],
+      "size_mb": 20,
+      "peak_ram_mb": 200,
+      "check": {
+        "argv": [
+          "gitleaks",
+          "version"
+        ],
+        "expect": "8.30.1"
+      },
+      "system_packages": {
+        "required": [],
+        "recommended": []
+      },
+      "note": "The official Gitleaks release, version and SHA-256 pinned by this dashboard and checked against the publisher's checksums. It is the secret scan the starter standards ask for before any commit: gitleaks git --staged --redact (staged changes) or gitleaks git --redact (all history). It reads files only and sends nothing anywhere. No sign-in."
+    },
+    "css-check": {
+      "name": "CSS syntax check",
+      "installer": "npm-lock",
+      "version": "4.0.1",
+      "package": "csstree-validator",
+      "lock_dir": "tool_locks/css-check",
+      "lock": {
+        "package_json_sha256": "2584ce2463261b3731b8fa2ec5fe6e58b5c8b661e18c362597c4289036cad79b",
+        "package_lock_sha256": "9fb944a86cf8589a56ab1ac1106458abd29881356a248eec2b9527fa1cade0d1"
+      },
+      "allow_scripts": [],
+      "signin": false,
+      "requires": [
+        "node"
+      ],
+      "bins": [
+        {
+          "name": "csstree-validator",
+          "argv": [
+            "node_modules/.bin/csstree-validator"
+          ]
+        }
+      ],
+      "size_mb": 10,
+      "peak_ram_mb": 120,
+      "check": {
+        "argv": [
+          "csstree-validator",
+          "--version"
+        ],
+        "expect": "4.0.1"
+      },
+      "system_packages": {
+        "required": [],
+        "recommended": []
+      },
+      "note": "csstree-validator (MIT), locked by the dashboard with install scripts off. Checks CSS syntax, unknown properties and invalid values, so a verification story can say a stylesheet parses without installing a parser into the project. Give it explicit files or folders (csstree-validator styles src); a bare project folder also scans node_modules. Exit code 1 means a problem was found. Reads files only. No sign-in."
     }
   }
 }

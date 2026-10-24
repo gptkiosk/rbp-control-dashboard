@@ -147,8 +147,30 @@ def _managed_bin(settings=None):
     return _managed_root(settings) / "bin"
 
 
+def _node_bin(settings=None):
+    """The managed Node.js folder (node, npm, npx) once the runtime is installed. Verification commands such as npm ci need it by name."""
+    folder = _managed_root(settings) / "tools" / "node" / "current" / "bin"
+    return folder if (folder / "node").exists() else None
+
+
+def _path_folders(settings=None):
+    """Managed folders that belong on the shell PATH, in order: the tools' command wrappers, then Node."""
+    return [f for f in (_managed_bin(settings), _node_bin(settings)) if f is not None and f.is_dir()]
+
+
 def _has_tools(folder):
     return folder.is_dir() and any(p.is_file() and os.access(p, os.X_OK) for p in folder.iterdir())
+
+
+def _path_block_text():
+    out = []
+    for f in PATH_FILES:
+        target = _home() / f
+        if target.is_file():
+            m = re.search(re.escape(PATH_BEGIN) + r".*?" + re.escape(PATH_END), target.read_text("utf-8", "replace"), flags=re.S)
+            if m:
+                out.append(m.group(0))
+    return "\n".join(out)
 
 
 def check_path(settings=None):
@@ -156,10 +178,13 @@ def check_path(settings=None):
     if not _has_tools(folder):
         return _item("tools_path", "Installed tools on your shell PATH", "info", "No tools have been installed by this dashboard yet.")
     configured = any(PATH_BEGIN in (_home() / f).read_text("utf-8", "replace") for f in PATH_FILES if (_home() / f).is_file())
-    on_path = str(folder) in os.environ.get("PATH", "").split(os.pathsep)
-    if configured or on_path:
+    wanted = _path_folders(settings)
+    on_path = all(str(f) in os.environ.get("PATH", "").split(os.pathsep) for f in wanted)
+    # An older block lists only the wrappers folder; ask again when Node has been installed since.
+    block_current = configured and all(str(f) in _path_block_text() for f in wanted)
+    if (configured and block_current) or on_path:
         return _item("tools_path", "Installed tools on your shell PATH", "ok", f"{folder} is on the shell PATH, so commands such as codex and openclaw work in a new terminal.")
-    return _item("tools_path", "Installed tools on your shell PATH", "warn", f"Tools installed here live in {folder}, which your shell does not search, so typing codex or openclaw says command not found. The sign-in command shown on each tool uses the full path; this fix makes the short commands work in new shells.",
+    return _item("tools_path", "Installed tools on your shell PATH", "warn", f"Tools installed here live in {folder}, which your shell does not search, so typing codex or openclaw says command not found. The sign-in command shown on each tool uses the full path; this fix makes the short commands work in new shells, and adds the managed Node.js (node, npm) when it is installed.",
                  {"action": "add_tools_to_path", "label": "Put installed tools on my PATH"})
 
 
@@ -204,9 +229,11 @@ def _how_to_get(tool, have_brew=True):
     """How a missing optional tool is obtained here. The dashboard installs the ones it can without administrator rights (Agent tools); for the rest it only
     shows the command for the person to run, and never runs it. On a Mac the commands use Homebrew, and when Homebrew itself is missing the first step is to install it."""
     mac = _is_mac()
-    if tool in ("gh", "node"):
+    if tool in ("gh", "node", "gitleaks", "csstree-validator"):
         why = {"gh": "Install the GitHub CLI from Agent tools: a pinned, checksum-verified download into the dashboard's own folder, no administrator rights.",
-               "node": "Node.js arrives with Claude Code, Codex or OpenClaw in Agent tools (a pinned copy in the dashboard's own folder, no administrator rights)."}[tool]
+               "node": "Node.js arrives with Claude Code, Codex or OpenClaw in Agent tools (a pinned copy in the dashboard's own folder, no administrator rights).",
+               "gitleaks": "Install Gitleaks from Agent tools: a pinned, checksum-verified download into the dashboard's own folder, no administrator rights. Stories run it as the secret scan before a commit.",
+               "csstree-validator": "Install CSS syntax check from Agent tools (a locked npm package, install scripts off, needs the managed Node.js). Verification stories run it to confirm stylesheets parse."}[tool]
         return {"kind": "agent_tools", "tool": tool, "note": why}
     if tool == "brew":
         return {"kind": "command", "command": BREW_INSTALL, "note": "Run it yourself in Terminal (it asks for your password); the dashboard does not run it. Homebrew is how this Mac gets Docker (through Colima), ffmpeg and Python."}
@@ -229,7 +256,8 @@ def _how_to_get(tool, have_brew=True):
 
 def check_tools(settings=None):
     notes = {"python3": "tests and scripts", "node": "JavaScript tests and the Playwright screenshot script", "docker": "building and running container images (otherwise a person or the pipeline does it)",
-             "gh": "opening pull requests from this host (optional: a person or the pipeline can)", "ffmpeg": "publishing generated media"}
+             "gh": "opening pull requests from this host (optional: a person or the pipeline can)", "ffmpeg": "publishing generated media",
+             "gitleaks": "the secret scan before a commit and in verification stories (Agent tools installs it)", "csstree-validator": "checking that stylesheets parse in verification stories (Agent tools installs it)"}
     mac = _is_mac()
     have_brew = bool(_tool("brew")) if mac else True
     if mac:
@@ -368,7 +396,7 @@ def add_tools_to_path(settings=None):
     folder = _managed_bin(settings)
     if not folder.is_dir():
         raise ReadinessError("No tools have been installed by this dashboard yet.")
-    block = f'{PATH_BEGIN}\nexport PATH="{folder}:$PATH"\n{PATH_END}\n'
+    block = f'{PATH_BEGIN}\nexport PATH="{os.pathsep.join(str(f) for f in _path_folders(settings))}:$PATH"\n{PATH_END}\n'
     changed = []
     for name in PATH_FILES:
         target = _home() / name
@@ -379,7 +407,8 @@ def add_tools_to_path(settings=None):
             text = (text.rstrip("\n") + "\n\n" if text.strip() else "") + block
         target.write_text(text, "utf-8")
         changed.append(name)
-    return f"Added {folder} to the PATH in ~/{' and ~/'.join(changed)}. Open a new terminal (or run: source ~/.profile) and codex, openclaw and the other installed tools work by name."
+    node = " Managed Node.js is included, so node and npm work too." if _node_bin(settings) else ""
+    return f"Added {folder} to the PATH in ~/{' and ~/'.join(changed)}.{node} Open a new terminal (or run: source ~/.profile) and codex, openclaw and the other installed tools work by name."
 
 
 BREW_TOOLS = {"ffmpeg": ("ffmpeg",), "python3": ("python",), "docker": ("colima", "docker", "docker-compose"), "colima": ("colima",)}

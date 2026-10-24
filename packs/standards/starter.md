@@ -10,7 +10,7 @@
 |---|---|---|
 | any code change | the project's automated tests, and its linter and type checker where it has them | report what ran and what did not |
 | dependencies | the package manager's audit command, and a clean install from the lock file | no unpinned or unreviewed package |
-| any commit | a secret scan of the staged changes | never commit credentials, keys or real personal data |
+| any commit | a secret scan of the staged changes (`gitleaks git --staged --redact`) | never commit credentials, keys or real personal data |
 | a database change | apply the migration to a copy of the data first and confirm the old version still works | additive; write the rollback plan |
 | a user-visible change | check it in a running preview and update the docs and changelog | |
 | a release | the release checklist for the delivery model (hosted or packaged) | see the delivery guides |

@@ -10,6 +10,16 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+### Added
+
+- **Verification tools install from Agent tools.** Gitleaks (the secret scan the standards ask for before a commit) and a CSS syntax check (csstree-validator, locked with install scripts off) are pinned in the catalog beside Claude Code, Codex and the rest, and are on every agent's PATH once installed. They need no sign-in, so their cards show none. Optional tools in Host readiness now lists both with a link to install them.
+
+### Changed
+
+- **Put installed tools on my PATH now includes the managed Node.js**, so node and npm work by name in a new terminal on a host where the Agent tools installed Node. An older PATH block that lists only the tools folder is offered the fix again.
+- **The delegator pack tells the planner what a read-only agent cannot do.** Installs, builds, `npm audit` and preview servers go to a human or CI with exact commands, and the verification tools are named instead of asking a story to install a parser.
+- The starter standards name the secret-scan command (`gitleaks git --staged --redact`), so a story can run it instead of reporting that it had no scanner.
+
 ## [0.6.60] - 2026-10-23
 
 ### Fixed
