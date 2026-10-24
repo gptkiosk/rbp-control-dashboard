@@ -10,6 +10,8 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.6.62] - 2026-10-24
+
 ### Fixed
 
 - **The CSS check's usage example is corrected.** 0.6.61 showed `csstree-validator styles src`, but the tool takes one path per call, so that form fails. The planner text, the Agent tools note and the docs now show `git ls-files '*.css' | xargs -n1 csstree-validator`, which also skips `node_modules`. Found by installing the tool on a Pi and running it against a real project.
@@ -1037,3 +1039,5 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 [0.6.60]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.59...v0.6.60
 
 [0.6.61]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.60...v0.6.61
+
+[0.6.62]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.61...v0.6.62
