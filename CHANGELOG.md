@@ -14,6 +14,8 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ### Fixed
 
+- **Task results render structured agent handoffs.** Markdown headings, lists, inline code and fenced command output now render in task details with the same safe link and image policy used for Ops reports.
+
 - **Discord issue intake uses the correct Hermes action.** Coordinator guidance now directs Hermes to call `mcd_project` with `issue_task`, so a linked GitHub issue can create one review-gated, idempotent work card without asking the operator to paste its body or provide a board-card number.
 
 

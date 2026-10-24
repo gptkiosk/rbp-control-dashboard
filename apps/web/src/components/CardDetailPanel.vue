@@ -16,6 +16,7 @@ import ModalShell from '@/components/ModalShell.vue'
 import ReportedValue from '@/components/ReportedValue.vue'
 import RunLog from '@/components/RunLog.vue'
 import { useNow } from '@/composables/useNow'
+import { renderReport } from '@/lib/reportMarkdown'
 import { usePolledJson } from '@/composables/usePolledJson'
 import {
   deleteJson,
@@ -140,6 +141,7 @@ const activeRun = computed<Run | null>(() => {
   const latest = runs.value[0] ?? card.value?.last_run ?? null
   return latest && latest.stage === 'running' ? latest : null
 })
+const resultHtml = computed(() => selectedRun.value?.result_text ? renderReport(selectedRun.value.result_text) : '')
 
 const runDuration = computed(() => {
   const r = selectedRun.value
@@ -771,9 +773,7 @@ async function save(): Promise<void> {
 
           <section class="block" aria-labelledby="result-h">
             <h3 id="result-h" class="sub-title">Result</h3>
-            <pre v-if="selectedRun.result_text" class="log-window tall" data-testid="run-result">{{
-              selectedRun.result_text
-            }}</pre>
+            <div v-if="selectedRun.result_text" class="task-result-markdown" data-testid="run-result" v-html="resultHtml" />
             <p v-else class="muted small">
               {{ selectedRun.stage === 'running' ? 'The run has not finished yet.' : 'No result text.' }}
             </p>
@@ -991,4 +991,37 @@ dd {
   border-color: var(--accent);
   background: var(--accent-soft);
 }
+.task-result-markdown {
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+.task-result-markdown :deep(> :first-child) { margin-top: 0; }
+.task-result-markdown :deep(p) { margin: .75em 0; }
+.task-result-markdown :deep(ul),
+.task-result-markdown :deep(ol) { margin: .75em 0; padding-left: 1.5em; }
+.task-result-markdown :deep(ul) { list-style: disc; }
+.task-result-markdown :deep(ol) { list-style: decimal; }
+.task-result-markdown :deep(li) { margin: .25em 0; }
+.task-result-markdown :deep(h1),
+.task-result-markdown :deep(h2),
+.task-result-markdown :deep(h3) { line-height: 1.3; margin: 1.35em 0 .55em; }
+.task-result-markdown :deep(h1) { font-size: 1.45rem; }
+.task-result-markdown :deep(h2) { font-size: 1.25rem; }
+.task-result-markdown :deep(h3) { font-size: 1.1rem; }
+.task-result-markdown :deep(a) { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
+.task-result-markdown :deep(code) { color: var(--accent); font-size: .9em; }
+.task-result-markdown :deep(pre) {
+  max-height: var(--output-max-height);
+  overflow: auto;
+  padding: var(--gap);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+}
+.task-result-markdown :deep(pre code) { color: inherit; white-space: pre; }
+.task-result-markdown :deep(blockquote) { margin-left: 0; padding-left: var(--gap); border-left: 3px solid var(--accent); color: var(--text-muted); }
+.task-result-markdown :deep(table) { display: block; max-width: 100%; overflow-x: auto; border-collapse: collapse; }
+.task-result-markdown :deep(th),
+.task-result-markdown :deep(td) { padding: var(--gap-sm); border: 1px solid var(--panel-border); }
+
 </style>
