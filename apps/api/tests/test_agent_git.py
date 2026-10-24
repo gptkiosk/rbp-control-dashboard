@@ -1,4 +1,5 @@
 """Branch-scoped git grants: validation, agent command lines, context text, hooks and helper."""
+import re
 import json
 import os
 import shutil
@@ -483,7 +484,7 @@ def test_an_edit_claude_story_without_a_grant_can_run_checks_but_never_git_and_a
     argv = build_claude(plain, "p", "claude-haiku-5-5", 1.0, "claude")
     allowed = argv[argv.index("--allowedTools") + 1:]
     assert "Bash(node --check:*)" in allowed and "Bash(python3 -I -m pytest:*)" in allowed and "Bash(python3 -I -m unittest:*)" in allowed
-    assert not any(a.startswith("Bash(git") or "curl" in a or a in ("Bash", "Bash(*)") for a in allowed) and "Bash(git push:*)" in argv   # git stays denied
+    assert not any(re.match(r"Bash\(git[ :)]", a) or "curl" in a or a in ("Bash", "Bash(*)") for a in allowed) and "Bash(git push:*)" in argv   # git stays denied
     read = SimpleNamespace(mode="read", agent="claude", agent_git_grant=None, output_only=False, subscription_billing=True, timeout_s=60)
     assert not any(a.startswith("Bash(") for a in build_claude(read, "p", "m", 1.0, "claude")[build_claude(read, "p", "m", 1.0, "claude").index("--allowedTools"):])
     out = SimpleNamespace(mode="read", agent="claude", agent_git_grant=None, output_only=True, subscription_billing=True, timeout_s=60)
@@ -504,6 +505,7 @@ def test_the_plain_forms_of_the_project_test_commands_are_allowed_without_approv
     """An unattended run cannot ask for approval; a plan that says `python3 -m unittest` or `python3 tests/check.py` must be able to run it."""
     allowed = set(agent_git.CHECK_COMMANDS)
     for rule in ("Bash(python3 -m unittest:*)", "Bash(python3 -m py_compile:*)", "Bash(python3 -m json.tool:*)", "Bash(python3 tests/:*)", "Bash(xmllint:*)",
-                 "Bash(python3 -I -m unittest:*)", "Bash(node --check:*)"):
+                 "Bash(python3 -I -m unittest:*)", "Bash(node --check:*)",
+                 "Bash(gitleaks git:*)", "Bash(gitleaks dir:*)", "Bash(csstree-validator:*)"):          # the managed verification scanners
         assert rule in allowed, rule
-    assert not any(r in allowed for r in ("Bash(python3:*)", "Bash(sh:*)", "Bash(bash:*)", "Bash(curl:*)", "Bash(git push:*)"))      # not a general shell
+    assert not any(r in allowed for r in ("Bash(python3:*)", "Bash(sh:*)", "Bash(bash:*)", "Bash(curl:*)", "Bash(git push:*)", "Bash(gitleaks:*)"))      # not a general shell; gitleaks only in its read-only scan forms

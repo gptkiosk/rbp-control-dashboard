@@ -25,6 +25,22 @@ it('lists each tool with its version and what is outdated, and offers Install (A
   w.unmount()
 })
 
+it('offers Install from Agent tools for a missing managed tool on a Mac and on Linux, and not for one that is present', async () => {
+  const tools = [row('gitleaks', null), row('csstree-validator', null), row('node', null), row('python3', '3.14.6'), row('docker', null)]
+  for (const platform of ['mac', 'linux'] as const) {
+    stubFetch(url => url.startsWith('/api/host/readiness/tools') ? { body: mac({ platform, tools, missing: ['gitleaks', 'csstree-validator', 'node', 'docker'] }) } : undefined)
+    const w = mount(SystemToolsPanel, stubs); await flushPromises()
+    for (const id of ['gitleaks', 'csstree-validator', 'node']) expect(w.get(`[data-tool="${id}"]`).text()).toContain('Install from Agent tools')
+    expect(w.get('[data-tool="docker"]').text()).not.toContain('Install from Agent tools')       // Docker is a system package, not an Agent tools install
+    expect(w.get('[data-tool="python3"]').text()).not.toContain('Install from Agent tools')
+    w.unmount()
+  }
+  stubFetch(url => url.startsWith('/api/host/readiness/tools') ? { body: mac({ tools: [row('gitleaks', '8.30.1')], missing: [] }) } : undefined)
+  const present = mount(SystemToolsPanel, stubs); await flushPromises()
+  expect(present.get('[data-tool="gitleaks"]').text()).not.toContain('Install from Agent tools')
+  present.unmount()
+})
+
 it('puts the Homebrew prerequisite first and disables both bulk buttons until it is installed', async () => {
   stubFetch(url => url.startsWith('/api/host/readiness/tools') ? { body: mac({ brew: { installed: false, path: null, version: null, install_command: 'BREW-INSTALL-COMMAND', prerequisite: 'Homebrew installs these.' }, can_install_all: false, can_upgrade_all: false }) } : undefined)
   const w = mount(SystemToolsPanel, stubs); await flushPromises()

@@ -174,7 +174,7 @@ that one folder in order, and there is no branch, branch grant, hook or commit r
 button push: name, brief, create. The planner, preference, build mode and working directory are under **Choices (the defaults work)**; the consultant chat uses the same default. Use a git repository as the working directory when the work must be
 committed on a branch; then the project needs a branch grant (`project-<id>/<slug>`) before agents can commit, and the checkout must stay on the approved branch.
 
-An Edit-mode Claude story in a scratch folder can run test and syntax runners (`pytest`, `unittest`, `py_compile`, `json.tool`, `node --check`, `npm run test`/`type-check`/`build`, `vitest`, `bash -n`, `shasum`) so it can verify its own work; git, network tools and arbitrary shell stay denied, and a Read-mode story gets no shell.
+An Edit-mode Claude story in a scratch folder can run test and syntax runners (`pytest`, `unittest`, `py_compile`, `json.tool`, `node --check`, `npm run test`/`type-check`/`build`, `vitest`, `bash -n`, `shasum`) and the managed read-only scanners (`gitleaks git`, `gitleaks dir`, `csstree-validator`, installed from Agent tools) so it can verify its own work; git, network tools and arbitrary shell stay denied, and a Read-mode story gets no shell. A Read-mode Claude story runs in plan mode and cannot run any command, so a step that must run a build, a server or a script belongs in a human or CI story; if a read-only story returns only a plan, the run is marked incomplete with that advice.
 
 ### What each agent can do in a project folder
 
