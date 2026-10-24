@@ -12,6 +12,7 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ### Fixed
 
+- **A missing managed tool always shows how to install it.** Gitleaks and the CSS syntax check now appear in the System tools list under Updates & installs when absent, with an Install from Agent tools link on both Mac and Linux (the link was limited to `gh` and `node`, and hidden on a Mac). Homebrew's Install (All) still leaves them out because Agent tools installs them. Help search finds both.
 - **A read-only Claude story that only wrote a plan is no longer shown as a success.** Claude's plan mode cannot run commands or start a server, so a verification story assigned to it used to exit 0 with a plan and no checks run. The run is now recognised as incomplete, with a reason that says to plan the step as a human or CI story, or, if it only needs the project's tests and syntax checks, switch the story to workspace execution and retry. Edit-mode Claude stories may now run the managed read-only scanners (`gitleaks git`, `gitleaks dir`, `csstree-validator`) that the planner tells stories to call.
 
 ## [0.6.61] - 2026-10-23

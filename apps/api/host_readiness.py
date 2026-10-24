@@ -514,11 +514,13 @@ def colima_start(settings):
 
 
 # The system tools panel in Settings: every optional tool with its version, Install (All) and Upgrade (All), and a health check. Homebrew formulae per tool on a Mac.
-SYSTEM_TOOLS = {"python3": ("python",), "node": (), "ffmpeg": ("ffmpeg",), "docker": ("colima", "docker", "docker-compose"), "colima": ("colima",), "gh": ("gh",)}
+SYSTEM_TOOLS = {"python3": ("python",), "node": (), "ffmpeg": ("ffmpeg",), "docker": ("colima", "docker", "docker-compose"), "colima": ("colima",), "gh": ("gh",),
+                "gitleaks": (), "csstree-validator": ()}                # the last two, like node, arrive from Agent tools rather than Homebrew
 SYSTEM_TOOL_NOTES = {"python3": "tests and scripts", "node": "JavaScript tests and the Playwright screenshot script", "ffmpeg": "publishing generated media",
-                     "docker": "building and running container images", "colima": "the Docker engine on a Mac", "gh": "pull requests from this host"}
+                     "docker": "building and running container images", "colima": "the Docker engine on a Mac", "gh": "pull requests from this host",
+                     "gitleaks": "the secret scan before a commit", "csstree-validator": "checking that stylesheets parse"}
 APT_PACKAGES = {"python3": "python3", "ffmpeg": "ffmpeg", "docker": "docker.io docker-compose"}
-VERSION_ARGS = {"ffmpeg": ("-version",)}
+VERSION_ARGS = {"ffmpeg": ("-version",), "gitleaks": ("version",)}
 PRIMARY_FORMULA = {"python3": "python", "docker": "docker"}          # the formula whose version is the tool's own; docker also pulls colima and docker-compose
 VERSION_RE = re.compile(r"(?<![\w.])v?(\d+(?:\.\d+){1,3})")
 

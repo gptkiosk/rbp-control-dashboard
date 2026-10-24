@@ -11,6 +11,7 @@ interface Body {
   can_install_all: boolean; can_upgrade_all: boolean; apt_command?: string | null; note?: string
 }
 const BREW_ONE = ['ffmpeg', 'python3', 'docker', 'colima']                      // tools the server can install one at a time
+const FROM_AGENT_TOOLS = ['gh', 'node', 'gitleaks', 'csstree-validator']          // pinned, checksum-verified installs managed in Agent tools on every platform
 const body = ref<Body | null>(null), error = ref(''), notice = ref(''), busy = ref(false), loading = ref(true), copied = ref('')
 const job = ref<Job | null>(null)
 const health = ref<Record<string, Health>>({}), healthBusy = ref(false), healthRan = ref(false)
@@ -120,7 +121,7 @@ onBeforeUnmount(() => clearInterval(timer))
           :detail="t.installed ? t.path ?? '' : `Needed for ${t.needed_for}.`" :health="health[t.id] ?? null" health-disabled>
           <button v-if="mac && !t.installed && BREW_ONE.includes(t.id) && body.brew?.installed" type="button" class="btn" :disabled="busy || running" @click="fix('brew_install', t.id)">Install {{ t.id }}</button>
           <button v-if="t.stopped" type="button" class="btn primary" :disabled="busy || running" @click="fix('colima_start')">Start Colima</button>
-          <RouterLink v-if="!t.installed && (t.id === 'gh' || t.id === 'node') && !mac" to="/profile#agent-tools" class="btn">Install from Agent tools</RouterLink>
+          <RouterLink v-if="!t.installed && FROM_AGENT_TOOLS.includes(t.id)" to="/profile#agent-tools" class="btn">Install from Agent tools</RouterLink>
         </ManagedItem>
       </ul>
     </template>
