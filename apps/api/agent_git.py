@@ -73,6 +73,8 @@ CHECK_COMMANDS = DEFAULT_COMMANDS + (
     # Harmless helpers. A compound command (a && b; echo $?) is refused as a whole when any part needs approval, and these are the parts models add.
     "Bash(echo:*)", "Bash(printf:*)", "Bash(pwd)", "Bash(ls:*)", "Bash(cat:*)", "Bash(wc:*)", "Bash(head:*)", "Bash(tail:*)",
     "Bash(diff:*)", "Bash(sort:*)", "Bash(test:*)", "Bash(true)", "Bash(node --version)", "Bash(python3 --version)",
+    # The managed verification tools (Agent tools): read-only scanners. The planner tells stories to call them by name, so a story must be allowed to.
+    "Bash(gitleaks git:*)", "Bash(gitleaks dir:*)", "Bash(gitleaks version)", "Bash(csstree-validator:*)",
 )
 INSTALL_COMMANDS = ("Bash(npm ci:*)", "Bash(npm install:*)", "Bash(python3 -I -m pip install:*)")
 DOMAIN_RE = re.compile(r"^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$")
