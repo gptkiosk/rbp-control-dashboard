@@ -25,6 +25,21 @@ On 2026-10-13 all five tools installed, passed --version and were removed in an 
 
 The dashboard resolves the managed Hermes interpreter from its owner-checked dependency receipt and launches the model-policy shim directly. It does not execute arbitrary shell launchers to discover an interpreter. The real installed shim passed chat --help with a pinned free route on a synthetic account home; no model request was sent.
 
+## Verification tools
+
+Agent tools also installs two small tools that verification stories rely on, so a story never has to install a scanner or parser into your project or report that it had none. Both are pinned and checksum-verified like the rest, need no sign-in and read files only.
+
+| Tool | Command | Use |
+|---|---|---|
+| Gitleaks | `gitleaks git --staged --redact` | The secret scan before a commit. `gitleaks git --redact` scans all history. |
+| CSS syntax check | `csstree-validator styles src` | Confirms stylesheets parse, and flags unknown properties and invalid values. Exit code 1 means a problem was found. Give it explicit folders: a bare project folder also scans `node_modules`. |
+
+Install them from Settings, Agent tools (or the manual helper) like any other tool; the Optional tools row in Host readiness links there when one is missing. They land in the managed `bin` folder, which every dispatched agent already has on its PATH.
+
+**Put installed tools on my PATH** (Host readiness) adds the managed `bin` folder and, when installed, the managed Node.js folder to `~/.profile` and `~/.bashrc`, so `node`, `npm`, `gitleaks` and `csstree-validator` work by name in a new terminal.
+
+A read-only story still cannot run `npm ci`, a build, `npm audit` or a preview server: it has no network, no loopback and no writes. The planner is told to give those to a human or CI with the exact commands. A check that needs the project's own dependencies runs in a normal environment, with the output pasted back as the evidence.
+
 ## Existing native installations
 
 Agent tools detects commands already installed outside the dashboard and reads their version with a bounded version-only check. Native installs show their current version and an **Upgrade** button when older than the latest hash-verified catalog release. Equal or newer versions are kept; an unreadable version is shown as unavailable instead of being called missing or silently downgraded.

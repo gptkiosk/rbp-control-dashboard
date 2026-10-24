@@ -10,7 +10,7 @@ const POLL_MS = 3000, NOT_STARTED_POLLS = 10, MAX_POLLS = 1000 // about 50 minut
 interface Tool {
   id: string; name: string; pinned_version: string; installed: boolean; installed_version: string | null
   installation_source?: 'native' | 'managed' | null; previous_version: string | null; installed_at: number | null; size_mb: number; commands: string[]; requires: string[]
-  login: { command: string; note: string }; login_command?: string; path: string | null
+  login: { command: string; note: string } | null; login_command?: string | null; path: string | null
   actions: Record<Action, string[] | null> // null: not offered now; []: allowed; otherwise the reasons it is refused
 }
 interface Status {
@@ -206,7 +206,7 @@ onBeforeUnmount(() => { disposed = true; if (timer) clearTimeout(timer) })
           <button v-for="a in offered(t)" :key="a" class="btn" :class="{ primary: a === 'install' || a === 'update' || a === 'repair' }" :disabled="!canAct(t, a) || (t.actions[a] ?? []).length > 0" :data-action="a"
             @click="ask(t, a)">{{ VERB[a] }}{{ a === 'install' || a === 'update' ? ` ${t.pinned_version}` : a === 'rollback' && t.previous_version ? ` to ${t.previous_version}` : '' }}</button>
           <template #more>
-            <span v-if="t.installed" class="login" :data-login="t.id">
+            <span v-if="t.installed && t.login" class="login" :data-login="t.id">
               <span class="muted small">Sign in yourself:</span> <code>{{ t.login_command || t.login.command }}</code>
               <button type="button" class="btn small-btn" @click="copy(t.login_command || t.login.command, t.id)">{{ copied === t.id ? 'Copied' : 'Copy' }}</button>
               <RouterLink to="/profile#credentials-profile" class="small" :title="t.login.note">Keys: Private credentials</RouterLink>

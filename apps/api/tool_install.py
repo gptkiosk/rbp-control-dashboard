@@ -76,6 +76,7 @@ VID = re.compile(r"^[0-9A-Za-z][0-9A-Za-z.+_-]{0,95}$")
 VERSION = re.compile(r"^[0-9A-Za-z][0-9A-Za-z.+-]{0,63}$")
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 COMMIT = re.compile(r"^[0-9a-f]{40}$")
+FLAT_ROOT = "."   # an archive whose files sit at the top level, with no folder to drop (gitleaks)
 REL_PATH = re.compile(r"^[A-Za-z0-9_@][A-Za-z0-9_@.+/-]{0,200}$")
 PLAIN_PATH = re.compile(r"^/[A-Za-z0-9._/+:-]{1,900}$")  # paths end up inside wrapper scripts
 PLATFORM_KEY = re.compile(r"^[a-z]+-[a-z0-9_]+$")
@@ -88,7 +89,7 @@ INSTALLERS = ("archive", "npm-lock", "pinned-script", "binary")
 CATALOG_KEYS = {"schema", "checked", "requirements", "system_packages", "runtimes", "tools"}
 REQUIREMENT_KEYS = {"platforms", "min_free_disk_mb", "disk_headroom_mb", "warn_ram_mb", "warn_available_ram_mb"}
 COMPONENT_KEYS = {"name", "installer", "version", "size_mb", "note", "archive", "bins", "check", "package",
-                  "lock_dir", "lock", "allow_scripts", "requires", "login", "system_packages", "repository", "tag",
+                  "lock_dir", "lock", "allow_scripts", "requires", "login", "signin", "system_packages", "repository", "tag",
                   "commit", "script", "script_args", "binary", "peak_ram_mb", "external_state", "system_packages_note"}
 MAX_CATALOG_BYTES = 256 * 1024
 MAX_STATE_BYTES = 256 * 1024
@@ -372,7 +373,7 @@ def catalog_problems(raw: object, catalog_dir: Path | None = None) -> list[str]:
             for plat, a in archive.items():
                 need(plat in platforms, f"{where}: archive for undeclared platform {plat}")
                 ok = (isinstance(a, dict) and set(a) <= {"url", "sha256", "size", "format", "root", "shasums_url"}
-                      and a.get("format") in ("tar.xz", "tar.gz", "zip") and _rel_ok(a.get("root"))
+                      and a.get("format") in ("tar.xz", "tar.gz", "zip") and (a.get("root") == FLAT_ROOT or _rel_ok(a.get("root")))
                       and isinstance(a.get("sha256"), str) and SHA256.match(a["sha256"])
                       and type(a.get("size")) is int and 0 < a["size"] < 2 * 1024 ** 3)
                 need(ok, f"{where}: bad archive entry for {plat}")
@@ -386,8 +387,12 @@ def catalog_problems(raw: object, catalog_dir: Path | None = None) -> list[str]:
             requires = comp.get("requires")
             need(isinstance(requires, list) and all(r in runtimes for r in requires), f"{where}: requires names unknown runtimes")
             login = comp.get("login")
-            need(isinstance(login, dict) and set(login) == {"command", "note"}
-                 and all(isinstance(v, str) and v for v in login.values()), f"{where}: login needs command and note")
+            if comp.get("signin") is False:
+                need(login is None, f"{where}: a tool with no sign-in has no login entry")
+            else:
+                need("signin" not in comp, f"{where}: signin may only be false")
+                need(isinstance(login, dict) and set(login) == {"command", "note"}
+                     and all(isinstance(v, str) and v for v in login.values()), f"{where}: login needs command and note")
             sysp = comp.get("system_packages")
             need(isinstance(sysp, dict) and set(sysp) == {"required", "recommended"}
                  and all(isinstance(v, list) and all(p in packages for p in v) for v in sysp.values()),
@@ -1070,7 +1075,7 @@ def build_plan(cfg: ToolsConfig, catalog: Catalog, facts: HostFacts, cid: str, a
     plan = {
         **static, "name": comp["name"], "commands": commands,
         "downloads": [{"url": s["url"], "sha256": s["sha256"], "size": s["size"]} for s in steps if s["op"] == "download"],
-        "note": comp.get("note"), "unchanged": list(UNCHANGED), "login": comp["login"] if action in ("install", "update") else None,
+        "note": comp.get("note"), "unchanged": list(UNCHANGED), "login": comp.get("login") if action in ("install", "update") else None,
         "system_packages": report,
     }
     plan["plan_sha256"] = hashlib.sha256(canonical(static)).hexdigest()
@@ -1203,9 +1208,11 @@ def extract_archive(archive: Path, fmt: str, root: str, dest: Path) -> None:
                     raise ToolError("the archive has too many members")
                 name = mem.name
                 parts = [p for p in name.split("/") if p not in ("", ".")]
-                if name.startswith("/") or "\\" in name or not parts or parts[0] != root or ".." in parts:
+                if not parts and root == FLAT_ROOT and mem.isdir():
+                    continue   # the archive's own "./" entry
+                if name.startswith("/") or "\\" in name or not parts or (root != FLAT_ROOT and parts[0] != root) or ".." in parts:
                     raise ToolError(f"archive member refused: {name[:80]!r}")
-                rel = "/".join(parts[1:])
+                rel = "/".join(parts if root == FLAT_ROOT else parts[1:])
                 if not rel:
                     continue
                 target = os.path.join(base, rel)
@@ -1232,10 +1239,10 @@ def extract_archive(archive: Path, fmt: str, root: str, dest: Path) -> None:
                         raise ToolError(f"archive link leaves the folder: {mem.name[:80]!r}")
                     os.symlink(link, target)
                 elif mem.islnk():
-                    lparts = mem.linkname.split("/")
-                    if lparts[0] != root or ".." in lparts:
+                    lparts = [p for p in mem.linkname.split("/") if p not in ("", ".")]
+                    if not lparts or (root != FLAT_ROOT and lparts[0] != root) or ".." in lparts:
                         raise ToolError(f"archive hard link refused: {mem.name[:80]!r}")
-                    os.link(os.path.join(base, "/".join(lparts[1:])), target)
+                    os.link(os.path.join(base, "/".join(lparts if root == FLAT_ROOT else lparts[1:])), target)
                 else:
                     raise ToolError(f"archive member type refused: {mem.name[:80]!r}")
     except (tarfile.TarError, OSError, EOFError) as exc:
@@ -1257,9 +1264,11 @@ def _extract_zip(archive: Path, root: str, dest: Path) -> None:
                     raise ToolError("the archive has too many members")
                 name = info.filename
                 parts = [p for p in name.split("/") if p not in ("", ".")]
-                if name.startswith("/") or "\\" in name or not parts or parts[0] != root or ".." in parts:
+                if not parts and root == FLAT_ROOT and info.is_dir():
+                    continue
+                if name.startswith("/") or "\\" in name or not parts or (root != FLAT_ROOT and parts[0] != root) or ".." in parts:
                     raise ToolError(f"archive member refused: {name[:80]!r}")
-                rel = "/".join(parts[1:])
+                rel = "/".join(parts if root == FLAT_ROOT else parts[1:])
                 if not rel:
                     continue
                 mode = (info.external_attr >> 16) & 0o177777
@@ -1993,7 +2002,7 @@ def health(cfg: ToolsConfig, catalog: Catalog, facts: HostFacts | None = None, o
                 steps.append(tip + f" put {cfg.bin} first on your PATH.")
         if row["installation_source"] == "managed" and wrapper_stale(cfg, catalog, row["id"]):
             steps.insert(0, "Press Repair on this card: it rewrites the command wrapper for the installed version. Nothing is downloaded.")
-        if ran and not steps:
+        if ran and not steps and row["login"]:
             steps.append(f"Sign in yourself if you have not: {row.get('login_command') or row['login']['command']}")
         out.append({"id": row["id"], "name": row["name"], "ok": bool(ran) and not mismatch,
                     "version": shown or installed_version, "path": path, "source": row["installation_source"], "next": steps})
@@ -2028,10 +2037,10 @@ def inspect(cfg: ToolsConfig, catalog: Catalog, facts: HostFacts | None = None) 
                       "installed_version": current["version"] if current else native["version"] if native else None,
                       "previous_version": view["previous"]["version"] if view["previous"] else None,
                       "installed_at": current["installed_at"] if current else None,
-                      "size_mb": comp["size_mb"], "login": comp["login"], "requires": comp["requires"],
+                      "size_mb": comp["size_mb"], "login": comp.get("login"), "requires": comp["requires"],
                       "commands": [b["name"] for b in comp["bins"]], "actions": actions,
                       "path": str(cfg.bin / comp["bins"][0]["name"]) if view["installed"] else native["path"] if native else None})
-        tools[-1]["login_command"] = login_command(comp["login"]["command"], tools[-1]["path"])
+        tools[-1]["login_command"] = login_command(comp["login"]["command"], tools[-1]["path"]) if comp.get("login") else None
     all_pkgs = sorted({p for cid in catalog.tool_ids() for k in ("required", "recommended")
                        for p in catalog.component(cid)["system_packages"][k]})
     return {"product": cfg.product, "platform": cfg.platform_key, "root": str(cfg.root), "tools": tools,

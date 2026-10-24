@@ -97,9 +97,10 @@ def test_bad_input_is_refused_before_anything_runs(api):
 
 def test_status_lists_the_tools_with_login_commands_and_no_secrets(api):
     body = api.get("/api/agent-installs").json()
-    assert [t["id"] for t in body["tools"]] == ["claude-code", "codex", "openclaw", "hermes", "grok", "gh"]
-    assert {t["id"]: t["login"]["command"] for t in body["tools"]} == {
-        "claude-code": "claude auth login", "codex": "codex login --device-auth", "openclaw": "openclaw onboard", "hermes": "hermes model", "grok": "grok login --device-code", "gh": "gh auth login"}
+    assert [t["id"] for t in body["tools"]] == ["claude-code", "codex", "openclaw", "hermes", "grok", "gh", "gitleaks", "css-check"]
+    assert {t["id"]: (t["login"] or {}).get("command") for t in body["tools"]} == {
+        "claude-code": "claude auth login", "codex": "codex login --device-auth", "openclaw": "openclaw onboard", "hermes": "hermes model", "grok": "grok login --device-code", "gh": "gh auth login",
+        "gitleaks": None, "css-check": None}        # the verification tools need no sign-in
     assert body["host"]["bits"] == 64 and body["platform"] == "linux-arm64" and body["tx"] is None and body["running"] is False
     assert body["requirements"]["min_free_disk_mb"] == 2048
     text = json.dumps(body)

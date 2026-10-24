@@ -10,6 +10,21 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.6.61] - 2026-10-23
+
+### Added
+
+- **Verification tools install from Agent tools.** Gitleaks (the secret scan the standards ask for before a commit) and a CSS syntax check (csstree-validator, locked with install scripts off) are pinned in the catalog beside Claude Code, Codex and the rest, and are on every agent's PATH once installed. They need no sign-in, so their cards show none. Optional tools in Host readiness now lists both with a link to install them.
+
+### Changed
+
+- **A task's rendered result sits in a bordered box that scrolls.** The Markdown is still rendered (headings, lists, code), but a long result no longer stretches the task detail; the box is labelled and keyboard-focusable.
+- **A task's definition of done renders as Markdown in the same bordered, scrolling box**, labelled and keyboard-focusable, and both boxes fit a phone screen without the page scrolling sideways.
+- **The run log hides terminal colour codes and progress redraws** so a tool's output reads cleanly. The stored log is unchanged.
+- **Put installed tools on my PATH now includes the managed Node.js**, so node and npm work by name in a new terminal on a host where the Agent tools installed Node. An older PATH block that lists only the tools folder is offered the fix again.
+- **The delegator pack tells the planner what a read-only agent cannot do.** Installs, builds, `npm audit` and preview servers go to a human or CI with exact commands, and the verification tools are named instead of asking a story to install a parser.
+- The starter standards name the secret-scan command (`gitleaks git --staged --redact`), so a story can run it instead of reporting that it had no scanner.
+
 ## [0.6.60] - 2026-10-23
 
 ### Fixed
@@ -1014,3 +1029,5 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 [0.6.53]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.52...v0.6.53
 
 [0.6.60]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.59...v0.6.60
+
+[0.6.61]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.60...v0.6.61

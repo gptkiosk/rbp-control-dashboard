@@ -99,7 +99,10 @@ class FakeOps:
         tool_archive = next(((c, a) for c in self.catalog.raw["tools"].values() for a in c.get("archive", {}).values() if a["url"] == url), None)
         if tool_archive:                                                        # a tool shipped as a release archive (the GitHub CLI)
             comp, a = tool_archive
-            files = {"bin/gh": (script(f'echo "gh version {comp["version"]} (2026-10-01)"'), 0o755), "LICENSE": (b"mit", 0o644)}
+            if a["root"] == ti.FLAT_ROOT:                                       # a flat archive (Gitleaks): the command sits at the top
+                files = {comp["bins"][0]["name"]: (script(f'echo "{comp["version"]}"'), 0o755), "LICENSE": (b"mit", 0o644)}
+            else:
+                files = {"bin/gh": (script(f'echo "gh version {comp["version"]} (2026-10-01)"'), 0o755), "LICENSE": (b"mit", 0o644)}
             make_tar(dest, a["root"], files, "w:xz" if a["format"] == "tar.xz" else "w:gz")
             return
         comp, a = next((c, a) for c in self.catalog.raw["runtimes"].values() for a in c["archive"].values() if a["url"] == url)
@@ -124,7 +127,7 @@ class FakeOps:
         if label == "npm-ci":
             package = json.loads((cwd / "package.json").read_text())["dependencies"]
             (name, version), = package.items()
-            comp = next(c for c in self.catalog.raw["tools"].values() if c["package"] == name)
+            comp = next(c for c in self.catalog.raw["tools"].values() if c.get("package") == name)
             shown = self.wrong_version or version
             for b in comp["bins"]:
                 target = cwd / b["argv"][0]
@@ -183,7 +186,7 @@ def tree(path: Path) -> set:
 
 def test_the_shipped_catalog_is_valid_and_every_source_is_pinned():
     catalog = ti.load_catalog(API)
-    assert catalog.tool_ids() == ["claude-code", "codex", "openclaw", "hermes", "grok", "gh"] and list(catalog.raw["runtimes"]) == ["node"]
+    assert catalog.tool_ids() == ["claude-code", "codex", "openclaw", "hermes", "grok", "gh", "gitleaks", "css-check"] and list(catalog.raw["runtimes"]) == ["node"]
     raw = catalog.raw
     for cid in ("claude-code", "codex", "openclaw"):
         folder = API / raw["tools"][cid]["lock_dir"]
@@ -690,7 +693,7 @@ def test_remove_is_allowed_even_on_a_full_disk(cfg, catalog):
 
 def test_inspect_lists_each_tool_with_what_its_buttons_would_do(cfg, catalog):
     view = ti.inspect(cfg, catalog, facts())
-    assert [t["id"] for t in view["tools"]] == ["claude-code", "codex", "openclaw", "hermes", "grok", "gh"]
+    assert [t["id"] for t in view["tools"]] == ["claude-code", "codex", "openclaw", "hermes", "grok", "gh", "gitleaks", "css-check"]
     codex = view["tools"][1]
     assert codex["installed"] is False and codex["actions"]["install"] == [] and codex["actions"]["remove"] is None
     assert codex["actions"]["update"] is None and codex["actions"]["rollback"] is None
@@ -1181,3 +1184,77 @@ def test_repair_leaves_a_command_it_did_not_write_alone_and_is_refused_for_a_nat
     native.write_text('#!/bin/sh\necho "codex-cli 0.100.0"\n')
     native.chmod(0o700)
     assert "nothing of its to repair" in plan(cfg, catalog, "codex", "repair", facts(elsewhere={"codex": str(native)}))["refusals"][0]
+
+
+# --- verification tools: Gitleaks (a flat archive) and the CSS syntax check -------------------------
+
+
+def test_flat_archives_extract_to_the_top_level_and_keep_every_other_rule(tmp_path):
+    def build(tf):
+        for name in ("./", "./gitleaks", "LICENSE"):
+            kind = tarfile.DIRTYPE if name == "./" else tarfile.REGTYPE
+            info, data = _member(name, kind)
+            tf.addfile(info, data)
+    archive = _bad(tmp_path, build)
+    dest = tmp_path / "out"
+    ti.extract_archive(archive, "tar.gz", ti.FLAT_ROOT, dest)
+    assert (dest / "gitleaks").stat().st_mode & 0o7777 == 0o755 and (dest / "LICENSE").is_file()      # setuid removed, files at the top
+
+
+@pytest.mark.parametrize("name,kind,link,why", [
+    ("../escape", tarfile.REGTYPE, "", "refused"),
+    ("a/../../escape", tarfile.REGTYPE, "", "refused"),
+    ("/etc/passwd", tarfile.REGTYPE, "", "refused"),
+    ("link", tarfile.SYMTYPE, "../../etc", "leaves the folder"),
+    ("dev", tarfile.CHRTYPE, "", "type refused"),
+    ("hard", tarfile.LNKTYPE, "../../etc/passwd", "hard link refused"),
+])
+def test_flat_archives_still_refuse_unsafe_members(tmp_path, name, kind, link, why):
+    def build(tf):
+        info, data = _member(name, kind, link=link)
+        tf.addfile(info, data)
+    with pytest.raises(ti.ToolError, match=why):
+        ti.extract_archive(_bad(tmp_path, build), "tar.gz", ti.FLAT_ROOT, tmp_path / "out")
+    assert not (tmp_path / "escape").exists() and not (tmp_path / "etc").exists()
+
+
+def test_a_folder_named_root_is_not_confused_with_the_flat_marker(tmp_path):
+    def build(tf):
+        info, data = _member("root/tool")
+        tf.addfile(info, data)
+    with pytest.raises(ti.ToolError, match="refused"):
+        ti.extract_archive(_bad(tmp_path, build), "tar.gz", "other", tmp_path / "out")
+
+
+def test_the_catalog_ships_the_verification_tools_without_a_sign_in(cfg, catalog):
+    assert ti.catalog_problems(catalog.raw, cfg.catalog_dir) == []
+    view = {t["id"]: t for t in ti.inspect(cfg, catalog, facts())["tools"]}
+    for cid, command in (("gitleaks", "gitleaks"), ("css-check", "csstree-validator")):
+        assert view[cid]["commands"] == [command] and view[cid]["login"] is None and view[cid]["login_command"] is None
+        assert plan(cfg, catalog, cid, "install")["login"] is None
+    assert view["css-check"]["requires"] == ["node"] and view["gitleaks"]["requires"] == []
+
+
+def test_signin_may_only_be_false_and_then_the_tool_has_no_login_entry(cfg, catalog):
+    raw = json.loads(json.dumps(catalog.raw))
+    raw["tools"]["gitleaks"]["login"] = {"command": "gitleaks version", "note": "x"}
+    assert any("no sign-in has no login entry" in p for p in ti.catalog_problems(raw))
+    raw = json.loads(json.dumps(catalog.raw))
+    raw["tools"]["gitleaks"]["signin"] = True
+    assert any("signin may only be false" in p for p in ti.catalog_problems(raw))
+    raw = json.loads(json.dumps(catalog.raw))
+    del raw["tools"]["codex"]["login"]
+    assert any("login needs command and note" in p for p in ti.catalog_problems(raw))
+
+
+@pytest.mark.parametrize("tool,command", [("gitleaks", "gitleaks"), ("css-check", "csstree-validator")])
+def test_a_verification_tool_installs_and_answers_its_version_check(cfg, catalog, tool, command):
+    if tool == "css-check":
+        run(cfg, catalog, "codex", "install")                                    # installs the shared Node.js runtime first
+    result = run(cfg, catalog, tool, "install")
+    assert result["outcome"] == "done", result
+    assert ti.managed_bin(cfg.root, command) == str(cfg.bin / command)
+    health = {h["id"]: h for h in ti.health(cfg, catalog, facts())}
+    assert health[tool]["ok"] is True
+    assert not any("Sign in yourself" in step for step in health[tool]["next"])
+

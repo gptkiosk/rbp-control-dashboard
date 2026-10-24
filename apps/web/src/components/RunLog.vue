@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import { nextTick, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { useLogTail } from '@/composables/useLogTail'
+import { stripAnsi } from '@/lib/format'
 
 const props = defineProps<{ runId: number }>()
 
-const { text, done, error } = useLogTail(() => props.runId)
+const { text: raw, done, error } = useLogTail(() => props.runId)
+const text = computed(() => stripAnsi(raw.value))
 
 /** How close to the bottom (px) still counts as "following" the log. */
 const FOLLOW_SLACK_PX = 24

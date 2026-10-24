@@ -187,6 +187,33 @@ def test_tools_the_dashboard_installed_are_put_on_the_shell_path_on_request_and_
     assert by_id(hr.report(settings))["tools_path"]["status"] == "ok"
 
 
+def test_the_path_fix_includes_managed_node_and_is_offered_again_when_node_arrives_later(host, tmp_path, monkeypatch):
+    home, settings = host
+    managed = _managed(tmp_path, monkeypatch)
+    hr.apply(settings, "add_tools_to_path")
+    assert by_id(hr.report(settings))["tools_path"]["status"] == "ok"
+    node = managed / "tools" / "node" / "current" / "bin"
+    node.mkdir(parents=True)
+    (node / "node").write_text("#!/bin/sh\n")
+    check = by_id(hr.report(settings))["tools_path"]                                         # the old block lists only the wrappers folder
+    assert check["status"] == "warn" and "node" in check["detail"] and check["fix"]["action"] == "add_tools_to_path"
+    assert "Node.js" in hr.apply(settings, "add_tools_to_path")
+    for name in (".profile", ".bashrc"):
+        text = (home / name).read_text()
+        assert text.count(hr.PATH_BEGIN) == 1 and f'export PATH="{managed}/bin:{node}:$PATH"' in text
+    assert by_id(hr.report(settings))["tools_path"]["status"] == "ok"
+
+
+def test_a_missing_verification_tool_points_at_agent_tools_and_an_installed_one_is_found(host, tmp_path, monkeypatch):
+    home, settings = host
+    for name in ("gitleaks", "csstree-validator"):
+        assert hr._how_to_get(name)["kind"] == "agent_tools"
+    _managed(tmp_path, monkeypatch, "gitleaks")
+    rows = {t["id"]: t for t in by_id(hr.report(settings))["tools"]["tools"]}
+    assert rows["gitleaks"]["installed"] is True and "secret scan" in rows["gitleaks"]["needed_for"]
+    assert "csstree-validator" in rows
+
+
 def test_an_existing_profile_is_kept_when_the_path_block_is_added(host, tmp_path, monkeypatch):
     home, settings = host
     (home / ".profile").write_text('export EDITOR=vi\n')

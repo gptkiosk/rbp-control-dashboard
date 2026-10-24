@@ -148,3 +148,12 @@ export function unpricedModels(models: string[] | null | undefined, show = 2): s
 }
 
 export const UNPRICED_HINT = 'A model was used that the price catalog has no price for. Update the catalog: scripts/pricing/check.py --used'
+
+/** Terminal colour and cursor codes, and carriage-return progress redraws, removed so a tool's output reads cleanly in the log window. Display only. */
+export function stripAnsi(text: string): string {
+  return text
+    .replace(/\u001b\[[0-?]*[ -/]*[@-~]/g, '')        // CSI sequences such as colours: ESC [ 90 m
+    .replace(/\u001b[@-Z\\-_]/g, '')                 // two-character escapes
+    .replace(/[^\n\r]*\r(?!\n)/g, '')                // a progress line redrawn with a bare carriage return keeps only its last draw
+    .replace(/\r\n/g, '\n')
+}
