@@ -1,8 +1,9 @@
 """Operator-only project review and planning. Agent tokens cannot approve or dispatch."""
 import json
 import re
+import time
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import PlainTextResponse
+from fastapi.responses import PlainTextResponse, Response
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import exists, or_, select, text
 from sqlalchemy.orm import Session
@@ -12,6 +13,7 @@ from settings import get_settings
 from models import Project, ProjectTask, Card, CardDependency, Run
 from project_schemas import QueuedRouteChange, Route, AcceptDespiteReport, Close, Document, Save, Action, Replan, Retry, GoFree, ContinueOutput, Note, Accept, HandoffPolicy, Retier, RepairExecution, ModelLock, LowCostRetry, PayRetry
 import agent_git
+import project_preview
 import projects
 import standards
 
@@ -143,6 +145,49 @@ def note(project_id:int,body:Note,request:Request,s:Session=Depends(get_session)
     identity=actor(request);write(s);p=projects.get(s,project_id)
     if not body.text.strip(): raise HTTPException(422,'Write a project decision or note.')
     projects.memory(s,p,'decision',body.text.strip(),identity);s.commit();return projects.detail(s,p)
+
+@router.get('/{project_id}/stories/{card_id}/host-preview')
+def host_preview_status(project_id:int,card_id:int,request:Request,s:Session=Depends(get_session)):
+    actor(request);p=projects.get(s,project_id);link=projects.binding(s,card_id);c=s.get(Card,card_id)
+    if not link or link.project_id!=p.id or link.role!='story' or not c: raise HTTPException(404,'Story not found in this project.')
+    base=f'/api/projects/{project_id}/stories/{card_id}/host-preview/content'
+    return project_preview.describe(p,c,link,proxy_base=base)
+
+class HostPreviewAction(BaseModel):
+    action: str = Field(pattern=r'^(verify|serve|stop)$')
+
+@router.post('/{project_id}/stories/{card_id}/host-preview')
+def host_preview_action(project_id:int,card_id:int,body:HostPreviewAction,request:Request,s:Session=Depends(get_session)):
+    identity=actor(request);p=projects.get(s,project_id);link=projects.binding(s,card_id);c=s.get(Card,card_id)
+    if not link or link.project_id!=p.id or link.role!='story' or not c: raise HTTPException(404,'Story not found in this project.')
+    if projects.dependency_blocks(s,c.id): raise HTTPException(409,'Finish this story’s prerequisites first.')
+    base=f'/api/projects/{project_id}/stories/{card_id}/host-preview/content'
+    result=project_preview.run(p,c,link,body.action,proxy_base=base)
+    write(s)
+    outcome='passed' if result['ok'] else f"failed (exit {result['exit_code']})"
+    projects.memory(s,p,'checkpoint',f"Dashboard host preview action `{body.action}` {outcome}.\n\n{result['output']}",identity,c.id)
+    # A host verifier is an operator-started, exact-command run.  Replacing a
+    # failed agent attempt with this successful receipt lets its normal handoff
+    # review release dependents; it never auto-accepts the story.
+    if body.action=='verify' and result['ok'] and c.assignee_type!='human':
+        ended=int(time.time()); started=max(0,ended-int(result['duration_s']))
+        receipt=Run(card_id=c.id,agent='host-preview',model_requested='host-preview',model_reported='host-preview',provider='dashboard',stage='succeeded',
+                    started_at=started,ended_at=ended,duration_s=result['duration_s'],exit_code=0,working_dir=str(c.working_dir or projects.document(p)['working_dir']),
+                    command=json.dumps(['bash','tools/verify-preview.sh','verify']),log_path='',result_text=result['output'],error=None)
+        s.add(receipt);s.flush();c.column='review';c.updated_at=ended
+        projects.memory(s,p,'proposal','Dashboard host verifier succeeded. Review this exact output and accept the handoff to release dependent work.',identity,c.id,receipt.id)
+        result['run_id']=receipt.id
+    s.commit()
+    return result
+
+@router.api_route('/{project_id}/stories/{card_id}/host-preview/content/{asset_path:path}',methods=['GET','HEAD'])
+@router.api_route('/{project_id}/stories/{card_id}/host-preview/content',methods=['GET','HEAD'])
+def host_preview_content(project_id:int,card_id:int,request:Request,s:Session=Depends(get_session),asset_path:str=''):
+    actor(request);p=projects.get(s,project_id);link=projects.binding(s,card_id);c=s.get(Card,card_id)
+    if not link or link.project_id!=p.id or link.role!='story' or not c: raise HTTPException(404,'Story not found in this project.')
+    root=project_preview._root(p,c,link)
+    status,body,content_type=project_preview.proxy(root,asset_path,request.method)
+    return Response(content=body,status_code=status,media_type=content_type.split(';',1)[0],headers={'Cache-Control':'no-store'})
 
 @router.post('/{project_id}/stories/{card_id}/accept')
 def accept(project_id:int,card_id:int,body:Accept,request:Request,s:Session=Depends(get_session)):

@@ -34,6 +34,8 @@ class Node(Strict):
     estimate_minutes: int | None = Field(default=None, ge=1, le=100000)
     route_reason: str = Field(default='', max_length=300)
     assignee_user: str = Field(default='', max_length=120, pattern=r'^([A-Za-z0-9][A-Za-z0-9._@+-]{0,119})?$')  # for human stories: who they are for
+    # Dashboard-owned, host-side operation.  This is a finite allowlist, never a shell command supplied by a plan.
+    host_action: Literal['preview-verify', 'preview-review'] | None = None
     # Used only when the project builds in parallel (see project_schedule.py). `touches` lists the files or folders a story changes, so two stories
     # that can run together can be checked for overlap; `integration` marks a story that joins the branches of the stories it depends on.
     touches: list[str] = Field(default_factory=list, max_length=20)

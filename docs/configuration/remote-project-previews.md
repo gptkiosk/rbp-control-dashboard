@@ -2,46 +2,25 @@
 
 ## Purpose
 
-Project previews remain bound to `127.0.0.1`. They are never exposed directly to a LAN, a public address, or Tailscale Serve/Funnel. An operator who needs to inspect a Pi or Mac-hosted preview from another Tailscale device uses SSH local-port forwarding.
+A remote operator never needs a shell on the RCD or MCD host to review a project preview. The dashboard owns the preview controls, captures the host-side transcript, and opens the running preview through its authenticated preview proxy.
+
+Project previews remain bound to `127.0.0.1`. They are never exposed directly to a LAN, public address, Tailscale Serve/Funnel, or a dashboard listener other than the authenticated proxy route.
 
 ## Reserved preview port group
 
-Use ports **41350–41399** for temporary project review previews. A project normally prefers:
+Use ports **41350–41399** for temporary project review previews. A project normally prefers `41350 + project ID`; project 2 therefore prefers `41352`. A script confirms the preferred port is free, otherwise uses the next free reserved port and records the actual value in `.preview/preview.state`. It never stops another listener.
 
-```text
-41350 + project ID
-```
+The state file is authoritative. It holds the preview PID, actual loopback port, source SHA and start time. One-shot verification evidence may name a different port; it is never reused as the address of a later persistent preview.
 
-For example, project 2 prefers port `41352`. A preview script must first confirm that its preferred port is free. If it is occupied, it chooses the next free port inside this range, records the actual port in `.preview/preview.state`, and never stops the existing listener. The state file is authoritative; do not guess the active port from a past verifier result.
+## Dashboard preview controls
 
-Project preview scripts should accept `PREVIEW_PORT` so an operator can select the preferred port explicitly:
+A reviewed preview plan has two finite host actions:
 
-```sh
-PREVIEW_PORT=41352 bash tools/verify-preview.sh serve
-```
+- `preview-verify` runs `tools/verify-preview.sh verify` once on the dashboard host. Its output is shown in the task, stored in the project ledger, and becomes a reviewable host-verification receipt for an agent story.
+- `preview-review` offers **Start preview on host**, **Open remote preview**, and **Stop preview**. Start runs only `tools/verify-preview.sh serve`; Stop runs only its `stop` action. The task shows the command transcript, PID, port and SHA.
 
-They must bind only to `127.0.0.1`, print the actual port and source SHA, write the same values to `.preview/preview.state`, and leave a persistent review preview running only for the human approval interval. One-shot `verify` runs may choose another free port and must stop their own process when finished; their saved URL list is evidence for that one-shot run, not the address of a later `serve` process.
-
-## Remote review through Tailscale SSH
-
-From a Tailscale-connected review machine, forward the recorded loopback port without changing any Tailscale Serve mapping or opening a firewall port:
-
-```sh
-ssh -N -o ExitOnForwardFailure=yes -L <PORT>:127.0.0.1:<PORT> <USER>@<TAILNET-HOST>
-```
-
-Then open `http://127.0.0.1:<PORT>/` on the review machine. Keep the SSH terminal open during the review. This makes the port reachable only through the authenticated SSH session; it does not publish the preview to the tailnet.
+The API accepts no arbitrary shell command or path. It resolves the script from the approved project workspace and accepts only these three action words. The preview proxy reads only that state file, connects only to `127.0.0.1` on the recorded reserved port, and serves static preview content only to an authenticated dashboard operator.
 
 ## Required preview handoff
 
-Every human or CI preview-review story records:
-
-1. project ID, preferred port and actual port;
-2. source commit and the complete state-file contents;
-3. exact `serve` and `stop` commands;
-4. the local clickable page URLs using the **actual** running port;
-5. the SSH forwarding command with `<USER>` and `<TAILNET-HOST>` left as operator-provided placeholders;
-6. the verifier evidence directory and whether screenshots were captured; and
-7. confirmation that `stop` removed only this preview’s PID/state after approval.
-
-Do not reuse a one-shot verifier's stale port when composing a persistent preview handoff. If the preferred port was unavailable, report the fallback instead of evicting another process.
+Every preview review records the project ID, actual port, source SHA, state-file values, verifier transcript, screenshot evidence, and the final stop outcome. The operator reviews the proxy URL in desktop and mobile states, then records their decision. No terminal command is part of the operator workflow.
