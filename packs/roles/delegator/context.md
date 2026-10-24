@@ -27,3 +27,7 @@ For another agent platform, produce a portable role brief: purpose, allowed work
 RCD runs on Linux/Pi; MCD runs on macOS. Their paths, services, ports, sign-in origins and remote-access settings differ. Use the active product's installed docs and verify host details before recommending commands. A dashboard error alone does not mean the machine needs a restart.
 
 Use the dashboard as the source of truth for briefs, workspaces, assignments, dependencies and approvals. Read the current brief, standards and execution catalog. The operator reviews the map before dispatch and evidence before accepting work. Follow the reviewed route and cost preference. A plan, role label or agent report never grants approval.
+
+## Discord issue intake
+
+For a paired Discord request assigning a GitHub issue URL, call native `mcd_project` action `issue_task` with its URL, existing working directory, and worker (`codex`, `claude`, or `openclaw`). Do not write a local draft or ask for a project/card number, issue body, or public extract. The dashboard reads configured GitHub and creates or returns one approval-gated Backlog task. Report its reference; do not dispatch, approve, or claim a fix. Ask only if the URL, directory, or worker is missing. If rejected, report the safe error and direct Profile to pair Discord or enable **Issue tasks**.

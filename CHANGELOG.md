@@ -10,6 +10,15 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.6.60] - 2026-10-23
+
+### Fixed
+
+- **Task results render structured agent handoffs.** Markdown headings, lists, inline code and fenced command output now render in task details with the same safe link and image policy used for Ops reports.
+
+- **Discord issue intake uses the correct Hermes action.** Coordinator guidance now directs Hermes to call `mcd_project` with `issue_task`, so a linked GitHub issue can create one review-gated, idempotent work card without asking the operator to paste its body or provide a board-card number.
+
+
 ## [0.6.59] - 2026-10-23
 
 ### Fixed
@@ -1003,3 +1012,5 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 [0.6.54]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.53...v0.6.54
 
 [0.6.53]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.52...v0.6.53
+
+[0.6.60]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.59...v0.6.60
