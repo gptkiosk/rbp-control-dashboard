@@ -38,6 +38,35 @@ import project_outputs
 def test_direct_incomplete_handoff_language_is_not_completion(result):
     assert project_outputs.incomplete_error(SimpleNamespace(result_text=result))
 
+PLAN_MODE_REFUSAL = (
+    "The verifier run is not done. Plan mode is active, so I have not run `tools/verify-preview.sh` or any other command that writes or starts a server.\n\n"
+    "I wrote the plan to `/home/pi/.claude/plans/x.md`. I could not call ExitPlanMode to submit the plan for approval.")
+
+
+def test_a_plan_mode_refusal_is_incomplete_with_a_reason_that_says_what_to_do():
+    reason = project_outputs.incomplete_error(SimpleNamespace(result_text=PLAN_MODE_REFUSAL))
+    assert reason and 'plan mode' in reason and 'human or CI story' in reason and 'workspace execution' in reason and 'does not allow starting a server' in reason
+
+
+@pytest.mark.parametrize('result', [
+    "Plan mode is active, so nothing was executed. The commands below are the plan.",
+    "I cannot run the build in plan mode; no check ran.",
+    "Plan mode blocks execution, and the checks have not been run.",
+])
+def test_other_phrasings_of_a_plan_mode_refusal_are_incomplete(result):
+    assert 'plan mode' in project_outputs.incomplete_error(SimpleNamespace(result_text=result))
+
+
+@pytest.mark.parametrize('result', [
+    "# Review\n\nI read the files and found two issues. Plan mode kept this review read-only, as intended.",
+    "All checks ran and passed. The agent used plan mode only for the read steps.",
+    "Plan mode is active. The plan is written; plan mode blocks writing the file, so approve the plan to lift plan mode and save it.",
+])
+def test_a_normal_read_result_or_an_output_approval_plan_is_not_flagged_as_a_plan_mode_refusal(result):
+    reason = project_outputs.incomplete_error(SimpleNamespace(result_text=result))
+    assert not reason or 'read-only plan mode' not in reason
+
+
 @pytest.fixture
 def app(make_client, monkeypatch, tmp_path):
     monkeypatch.setattr(AgentSpec,'available',lambda self,settings:True)

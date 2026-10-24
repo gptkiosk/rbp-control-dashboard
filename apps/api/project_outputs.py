@@ -70,6 +70,18 @@ def incomplete_error(run):
     blocked_without_receipts = (re.search(r'\bis blocked\b', opening, re.I) and
                                 re.search(r'\b(?:no|without)\b[^.\n]{0,120}\breceipts?\b', opening, re.I))
     unrun_live_checks = re.search(r'\b(?:benchmark|conformance)\b[^\n]*\bnot run\b[^\n]*\bno live results\b', opening, re.I)
+    # A read-only Claude story runs in plan mode, which cannot run commands or start a server. Such an agent writes a plan and exits 0, so the
+    # run looks like a success. Output-approval plans (an artifact waiting to be saved) are a different case and keep their own path.
+    plan_mode_refusal = (re.search(r'\bplan mode\b', opening, re.I) and
+                         re.search(r"\b(?:have|has|did|do|could|can|was|were|am|is|are)\s*(?:not|n't)\b[^.\n]{0,60}\b(?:run|ran|execute[ds]?|start(?:ed)?|verif(?:y|ied))\b|"
+                                   r"\b(?:cannot|can't|unable to)\b[^.\n]{0,60}\b(?:run|execute|start)\b|\bnot (?:been )?(?:run|executed)\b|\bnothing (?:was |has been )?(?:run|executed)\b",
+                                   opening, re.I) and
+                         not re.search(r'blocks? writing|not written yet|lift plan mode|approve the plan', text, re.I))
+    if plan_mode_refusal:
+        return ('The agent ran in read-only plan mode, which cannot run commands or start a server, so it wrote a plan and no check ran. '
+                'A normal process exit does not mean the story is complete. Plan this step as a human or CI story with the exact commands. '
+                'If it only needs the project tests and syntax checks, switch the story to workspace execution and retry it; that mode does not allow '
+                'starting a server or running a general script. No completed handoff was accepted.')
     if explicit or blocked_without_work or blocked_without_receipts or unrun_live_checks:
         return ('The agent explicitly reported unfinished work or unmet story acceptance criteria. '
                 'A normal process exit does not mean the story is complete. Open the task result, '
