@@ -384,6 +384,8 @@ export type Priority = 'urgent' | 'high' | 'normal' | 'low'
 export interface Card {
   project?: { id: number; node_key: string; role: string } | null
   superseded_by?: number | null
+  /** Untouched work from an older project revision. Kept in the ledger, hidden from active work. */
+  superseded?: boolean
   closed_project?: boolean
   id: number
   title: string

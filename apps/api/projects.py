@@ -1453,6 +1453,16 @@ def advance(s,settings):
 
 
 def binding(s,card_id): return s.get(ProjectTask,card_id)
+def superseded_story(s, card, link=None):
+    """True when an untouched story belongs to an older approved revision.
+    It remains in the ledger and project history but must never appear as current
+    work or accept a human decision."""
+    link = link or binding(s, card.id)
+    if not link or link.role != 'story' or card.column not in {'backlog', 'queued'}:
+        return False
+    project = s.get(Project, link.project_id)
+    return bool(project and link.revision < project.revision)
+
 def superseded_by(s,card,link=None):
     """The sibling card that carries this failed project card's work, else None.
     Another card with the same project, revision, role and story key (a story, or a coordinate, plan, return-plan or dispatch step) must

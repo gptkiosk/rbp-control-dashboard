@@ -34,7 +34,9 @@ const { data, error, loaded, refresh } = usePolledJson<CardsPayload>('/api/cards
 const prefs = reactive(loadPrefs())
 watch(prefs, savePrefs, { deep: true })
 const cards = computed(() => data.value?.cards ?? [])
-const filtered = computed(() => cards.value.filter((c) => matchesFilters(c, prefs.filters)))
+const supersededCount = computed(() => cards.value.filter((c) => c.superseded).length)
+const activeCards = computed(() => cards.value.filter((c) => !c.superseded))
+const filtered = computed(() => activeCards.value.filter((c) => matchesFilters(c, prefs.filters)))
 const grouped = computed(() => groupCards(filtered.value))
 const visibleGroups = computed(() => GROUPS.filter((g) => !prefs.hidden.includes(g.id)))
 const activeFilters = computed(() => filtersActive(prefs.filters))
@@ -252,7 +254,7 @@ async function quickAdd(title: string, column: CardColumn): Promise<void> {
         Clear filters
       </button>
       <span class="muted small result-count" role="status"
-        >{{ filtered.length }} of {{ cards.length }} tasks</span
+        >{{ filtered.length }} of {{ activeCards.length }} active tasks</span
       >
     </div>
     <div
@@ -265,6 +267,7 @@ async function quickAdd(title: string, column: CardColumn): Promise<void> {
       <span>{{ notice.text }}</span
       ><button type="button" class="btn" aria-label="Dismiss message" @click="notice = null">×</button>
     </div>
+    <p v-if="supersededCount" class="hint" data-testid="superseded-hidden">{{ supersededCount }} superseded, unstarted task{{ supersededCount === 1 ? ' is' : 's are' }} kept in project history and hidden from active work.</p>
     <p v-if="error" class="error-text" role="alert">Could not load tasks: {{ error }}</p>
     <p v-else-if="!loaded" class="muted" role="status">Loading…</p>
     <p v-if="loaded && activeFilters && !filtered.length" class="hint">No tasks match your filters.</p>

@@ -85,7 +85,7 @@ const moveValue = ref('')
 const human = computed(() => !!card.value && isHuman(card.value))
 const { media: projectMedia, link: mediaLink } = useProjectMedia(card)      // a human story about media shows what the studio will cost before it is opened
 const running = computed(() => card.value?.column === 'running')
-const locked = computed(() => (running.value && !human.value) || !!card.value?.project)
+const locked = computed(() => (running.value && !human.value) || !!card.value?.project || !!card.value?.superseded)
 const taskFields = ref<TaskFieldValues>({
   priority: 'normal',
   due_date: '',
@@ -393,6 +393,7 @@ async function save(): Promise<void> {
           <ChipTag tone="muted">{{ columnLabel(card.column) }}</ChipTag>
           <ChipTag tone="accent">{{ human ? 'You' : agentLabel(card.agent) }}</ChipTag>
           <ChipTag v-if="card.created_by === 'hermes'" tone="muted">Created by Hermes</ChipTag>
+          <ChipTag v-if="card.superseded" tone="muted">Superseded by replan</ChipTag>
           <ChipTag v-if="isCoordinatorAgent(card.agent)" tone="muted">Coordinator</ChipTag>
           <ChipTag v-if="!human" :tone="card.mode === 'edit' ? 'warn' : 'muted'">{{
             card.mode === 'edit' ? 'Edit' : 'Read'
@@ -401,12 +402,13 @@ async function save(): Promise<void> {
           <ChipTag v-else-if="card.approved_at" tone="ok">Approved</ChipTag>
         </div>
 
-        <MediaCallout v-if="card.project" :media="projectMedia" :link="mediaLink" />
-        <ProjectPreviewAction v-if="card.project" :card="card" @changed="afterChange" />
-        <TaskApprovalAction v-if="card.project" :card="card" hide-media-link @changed="afterChange" />
-        <QueuedTaskRouteAction v-if="card.project" :card="card" @changed="afterChange" />
-        <TaskRetryAction v-if="card.project" :card="card" @changed="afterChange" />
-        <ProjectPlanningRetryAction v-if="card.project" :card="card" @changed="afterChange" />
+        <p v-if="card.superseded" class="hint" data-testid="superseded-card">This untouched task belongs to an earlier project revision. Its scope and history are preserved in the project record; current work is in the replacement revision.</p>
+        <MediaCallout v-if="card.project && !card.superseded" :media="projectMedia" :link="mediaLink" />
+        <ProjectPreviewAction v-if="card.project && !card.superseded" :card="card" @changed="afterChange" />
+        <TaskApprovalAction v-if="card.project && !card.superseded" :card="card" hide-media-link @changed="afterChange" />
+        <QueuedTaskRouteAction v-if="card.project && !card.superseded" :card="card" @changed="afterChange" />
+        <TaskRetryAction v-if="card.project && !card.superseded" :card="card" @changed="afterChange" />
+        <ProjectPlanningRetryAction v-if="card.project && !card.superseded" :card="card" @changed="afterChange" />
         <div
           v-if="message"
           class="message"

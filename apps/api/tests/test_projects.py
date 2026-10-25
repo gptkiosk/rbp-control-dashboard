@@ -1736,4 +1736,7 @@ def test_paused_project_replan_replaces_only_unstarted_work_and_can_be_discarded
     old_after = {t['card_id']: t for t in final['tasks'] if t['card_id'] in {x['card_id'] for x in old}}
     assert final['state'] == 'active'
     assert all(t['column'] == 'backlog' and t['superseded'] for t in old_after.values())
+    active_cards = {card['id']: card for card in c.get('/api/cards').json()['cards']}
+    assert all(active_cards[card_id]['superseded'] is True for card_id in old_after)
+    assert all(c.get(f'/api/cards/{card_id}').json()['superseded'] is True for card_id in old_after)
     assert any(t['node_key'] == 'new-work' and t['revision'] == 2 for t in final['tasks'])

@@ -10,6 +10,15 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.6.67] - 2026-10-24
+
+### Fixed
+
+- Website Property plans now require linked media inventory, MCD Media Studio generation and publish, asset integration, and preview evidence before visual approval.
+- Superseded untouched stories stay in the project ledger but leave active task boards and cannot be approved, retried, or edited.
+- Website preview guidance now uses dashboard host actions and the authenticated remote proxy, without host terminal, SSH, Tailscale, or port forwarding steps.
+
+
 ## [0.6.66] - 2026-10-24
 
 ### Fixed
@@ -971,7 +980,8 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 - Claude Code stories may use web search and fetch without any shell, credential or publish permission.
 
 [0.3.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.0
-[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.66...HEAD
+[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.67...HEAD
+[0.6.67]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.66...v0.6.67
 [0.6.66]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.65...v0.6.66
 [0.6.65]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.64...v0.6.65
 [0.6.64]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.63...v0.6.64

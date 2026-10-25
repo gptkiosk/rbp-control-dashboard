@@ -17,7 +17,10 @@ def story(key, title, deps=(), assignee="claude", description="", **kw):
 GOOD_SITE = [
     story("a", "Design direction writes DESIGN.md"),
     story("b", "Restyle the pages", ["a"]),
-    story("c", "Verification of the files and themes", ["b"], assignee="openclaw"),
+    story("m", "Create the media inventory and media/slots.json", ["b"]),
+    story("mg", "Generate, select and publish site illustrations in MCD Media Studio", ["m"], assignee="human"),
+    story("mi", "Integrate published media into pages and both themes", ["mg"]),
+    story("c", "Verification of the files and themes", ["mi"], assignee="openclaw"),
     story("d", "Preview checkpoint on localhost", ["c"], assignee="claude"),
     story("e", "Responsive and polish review in the preview", ["d"], assignee="human"),
     story("e2", "Approve the look from the preview", ["e"], assignee="human"),
@@ -53,7 +56,7 @@ def test_the_website_type_catches_the_mistakes_that_failed_before(tmp_path):
         story("h", "Approve the art look", ["m"], assignee="human"),
     ]
     found = ids(pt.check("website-property", bad))
-    assert {"design-direction-first", "verification-story", "preview-checkpoint", "preview-before-look-signoff", "container-needs-human", "media-is-human", "container-after-pages"} <= found
+    assert {"design-direction-first", "verification-story", "preview-checkpoint", "preview-before-look-signoff", "container-needs-human", "media-is-human", "container-after-pages", "illustrated-media-inventory", "illustrated-media-generation", "illustrated-media-integration"} <= found
     flagged = {f["id"]: f["stories"] for f in pt.check("website-property", bad)}
     assert flagged["container-needs-human"] == ["x"] and flagged["media-is-human"] == ["m"] and flagged["container-after-pages"] == ["x"]
 
@@ -76,7 +79,12 @@ def test_web_app_and_packaged_app_checks():
 
 
 def test_impossible_agent_runtime_checks_block_dispatch_and_require_a_human_verification():
-    bad = [story("a", "Container configuration", assignee="codex", description="Run docker compose build and start the stack.")]
+    media = [
+        story("m", "Create the media inventory and media/slots.json"),
+        story("mg", "Generate, select and publish site illustrations in MCD Media Studio", ["m"], assignee="human"),
+        story("mi", "Integrate published media into pages and both themes", ["mg"]),
+    ]
+    bad = [story("a", "Container configuration", assignee="codex", description="Run docker compose build and start the stack."), *media]
     findings = pt.blocking_findings("website-property", bad)
     assert {f["id"] for f in findings} == {"container-needs-human", "container-runtime-verification"}
     fixed = bad + [story("b", "Local Docker container verification", ["a"], assignee="human")]
@@ -210,3 +218,4 @@ def test_a_website_preview_leaves_a_script_with_urls_a_health_file_and_a_check()
     t = pt.load()["website-property"]
     assert "tools/preview.sh" in t["planner_text"] and "tools/verify-preview.sh" in t["planner_text"] and "/health.txt" in t["planner_text"] and "host_action to \"preview-verify\"" in t["planner_text"] and "host_action \"preview-review\"" in t["planner_text"] and "trap" in t["planner_text"]
     assert any("clickable URLs" in fp and "/health.txt" in fp for fp in t["failure_points"])
+    assert "authenticated dashboard proxy" in t["planner_text"] and "never needs SSH" in t["planner_text"]
