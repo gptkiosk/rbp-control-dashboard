@@ -79,3 +79,9 @@ This passes agent-reported completion into shared memory, not independent artifa
 ## Model lock
 
 In a submitted active or paused project, open **Stories & runs** and enable **Model lock**. Failed tasks stay on their assigned model and stop for review instead of automatically retrying or switching to an approved equivalent. The default is off, retaining the project's reviewed quota alternatives and transport retry policy. The toggle is revision-checked, persists on the approved project snapshot and records the operator decision in shared memory. It applies to subsequent failure/retry decisions; it does not cancel a running task or undo a previous model change. Explicit manual retry or reviewed reassignment remains available.
+
+## Planning activity
+
+While a plan is being prepared, the panel below the project title shows the current Coordinator stage: review the brief, build the map, then check the plan. Completed stages and the current task's queued, running or approval state come from the project status, refreshed every three seconds. Open the linked planning task for its log and result. No model reasoning or estimated percentage is shown.
+
+The spinner stops when approval, recovery or plan review is needed. Reduced-motion settings stop the animation. The ordinary story counter appears after dispatch; planning an empty map is not shown as “Not started, 0 / 0.” This display adds no provider calls or prompt tokens.
