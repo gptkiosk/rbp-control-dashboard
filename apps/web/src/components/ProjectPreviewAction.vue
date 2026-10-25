@@ -33,16 +33,18 @@ watch(()=>[props.card.id,props.card.project?.id],load)
 <template>
   <section v-if="preview?.available || error" class="host-preview" aria-label="Host preview controls" @click.stop>
     <h3>Host preview</h3>
-    <p v-if="preview?.available" class="muted small">Runs the approved preview script on this dashboard host. Its output is recorded with this project; no host terminal is required.</p>
-    <p v-if="blocked" class="notice-warn">Finish this story’s prerequisites before running the host action.</p>
-    <div class="actions">
-      <button v-if="preview.actions?.includes('verify')" type="button" class="btn primary" :disabled="busy||blocked" @click="action('verify')"><AppIcon name="run" size="sm" />{{busy?'Verifying…':'Run verifier on host'}}</button>
-      <button v-if="preview.actions?.includes('serve')" type="button" class="btn primary" :disabled="busy||blocked||preview.running" @click="action('serve')"><AppIcon name="run" size="sm" />{{busy?'Starting…':'Start preview on host'}}</button>
-      <button v-if="preview.actions?.includes('stop')" type="button" class="btn" :disabled="busy||blocked||!preview.running" @click="action('stop')">Stop preview</button>
-      <a v-if="preview.proxy_url" class="btn" :href="preview.proxy_url" target="_blank" rel="noopener noreferrer">Open remote preview</a>
-    </div>
-    <p v-if="preview.state" class="small muted">Running on the host: PID {{preview.state.pid}} · port {{preview.state.port}} · {{preview.state.sha.slice(0,7)}}.</p>
-    <pre v-if="output" class="log-window" aria-label="Host preview output">{{output}}</pre>
+    <template v-if="preview?.available">
+      <p class="muted small">Runs the approved preview script on this dashboard host. Its output is recorded with this project; no host terminal is required.</p>
+      <p v-if="blocked" class="notice-warn">Finish this story’s prerequisites before running the host action.</p>
+      <div class="actions">
+        <button v-if="preview.actions?.includes('verify')" type="button" class="btn primary" :disabled="busy||blocked" @click="action('verify')"><AppIcon name="run" size="sm" />{{busy?'Verifying…':'Run verifier on host'}}</button>
+        <button v-if="preview.actions?.includes('serve')" type="button" class="btn primary" :disabled="busy||blocked||preview.running" @click="action('serve')"><AppIcon name="run" size="sm" />{{busy?'Starting…':'Start preview on host'}}</button>
+        <button v-if="preview.actions?.includes('stop')" type="button" class="btn" :disabled="busy||blocked||!preview.running" @click="action('stop')">Stop preview</button>
+        <a v-if="preview.proxy_url" class="btn" :href="preview.proxy_url" target="_blank" rel="noopener noreferrer">Open remote preview</a>
+      </div>
+      <p v-if="preview.state" class="small muted">Running on the host: PID {{preview.state.pid}} · port {{preview.state.port}} · {{preview.state.sha.slice(0,7)}}.</p>
+      <pre v-if="output" class="log-window" aria-label="Host preview output">{{output}}</pre>
+    </template>
     <p v-if="error" class="error-text" role="alert">{{error}}</p>
   </section>
 </template>
