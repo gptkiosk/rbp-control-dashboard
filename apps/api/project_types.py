@@ -14,6 +14,7 @@ from pathlib import Path
 CHECK_KINDS = {"has_story", "order", "not_agent_for", "requires_story"}
 ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,39}$")
 MAX_BYTES = 40_000
+LEGACY_TYPES = {'web-app', 'website-property'}
 
 
 def _dirs(settings):
@@ -71,8 +72,9 @@ def load(settings=None):
 
 
 def listing(settings=None):
+    """Types offered for new plans. Legacy type ids remain readable for existing projects."""
     return [{"id": t["id"], "label": t["label"], "summary": t["summary"], "keys": t.get("keys", []), "failure_points": t.get("failure_points", []),
-             "human_signoffs": t.get("human_signoffs", []), "visual_checks": t.get("visual_checks", "")} for t in load(settings).values()]
+             "human_signoffs": t.get("human_signoffs", []), "visual_checks": t.get("visual_checks", "")} for t in load(settings).values() if t["id"] not in LEGACY_TYPES]
 
 
 MEDIA_RULES = ("Generated media (images, clips) is made by the operator in MCD's Media tab with their own fal key, never by an agent: plan it as a human story after the wiring story, "
@@ -95,6 +97,8 @@ def consultant_text(settings=None, limit=1300, type_id=None):
         return "\n".join(lines)[:max(0, 1700 - len(MEDIA_RULES) - 1)] + "\n" + MEDIA_RULES
     lines = ["Project types (the operator picks one in New project; a plan for a typed project is checked against it):"]
     for t in types.values():
+        if t["id"] in LEGACY_TYPES:
+            continue
         signoffs = "; ".join(x[:40].rstrip() for x in t.get("human_signoffs", [])[:2])
         lines.append(f"- {t['label'].split(' (')[0]}: {t['summary'][:60].rstrip()}... A person signs off: {signoffs}.")
     return "\n".join(lines)[:max(0, limit - len(MEDIA_RULES) - 1)] + "\n" + MEDIA_RULES
@@ -111,6 +115,8 @@ def suggest(text, settings=None):
     lowered = (text or "").lower()
     best, score = None, 0
     for t in load(settings).values():
+        if t["id"] in LEGACY_TYPES:
+            continue
         n = sum(1 for p in t.get("suggest", []) if re.search(p, lowered))
         if n > score:
             best, score = t["id"], n

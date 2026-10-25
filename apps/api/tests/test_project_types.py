@@ -38,7 +38,7 @@ def ids(findings):
 
 def test_every_shipped_type_is_usable_and_named_for_its_file(tmp_path):
     types = pt.load(type("S", (), {"data_dir": tmp_path})())
-    assert set(types) == {"web-app", "packaged-app", "website-property", "other"}
+    assert set(types) == {"web-app", "packaged-app", "website-property", "local-website", "gcp-hosted-website", "gcp-hosted-app", "other"}
     for t in types.values():
         assert t["failure_points"] and t["human_signoffs"] and t["planner_text"] and t["checks"]
         assert all(c["message"] for c in t["checks"])
@@ -104,9 +104,12 @@ def test_the_planner_is_told_the_type_its_failure_points_and_where_people_look_a
 
 
 def test_a_type_is_suggested_only_when_the_brief_clearly_fits():
-    assert pt.suggest("A static website with dark mode and a theme toggle, custom art and animation transitions") == "website-property"
-    assert pt.suggest("A subscription service on Cloud Run with Stripe payments") == "web-app"
+    assert pt.suggest("A static local website with dark mode, theme toggle, custom art and animation transitions") == "local-website"
+    assert pt.suggest("A subscription service on GCP Cloud Run with Stripe payments") == "gcp-hosted-app"
     assert pt.suggest("An installable packaged app from a GitHub release for Raspberry Pi") == "packaged-app"
+    assert pt.suggest("An illustrated website hosted on GCP Cloud Run") == "gcp-hosted-website"
+    assert pt.suggest("A GCP Cloud Run application service") == "gcp-hosted-app"
+    assert {row["id"] for row in pt.listing()} == {"packaged-app", "local-website", "gcp-hosted-website", "gcp-hosted-app", "other"}
     assert pt.suggest("Fix the login bug") is None
 
 
@@ -126,8 +129,8 @@ def test_the_operators_own_copy_wins_and_a_broken_one_is_ignored(tmp_path):
 def test_types_and_checks_are_available_through_the_api(app):  # noqa: F811
     c, s, wd, settings = app
     listing = c.get("/api/project-types").json()["types"]
-    assert {t["id"] for t in listing} == {"web-app", "packaged-app", "website-property", "other"}
-    assert c.post("/api/project-types/suggest", json={"text": "A static website with dark mode and art and animation"}).json() == {"suggested": "website-property"}
+    assert {t["id"] for t in listing} == {"packaged-app", "local-website", "gcp-hosted-website", "gcp-hosted-app", "other"}
+    assert c.post("/api/project-types/suggest", json={"text": "A static local website with dark mode, art and animation"}).json() == {"suggested": "local-website"}
     plain = new(app, [node("a")])
     assert c.get(f"/api/projects/{plain['id']}/checks").json() == {"project_type": None, "findings": []}
     typed = new(app, [node("a", title="Container and pipeline docker compose up", assignee="codex")], project_type="website-property")
@@ -161,7 +164,7 @@ def test_media_default_tiers_are_validated_and_default_to_standard(tmp_path):
 def test_the_consultant_is_told_the_types_and_the_media_rules():
     text = pt.consultant_text()
     assert "Website property" in text and "Web app" in text and "Packaged app" in text
-    assert text.count("A person signs off:") == 4                              # every type fits inside the budget, none cut off
+    assert text.count("A person signs off:") == 5                              # every type fits inside the budget, none cut off
     assert "Other (does not exactly fit)".split(" (")[0] in text
     assert "never by an agent" in text and "cheapest video tier" in text and "another take" in text
     assert len(text) <= 1300
