@@ -12,7 +12,7 @@ import model_profiles
 import projects
 import failure_mining
 
-OPERATIONS = ('capabilities', 'types', 'context', 'models', 'status', 'task')
+OPERATIONS = ('capabilities', 'types', 'context', 'models', 'status', 'task', 'workspace', 'repository_intake')
 
 
 def capabilities():
@@ -27,6 +27,8 @@ def capabilities():
             {'feature': 'media_generate_select_publish', 'discord_actions': [], 'operator_link': '/projects?view=media'},
             {'feature': 'acceptance_and_dispatch', 'discord_actions': [], 'operator_link': '/projects'},
             {'feature': 'model_evidence', 'discord_actions': ['models'], 'operator_link': '/telemetry'},
+            {'feature': 'workspace_handoff', 'discord_actions': ['workspace', 'reserve_workspace', 'record_handoff'], 'operator_link': '/projects?view=workspace'},
+            {'feature': 'repository_intake', 'discord_actions': ['repository_intake'], 'operator_link': '/projects'},
         ],
         'instructions': 'Use supported actions only. An empty discord_actions list means use the operator link; never invent a tool or substitute terminal commands. Approved execution and human decisions remain enforced by the dashboard.'}
 
@@ -46,6 +48,13 @@ def read(s, settings, operation, owner, *, project_id=None, task_id=None, workin
     if operation == 'types':
         return {'types': project_types.listing(settings)}
     p = owned(s, project_id, owner) if project_id else None
+    if operation == 'repository_intake':
+        import repository_intake
+        return repository_intake.inspect(settings, projects.document(p)['working_dir'] if p else working_dir)
+    if operation == 'workspace':
+        import workspace_handoff
+        data = workspace_handoff.view(s, p or owned(s, project_id, owner), settings, working_dir)
+        return {**data, 'packet': workspace_handoff.packet(data)}
     if operation == 'context':
         d = projects.document(p) if p else {}
         wd, kind = d.get('working_dir', working_dir), d.get('project_type', project_type)

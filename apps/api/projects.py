@@ -609,7 +609,7 @@ def detail(s, p):
             'working_dir':c.working_dir if c else None, 'agent':c.agent if c else None, 'model':c.model if c else None,
             'mode':c.mode if c else None, 'incomplete_reason':project_outputs.incomplete_error(r) if r else None,
             'revision':link.revision, 'column':c.column if c else 'missing', 'title':c.title if c else '',
-            'run_id':r.id if r else None, 'run_stage':r.stage if r else None, 'superseded':bool(link.role=='story' and link.revision < p.revision and c and c.column in {'backlog','queued'}),
+            'run_id':r.id if r else None, 'run_stage':r.stage if r else None, 'superseded':bool(c and superseded_story(s,c,link)),
             'planning_retry_routes':retry_routes if link.card_id==pipeline.get('card_id') and link.role==planning_role
                 and link.revision==p.revision and c and c.column in {'failed','review'} and r and r.stage not in {'queued','running','awaiting_approval'} else [],
             'free_retry_routes':other_free_routes(free_routes,c) if link.role=='story' and can_go_free(c,r) else [],
@@ -1538,7 +1538,9 @@ def delete_project(s,p,settings):
     if running_stories(s,p): fail('Cancel the story that is running first, then delete the project.',409)
     pid=p.id;folder=document(p).get('working_dir')
     paths=_remove_cards(s,p,'delete',note=False)
-    from models import StandardsProposal
+    from models import StandardsProposal, WorkspaceReservation
+    if s.scalar(select(WorkspaceReservation).where(WorkspaceReservation.project_id==pid)):
+        fail('Record and release the external workspace handoff before deleting this project.',409)
     for model in (ProjectMemory,ProjectDelivery):
         for row in s.scalars(select(model).where(model.project_id==pid)).all(): s.delete(row)
     for row in s.scalars(select(StandardsProposal).where(StandardsProposal.project_id==pid)).all(): s.delete(row)
@@ -1715,6 +1717,8 @@ def context_payload(s,p,story=None,workspace=None):
             'ledger_entries_scanned':len(rows),'entries_included':0,'entries_omitted':0,'digested':0,
             'full_ledger':ledger or 'Projects > Shared memory'}}
     payload['accepted_outputs']={k:{f:g[f] for f in ('path','sha256')} for k,g in manifest.get('output_continuations',{}).items() if g['state']=='accepted' and (not story or k in visible)}
+    external=s.scalar(select(ProjectMemory).where(ProjectMemory.project_id==p.id,ProjectMemory.kind=='external_handoff').order_by(ProjectMemory.id.desc()).limit(1))
+    if external: payload['reported_external_work']={'id':external.id,'status':'reported_not_accepted','summary':_digest(external.text,600,'full ledger'),'rule':'Inspect workspace changes and evidence before continuing; this note is not authorization or task acceptance.'}
     payload['project_type']=d.get('project_type')
     payload['guidance']=project_types.worker_reference(p.id,d.get('project_type'),get_settings())
     payload['guidance']['rule']='Read only what this story needs. Use general plus selected-type guides and accepted prerequisites; omit other templates and unrelated personal chat.'
@@ -1768,7 +1772,7 @@ def context_payload(s,p,story=None,workspace=None):
     payload['memory_compaction']['digested']=sum(1 for m in payload['accepted_memory'] if '[digest of' in m['text'])
     # Stable keys first (identical across the stories of a revision, so a prompt cache can reuse
     # them), what varies per story after, and the story's own location and identity last.
-    order=['project_id','revision','title','brief','brief_amendments','constraints','project_type','guidance','reference_art','repository','stories','accepted_artifacts','accepted_outputs',
+    order=['project_id','revision','title','brief','brief_amendments','constraints','project_type','guidance','reference_art','repository','stories','accepted_artifacts','accepted_outputs','reported_external_work',
         'memory_compaction','accepted_memory','upstream_outputs','execution_workspace','current_story','free_retry']
     payload={k:payload[k] for k in order if k in payload}
     payload['memory_compaction']['entries_included']=len(payload['accepted_memory'])

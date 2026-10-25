@@ -12,6 +12,12 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [0.6.67] - 2026-10-25
 
+### Added
+
+- Project Workspace shows host-local Git state, recent handoffs and next work, with a compact handoff for native coding apps.
+- External-work reservations block overlapping task/chat dispatch until a reported handoff releases the checkout. Paired Discord supports the same reservation/handoff services.
+- Existing-repository intake maps tracked source, dependency manifests, documentation and configuration names without running repository scripts or returning secret values.
+
 ### Fixed
 
 - Coordinator context now loads general guidance plus one project type; workers read a private hashed guide packet on demand and omit unrelated story tails.

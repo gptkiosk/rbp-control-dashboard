@@ -82,6 +82,20 @@ def coordinator_read_view(request:Request,operation:str,project_id:int|None=None
 def get_project(project_id:int,request:Request,s:Session=Depends(get_session)):
     actor(request);return projects.detail(s,projects.get(s,project_id))
 
+from workspace_schemas import Reservation, Handoff
+
+@router.post('/{project_id}/workspace/reserve')
+def reserve_workspace(project_id:int,body:Reservation,request:Request,s:Session=Depends(get_session)):
+    import coordinator_read, workspace_handoff
+    who=actor(request);write(s);p=coordinator_read.owned(s,project_id,who)
+    result=workspace_handoff.reserve(s,p,get_settings(),body,who);s.commit();return result
+
+@router.post('/{project_id}/workspace/handoff')
+def record_workspace_handoff(project_id:int,body:Handoff,request:Request,s:Session=Depends(get_session)):
+    import coordinator_read, workspace_handoff
+    who=actor(request);write(s);p=coordinator_read.owned(s,project_id,who)
+    result=workspace_handoff.record(s,p,get_settings(),body,who);s.commit();return result
+
 @router.get('/{project_id}/standards')
 def standards_for(project_id:int,request:Request,s:Session=Depends(get_session)):
     actor(request);return standards.resolve(projects.document(projects.get(s,project_id))['working_dir'],get_settings().data_dir)
@@ -328,6 +342,9 @@ def pause(project_id:int,body:Action,request:Request,s:Session=Depends(get_sessi
 def resume(project_id:int,body:Action,request:Request,s:Session=Depends(get_session)):
     identity=actor(request);write(s);p=projects.get(s,project_id);projects.check_revision(p,body.revision)
     if p.state!='paused': raise HTTPException(409,'This project is not paused.')
+    from models import WorkspaceReservation
+    if s.scalar(select(WorkspaceReservation).where(WorkspaceReservation.project_id==p.id)):
+        raise HTTPException(409,'Record the external-work handoff in Workspace before resuming dispatch.')
     p.state='active';projects.memory(s,p,'decision','Operator resumed the same approved project revision.',identity)
     s.commit();return projects.detail(s,p)
 

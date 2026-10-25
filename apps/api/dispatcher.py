@@ -271,6 +271,9 @@ class Dispatcher:
                 if refuse_timeout_retry(s, card, now):
                     continue
                 link = projects.binding(s, card.id)
+                import workspace_handoff
+                if workspace_handoff.blocking(s, card.working_dir):
+                    continue
                 # Second line of defence for standalone cards: only an unused, unexpired grant
                 # for this exact route pin (or the same execution's requeue) may start a run.
                 problem = (approval.grant_problem(card, now, card.idempotency_key)
@@ -758,6 +761,9 @@ class Dispatcher:
             if thread is None or spec is None:
                 return None
             active = list(s.scalars(select(Run).where(Run.stage == "running")))
+            import workspace_handoff
+            if workspace_handoff.blocking(s, thread.working_dir):
+                return None
             if any(r.card_id and projects.binding(s, r.card_id) and (projects.overlap(thread.working_dir, r.working_dir) or (thread.agent==r.agent=="openclaw" and (s.get(Card,r.card_id).agent_target or "mm-main")==(thread.agent_target or "mm-main"))) for r in active):
                 return None
             ctx = SimpleNamespace(mode=thread.mode, working_dir=thread.working_dir,

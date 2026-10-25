@@ -15,7 +15,7 @@ router=APIRouter(prefix='/api/hermes-projects')
 
 class Bridge(BaseModel):
     model_config=ConfigDict(extra='forbid',hide_input_in_errors=True)
-    action:Literal['pair','intake','list','get','save','plan','diagram','limits','limits_reroute','failures','failure','maintenance','maintenance_propose','standards','standards_propose','propose_repository','bootstrap_status','issue_task','capabilities','types','context','models','status','task']
+    action:Literal['pair','intake','list','get','save','plan','diagram','limits','limits_reroute','failures','failure','maintenance','maintenance_propose','standards','standards_propose','propose_repository','bootstrap_status','issue_task','capabilities','types','context','models','status','task','workspace','repository_intake','reserve_workspace','record_handoff']
     discord_user_id:str=Field(pattern=r'^[0-9]{16,22}$')
     discord_channel_id:str=Field(pattern=r'^[0-9]{16,22}$')
     source_message_id:str=Field(default='',pattern=r'^([0-9]{16,22})?$')
@@ -46,6 +46,11 @@ class Bridge(BaseModel):
     repo_description:str=Field(default='',max_length=200)
     issue_url:str=Field(default='',max_length=500)
     document:Document|None=None
+    snapshot:str=Field(default='',max_length=64)
+    operation_id:str=Field(default='',max_length=36)
+    reservation_id:str|None=Field(default=None,max_length=36)
+    handoff:str=Field(default='',max_length=6000)
+    workspace_label:str=Field(default='Coding app',max_length=80)
 
 def authorize(request):
     from agent_access import local_request
@@ -70,8 +75,26 @@ def command(body:Bridge,request:Request,s:Session=Depends(get_session)):
     profile=s.scalar(select(UserProfile).where(UserProfile.discord_user_id==body.discord_user_id))
     if not profile or profiles.prefs(s,profile.owner).discord_channel_id!=body.discord_channel_id:raise HTTPException(403,'Link this Discord account and channel in your RCD profile.')
     pref=profiles.prefs(s,profile.owner)
-    if body.action in ('capabilities','types','context','models','status','task'):
-        if body.action in ('status','task') and not pref.allow_discord_diagnostics:
+    if body.action in ('reserve_workspace','record_handoff'):
+        if not pref.allow_discord_control or not pref.allow_discord_diagnostics:
+            raise HTTPException(403,'Enable Discord control and diagnostics in your profile first.')
+        import coordinator_read, workspace_handoff
+        from workspace_schemas import Reservation, Handoff
+        from pydantic import ValidationError
+        p=coordinator_read.owned(s,body.project_id,profile.owner)
+        values=dict(revision=body.revision,working_dir=body.working_dir,snapshot=body.snapshot,
+            operation_id=body.operation_id,label=body.workspace_label)
+        try:
+            if body.action=='record_handoff':
+                data=Handoff(**values,reservation_id=body.reservation_id,summary=body.handoff)
+                result=workspace_handoff.record(s,p,settings,data,'discord:'+profile.owner)
+            else:
+                result=workspace_handoff.reserve(s,p,settings,Reservation(**values),'discord:'+profile.owner)
+        except ValidationError:
+            raise HTTPException(422,'Use the current revision/snapshot and a UUID operation ID; handoffs need a summary.') from None
+        s.commit();return result
+    if body.action in ('capabilities','types','context','models','status','task','workspace','repository_intake'):
+        if body.action in ('status','task','workspace','repository_intake') and not pref.allow_discord_diagnostics:
             raise HTTPException(403,'Enable Discord diagnostics in your profile first.')
         import coordinator_read
         return coordinator_read.read(s,settings,body.action,profile.owner,project_id=body.project_id,
