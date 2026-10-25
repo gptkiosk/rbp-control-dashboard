@@ -1717,7 +1717,8 @@ def context_payload(s,p,story=None,workspace=None):
             'ledger_entries_scanned':len(rows),'entries_included':0,'entries_omitted':0,'digested':0,
             'full_ledger':ledger or 'Projects > Shared memory'}}
     payload['accepted_outputs']={k:{f:g[f] for f in ('path','sha256')} for k,g in manifest.get('output_continuations',{}).items() if g['state']=='accepted' and (not story or k in visible)}
-    external=s.scalar(select(ProjectMemory).where(ProjectMemory.project_id==p.id,ProjectMemory.kind=='external_handoff').order_by(ProjectMemory.id.desc()).limit(1))
+    external_path=str(Path(workspace or d['working_dir']).expanduser().resolve())
+    external=s.scalar(select(ProjectMemory).where(ProjectMemory.project_id==p.id,ProjectMemory.kind=='external_handoff',ProjectMemory.text.contains(f'\nWorkspace: {external_path}\n',autoescape=True)).order_by(ProjectMemory.id.desc()).limit(1))
     if external: payload['reported_external_work']={'id':external.id,'status':'reported_not_accepted','summary':_digest(external.text,600,'full ledger'),'rule':'Inspect workspace changes and evidence before continuing; this note is not authorization or task acceptance.'}
     payload['project_type']=d.get('project_type')
     payload['guidance']=project_types.worker_reference(p.id,d.get('project_type'),get_settings())
