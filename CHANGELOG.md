@@ -10,6 +10,16 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.6.63] - 2026-10-24
+
+### Added
+
+- **Remote project previews run from the dashboard.** Approved preview stories now provide host-side verifier, start, stop and authenticated remote-open controls with live output, rather than asking a remote operator to run a shell command. Every action records its command, output, process state and commit for handoff review.
+
+### Changed
+
+- **Project planners create structured preview actions.** Website and screen-bearing project templates mark verifier and review stories for the dashboard host action flow. Previews remain loopback-only; the dashboard proxies the selected preview after operator authentication.
+
 ## [0.6.62] - 2026-10-24
 
 ### Fixed
