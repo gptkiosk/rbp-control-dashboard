@@ -12,7 +12,7 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [0.6.69] - 2026-10-25
 
-### Improved
+### Changed
 
 - Project planning now has a prominent progress panel with an activity spinner, actual coordinator stages, queued/running/approval states and a direct task-log link. The empty story counter stays hidden until dispatch finishes.
 - Planning progress respects reduced motion, works on narrow screens and stops animating when planning needs attention or the map is ready. It uses existing status polling without additional model calls or prompt context.
