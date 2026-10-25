@@ -332,20 +332,16 @@ def plan_checks(project_id:int,request:Request,s:Session=Depends(get_session)):
 
 @router.post('/{project_id}/pause')
 def pause(project_id:int,body:Action,request:Request,s:Session=Depends(get_session)):
-    identity=actor(request);write(s);p=projects.get(s,project_id);projects.check_revision(p,body.revision)
-    if p.state=='paused': return projects.detail(s,p)
-    if p.state!='active': raise HTTPException(409,'Only active story execution can be paused.')
-    p.state='paused';projects.memory(s,p,'decision','Dispatch paused; running stories may finish in Review. No new story starts.',identity)
+    import workspace_handoff
+    identity=actor(request);write(s);p=projects.get(s,project_id)
+    workspace_handoff.dispatch_control(s,p,body.revision,'pause',identity)
     s.commit();return projects.detail(s,p)
 
 @router.post('/{project_id}/resume')
 def resume(project_id:int,body:Action,request:Request,s:Session=Depends(get_session)):
-    identity=actor(request);write(s);p=projects.get(s,project_id);projects.check_revision(p,body.revision)
-    if p.state!='paused': raise HTTPException(409,'This project is not paused.')
-    from models import WorkspaceReservation
-    if s.scalar(select(WorkspaceReservation).where(WorkspaceReservation.project_id==p.id)):
-        raise HTTPException(409,'Record the external-work handoff in Workspace before resuming dispatch.')
-    p.state='active';projects.memory(s,p,'decision','Operator resumed the same approved project revision.',identity)
+    import workspace_handoff
+    identity=actor(request);write(s);p=projects.get(s,project_id)
+    workspace_handoff.dispatch_control(s,p,body.revision,'resume',identity)
     s.commit();return projects.detail(s,p)
 
 @router.get('/{project_id}/stories/{card_id}/artifact')

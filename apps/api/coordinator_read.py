@@ -22,7 +22,8 @@ def capabilities():
         'workflow': [
             {'feature': 'intake_and_planning', 'discord_actions': ['intake', 'get', 'save', 'plan'], 'operator_link': '/projects'},
             {'feature': 'diagnostics', 'discord_actions': ['failures', 'failure', 'task', 'status'], 'operator_link': '/telemetry'},
-            {'feature': 'pause_resume_replan_routes', 'discord_actions': [], 'operator_link': '/projects'},
+            {'feature': 'pause_resume', 'discord_actions': ['pause_dispatch', 'resume_dispatch'], 'operator_link': '/projects'},
+            {'feature': 'replan_routes', 'discord_actions': [], 'operator_link': '/projects'},
             {'feature': 'preview_verify_start_stop', 'discord_actions': [], 'operator_link': '/projects'},
             {'feature': 'media_generate_select_publish', 'discord_actions': [], 'operator_link': '/projects?view=media'},
             {'feature': 'acceptance_and_dispatch', 'discord_actions': [], 'operator_link': '/projects'},

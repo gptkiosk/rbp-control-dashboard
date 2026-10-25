@@ -15,7 +15,7 @@ router=APIRouter(prefix='/api/hermes-projects')
 
 class Bridge(BaseModel):
     model_config=ConfigDict(extra='forbid',hide_input_in_errors=True)
-    action:Literal['pair','intake','list','get','save','plan','diagram','limits','limits_reroute','failures','failure','maintenance','maintenance_propose','standards','standards_propose','propose_repository','bootstrap_status','issue_task','capabilities','types','context','models','status','task','workspace','repository_intake','reserve_workspace','record_handoff']
+    action:Literal['pair','intake','list','get','save','plan','diagram','limits','limits_reroute','failures','failure','maintenance','maintenance_propose','standards','standards_propose','propose_repository','bootstrap_status','issue_task','capabilities','types','context','models','status','task','workspace','repository_intake','reserve_workspace','record_handoff','pause_dispatch','resume_dispatch']
     discord_user_id:str=Field(pattern=r'^[0-9]{16,22}$')
     discord_channel_id:str=Field(pattern=r'^[0-9]{16,22}$')
     source_message_id:str=Field(default='',pattern=r'^([0-9]{16,22})?$')
@@ -75,6 +75,13 @@ def command(body:Bridge,request:Request,s:Session=Depends(get_session)):
     profile=s.scalar(select(UserProfile).where(UserProfile.discord_user_id==body.discord_user_id))
     if not profile or profiles.prefs(s,profile.owner).discord_channel_id!=body.discord_channel_id:raise HTTPException(403,'Link this Discord account and channel in your RCD profile.')
     pref=profiles.prefs(s,profile.owner)
+    if body.action in ('pause_dispatch','resume_dispatch'):
+        if not pref.allow_discord_control:
+            raise HTTPException(403,'Enable Discord control in your profile first.')
+        import coordinator_read, workspace_handoff
+        p=coordinator_read.owned(s,body.project_id,profile.owner)
+        workspace_handoff.dispatch_control(s,p,body.revision,'pause' if body.action=='pause_dispatch' else 'resume','discord:'+profile.owner)
+        s.commit();return {'project_id':p.id,'revision':p.revision,'state':p.state,'link':f'/projects?project={p.id}&view=workspace'}
     if body.action in ('reserve_workspace','record_handoff'):
         if not pref.allow_discord_control or not pref.allow_discord_diagnostics:
             raise HTTPException(403,'Enable Discord control and diagnostics in your profile first.')

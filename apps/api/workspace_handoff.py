@@ -100,6 +100,27 @@ def active_runs(s, path):
             if r.working_dir and projects.overlap(str(path), r.working_dir)]
 
 
+def dispatch_control(s, p, revision, action, actor):
+    """Same finite operation for the operator UI and paired Discord; never starts a run here."""
+    projects.check_revision(p, revision)
+    if action == 'pause':
+        if p.state == 'paused': return
+        if p.state != 'active':
+            raise HTTPException(409, 'Only active story execution can be paused.')
+        p.state = 'paused'
+        text = 'Dispatch paused; running stories may finish in Review. No new story starts.'
+    elif action == 'resume':
+        if p.state != 'paused':
+            raise HTTPException(409, 'This project is not paused.')
+        if s.scalar(select(WorkspaceReservation).where(WorkspaceReservation.project_id == p.id)):
+            raise HTTPException(409, 'Record the external-work handoff in Workspace before resuming dispatch.')
+        p.state = 'active'
+        text = 'Operator resumed the same approved project revision.'
+    else:
+        raise HTTPException(422, 'Choose pause or resume.')
+    projects.memory(s, p, 'decision', text, actor)
+
+
 def view(s, p, settings, working_dir=''):
     path = root_for(p, settings, working_dir, s)
     facts = observation(path)
