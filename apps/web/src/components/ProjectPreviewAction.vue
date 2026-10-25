@@ -13,7 +13,12 @@ const base=computed(()=>`/api/projects/${props.card.project!.id}/stories/${props
 const blocked=computed(()=>props.card.blocked_by.length>0)
 async function load(){
   if(!props.card.project) return
-  try { preview.value=await getJson<Preview>(base.value) } catch { preview.value=null }
+  error.value=''
+  try { preview.value=await getJson<Preview>(base.value) }
+  catch(e) {
+    preview.value=null
+    error.value=e instanceof Error?e.message:String(e)
+  }
 }
 async function action(value:'verify'|'serve'|'stop'){
   if(busy.value||blocked.value) return
@@ -26,9 +31,9 @@ watch(()=>[props.card.id,props.card.project?.id],load)
 </script>
 
 <template>
-  <section v-if="preview?.available" class="host-preview" aria-label="Host preview controls" @click.stop>
+  <section v-if="preview?.available || error" class="host-preview" aria-label="Host preview controls" @click.stop>
     <h3>Host preview</h3>
-    <p class="muted small">Runs the approved preview script on this dashboard host. Its output is recorded with this project; no host terminal is required.</p>
+    <p v-if="preview?.available" class="muted small">Runs the approved preview script on this dashboard host. Its output is recorded with this project; no host terminal is required.</p>
     <p v-if="blocked" class="notice-warn">Finish this story’s prerequisites before running the host action.</p>
     <div class="actions">
       <button v-if="preview.actions?.includes('verify')" type="button" class="btn primary" :disabled="busy||blocked" @click="action('verify')"><AppIcon name="run" size="sm" />{{busy?'Verifying…':'Run verifier on host'}}</button>

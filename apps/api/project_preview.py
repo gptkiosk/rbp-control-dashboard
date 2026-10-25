@@ -59,11 +59,17 @@ def _root(project, card, link) -> Path:
     raw = manifest.get('document', {}).get('working_dir')
     if not isinstance(raw, str) or not raw:
         raise HTTPException(409, 'The approved project workspace is unavailable.')
-    root = Path(raw).expanduser().resolve()
-    script = root / 'tools' / 'verify-preview.sh'
-    if not root.is_dir() or not script.is_file():
-        raise HTTPException(409, 'The approved workspace does not contain tools/verify-preview.sh.')
-    return root
+    project_root = Path(raw).expanduser().resolve()
+    candidates = [Path(getattr(card, 'working_dir', '')).expanduser().resolve()] if getattr(card, 'working_dir', None) else []
+    candidates.append(project_root)
+    for root in candidates:
+        try:
+            root.relative_to(project_root)
+        except ValueError:
+            continue
+        if root.is_dir() and (root / 'tools' / 'verify-preview.sh').is_file():
+            return root
+    raise HTTPException(409, 'The approved workspace does not contain tools/verify-preview.sh.')
 
 
 def _state(root: Path) -> dict | None:
