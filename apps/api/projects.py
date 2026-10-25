@@ -1361,6 +1361,7 @@ def _materialize(s,p,order,settings):
     p.state='active';p.pipeline=None;memory(s,p,'decision','Hermes order validated. Stories materialized exactly once: '+json.dumps(bindings),'mcd')
 
 def advance(s,settings):
+    import workspace_handoff
     for active_project in s.scalars(select(Project).where(Project.state.in_(['active','paused']))).all():
         # Reconcile legacy process-success results that explicitly admit the
         # story is incomplete. Accepted stories and active runs are untouched.
@@ -1375,6 +1376,7 @@ def advance(s,settings):
         process_handoffs(s,active_project)
         process_parallel_gates(s,active_project,settings)
     for p in s.scalars(select(Project).where(Project.state.in_(['planning','dispatching']))).all():
+        if workspace_handoff.blocking(s,document(p)['working_dir']): continue
         pipeline=json.loads(p.pipeline)
         if 'execution_catalog' not in pipeline: pipeline['execution_catalog']=execution_catalog(settings,bias=document(p)['planning_bias'])
         c=s.get(Card,pipeline['card_id'])
@@ -1977,6 +1979,9 @@ def accept_story(s,p,card_id,data,actor):
     if not link or link.project_id!=p.id or link.role!='story': fail('Story not found in this project.',404)
     if p.state not in {'active','paused'}: fail('This project is not active.')
     if c.column=='done': return
+    import workspace_handoff
+    if workspace_handoff.blocking(s,c.working_dir or document(p)['working_dir']):
+        fail('Record and release the external-work handoff before accepting this workspace.',409)
     if dependency_blocks(s,c.id): fail('Finish this story’s prerequisites first.')
     output=None
     if c.assignee_type!='human':
