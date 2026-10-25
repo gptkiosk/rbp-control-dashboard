@@ -62,6 +62,11 @@ def _root(project, card, link) -> Path:
     project_root = Path(raw).expanduser().resolve()
     candidates = [Path(getattr(card, 'working_dir', '')).expanduser().resolve()] if getattr(card, 'working_dir', None) else []
     candidates.append(project_root)
+    # Human stories deliberately have no card workspace. A project may hold its
+    # approved checkout one level below its workspace, so search that bounded
+    # location without allowing a path outside the approved root.
+    if project_root.is_dir():
+        candidates.extend(child for child in project_root.iterdir() if child.is_dir())
     for root in candidates:
         try:
             root.relative_to(project_root)

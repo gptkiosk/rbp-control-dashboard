@@ -37,6 +37,15 @@ class PreviewActionsTest(unittest.TestCase):
             self.assertTrue(result['ok'])
             self.assertIn(f'action=serve cwd={nested}', result['output'])
 
+    def test_human_preview_finds_a_direct_child_checkout(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            nested = root / 'site'; (nested / 'tools').mkdir(parents=True)
+            (nested / 'tools' / 'verify-preview.sh').write_text('#!/usr/bin/env bash\nprintf "action=%s cwd=%s\\n" "$1" "$PWD"\n', encoding='utf-8')
+            result = project_preview.run(project(root, 'Start dashboard-managed persistent preview for remote review'), SimpleNamespace(), SimpleNamespace(node_key='preview'), 'serve', proxy_base='/api/preview')
+            self.assertTrue(result['ok'])
+            self.assertIn(f'action=serve cwd={nested}', result['output'])
+
     def test_preview_story_does_not_accept_arbitrary_host_actions(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
