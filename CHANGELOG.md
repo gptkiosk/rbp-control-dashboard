@@ -10,6 +10,16 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.6.63] - 2026-10-24
+
+### Added
+
+- **Remote project previews run from the dashboard.** Approved preview stories now provide host-side verifier, start, stop and authenticated remote-open controls with live output, rather than asking a remote operator to run a shell command. Every action records its command, output, process state and commit for handoff review.
+
+### Changed
+
+- **Project planners create structured preview actions.** Website and screen-bearing project templates mark verifier and review stories for the dashboard host action flow. Previews remain loopback-only; the dashboard proxies the selected preview after operator authentication.
+
 ## [0.6.62] - 2026-10-24
 
 ### Fixed
@@ -941,7 +951,8 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 - Claude Code stories may use web search and fetch without any shell, credential or publish permission.
 
 [0.3.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.0
-[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.50...HEAD
+[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.63...HEAD
+[0.6.63]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.62...v0.6.63
 [0.6.50]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.49...v0.6.50
 [0.6.49]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.48...v0.6.49
 [0.6.48]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.47...v0.6.48
