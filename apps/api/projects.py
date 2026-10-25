@@ -282,6 +282,8 @@ def validate(doc, settings, executable=False, overlaps=False):
     import project_intake
     try: parsed['intake_answers'] = project_intake.validate(parsed.get('intake_answers', {}), parsed.get('project_type'), settings)
     except ValueError as exc: fail(str(exc), 422)
+    if len(project_intake.brief(parsed, settings)) > 20000:
+        fail('Keep the goal and template answers under 20,000 characters together.', 422)
     parsed['title'], parsed['brief'] = parsed['title'].strip(), parsed['brief'].strip()
     if not parsed['title'] or not parsed['brief']: fail('Project title and brief are required.', 422)
     wd = approval.resolve_workdir(parsed['working_dir'], settings.workdir_roots)
