@@ -63,7 +63,20 @@ def add_git_grant(project_id:int,body:GitGrantIn,request:Request,s:Session=Depen
 
 @router.get('/consultant-context')
 def consultant_context(working_dir:str,request:Request,project_type:str|None=None,s:Session=Depends(get_session)):
-    actor(request);return {'text':projects.consultant_context(s,get_settings(),working_dir,project_type if project_type and re.fullmatch(r'[a-z0-9][a-z0-9-]{0,39}',project_type) else None)}
+    actor(request)
+    import project_types
+    chosen=project_type if project_type and re.fullmatch(r'[a-z0-9][a-z0-9-]{0,39}',project_type) else None
+    packet=project_types.guidance_packet(chosen,get_settings())
+    return {'text':projects.consultant_context(s,get_settings(),working_dir,chosen),
+        'context_manifest':{k:v for k,v in packet.items() if k!='text'}}
+
+@router.get('/coordinator')
+def coordinator_read_view(request:Request,operation:str,project_id:int|None=None,task_id:int|None=None,
+        working_dir:str='',project_type:str|None=None,s:Session=Depends(get_session)):
+    import coordinator_read
+    owner=actor(request)
+    return coordinator_read.read(s,get_settings(),operation,owner,project_id=project_id,task_id=task_id,
+        working_dir=working_dir,project_type=project_type)
 
 @router.get('/{project_id}')
 def get_project(project_id:int,request:Request,s:Session=Depends(get_session)):

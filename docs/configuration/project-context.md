@@ -24,3 +24,8 @@ cached. Compaction now works like this.
 
 On the real project history (164 stories), context fell from 4.0 MB to 2.7 MB in total (34%), the
 median from 27 KB to 19 KB, before any prompt caching. The budget is 16 KB for the JSON payload.
+
+
+## Context selected by type
+
+See the [Coordinator context contract](coordinator-pipeline.md). Consultant and planner prompts load general guides plus one selected type. Story prompts carry the selected guide names and a private, hashed file reference; unrelated story tails are omitted. The full ledger remains available on demand.

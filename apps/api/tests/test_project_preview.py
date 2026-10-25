@@ -20,7 +20,7 @@ class PreviewActionsTest(unittest.TestCase):
             result = project_preview.run(project(root), SimpleNamespace(), SimpleNamespace(node_key='preview'), 'verify', proxy_base='/api/preview')
             self.assertTrue(result['ok'])
             self.assertEqual(result['exit_code'], 0)
-            self.assertIn(f'action=verify cwd={root}', result['output'])
+            self.assertIn(f'action=verify cwd={root.resolve()}', result['output'])
             self.assertIsNone(result['proxy_url'])
 
     def test_dashboard_managed_persistent_preview_title_is_a_review_action(self):
@@ -35,7 +35,7 @@ class PreviewActionsTest(unittest.TestCase):
             card = SimpleNamespace(working_dir=str(nested))
             result = project_preview.run(project(root, 'Start dashboard-managed persistent preview for remote review'), card, SimpleNamespace(node_key='preview'), 'serve', proxy_base='/api/preview')
             self.assertTrue(result['ok'])
-            self.assertIn(f'action=serve cwd={nested}', result['output'])
+            self.assertIn(f'action=serve cwd={nested.resolve()}', result['output'])
 
     def test_human_preview_finds_a_direct_child_checkout(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -44,7 +44,7 @@ class PreviewActionsTest(unittest.TestCase):
             (nested / 'tools' / 'verify-preview.sh').write_text('#!/usr/bin/env bash\nprintf "action=%s cwd=%s\\n" "$1" "$PWD"\n', encoding='utf-8')
             result = project_preview.run(project(root, 'Start dashboard-managed persistent preview for remote review'), SimpleNamespace(), SimpleNamespace(node_key='preview'), 'serve', proxy_base='/api/preview')
             self.assertTrue(result['ok'])
-            self.assertIn(f'action=serve cwd={nested}', result['output'])
+            self.assertIn(f'action=serve cwd={nested.resolve()}', result['output'])
 
     def test_preview_story_does_not_accept_arbitrary_host_actions(self):
         with tempfile.TemporaryDirectory() as temporary:

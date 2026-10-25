@@ -735,6 +735,9 @@ def _brief(p, include_nodes=False):
     d=document(p)
     payload={k:d[k] for k in (('title','brief','constraints','nodes') if include_nodes else ('title','brief','constraints'))}
     payload.update(planning_bias=d['planning_bias'], assignment_policy=planning_policy(d['planning_bias']), dispatch_mode=d['dispatch_mode'])
+    payload['project_type']=d.get('project_type')
+    payload['guidance']={'mode':'general_plus_selected_type','guides':project_types.selected_guides(d.get('project_type'),get_settings()),
+        'rule':'Use the approved brief, current story, accepted prerequisites and these guides only. Other template rules and unrelated chat history are not project context.'}
     if (art:=_reference_art(d)): payload['reference_art']=art
     if d.get('repository'): payload['repository']=_repository_note(d)
     return json.dumps(payload,ensure_ascii=False)
@@ -819,13 +822,12 @@ def consultant_context(s, settings, working_dir, project_type=None):
     if wd is None:
         fail('Choose an existing allowlisted working directory.', 422)
     found = standards.resolve(str(wd), settings.data_dir)
-    methods = '\n\n'.join(f"{label}:\n{standards.guide_text(name, settings.data_dir)}" for label, name in
-                           (('Development practice', 'practices.md'), ('Delivering a hosted web app', 'web-app-delivery.md'), ('Delivering a packaged app', 'packaged-app-delivery.md'), ('Delivering a containerized web app, local first', 'container-app-delivery.md'),
-                            ('Application security', 'security.md')) if standards.guide_text(name, settings.data_dir))
+    packet = project_types.guidance_packet(project_type, settings)
+    methods = packet['text']
     parts = [('How the software is delivered', RoleStore(settings).source('context.md').strip()),
              ('Standards that apply to this working directory', standards.prompt_section(found)),
              ('Methods and practices to build the plan on', methods),
-             ('Project types and generated media', project_types.consultant_text(settings, type_id=project_type)),
+             ('Selected project type', project_types.consultant_text(settings, type_id=project_type)),
              ('This installation and its configuration', installation_text(s, settings)),
              ('Models you could recommend', model_profiles.guidance_text(s, settings.data_dir, execution_catalog(settings)))]
     return '\n\n'.join(f'## {title}\n{body}' for title, body in parts if body)[:CONSULTANT_CONTEXT_MAX]
@@ -1206,6 +1208,8 @@ def _planner_prompt(p,catalog=None,s=None,fresh=False,replan=None):
     extra=model_profiles.guidance_text(s,settings.data_dir,catalog) if s is not None else ''
     where=installation_text(s,settings) if s is not None else ''
     typed=project_types.planner_section(document(p).get('project_type'),settings)
+    methods=project_types.guidance_packet(document(p).get('project_type'),settings)['text']
+    text+='\n\nGeneral and selected-type methods:\n'+methods
     return text+('\n\n'+typed if typed else '')+('\n\nThis installation:\n'+where if where else '')+('\n'+extra if extra else '')
 
 
@@ -1461,7 +1465,8 @@ def superseded_story(s, card, link=None):
     if not link or link.role != 'story' or card.column not in {'backlog', 'queued'}:
         return False
     project = s.get(Project, link.project_id)
-    return bool(project and link.revision < project.revision)
+    manifest=json.loads(project.approved_manifest or '{}') if project else {}
+    return bool(project and link.revision < manifest.get('revision', 0))
 
 def superseded_by(s,card,link=None):
     """The sibling card that carries this failed project card's work, else None.
@@ -1546,6 +1551,8 @@ def forget_project_files(settings,pid):
     ledger=Path(settings.data_dir)/'project-ledgers'/f'project-{pid}.md'
     try: ledger.unlink()
     except FileNotFoundError: pass
+    for guide in ledger.parent.glob(f'project-{pid}-guidance-*.md'):
+        guide.unlink(missing_ok=True)
     outputs=Path(settings.data_dir)/'project-outputs'/f'project-{pid}'
     if outputs.is_dir() and not outputs.is_symlink(): shutil.rmtree(outputs,ignore_errors=True)
     import agent_git
@@ -1691,7 +1698,7 @@ def context_payload(s,p,story=None,workspace=None):
             counted=r.kind=='decision' and r.card_id is None and global_decisions<3
             is_decision=lineage_decision or counted
         key=(r.card_id,r.kind,r.id if is_decision else None)
-        relevant=r.card_id in relevant_cards or is_decision or index<(5 if story else 8)
+        relevant=r.card_id in relevant_cards or is_decision or (story is None and index<8)
         if relevant and key not in seen:
             seen.add(key);candidates.append(r)
             if counted:global_decisions+=1
@@ -1708,6 +1715,9 @@ def context_payload(s,p,story=None,workspace=None):
             'ledger_entries_scanned':len(rows),'entries_included':0,'entries_omitted':0,'digested':0,
             'full_ledger':ledger or 'Projects > Shared memory'}}
     payload['accepted_outputs']={k:{f:g[f] for f in ('path','sha256')} for k,g in manifest.get('output_continuations',{}).items() if g['state']=='accepted' and (not story or k in visible)}
+    payload['project_type']=d.get('project_type')
+    payload['guidance']=project_types.worker_reference(p.id,d.get('project_type'),get_settings())
+    payload['guidance']['rule']='Read only what this story needs. Use general plus selected-type guides and accepted prerequisites; omit other templates and unrelated personal chat.'
     if (art:=_reference_art(d)): payload['reference_art']=art
     if d.get('repository'): payload['repository']=_repository_note(d)
     if (amend:=_amendment_payload(s,p,d)): payload['brief_amendments']=amend
@@ -1758,7 +1768,7 @@ def context_payload(s,p,story=None,workspace=None):
     payload['memory_compaction']['digested']=sum(1 for m in payload['accepted_memory'] if '[digest of' in m['text'])
     # Stable keys first (identical across the stories of a revision, so a prompt cache can reuse
     # them), what varies per story after, and the story's own location and identity last.
-    order=['project_id','revision','title','brief','brief_amendments','constraints','reference_art','repository','stories','accepted_artifacts','accepted_outputs',
+    order=['project_id','revision','title','brief','brief_amendments','constraints','project_type','guidance','reference_art','repository','stories','accepted_artifacts','accepted_outputs',
         'memory_compaction','accepted_memory','upstream_outputs','execution_workspace','current_story','free_retry']
     payload={k:payload[k] for k in order if k in payload}
     payload['memory_compaction']['entries_included']=len(payload['accepted_memory'])

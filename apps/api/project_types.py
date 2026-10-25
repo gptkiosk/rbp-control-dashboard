@@ -2,7 +2,7 @@
 
 A type is a small data file (packs/project-types/<id>.json, or the operator's own copy in <data>/project-types/ which wins) holding planner text, known
 failure points, the human sign-offs and visual checks, and a few named checks that run over a proposed plan. Checks only inspect the plan's stories;
-they warn and never block, and they never run model output. Failure points are meant to grow: when a project fails for a reason that could have been
+they warn or block submission according to severity, and never run model output. Failure points are meant to grow: when a project fails for a reason that could have been
 planned around, add it to the type so the next plan avoids it.
 """
 from __future__ import annotations
@@ -74,34 +74,86 @@ def load(settings=None):
 def listing(settings=None):
     """Types offered for new plans. Legacy type ids remain readable for existing projects."""
     return [{"id": t["id"], "label": t["label"], "summary": t["summary"], "keys": t.get("keys", []), "failure_points": t.get("failure_points", []),
-             "human_signoffs": t.get("human_signoffs", []), "visual_checks": t.get("visual_checks", "")} for t in load(settings).values() if t["id"] not in LEGACY_TYPES]
+             "human_signoffs": t.get("human_signoffs", []), "visual_checks": t.get("visual_checks", "")} for t in sorted(load(settings).values(), key=lambda t: ({'packaged-app':0,'gcp-hosted-app':1,'local-website':2,'gcp-hosted-website':3,'other':99}.get(t['id'],50),t['label'])) if t["id"] not in LEGACY_TYPES]
 
 
-MEDIA_RULES = ("Generated media (images, clips) is made by the operator in MCD's Media tab with their own fal key, never by an agent: plan it as a human story after the wiring story, "
-               "and make the site complete on its fallbacks first. Website clips start on the cheapest video tier; a slot with generations waiting "
-               "for review is not generated again unless the operator asks for another take.")
+GENERAL_GUIDES = ('practices.md', 'security.md', 'readme-and-docs.md')
+GUIDE_LABELS = {'practices.md': 'Development practice', 'security.md': 'Application security',
+    'readme-and-docs.md': 'Documentation', 'web-app-delivery.md': 'Delivering a hosted web app',
+    'packaged-app-delivery.md': 'Delivering a packaged app', 'container-app-delivery.md': 'Local container delivery',
+    'website-design-delivery.md': 'Website design', 'website-spacing-and-timing.md': 'Website spacing and timing'}
+GUIDANCE_BUDGET = 7000
+MEDIA_RULES = ("Generated media is made by the dashboard Media Studio with the operator's fal key, never by an agent. "
+               "Group spend and candidate selection into meaningful decisions; link directly to the project's Media tab. "
+               "Website clips start on the cheapest video tier. Check existing candidates before another take.")
+
+
+def selected_guides(type_id, settings=None):
+    """General plus exactly one template. Other/unknown types never import all delivery guides."""
+    from standards import GUIDES
+    chosen = load(settings).get(type_id or '', {})
+    return list(dict.fromkeys(name for name in (*GENERAL_GUIDES, *chosen.get('guides', [])) if name in GUIDES))
+
+
+def guidance_packet(type_id, settings=None):
+    """Bounded, deterministic context for consultant and planner, with bytes/hash for inspection.
+    All guides share one budget so adding templates never inflates an existing project's prompt.
+    """
+    import hashlib
+    import standards
+    names = selected_guides(type_id, settings)
+    per_guide = min(1600, GUIDANCE_BUDGET // max(1, len(names)) - 90)
+    parts = []
+    for name in names:
+        text = standards.guide_text(name, getattr(settings, 'data_dir', None), limit=per_guide)
+        if text:
+            parts.append(f"{GUIDE_LABELS.get(name, name)} [{name}]:\n{text}")
+    text = '\n\n'.join(parts)[:GUIDANCE_BUDGET]
+    return {'mode': 'general_plus_selected_type', 'project_type': type_id,
+            'guides': names, 'text': text, 'bytes': len(text.encode()),
+            'sha256': hashlib.sha256(text.encode()).hexdigest()}
+
+
+def worker_reference(project_id, type_id, settings):
+    """On-demand private guide packet; small stable pointer, no full guide repetition per task."""
+    import hashlib
+    import os
+    import tempfile
+    packet = guidance_packet(type_id, settings)
+    text = packet['text']
+    digest = hashlib.sha256(text.encode()).hexdigest()
+    folder = Path(settings.data_dir)/'project-ledgers'
+    path = folder/f'project-{project_id}-guidance-{digest[:16]}.md'
+    out = {k:v for k,v in packet.items() if k != 'text'}
+    try:
+        folder.mkdir(mode=0o700,parents=True,exist_ok=True)
+        if not path.is_file() or path.is_symlink() or path.read_text('utf-8') != text:
+            with tempfile.NamedTemporaryFile(mode='w',encoding='utf-8',dir=folder,delete=False) as f:
+                f.write(text)
+                temporary=f.name
+            os.replace(temporary,path)
+        out['path']=str(path)
+    except OSError:
+        # Preserve available guidance if a private sidecar is unwritable; do not invent a path.
+        out['text']=text
+    return out
 
 
 def consultant_text(settings=None, limit=1300, type_id=None):
-    """A bounded description of the project types for the consultant chat, so it can say which type a goal fits and what the plan must contain.
-    With `type_id` it is focused on the type the operator chose (how it is planned, where a person signs off, where it has failed). Advice for the
-    conversation; it authorizes nothing."""
+    """Only the selected type; an untyped conversation gets a short selector, not all rules."""
     types = load(settings)
-    chosen = types.get(type_id or "")
-    if chosen:
-        lines = [f"The operator chose the project type {chosen['label']}. {chosen['summary']}", chosen["planner_text"][:420].rstrip() + ("..." if len(chosen["planner_text"]) > 420 else "")]
-        if chosen.get("human_signoffs"):
-            lines.append("A person signs off: " + "; ".join(x[:50] for x in chosen["human_signoffs"][:3]) + ".")
-        lines += ["Known failure: " + fp[:140] for fp in chosen.get("failure_points", [])[:2]]
-        lines.append("If what they describe does not fit this type, say so and suggest another type or Other; the type is changed in the review step.")
-        return "\n".join(lines)[:max(0, 1700 - len(MEDIA_RULES) - 1)] + "\n" + MEDIA_RULES
-    lines = ["Project types (the operator picks one in New project; a plan for a typed project is checked against it):"]
-    for t in types.values():
-        if t["id"] in LEGACY_TYPES:
-            continue
-        signoffs = "; ".join(x[:40].rstrip() for x in t.get("human_signoffs", [])[:2])
-        lines.append(f"- {t['label'].split(' (')[0]}: {t['summary'][:60].rstrip()}... A person signs off: {signoffs}.")
-    return "\n".join(lines)[:max(0, limit - len(MEDIA_RULES) - 1)] + "\n" + MEDIA_RULES
+    chosen = types.get(type_id or '')
+    if not chosen:
+        labels = '; '.join(t['label'].split(' (')[0] for t in types.values() if t['id'] not in LEGACY_TYPES)
+        return ("Choose one project type: " + labels +
+                ". Until selected, load general practices only. Other records which delivery gates apply; do not load every template.")[:limit]
+    lines = [f"The operator chose the project type {chosen['label']}. {chosen['summary']}",
+             'Meaningful decisions: ' + '; '.join(chosen.get('human_signoffs', [])[:3]) + '.',
+             'Known failure: ' + '; '.join(chosen.get('failure_points', [])[:2]),
+             'If the goal does not fit this type, suggest another type or Other in the review step.']
+    if chosen.get('media_default_tiers'):
+        lines.append(MEDIA_RULES)
+    return '\n'.join(lines)[:1700]
 
 
 def media_default_tiers(type_id, settings=None):
@@ -113,6 +165,9 @@ def media_default_tiers(type_id, settings=None):
 def suggest(text, settings=None):
     """The type whose patterns match the text most often, or None. A suggestion only: the operator chooses."""
     lowered = (text or "").lower()
+    cloud = re.search(r'\b(gcp|google cloud|cloud run|app engine)\b', lowered)
+    if cloud and re.search(r'\b(website|static site|landing page)\b', lowered) and 'gcp-hosted-website' in load(settings):
+        return 'gcp-hosted-website'
     best, score = None, 0
     for t in load(settings).values():
         if t["id"] in LEGACY_TYPES:

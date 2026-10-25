@@ -46,7 +46,7 @@ it('lists what a plan is missing for its type, or says it has what the type expe
   await flushPromises()
   expect(w.get('[data-check=preview-checkpoint]').text()).toContain('No agent preview checkpoint story.')
   expect(w.get('[data-check=container-after-pages]').text()).toContain('stories: s7')
-  expect(w.text()).toContain('Nothing here blocks you')
+  expect(w.text()).toContain('Required gates must be repaired before submission')
   const ok = mount(PlanChecks, { props: { projectId: 8, revision: 1 } })
   await flushPromises()
   expect(ok.text()).toContain('The plan has what this project type expects')

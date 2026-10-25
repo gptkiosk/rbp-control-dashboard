@@ -355,12 +355,13 @@ def test_the_consultant_chat_gets_delivery_standards_and_model_knowledge(app):  
     c, s, wd, settings = app
     write(wd)
     text = c.get('/api/projects/consultant-context', params={'working_dir': str(wd)}).json()['text']
-    assert 'packaged app runs on users' in text                       # delivery models (the Delegator context text)
+    assert 'selected project-type template only' in text                       # delivery models (the Delegator context text)
     assert 'area money: minimum risk high' in text                      # the standards for this directory
     assert len(text) <= 19500                                           # the chat prompt budget (raised from 18000 for the project types section; the chosen type adds up to 1700 characters); the code cap is 20000
     for heading in ('## How the software is delivered', '## Standards that apply to this working directory', '## Methods and practices to build the plan on'):
         assert heading in text
-    assert 'Development practice:' in text and 'Application security:' in text and 'Delivering a packaged app:' in text and 'Delivering a hosted web app:' in text
+    assert 'Development practice [practices.md]:' in text and 'Application security [security.md]:' in text
+    assert 'Delivering a packaged app' not in text and 'Delivering a hosted web app' not in text
     assert 'Test behavior and rules' in text
     assert c.get('/api/projects/consultant-context', params={'working_dir': '/nowhere/not/allowed'}).status_code == 422
 
@@ -405,7 +406,7 @@ def test_the_consultant_context_follows_the_chosen_project_type(app):  # noqa: F
     c, s, wd, settings = app
     write(wd)
     plain = c.get('/api/projects/consultant-context', params={'working_dir': str(wd)}).json()['text']
-    assert 'The operator chose' not in plain and 'Website property' in plain                      # no choice yet: the short list of types
+    assert 'The operator chose' not in plain and 'Local website' in plain                      # no choice yet: the short list of types
     typed = c.get('/api/projects/consultant-context', params={'working_dir': str(wd), 'project_type': 'website-property'}).json()['text']
     assert 'The operator chose the project type Website property' in typed and 'does not fit this type' in typed
     other = c.get('/api/projects/consultant-context', params={'working_dir': str(wd), 'project_type': 'other'}).json()['text']
@@ -413,3 +414,15 @@ def test_the_consultant_context_follows_the_chosen_project_type(app):  # noqa: F
     junk = c.get('/api/projects/consultant-context', params={'working_dir': str(wd), 'project_type': '../x'}).json()['text']
     assert 'The operator chose' not in junk                                                      # a malformed id is ignored, never used
     assert len(typed) <= 19500
+
+
+def test_consultant_context_reports_the_exact_selected_guide_manifest(app):
+    c, s, wd, settings = app
+    local = c.get('/api/projects/consultant-context', params={'working_dir':str(wd),'project_type':'local-website'}).json()
+    assert local['context_manifest']['mode']=='general_plus_selected_type'
+    assert 'website-design-delivery.md' in local['context_manifest']['guides']
+    assert 'packaged-app-delivery.md' not in local['context_manifest']['guides']
+    assert 'Delivering a packaged app' not in local['text']
+    package = c.get('/api/projects/consultant-context', params={'working_dir':str(wd),'project_type':'packaged-app'}).json()
+    assert 'website-design-delivery.md' not in package['context_manifest']['guides']
+    assert 'Website design [' not in package['text']

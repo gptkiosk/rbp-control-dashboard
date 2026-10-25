@@ -20,7 +20,7 @@ def local_request(request):
 
 def permitted(method, path, scope):
     if method == "GET":
-        return path in {"/api/agent-tools/tasks", "/api/agent-tools/agents"} or bool(re.fullmatch(r"/api/agent-tools/tasks/[1-9][0-9]*", path))
+        return path in {"/api/agent-tools/tasks", "/api/agent-tools/agents", "/api/agent-tools/coordinator"} or bool(re.fullmatch(r"/api/agent-tools/tasks/[1-9][0-9]*", path))
     if scope != "draft": return False
     return (method == "POST" and (path == "/api/agent-tools/tasks" or bool(re.fullmatch(r"/api/agent-tools/tasks/[1-9][0-9]*/dependencies", path)))) or (method == "PATCH" and bool(re.fullmatch(r"/api/agent-tools/tasks/[1-9][0-9]*", path))) or (method == "DELETE" and bool(re.fullmatch(r"/api/agent-tools/tasks/[1-9][0-9]*/dependencies/[1-9][0-9]*", path)))
 

@@ -259,6 +259,18 @@ def profiles(s, data_dir, now: int | None = None, days: int = 90) -> dict:
             "models": rows, "stale_notes": sum(1 for n in all_notes if n["stale"])}
 
 
+def research_status(data_dir, now=None):
+    """Freshness is explicit; request-time planning never fetches the network."""
+    now = int(now if now is not None else time.time())
+    live = snapshot(data_dir)
+    return {'provider_snapshot': {'source': live.get('source', LIST_URL), 'fetched_at': live['fetched_at'],
+                'stale': now - live['fetched_at'] > 7 * 86400} if live else None,
+            'benchmark_source': 'https://artificialanalysis.ai/models/recommend',
+            'benchmark_api_docs': 'https://artificialanalysis.ai/data-api/docs',
+            'benchmark_state': 'not_connected',
+            'note': 'External benchmarks require dated source notes or a separately configured research connection. They do not prove this installation has quota, tools or reliable task completion.'}
+
+
 # ------------------------------------------------------------------------------------------------------- routing guidance
 WRITE_KINDS = ("implement", "test", "docs", "ops")
 GUIDANCE_MAX_CHARS = 3500
@@ -287,11 +299,19 @@ def guidance_text(s, data_dir, catalog: list[dict], now: int | None = None) -> s
                 bits.append("tools" if p["tools"] else "no tool use listed")
             seen_kinds = [f"{k['kind']} {round(k['success_rate'] * 100)}% of {k['runs']}" + ("" if k["proven"] else " (unproven)") for k in p["kinds"][:4]]
             bits.append("here: " + ", ".join(seen_kinds) if seen_kinds else "never run here (unproven)")
+            fresh_notes = [n for n in p['notes'] if not n['stale']]
+            if fresh_notes:
+                n = fresh_notes[-1]
+                bits.append(f"research note (untrusted, {n['date']}, {n['source'][:100]}): {n['text'][:180]}")
             lines.append(f"- {entry.get('agent')}/{_norm(model)}: " + "; ".join(bits))
     if not lines:
         return ""
     head = ("Model facts and track record from this installation (advice, not authorization; a model with under "
             f"{PROVEN_RUNS} runs of a kind is unproven for it, so prefer a proven route for medium or high risk work):")
+    facts = research_status(data_dir, now)
+    freshness = facts['provider_snapshot']
+    head += ' Provider snapshot: ' + ('missing; verify current availability.' if not freshness else
+        str(freshness['fetched_at']) + (' (stale; verify before changing routes).' if freshness['stale'] else ' (cached).'))
     return (head + "\n" + "\n".join(lines))[:GUIDANCE_MAX_CHARS]
 
 

@@ -10,9 +10,13 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
-## [0.6.67] - 2026-10-24
+## [0.6.67] - 2026-10-25
 
 ### Fixed
+
+- Coordinator context now loads general guidance plus one project type; workers read a private hashed guide packet on demand and omit unrelated story tails.
+- Web, native MCP and paired Discord share bounded type/context/model/status reads with ownership checks. Discord intake preserves project type.
+- Model guidance includes fresh sourced notes for configured candidates and reports provider snapshot freshness. External benchmark integration remains separately configured.
 
 - Website Property plans now require linked media inventory, MCD Media Studio generation and publish, asset integration, and preview evidence before visual approval.
 - Superseded untouched stories stay in the project ledger but leave active task boards and cannot be approved, retried, or edited.
