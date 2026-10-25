@@ -55,6 +55,7 @@
     "packs/agents/developer/*",
     "packs/agents/security/*",
     "packs/agents/reviewer/*",
+    "packs/project-types/*.json",
     "packs/standards/*",
     "packs/evaluation/*",
     "packaging/allowed_signers"

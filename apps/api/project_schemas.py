@@ -78,6 +78,14 @@ class Document(Strict):
     dispatch_mode: Literal['sequential','parallel'] = 'sequential'
     # The kind of project (see project_types.py). Optional: a project without one is planned exactly as before.
     project_type: str | None = Field(default=None, pattern=r'^[a-z0-9][a-z0-9-]{0,39}$')
+    intake_answers: dict[str, str] = Field(default_factory=dict, max_length=10)
+
+    @field_validator('intake_answers')
+    @classmethod
+    def bounded_intake(cls, value):
+        from project_intake import answers
+        return answers(value)
+
     repository: Repository | None = None
     nodes: list[Node] = Field(default_factory=list, max_length=100)
 

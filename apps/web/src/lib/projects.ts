@@ -10,6 +10,7 @@ export interface ProjectNode {
 export interface ProjectDocument {
   title: string; brief: string; constraints: string; working_dir: string
   repository?: { name: string; repo: string; folder: string; branch: string } | null
+  intake_answers?: Record<string, string>
   project_type?: string | null; planner_agent: 'auto' | 'claude' | 'codex' | 'grok' | 'hermes' | 'openclaw'; planner_model: string; planning_bias: number; dispatch_mode: 'sequential' | 'parallel'; nodes: ProjectNode[]
 }
 export interface ProjectTask { queued_route_blocker?: string | null; queued_route_options?: {agent: 'claude' | 'codex'; model: string}[]; blocked_by?: number[]; working_dir?: string; agent?: string; model?: string; mode?: 'read'|'edit'; incomplete_reason?: string | null; card_id: number; node_key: string; role: string; revision: number; column: string; title: string; run_id: number | null; run_stage: string | null; superseded?: boolean; planning_retry_routes?: {agent: ProjectNode['assignee']; model: string}[]; retry_routes?: ProjectNode['routes']; free_retry_routes?: { agent: 'openclaw'; model: string; agent_target: string }[]; paid_retry_routes?: { agent: 'openclaw'; model: string; agent_target: string }[]; low_cost_routes?: { agent: 'claude' | 'codex'; model: string }[]; output_approval?: { run_id: number; path: string; plan: string } | null }

@@ -12,7 +12,7 @@ import model_profiles
 import projects
 import failure_mining
 
-OPERATIONS = ('capabilities', 'types', 'context', 'models', 'status', 'task', 'workspace', 'repository_intake')
+OPERATIONS = ('capabilities', 'types', 'intake_questions', 'context', 'models', 'status', 'task', 'workspace', 'repository_intake')
 
 
 def capabilities():
@@ -20,7 +20,7 @@ def capabilities():
         'context_mode': 'general_plus_selected_type',
         'reads': list(OPERATIONS),
         'workflow': [
-            {'feature': 'intake_and_planning', 'discord_actions': ['intake', 'get', 'save', 'plan'], 'operator_link': '/projects'},
+            {'feature': 'intake_and_planning', 'discord_actions': ['intake_questions', 'intake', 'get', 'save', 'plan'], 'operator_link': '/projects'},
             {'feature': 'diagnostics', 'discord_actions': ['failures', 'failure', 'task', 'status'], 'operator_link': '/telemetry'},
             {'feature': 'pause_resume', 'discord_actions': ['pause_dispatch', 'resume_dispatch'], 'operator_link': '/projects'},
             {'feature': 'replan_routes', 'discord_actions': [], 'operator_link': '/projects'},
@@ -49,6 +49,10 @@ def read(s, settings, operation, owner, *, project_id=None, task_id=None, workin
     if operation == 'types':
         return {'types': project_types.listing(settings)}
     p = owned(s, project_id, owner) if project_id else None
+    if operation == 'intake_questions':
+        import project_intake
+        d = projects.document(p) if p else {}
+        return project_intake.assessment(d.get('project_type', project_type), d.get('intake_answers'), settings)
     if operation == 'repository_intake':
         import repository_intake
         return repository_intake.inspect(settings, projects.document(p)['working_dir'] if p else working_dir)
