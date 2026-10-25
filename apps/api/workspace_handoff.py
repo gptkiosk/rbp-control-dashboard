@@ -23,7 +23,8 @@ from models import Card, ProjectMemory, ProjectTask, Run, WorkspaceReservation
 
 def git(path, *args):
     # Ignore repository-controlled fsmonitor commands and optional index writes.
-    env = dict(os.environ, GIT_OPTIONAL_LOCKS='0', GIT_TERMINAL_PROMPT='0')
+    env = {k: v for k, v in os.environ.items() if not k.startswith('GIT_')}
+    env.update(GIT_OPTIONAL_LOCKS='0', GIT_TERMINAL_PROMPT='0')
     process = None
     try:
         process = subprocess.Popen(['git', '-c', 'core.fsmonitor=false', '-c', 'core.hooksPath=/dev/null',
@@ -180,9 +181,10 @@ def reserve(s, p, settings, body, actor):
     if facts['state'] != 'ready' or facts['snapshot'] != body.snapshot:
         raise HTTPException(409, 'Workspace changed or is unavailable. Refresh before reserving it.')
     now = int(time.time())
+    label = failure_mining.redact(body.label, 80)
     s.add(WorkspaceReservation(id=body.operation_id, path=str(path), project_id=p.id,
-        label=failure_mining.redact(body.label, 80), started_at=now, expires_at=now + 86400))
-    projects.memory(s, p, 'decision', f'External work reserved in {path} on {facts["branch"]} at {facts["head"]}. Label: {body.label}. App dispatch remains paused.', actor)
+        label=label, started_at=now, expires_at=now + 86400))
+    projects.memory(s, p, 'decision', f'External work reserved in {path} on {facts["branch"]} at {facts["head"]}. Label: {label}. App dispatch remains paused.', actor)
     s.flush()
     return view(s, p, settings, str(path))
 

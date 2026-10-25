@@ -40,6 +40,7 @@ watch(() => [props.project.id, props.project.revision, props.project.state], () 
   if (!paths.value.includes(location.value)) location.value = paths.value[0] || ''
   void refresh()
 }, { immediate: true })
+watch(() => props.project.id, () => { summary.value = ''; pending = null; showPacket.value = false; message.value = '' })
 function selectLocation() { state.value = null; summary.value = ''; void refresh() }
 async function copy() {
   showPacket.value = true
