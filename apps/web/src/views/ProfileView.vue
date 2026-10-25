@@ -160,7 +160,7 @@ async function importPreferences(event: Event) { await action(async () => {
           <div class="switches" role="group" aria-label="What Hermes may do in Discord">
             <ToggleSwitch v-model="preferences.notify_plans" label="Plan updates" hint="Tell me when a plan is ready or planning stops." />
             <ToggleSwitch v-model="preferences.allow_discord_planning" label="Start planning" hint="My Discord requests may start subscription planning with Hermes coordination." />
-            <ToggleSwitch v-model="preferences.allow_discord_control" label="Re-route work" hint="Move waiting stories to the other subscription. Approvals, dispatch, billing and credentials stay in RCD." />
+            <ToggleSwitch v-model="preferences.allow_discord_control" label="Control approved work" hint="Pause/resume projects, coordinate coding workspaces and switch limited subscriptions. New plan approvals, billing and credentials stay in RCD." />
             <ToggleSwitch v-model="preferences.allow_discord_diagnostics" label="Read failed runs" hint="Errors, short handoff excerpts and log tails, with credentials and addresses removed. Read only." />
             <ToggleSwitch v-model="preferences.allow_discord_standards" label="Project standards" hint="Read a project's standards and propose additions. You approve on the project page." />
             <ToggleSwitch v-model="preferences.allow_discord_repositories" label="New repositories" hint="Propose a new private GitHub repository. It waits for your approval here." />

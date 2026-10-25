@@ -15,12 +15,14 @@ router=APIRouter(prefix='/api/hermes-projects')
 
 class Bridge(BaseModel):
     model_config=ConfigDict(extra='forbid',hide_input_in_errors=True)
-    action:Literal['pair','intake','list','get','save','plan','diagram','limits','limits_reroute','failures','failure','maintenance','maintenance_propose','standards','standards_propose','propose_repository','bootstrap_status','issue_task']
+    action:Literal['pair','intake','list','get','save','plan','diagram','limits','limits_reroute','failures','failure','maintenance','maintenance_propose','standards','standards_propose','propose_repository','bootstrap_status','issue_task','capabilities','types','context','models','status','task','workspace','repository_intake','reserve_workspace','record_handoff','pause_dispatch','resume_dispatch']
     discord_user_id:str=Field(pattern=r'^[0-9]{16,22}$')
     discord_channel_id:str=Field(pattern=r'^[0-9]{16,22}$')
     source_message_id:str=Field(default='',pattern=r'^([0-9]{16,22})?$')
     code:str=Field(default='',max_length=16)
     project_id:int|None=Field(default=None,ge=1)
+    task_id:int|None=Field(default=None,ge=1)
+    project_type:str|None=Field(default=None,pattern=r'^[a-z0-9][a-z0-9-]{0,39}$')
     revision:int|None=Field(default=None,ge=1)
     title:str=Field(default='',max_length=200)
     brief:str=Field(default='',max_length=20000)
@@ -44,6 +46,11 @@ class Bridge(BaseModel):
     repo_description:str=Field(default='',max_length=200)
     issue_url:str=Field(default='',max_length=500)
     document:Document|None=None
+    snapshot:str=Field(default='',max_length=64)
+    operation_id:str=Field(default='',max_length=36)
+    reservation_id:str|None=Field(default=None,max_length=36)
+    handoff:str=Field(default='',max_length=6000)
+    workspace_label:str=Field(default='Coding app',max_length=80)
 
 def authorize(request):
     from agent_access import local_request
@@ -68,6 +75,37 @@ def command(body:Bridge,request:Request,s:Session=Depends(get_session)):
     profile=s.scalar(select(UserProfile).where(UserProfile.discord_user_id==body.discord_user_id))
     if not profile or profiles.prefs(s,profile.owner).discord_channel_id!=body.discord_channel_id:raise HTTPException(403,'Link this Discord account and channel in your RCD profile.')
     pref=profiles.prefs(s,profile.owner)
+    if body.action in ('pause_dispatch','resume_dispatch'):
+        if not pref.allow_discord_control:
+            raise HTTPException(403,'Enable Discord control in your profile first.')
+        import coordinator_read, workspace_handoff
+        p=coordinator_read.owned(s,body.project_id,profile.owner)
+        workspace_handoff.dispatch_control(s,p,body.revision,'pause' if body.action=='pause_dispatch' else 'resume','discord:'+profile.owner)
+        s.commit();return {'project_id':p.id,'revision':p.revision,'state':p.state,'link':f'/projects?project={p.id}&view=workspace'}
+    if body.action in ('reserve_workspace','record_handoff'):
+        if not pref.allow_discord_control or not pref.allow_discord_diagnostics:
+            raise HTTPException(403,'Enable Discord control and diagnostics in your profile first.')
+        import coordinator_read, workspace_handoff
+        from workspace_schemas import Reservation, Handoff
+        from pydantic import ValidationError
+        p=coordinator_read.owned(s,body.project_id,profile.owner)
+        values=dict(revision=body.revision,working_dir=body.working_dir,snapshot=body.snapshot,
+            operation_id=body.operation_id,label=body.workspace_label)
+        try:
+            if body.action=='record_handoff':
+                data=Handoff(**values,reservation_id=body.reservation_id,summary=body.handoff)
+                result=workspace_handoff.record(s,p,settings,data,'discord:'+profile.owner)
+            else:
+                result=workspace_handoff.reserve(s,p,settings,Reservation(**values),'discord:'+profile.owner)
+        except ValidationError:
+            raise HTTPException(422,'Use the current revision/snapshot and a UUID operation ID; handoffs need a summary.') from None
+        s.commit();return result
+    if body.action in ('capabilities','types','context','models','status','task','workspace','repository_intake'):
+        if body.action in ('status','task','workspace','repository_intake') and not pref.allow_discord_diagnostics:
+            raise HTTPException(403,'Enable Discord diagnostics in your profile first.')
+        import coordinator_read
+        return coordinator_read.read(s,settings,body.action,profile.owner,project_id=body.project_id,
+            task_id=body.task_id,working_dir=body.working_dir or pref.working_dir,project_type=body.project_type)
     if body.action=='limits':
         return {'limits':provider_limits.payload(s,int(time.time())),'instructions':'Report each active limit once: the provider, when it lifts, how many stories moved on their own and how many are waiting. Offer to route the waiting stories to the alternate only when can_reroute is true. Do not repeat a limit the operator has already heard about.'}
     if body.action=='limits_reroute':
@@ -145,7 +183,7 @@ def command(body:Bridge,request:Request,s:Session=Depends(get_session)):
         wd=body.working_dir or pref.working_dir
         missing=[name for name,value in (('title',body.title.strip()),('brief',body.brief.strip()),('working_dir',wd)) if not value]
         if missing:return {'needs_information':missing,'message':'Ask the operator for these missing fields before creating a project. Confirm the goal, exclusions and preference (Balanced by default).','working_directory_roots':[str(p) for p in settings.workdir_roots]}
-        d=Document(title=body.title,brief=body.brief,constraints=body.constraints,working_dir=wd,planning_bias=body.planning_bias if body.planning_bias is not None else pref.planning_bias).model_dump()
+        d=Document(title=body.title,brief=body.brief,constraints=body.constraints,working_dir=wd,project_type=body.project_type,planning_bias=body.planning_bias if body.planning_bias is not None else pref.planning_bias).model_dump()
         if not body.source_message_id:raise HTTPException(422,'A trusted Discord message ID is required for intake.')
         intake_key=f'{body.discord_channel_id}:{body.discord_user_id}:{body.source_message_id}'
         p=s.scalar(select(Project).where(Project.intake_key==intake_key))

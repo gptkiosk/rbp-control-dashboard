@@ -10,6 +10,25 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.6.67] - 2026-10-25
+
+### Added
+
+- Project Workspace shows host-local Git state, recent handoffs and next work, with a compact handoff for native coding apps.
+- External-work reservations block overlapping task/chat dispatch until a reported handoff releases the checkout. Paired Discord supports the same reservation/handoff services.
+- Existing-repository intake maps tracked source, dependency manifests, documentation and configuration names without running repository scripts or returning secret values.
+
+### Fixed
+
+- Coordinator context now loads general guidance plus one project type; workers read a private hashed guide packet on demand and omit unrelated story tails.
+- Web, native MCP and paired Discord share bounded type/context/model/status reads with ownership checks. Discord intake preserves project type.
+- Model guidance includes fresh sourced notes for configured candidates and reports provider snapshot freshness. External benchmark integration remains separately configured.
+
+- Website Property plans now require linked media inventory, MCD Media Studio generation and publish, asset integration, and preview evidence before visual approval.
+- Superseded untouched stories stay in the project ledger but leave active task boards and cannot be approved, retried, or edited.
+- Website preview guidance now uses dashboard host actions and the authenticated remote proxy, without host terminal, SSH, Tailscale, or port forwarding steps.
+
+
 ## [0.6.66] - 2026-10-24
 
 ### Fixed
@@ -971,7 +990,8 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 - Claude Code stories may use web search and fetch without any shell, credential or publish permission.
 
 [0.3.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.0
-[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.66...HEAD
+[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.67...HEAD
+[0.6.67]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.66...v0.6.67
 [0.6.66]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.65...v0.6.66
 [0.6.65]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.64...v0.6.65
 [0.6.64]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.63...v0.6.64

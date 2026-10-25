@@ -63,11 +63,38 @@ def add_git_grant(project_id:int,body:GitGrantIn,request:Request,s:Session=Depen
 
 @router.get('/consultant-context')
 def consultant_context(working_dir:str,request:Request,project_type:str|None=None,s:Session=Depends(get_session)):
-    actor(request);return {'text':projects.consultant_context(s,get_settings(),working_dir,project_type if project_type and re.fullmatch(r'[a-z0-9][a-z0-9-]{0,39}',project_type) else None)}
+    actor(request)
+    import project_types
+    chosen=project_type if project_type and re.fullmatch(r'[a-z0-9][a-z0-9-]{0,39}',project_type) else None
+    packet=project_types.guidance_packet(chosen,get_settings())
+    return {'text':projects.consultant_context(s,get_settings(),working_dir,chosen),
+        'context_manifest':{k:v for k,v in packet.items() if k!='text'}}
+
+@router.get('/coordinator')
+def coordinator_read_view(request:Request,operation:str,project_id:int|None=None,task_id:int|None=None,
+        working_dir:str='',project_type:str|None=None,s:Session=Depends(get_session)):
+    import coordinator_read
+    owner=actor(request)
+    return coordinator_read.read(s,get_settings(),operation,owner,project_id=project_id,task_id=task_id,
+        working_dir=working_dir,project_type=project_type)
 
 @router.get('/{project_id}')
 def get_project(project_id:int,request:Request,s:Session=Depends(get_session)):
     actor(request);return projects.detail(s,projects.get(s,project_id))
+
+from workspace_schemas import Reservation, Handoff
+
+@router.post('/{project_id}/workspace/reserve')
+def reserve_workspace(project_id:int,body:Reservation,request:Request,s:Session=Depends(get_session)):
+    import coordinator_read, workspace_handoff
+    who=actor(request);write(s);p=coordinator_read.owned(s,project_id,who)
+    result=workspace_handoff.reserve(s,p,get_settings(),body,who);s.commit();return result
+
+@router.post('/{project_id}/workspace/handoff')
+def record_workspace_handoff(project_id:int,body:Handoff,request:Request,s:Session=Depends(get_session)):
+    import coordinator_read, workspace_handoff
+    who=actor(request);write(s);p=coordinator_read.owned(s,project_id,who)
+    result=workspace_handoff.record(s,p,get_settings(),body,who);s.commit();return result
 
 @router.get('/{project_id}/standards')
 def standards_for(project_id:int,request:Request,s:Session=Depends(get_session)):
@@ -305,17 +332,16 @@ def plan_checks(project_id:int,request:Request,s:Session=Depends(get_session)):
 
 @router.post('/{project_id}/pause')
 def pause(project_id:int,body:Action,request:Request,s:Session=Depends(get_session)):
-    identity=actor(request);write(s);p=projects.get(s,project_id);projects.check_revision(p,body.revision)
-    if p.state=='paused': return projects.detail(s,p)
-    if p.state!='active': raise HTTPException(409,'Only active story execution can be paused.')
-    p.state='paused';projects.memory(s,p,'decision','Dispatch paused; running stories may finish in Review. No new story starts.',identity)
+    import workspace_handoff
+    identity=actor(request);write(s);p=projects.get(s,project_id)
+    workspace_handoff.dispatch_control(s,p,body.revision,'pause',identity)
     s.commit();return projects.detail(s,p)
 
 @router.post('/{project_id}/resume')
 def resume(project_id:int,body:Action,request:Request,s:Session=Depends(get_session)):
-    identity=actor(request);write(s);p=projects.get(s,project_id);projects.check_revision(p,body.revision)
-    if p.state!='paused': raise HTTPException(409,'This project is not paused.')
-    p.state='active';projects.memory(s,p,'decision','Operator resumed the same approved project revision.',identity)
+    import workspace_handoff
+    identity=actor(request);write(s);p=projects.get(s,project_id)
+    workspace_handoff.dispatch_control(s,p,body.revision,'resume',identity)
     s.commit();return projects.detail(s,p)
 
 @router.get('/{project_id}/stories/{card_id}/artifact')

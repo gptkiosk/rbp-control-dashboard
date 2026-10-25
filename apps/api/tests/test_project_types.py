@@ -17,7 +17,10 @@ def story(key, title, deps=(), assignee="claude", description="", **kw):
 GOOD_SITE = [
     story("a", "Design direction writes DESIGN.md"),
     story("b", "Restyle the pages", ["a"]),
-    story("c", "Verification of the files and themes", ["b"], assignee="openclaw"),
+    story("m", "Create the media inventory and media/slots.json", ["b"]),
+    story("mg", "Generate, select and publish site illustrations in MCD Media Studio", ["m"], assignee="human"),
+    story("mi", "Integrate published media into pages and both themes", ["mg"]),
+    story("c", "Verification of the files and themes", ["mi"], assignee="openclaw"),
     story("d", "Preview checkpoint on localhost", ["c"], assignee="claude"),
     story("e", "Responsive and polish review in the preview", ["d"], assignee="human"),
     story("e2", "Approve the look from the preview", ["e"], assignee="human"),
@@ -35,7 +38,7 @@ def ids(findings):
 
 def test_every_shipped_type_is_usable_and_named_for_its_file(tmp_path):
     types = pt.load(type("S", (), {"data_dir": tmp_path})())
-    assert set(types) == {"web-app", "packaged-app", "website-property", "other"}
+    assert set(types) == {"web-app", "packaged-app", "website-property", "local-website", "gcp-hosted-website", "gcp-hosted-app", "other"}
     for t in types.values():
         assert t["failure_points"] and t["human_signoffs"] and t["planner_text"] and t["checks"]
         assert all(c["message"] for c in t["checks"])
@@ -53,7 +56,7 @@ def test_the_website_type_catches_the_mistakes_that_failed_before(tmp_path):
         story("h", "Approve the art look", ["m"], assignee="human"),
     ]
     found = ids(pt.check("website-property", bad))
-    assert {"design-direction-first", "verification-story", "preview-checkpoint", "preview-before-look-signoff", "container-needs-human", "media-is-human", "container-after-pages"} <= found
+    assert {"design-direction-first", "verification-story", "preview-checkpoint", "preview-before-look-signoff", "container-needs-human", "media-is-human", "container-after-pages", "illustrated-media-inventory", "illustrated-media-generation", "illustrated-media-integration"} <= found
     flagged = {f["id"]: f["stories"] for f in pt.check("website-property", bad)}
     assert flagged["container-needs-human"] == ["x"] and flagged["media-is-human"] == ["m"] and flagged["container-after-pages"] == ["x"]
 
@@ -76,7 +79,12 @@ def test_web_app_and_packaged_app_checks():
 
 
 def test_impossible_agent_runtime_checks_block_dispatch_and_require_a_human_verification():
-    bad = [story("a", "Container configuration", assignee="codex", description="Run docker compose build and start the stack.")]
+    media = [
+        story("m", "Create the media inventory and media/slots.json"),
+        story("mg", "Generate, select and publish site illustrations in MCD Media Studio", ["m"], assignee="human"),
+        story("mi", "Integrate published media into pages and both themes", ["mg"]),
+    ]
+    bad = [story("a", "Container configuration", assignee="codex", description="Run docker compose build and start the stack."), *media]
     findings = pt.blocking_findings("website-property", bad)
     assert {f["id"] for f in findings} == {"container-needs-human", "container-runtime-verification"}
     fixed = bad + [story("b", "Local Docker container verification", ["a"], assignee="human")]
@@ -96,9 +104,12 @@ def test_the_planner_is_told_the_type_its_failure_points_and_where_people_look_a
 
 
 def test_a_type_is_suggested_only_when_the_brief_clearly_fits():
-    assert pt.suggest("A static website with dark mode and a theme toggle, custom art and animation transitions") == "website-property"
-    assert pt.suggest("A subscription service on Cloud Run with Stripe payments") == "web-app"
+    assert pt.suggest("A static local website with dark mode, theme toggle, custom art and animation transitions") == "local-website"
+    assert pt.suggest("A subscription service on GCP Cloud Run with Stripe payments") == "gcp-hosted-app"
     assert pt.suggest("An installable packaged app from a GitHub release for Raspberry Pi") == "packaged-app"
+    assert pt.suggest("An illustrated website hosted on GCP Cloud Run") == "gcp-hosted-website"
+    assert pt.suggest("A GCP Cloud Run application service") == "gcp-hosted-app"
+    assert {row["id"] for row in pt.listing()} == {"packaged-app", "local-website", "gcp-hosted-website", "gcp-hosted-app", "other"}
     assert pt.suggest("Fix the login bug") is None
 
 
@@ -118,8 +129,8 @@ def test_the_operators_own_copy_wins_and_a_broken_one_is_ignored(tmp_path):
 def test_types_and_checks_are_available_through_the_api(app):  # noqa: F811
     c, s, wd, settings = app
     listing = c.get("/api/project-types").json()["types"]
-    assert {t["id"] for t in listing} == {"web-app", "packaged-app", "website-property", "other"}
-    assert c.post("/api/project-types/suggest", json={"text": "A static website with dark mode and art and animation"}).json() == {"suggested": "website-property"}
+    assert {t["id"] for t in listing} == {"packaged-app", "local-website", "gcp-hosted-website", "gcp-hosted-app", "other"}
+    assert c.post("/api/project-types/suggest", json={"text": "A static local website with dark mode, art and animation"}).json() == {"suggested": "local-website"}
     plain = new(app, [node("a")])
     assert c.get(f"/api/projects/{plain['id']}/checks").json() == {"project_type": None, "findings": []}
     typed = new(app, [node("a", title="Container and pipeline docker compose up", assignee="codex")], project_type="website-property")
@@ -150,13 +161,14 @@ def test_media_default_tiers_are_validated_and_default_to_standard(tmp_path):
     assert not pt._valid({**base, "media_default_tiers": {"audio": "draft"}})
 
 
-def test_the_consultant_is_told_the_types_and_the_media_rules():
+def test_untyped_consultant_has_only_a_selector_and_selected_type_gets_its_rules():
     text = pt.consultant_text()
-    assert "Website property" in text and "Web app" in text and "Packaged app" in text
-    assert text.count("A person signs off:") == 4                              # every type fits inside the budget, none cut off
-    assert "Other (does not exactly fit)".split(" (")[0] in text
-    assert "never by an agent" in text and "cheapest video tier" in text and "another take" in text
-    assert len(text) <= 1300
+    assert all(name in text for name in ('Local website', 'GCP hosted website', 'GCP hosted app', 'Packaged app', 'Other'))
+    assert 'fal key' not in text and 'Known failure:' not in text and len(text) <= 1300
+    typed = pt.consultant_text(type_id='local-website')
+    assert 'fal key' in typed and 'another take' in typed
+    package = pt.consultant_text(type_id='packaged-app')
+    assert 'fal key' not in package and 'cheapest video tier' not in package
 
 
 def test_a_chosen_type_focuses_the_consultant_and_other_is_a_real_type():
@@ -164,7 +176,7 @@ def test_a_chosen_type_focuses_the_consultant_and_other_is_a_real_type():
     assert other["label"].startswith("Other") and other["suggest"] == [] and {c["id"] for c in other["checks"]} == {"container-needs-human", "container-runtime-verification", "browser-checks-need-a-person", "delivery-to-remote", "readme-story", "screenshots-by-a-person-or-ci"}     # never suggested; only the limits and the delivery and documentation gates every project has
     assert "most resembles" in other["planner_text"]
     text = pt.consultant_text(type_id="website-property")
-    assert "The operator chose the project type Website property" in text and "A person signs off:" in text and "Known failure:" in text
+    assert "The operator chose the project type Website property" in text and "Meaningful decisions:" in text and "Known failure:" in text
     assert "does not fit this type" in text and "never by an agent" in text and len(text) <= 1700
     assert "The operator chose" not in pt.consultant_text(type_id="nonsense")                      # an unknown id falls back to the general list
     assert pt.media_default_tiers("other") == {"image": "standard", "video": "standard"}
@@ -209,4 +221,37 @@ def test_every_type_asks_for_a_readme_with_diagrams_and_screenshots_made_by_a_pe
 def test_a_website_preview_leaves_a_script_with_urls_a_health_file_and_a_check():
     t = pt.load()["website-property"]
     assert "tools/preview.sh" in t["planner_text"] and "tools/verify-preview.sh" in t["planner_text"] and "/health.txt" in t["planner_text"] and "host_action to \"preview-verify\"" in t["planner_text"] and "host_action \"preview-review\"" in t["planner_text"] and "trap" in t["planner_text"]
-    assert any("clickable URLs" in fp and "/health.txt" in fp for fp in t["failure_points"])
+    assert any("authenticated remote link" in fp for fp in t["failure_points"])
+    assert "authenticated dashboard proxy" in t["planner_text"] and "never needs SSH" in t["planner_text"]
+
+
+def test_guides_are_general_plus_one_type_and_never_all_types(tmp_path):
+    settings = type('S', (), {'data_dir': tmp_path})()
+    local = pt.guidance_packet('local-website', settings)
+    package = pt.guidance_packet('packaged-app', settings)
+    other = pt.guidance_packet('other', settings)
+    assert 'website-design-delivery.md' in local['guides']
+    assert 'packaged-app-delivery.md' not in local['guides']
+    assert 'web-app-delivery.md' not in local['guides']
+    assert 'packaged-app-delivery.md' in package['guides']
+    assert 'website-design-delivery.md' not in package['guides']
+    assert other['guides'] == list(pt.GENERAL_GUIDES)
+    assert all(len(p['text']) <= pt.GUIDANCE_BUDGET and p['bytes'] == len(p['text'].encode()) for p in (local,package,other))
+    assert pt.guidance_packet('local-website',settings)['sha256'] == local['sha256']
+    # Adding an unrelated override does not grow the selected context.
+    folder = tmp_path/'project-types'; folder.mkdir()
+    custom = dict(pt.load(settings)['packaged-app'], id='unrelated-product', label='Unrelated product')
+    (folder/'unrelated-product.json').write_text(json.dumps(custom))
+    assert pt.guidance_packet('local-website',settings) == local
+
+
+def test_worker_guidance_is_private_stable_and_loaded_on_demand(tmp_path):
+    settings=type('S',(),{'data_dir':tmp_path})()
+    ref=pt.worker_reference(7,'local-website',settings)
+    path=__import__('pathlib').Path(ref['path'])
+    assert 'text' not in ref and path.is_file() and path.stat().st_mode & 0o777==0o600
+    text=path.read_text()
+    assert 'Website design [' in text and 'Delivering a packaged app' not in text
+    before=path.stat().st_mtime_ns
+    assert pt.worker_reference(7,'local-website',settings)==ref
+    assert path.stat().st_mtime_ns==before

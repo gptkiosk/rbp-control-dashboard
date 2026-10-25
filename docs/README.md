@@ -29,3 +29,7 @@ The [MCD docs](https://github.com/gptkiosk/mac-control-dashboard/tree/main/docs)
 
 - [Model recovery and bootstrap](configuration/model-recovery.md) — route choices, telemetry, retry boundaries and built-in setup plans.
 - [Shared-feature parity audit](development/parity-audit-0.6.38.md) — inventory, repaired differences and platform limits.
+
+- [Coordinator pipeline, selected context and channel contract](configuration/coordinator-pipeline.md)
+
+- [Shared project workspaces and existing repository intake](configuration/project-workspaces.md)

@@ -132,7 +132,7 @@ describe('Tasks board', () => {
       .findAll('button')
       .find((b) => b.text() === 'Clear filters')!
       .trigger('click')
-    expect(next.text()).toContain('2 of 2 tasks')
+    expect(next.text()).toContain('2 of 2 active tasks')
     next.unmount()
   })
 

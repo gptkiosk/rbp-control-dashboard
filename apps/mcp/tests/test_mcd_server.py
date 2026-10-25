@@ -110,3 +110,15 @@ def test_transport_uses_curated_api_no_proxies_and_no_redirects(tmp_path,monkeyp
     assert mcd_server.request('GET','/api/cards')=={'cards':[]}
     assert recorded['url']=='http://127.0.0.1:8800/api/agent-tools/tasks'
     assert recorded['headers']['Authorization']=='Bearer '+'b'*64
+
+
+def test_coordinator_tool_requests_only_selected_context(api):
+    api.cards={}
+    calls=[]
+    original=__import__('mcd_server').request
+    try:
+        __import__('mcd_server').request=lambda method,path,body=None: calls.append((method,path,body)) or {'context_manifest':{}}
+        __import__('mcd_server').coordinator_read('context',working_dir='/project root',project_type='local-website')
+    finally:
+        __import__('mcd_server').request=original
+    assert calls==[('GET','/api/coordinator?operation=context&working_dir=%2Fproject+root&project_type=local-website',None)]

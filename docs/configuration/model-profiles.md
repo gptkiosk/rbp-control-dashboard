@@ -63,3 +63,8 @@ Refresh, so `MAC_CONTROL_MODEL_REFRESH_ENABLED=false` stops it too.
   [What survives an update](upgrades-and-your-data.md).
 - Operator API: `GET /api/models/profiles`, `POST /api/models/refresh` (needs `confirm: true`), `POST /api/models/notes`,
   `DELETE /api/models/notes/{id}`, `GET /api/models/advice?project_id=`, `POST /api/models/watch/run` (runs the watch now). Agents get 403.
+
+
+## Sourced research in Coordinator guidance
+
+Fresh notes for configured candidate models now enter bounded planner guidance with their source and date; stale notes and notes for unrelated models are excluded. Provider snapshot freshness is explicit. `models` in the Coordinator read API exposes the same evidence to supported channels. External benchmarks such as [Artificial Analysis](https://artificialanalysis.ai/models/recommend) are optional research, not an automatic route change. Its API/MCP connection requires separate account setup and is reported as not connected until implemented. See the [Coordinator contract](coordinator-pipeline.md).

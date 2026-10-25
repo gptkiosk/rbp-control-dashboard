@@ -443,6 +443,17 @@ class ProjectMemory(Base):
     run_id: Mapped[int | None] = mapped_column(Integer)
     created_at: Mapped[int] = mapped_column(Integer)
 
+class WorkspaceReservation(Base):
+    """Cooperative external writer reservation; expiry is a warning, never auto-unlock."""
+    __tablename__ = 'workspace_reservation'
+    path: Mapped[str] = mapped_column(String(1000), primary_key=True)
+    id: Mapped[str] = mapped_column(String(36), unique=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey('project.id', ondelete='RESTRICT'), index=True)
+    label: Mapped[str] = mapped_column(String(80))
+    started_at: Mapped[int] = mapped_column(Integer)
+    expires_at: Mapped[int] = mapped_column(Integer)
+
+
 class UserProfile(Base):
     __tablename__ = 'user_profile'
     owner: Mapped[str] = mapped_column(String(255), primary_key=True)

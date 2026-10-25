@@ -14,9 +14,9 @@ watch(() => [props.projectId, props.revision], load, { immediate: true })
     <h3 id="plan-checks-title">Plan checks for this project type</h3>
     <p v-if="!result.findings.length" class="small" role="status">The plan has what this project type expects: the gates, the verification, the preview and the human sign-offs.</p>
     <template v-else>
-      <p class="muted small">These are warnings from the project type's template. Nothing here blocks you; fix them on the map, or submit if you disagree.</p>
+      <p class="muted small">These checks come from the selected project template. Required gates must be repaired before submission; warnings identify decisions to review.</p>
       <ul>
-        <li v-for="f in result.findings" :key="f.id" :data-check="f.id">{{ f.message }}<span v-if="f.stories.length" class="muted small"> (stories: {{ f.stories.join(', ') }})</span></li>
+        <li v-for="f in result.findings" :key="f.id" :data-check="f.id"><strong v-if="f.severity === 'block'">Required: </strong>{{ f.message }}<span v-if="f.stories.length" class="muted small"> (stories: {{ f.stories.join(', ') }})</span></li>
       </ul>
     </template>
   </section>

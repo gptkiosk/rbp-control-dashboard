@@ -368,3 +368,18 @@ def test_the_routes_show_the_watch_and_run_it_on_request(secured, tmp_path, monk
 def test_the_collector_runs_the_watch_loop():
     import collector
     assert hasattr(collector.Collector, "_model_watch_loop")
+
+
+def test_model_guidance_includes_fresh_dated_evidence_only_for_available_routes(sessions,tmp_path):
+    day=time.strftime('%Y-%m-%d',time.gmtime(NOW))
+    old=time.strftime('%Y-%m-%d',time.gmtime(NOW-100*DAY))
+    mp.add_note(tmp_path,'claude-opus-5-5','Strong result on a fixture coding task','https://artificialanalysis.ai/models/recommend',day,now=NOW)
+    mp.add_note(tmp_path,'google/gemma-4-31b-it:free','OLD_SENTINEL','trial',old,now=NOW+1)
+    mp.add_note(tmp_path,'unconfigured/model','UNRELATED_SENTINEL','trial',day,now=NOW+2)
+    with sessions() as s:
+        text=mp.guidance_text(s,tmp_path,[{'agent':'claude','models':['claude-opus-5-5']},
+            {'agent':'hermes','models':['google/gemma-4-31b-it:free']}],NOW)
+    assert 'Strong result on a fixture coding task' in text and day in text
+    assert 'OLD_SENTINEL' not in text and 'UNRELATED_SENTINEL' not in text
+    assert 'Provider snapshot: missing' in text and len(text)<=mp.GUIDANCE_MAX_CHARS
+    assert mp.research_status(tmp_path,NOW)['benchmark_state']=='not_connected'

@@ -4,11 +4,9 @@ Choose tasks for each installed worker and the operator's cost preference. Keep 
 
 ## Delivery and project planning
 
-A packaged app runs on users' machines. A release requires a changelog, version, reviewed signed package and publication; publication distributes to users and cannot recall an installed package. Read the repository release guide. Keep signing keys, release secrets and trust files with the operator.
+Load general practices plus the selected project-type template only. The dashboard provides its guides and checks; do not carry other project types or unrelated personal conversations into the plan. Use Other when no listed type fits and record the applicable gates. The approved project ledger is the durable memory across channels and model switches.
 
-A local-first web app needs a dashboard-approved private repository, first commit, CI, container files and a local runtime. When the project has a listed repository, the dashboard creates its private setup branch and clone; agents work only in that clone. Secret values remain human-only. Agents can author files and static checks; a person or CI must build and run containers when the agent sandbox cannot reach the local engine. Cloud publishing is a separate project.
-
-Use edit mode for any story that writes files; read mode is inspection only. Do not assign agents tasks that require a local socket they cannot access. Use a scratch folder for demos and prototypes. Use a Git checkout only when branch work is needed and the operator has granted it. Keep plans to ten stories or fewer. Human stories should represent an actual decision or host action.
+Use edit mode for any story that writes files; read mode is inspection only. Do not assign agents tasks that require a local socket they cannot access. Use a scratch folder for demos and prototypes. Use a Git checkout only when branch work is needed and the operator has granted it. Keep plans to ten stories or fewer. Human stories represent meaningful decisions: spending, media selection, visual acceptance, or a consequential release/security choice. Use approved dashboard actions and CI for routine host work; do not turn each automated step into a manual approval.
 
 Free routes can be throttled. Plan routine work with the reviewed free route where practical; identify subscription work and cost limits clearly. Never silently change models, billing or permissions to work around a failed route.
 

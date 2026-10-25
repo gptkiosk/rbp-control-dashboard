@@ -14,7 +14,7 @@ from pathlib import Path
 import stat
 import urllib.error
 import urllib.request
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit, urlencode
 from typing import Any, Literal
 
 from mcp.server.mcpserver import MCPServer
@@ -57,9 +57,10 @@ def request(method: str, path: str, body: Any = None) -> Any:
         raise McdError("MCD_URL must be an explicit HTTP loopback address and port.") from None
     if url.scheme != "http" or url.hostname not in {"127.0.0.1", "::1"} or not port or url.username or url.password or url.path or url.query or url.fragment:
         raise McdError("MCD_URL must be an explicit HTTP loopback address and port.")
-    if not (path == "/api/agents" or path == "/api/cards" or path.startswith("/api/cards/")):
+    if not (path == "/api/agents" or path == "/api/cards" or path.startswith("/api/cards/") or path.startswith("/api/coordinator?")):
         raise McdError("Route is outside MCD planning access.")
-    target = path.replace("/api/cards", "/api/agent-tools/tasks", 1) if path.startswith("/api/cards") else "/api/agent-tools/agents"
+    target = (path.replace('/api/coordinator', '/api/agent-tools/coordinator', 1) if path.startswith('/api/coordinator?') else
+        path.replace('/api/cards', '/api/agent-tools/tasks', 1) if path.startswith('/api/cards') else '/api/agent-tools/agents')
     headers = {"X-Mac-Control": "1", "Authorization": "Bearer " + credential()}
     data = None
     if body is not None:
@@ -202,6 +203,16 @@ def list_agents() -> list[dict]:
             "sub_agents": [s["id"] for s in sub.get("agents", [])] if a["id"] == "openclaw" else [],
         })
     return out
+
+
+@server.tool(description="Read shared Coordinator capabilities, project types, selected-type context, model evidence or a project status. Scoped reads only; use returned links for unsupported actions.")
+def coordinator_read(operation:Literal['capabilities','types','context','models','status','workspace','repository_intake'],
+        project_id:int|None=None,working_dir:str='',project_type:str|None=None) -> dict:
+    query={'operation':operation}
+    if project_id is not None: query['project_id']=project_id
+    if working_dir: query['working_dir']=working_dir
+    if project_type: query['project_type']=project_type
+    return request('GET','/api/coordinator?'+urlencode(query))
 
 
 if __name__ == "__main__":

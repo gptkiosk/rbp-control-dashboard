@@ -1,0 +1,215 @@
+{
+  "id": "gcp-hosted-website",
+  "label": "GCP hosted website (illustrated site deployed to Google Cloud)",
+  "summary": "An original illustrated website with themed pages and generated media, delivered through an explicitly planned Google Cloud deployment and dashboard-managed preview review.",
+  "suggest": [
+    "gcp.{0,30}(website|site|landing)",
+    "cloud run.{0,30}(website|site|landing)",
+    "hosted website",
+    "hosted site",
+    "google cloud.{0,30}(website|site)"
+  ],
+  "keys": [
+    "agent",
+    "fal",
+    "openrouter"
+  ],
+  "guides": [
+    "container-app-delivery.md",
+    "practices.md",
+    "website-design-delivery.md",
+    "website-spacing-and-timing.md",
+    "readme-and-docs.md"
+  ],
+  "planner_text": "This is a GCP hosted website: static pages in plain HTML, CSS and JavaScript that must look original and finished, not like a template. Plan these stories in this order. First a design direction story on a route that can look at images: it reads the concept images in the folder and writes DESIGN.md (palette tokens, page skeleton, type, ornament, motion, asset list). Then the build stories (theme and transitions, pages, art and icons as SVG and CSS, glass and overlays, wiring the media slots) which restyle the existing template rather than start over. For an illustrated site, the map must include four linked gates: an agent writes a media inventory and media/slots.json before wiring; one MCD Media Studio human decision generates, selects and publishes the planned assets after its displayed spend acknowledgement; an agent integrates the published files into the actual page regions and theme states; and the dashboard preview evidence plus human visual sign-off proves the assets are visible. The Media Studio call is the only paid-media interaction: the dashboard shows the per-slot estimate and prevents duplicate generation. Agents never receive the fal key or generate media. The site must look complete on its drawn fallbacks before published files arrive. After the build, plan a verification story (mode read) that checks the files themselves: promised files exist and are not empty, every asset is referenced, no external requests, both themes render without console errors, reduced motion is honored. Then an automated preview-verification checkpoint (set host_action to \"preview-verify\"; the separate human review story uses host_action \"preview-review\") (human or CI when it needs a browser or container runtime) that adds tools/verify-preview.sh, starts only its own localhost preview in the reserved 41350\u201341399 port group, preferring 41350 + project ID and recording any safe fallback port, waits for health, checks every page, asset and named theme/state for HTTP 200 and a non-empty body, captures screenshots when its declared runner supports it, records the commit, clickable URLs and evidence, then stops only its own PID through a trap on success, failure or cancellation; then a human story reviews that saved evidence to approve the look, with changes going back through verification and preview. Container and pipeline files come after the pages exist and must copy the assets folder; building and running the image belongs only to a final human local verification story. A contact form handler stores only a redacted line and has a test that fails if the redaction is removed. Nothing in the folder may contain secrets or real visitor data, and no franchise names, logos or assets are used. Never ask an agent story to render pages, check a browser console or take screenshots: agent sandboxes have no browser, so keep agent verification static and leave rendering to the human preview. Record the owner's confirmed content facts in the design direction story and follow the brief's visual language: illustration, photography or another requested style. Use the approved hero as a style reference for related assets, with dimensions and page/theme placement in the media inventory. Never replace an illustrated brief with photographic cards or a plain layout. Add a final polish story (mode read for agents: static checks only) and a human responsive review in the preview at 1440, 1280, 1100, 1024, 768, 600, 390 and 360 pixels in both themes, looking for sideways scroll, overlapping header pieces, text spacing and art that does not fill its box, before asking for approval. Put the starting spacing, sizing and timing values from the website spacing and timing guide into DESIGN.md as tokens in the design direction story (theme crossing 1500 ms, header and card sizes, breakpoints), so the build stories use them instead of guessing. Details are in the website design guide. Background and ambient clips start on the cheapest video tier (the media panel defaults to it for this type); raise a slot to standard or premium only after looking at the result. The project ends in the remote repository, not in a scratch folder: when the brief names a repository, the working folder must be a clone of it, and the plan needs a delivery story that pushes the project branch and opens a pull request, then a story that reads the pipeline result so the image or app build and the tests have actually run there. Nothing goes to the main branch from an agent. The project is not done until the branch is pushed, the pull request is open and the pipeline result is known. The repository is private unless the site is meant to be open source: a company or product website is proprietary, so keep the code, tests and pipeline in a private repository. Say the visibility and licence in the plan. Plan the documentation as part of the project: a README story (an agent writes it) and the how-tos, with a Mermaid architecture diagram and a data-flow diagram whenever the project is more than a local install, and a screenshot of every application area plus how-tos for what a person does beyond installing and signing in. Screenshots are made with Playwright from a script kept in the repository, run by a person or a CI job against seeded test data, because agent sandboxes have no browser; the agent writes the script and the README, a human story or the pipeline runs it and commits the images. The preview checkpoint must leave tools/preview.sh and tools/verify-preview.sh in the repository. The verifier starts the site on its selected loopback port, waits for /health.txt, prints and checks the clickable address of every page, asset and named state, saves the source commit and results, and stops only the PID it started through a trap. It must leave reviewable evidence but no running preview. Keep the media bill small: in media/slots.json give each slot only the resolution it needs (\"resolution\": \"1K\" for a picture shown small, \"480P\" for a retro or VHS-look clip, which costs 0.625 of 768p and suits the look), do not generate art the code can draw (title screens inside a canvas, patterns, glows, frames), reuse one approved still as the style reference for the others, review the prompts before anything is generated, and generate one take at a time. The preview script accepts PREVIEW_PORT, binds only to 127.0.0.1, and records the actual port in .preview/preview.state. For remote review, the dashboard invokes this fixed host action, keeps the preview on loopback, records its output, and exposes it only through the authenticated dashboard proxy. The operator never needs SSH, a terminal, localhost, Tailscale, or port forwarding. A URL list from one-shot verify evidence is not reused for a later serve process: the state file supplies the actual review port. Add a separate GCP delivery story after verification that uses the selected repository, records the Cloud Run or other named GCP target, and reads the deployment health and pipeline evidence. Provisioning, credential changes, billing changes and production deployment remain explicit dashboard approval gates; ordinary file, test and preview work stays programmatic.",
+  "failure_points": [
+    "A story's own report that art or media exists is not proof; generated files can be empty. Verify the files, then show them on a preview before asking a person to approve.",
+    "A container or pipeline story planned before the pages exist cannot smoke-test anything; order it after the pages.",
+    "A Dockerfile that copies only html, css and js ships a site with no assets; the container story must copy the assets folder and the smoke test must fetch an asset.",
+    "Agents cannot build or run containers: building the image, compose and the Colima checks are one final human story.",
+    "A route that cannot view images cannot follow concept art; the design direction story must run on one that can.",
+    "A human approval of how it looks has nothing to judge without a live preview and clickable URLs.",
+    "Original art only: no names, logos or assets from the concept images or any franchise; reference images stay out of the container image.",
+    "Free models cannot be trusted with taste or motion work; use a strong model for design direction, the theme engine and the transitions.",
+    "A story that asks an agent to render pages, read a browser console or take screenshots cannot be done in an agent sandbox (no browser, no loopback server); it reports itself unfinished and blocks everything behind it. Agent verification is static (files, references, syntax, tests); rendering is checked by a person in the preview.",
+    "Mixing picture styles (engraved or cartoon cards beside photographic heroes) reads as unfinished; decide one visual language in the design direction story and use the approved hero still as the style reference for every other slot.",
+    "A close-up or macro clip used as a banner background reads as a crop of rust; clips are wide establishing shots, and an ambient loop is a low-opacity blended texture over a still.",
+    "Setting an inline background-image from script replaces the layered backgrounds a theme draws and drops size and position; always set size, position and repeat with it.",
+    "A fixed grid row count that does not match the children leaves stray rows and a squashed picture; let rows follow the content.",
+    "A theme sheet's display rule outranks a plain responsive hide, so decorative plaques collide with the nav on mid-size screens; make the hide outrank the theme rule and size the breakpoints from measurements.",
+    "Product status written from guesswork (live products marked coming soon, beta products unmarked) is a content bug; record the owner's facts in the brief and update the tests that encode them.",
+    "Timing and spacing left to each build story drift: a 1-second theme crossing reads as rushed and header parts collide. Record the numbers as tokens in DESIGN.md first (see the spacing and timing guide).",
+    "A menu that only reflows at phone width, or media queries in px, break for readers with larger text: collapse the menu behind an accessible button below 760 px (visible without script) and write media queries in em.",
+    "A project run in a scratch folder with no git remote finishes with nothing pushed: no pull request and no pipeline run, so the image or app build and tests never ran where they are meant to. When the brief names a repository, the working folder must be a clone of it, and delivery (push the project branch, open the pull request, read the pipeline result) must be stories in the plan.",
+    "A README with only install commands tells a new person nothing about the application. Add a Mermaid architecture and data-flow diagram when it is more than a local install, a screenshot and a short how-to for each application area beyond installation and sign-in, and make the screenshots with a Playwright script that a person or the pipeline runs (an agent cannot run a browser).",
+    "A preview with no address to open and no way to check it is running makes the human look sign-off guesswork: use the dashboard-managed preview action: it records host output and exposes an authenticated remote link while the service remains bound to 127.0.0.1; the operator must never need a host terminal, SSH, Tailscale or port forwarding.",
+    "Every slot at the tier's full resolution multiplies the bill: pictures shown small do not need 2K and retro clips do not need 768p. Set a per-slot resolution, skip art the code can draw, and let the plan list each slot with its resolution and estimate before any generation.",
+    "A cloud website with no named GCP target, deployment evidence or health check is only a local preview. Plan the GCP delivery and post-deploy verification after the visual approval."
+  ],
+  "visual_checks": "Always: a file-level verification story, then an automated preview-verification checkpoint with captured URLs and screenshots where available that shuts down cleanly, then the human look sign-off. Changes loop back through verification and preview.",
+  "human_signoffs": [
+    "Approve media spending and select/publish candidates in the project Media tab",
+    "Approve the illustrated result in the authenticated live preview",
+    "Consequential release/security decisions only when the approved scope needs them"
+  ],
+  "checks": [
+    {
+      "id": "design-direction-first",
+      "severity": "warn",
+      "kind": "has_story",
+      "match": "design direction|design\\.md|art direction",
+      "message": "No design direction story. Start with one that reads the concept images and writes DESIGN.md."
+    },
+    {
+      "id": "verification-story",
+      "severity": "warn",
+      "kind": "has_story",
+      "match": "verif.{0,30}(file|asset|theme|site)|check.{0,20}(files|assets)",
+      "message": "No file-level verification story. Add one that proves the promised files exist, are not empty and are used."
+    },
+    {
+      "id": "preview-checkpoint",
+      "severity": "warn",
+      "kind": "has_story",
+      "match": "preview",
+      "message": "No automated preview-verification checkpoint. Add a human or CI story that runs a repository verifier, captures URLs and evidence, checks health and every page, and shuts down its own preview before a separate human decision story.",
+      "assignee": "agent"
+    },
+    {
+      "id": "verify-before-preview",
+      "severity": "warn",
+      "kind": "order",
+      "first": "verif.{0,30}(file|asset|theme|site)|check.{0,20}(files|assets)",
+      "then": "preview",
+      "message": "The automated preview-verification checkpoint does not follow a file verification story."
+    },
+    {
+      "id": "preview-before-look-signoff",
+      "severity": "warn",
+      "kind": "order",
+      "first": "preview",
+      "then": "(approve|sign.?off).{0,40}(look|art|design|theme|visual)",
+      "assignee": "human",
+      "message": "The human look approval does not come after an automated preview-verification checkpoint."
+    },
+    {
+      "id": "container-after-pages",
+      "severity": "warn",
+      "kind": "order",
+      "first": "pages?\\b|html|restyle",
+      "then": "container|dockerfile|pipeline",
+      "message": "The container or pipeline story is planned before the pages exist."
+    },
+    {
+      "id": "container-needs-human",
+      "severity": "block",
+      "kind": "not_agent_for",
+      "match": "docker (build|compose|run)|compose up|colima|smoke test (against|on) (a )?running|build the (container )?image",
+      "message": "A story needs a container engine, which agents cannot run. Split static container files from the final human local verification story."
+    },
+    {
+      "id": "container-runtime-verification",
+      "severity": "block",
+      "kind": "requires_story",
+      "match": "container|dockerfile|docker compose|compose",
+      "requires_match": "(local|container|docker|compose).{0,50}(verification|test|check|review)|verification.{0,50}(container|docker|compose)",
+      "assignee": "human",
+      "message": "A container plan needs a final human runtime verification story that builds or runs the checked-out repository with Docker/Compose."
+    },
+    {
+      "id": "illustrated-media-inventory",
+      "severity": "block",
+      "kind": "has_story",
+      "match": "media (inventory|plan|slots?)|media/slots\\.json|asset (inventory|plan)",
+      "message": "An illustrated website needs a media inventory story that writes media/slots.json before page wiring. It must name each required visible asset, placement, theme/state, prompt or source, dimensions and alt text."
+    },
+    {
+      "id": "illustrated-media-generation",
+      "severity": "block",
+      "kind": "has_story",
+      "match": "(generate|make|publish|select).{0,50}(media|images?|illustrations?|stills?|clips?|art)",
+      "assignee": "human",
+      "message": "An illustrated website needs one MCD Media Studio decision story. It shows the estimate, generates and publishes the planned assets after explicit spending acknowledgement; agents cannot generate media."
+    },
+    {
+      "id": "illustrated-media-integration",
+      "severity": "block",
+      "kind": "has_story",
+      "match": "integrat.{0,50}(published |generated )?(media|images?|illustrations?|stills?|clips?|art)|wire.{0,50}media",
+      "assignee": "agent",
+      "message": "No media integration story. An agent must place the published assets into the real page regions and both theme states before verification."
+    },
+    {
+      "id": "media-inventory-before-generation",
+      "severity": "block",
+      "kind": "order",
+      "first": "media (inventory|plan|slots?)|media/slots\\.json|asset (inventory|plan)",
+      "then": "(generate|make|publish|select).{0,50}(media|images?|illustrations?|stills?|clips?|art)",
+      "assignee": "human",
+      "message": "The Media Studio decision must follow the media inventory and slots story."
+    },
+    {
+      "id": "media-generation-before-integration",
+      "severity": "block",
+      "kind": "order",
+      "first": "(generate|make|publish|select).{0,50}(media|images?|illustrations?|stills?|clips?|art)",
+      "then": "integrat.{0,50}(published |generated )?(media|images?|illustrations?|stills?|clips?|art)|wire.{0,50}media",
+      "assignee": "agent",
+      "message": "Media integration must follow the MCD Media Studio publish decision."
+    },
+    {
+      "id": "media-is-human",
+      "severity": "block",
+      "kind": "not_agent_for",
+      "match": "generate (the )?(video|clips?|stills?|images?|illustrations?|art)|make (the )?(video|clips?)",
+      "message": "Generated media comes from the media pipeline run by the operator in MCD, not from an agent. Make it a human story."
+    },
+    {
+      "id": "browser-checks-need-a-person",
+      "severity": "block",
+      "kind": "not_agent_for",
+      "match": "console errors|render(s|ed|ing)? (in|without|correctly)|in a browser|browser (render|check|test)|\\b(run|launch|execute|take|capture|generate|make)s?\\s+(the\\s+|a\\s+|all\\s+|some\\s+)?(playwright|puppeteer|lighthouse|screenshots?)\\b",
+      "message": "A story asks an agent to render pages or check a browser console, which no agent sandbox can do. It will report itself unfinished. Keep agent verification to static checks and move rendering to the human preview."
+    },
+    {
+      "id": "responsive-review",
+      "severity": "warn",
+      "kind": "has_story",
+      "match": "responsive|polish|layout.{0,20}(review|audit)|spacing",
+      "message": "No responsive and polish review. Add a human story that reviews the preview at phone, tablet and wide desktop widths in both themes for sideways scroll, overlapping header pieces, text spacing and art that does not fill its box."
+    },
+    {
+      "id": "delivery-to-remote",
+      "severity": "warn",
+      "kind": "has_story",
+      "match": "push|pull request|\\bpr\\b|pipeline (run|result|status)|ci (run|result|status)|deliver",
+      "message": "No delivery story. A project should end in the remote repository: add a story that pushes the project branch and opens a pull request, and one that reads the pipeline result (the build and tests running there), or say plainly that this project has no repository."
+    },
+    {
+      "id": "readme-story",
+      "severity": "warn",
+      "kind": "has_story",
+      "match": "readme|documentation|\\bdocs\\b|how-?tos?",
+      "message": "No README or documentation story. Add one that writes the README with a Mermaid architecture and data-flow diagram (when it is more than a local install) and a how-to for each application area."
+    },
+    {
+      "id": "screenshots-by-a-person-or-ci",
+      "severity": "warn",
+      "kind": "has_story",
+      "match": "screenshot|playwright",
+      "assignee": "human",
+      "message": "No story that makes the application screenshots. Agents cannot run a browser: add a human story (or a pipeline job) that runs the Playwright screenshot script against seeded test data and commits the images the README uses."
+    },
+    {
+      "id": "media-integration-before-verification",
+      "severity": "block",
+      "kind": "order",
+      "first": "integrat.{0,50}(published |generated )?(media|images?|illustrations?|stills?|clips?|art)|wire.{0,50}media",
+      "then": "verif.{0,30}(file|asset|theme|site)|check.{0,20}(files|assets)",
+      "message": "File verification must depend on integration of the published media; a plain layout cannot pass the illustrated-site gate."
+    }
+  ],
+  "media_default_tiers": {
+    "video": "draft"
+  }
+}

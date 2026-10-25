@@ -138,3 +138,14 @@ def remove_dependency(request: Request, card_id: int, depends_on_id: int, sessio
     cards.remove_dependency(session, card, depends_on_id)
     session.commit()
     return task(session, card)
+
+
+@router.get('/coordinator')
+def coordinator_view(request:Request,operation:str,project_id:int|None=None,working_dir:str='',
+        project_type:str|None=None,session:Session=Depends(get_session)):
+    identity=grant(request,session)
+    if operation not in {'capabilities','types','context','models','status','workspace','repository_intake'}:
+        raise HTTPException(403,'This grant does not include run diagnostics or execution.')
+    import coordinator_read
+    return coordinator_read.read(session,get_settings(),operation,identity.created_by,project_id=project_id,
+        working_dir=working_dir,project_type=project_type)
