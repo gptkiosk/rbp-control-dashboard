@@ -10,6 +10,13 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.6.65] - 2026-10-24
+
+### Fixed
+
+- **Dashboard previews resolve from the story workspace.** A preview story whose project is checked out inside the approved workspace now finds its verifier and shows host controls; configuration failures show an actionable panel instead of disappearing.
+
+
 ## [0.6.64] - 2026-10-24
 
 ### Fixed
@@ -957,7 +964,8 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 - Claude Code stories may use web search and fetch without any shell, credential or publish permission.
 
 [0.3.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.0
-[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.64...HEAD
+[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.65...HEAD
+[0.6.65]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.64...v0.6.65
 [0.6.64]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.63...v0.6.64
 [0.6.63]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.62...v0.6.63
 [0.6.50]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.49...v0.6.50

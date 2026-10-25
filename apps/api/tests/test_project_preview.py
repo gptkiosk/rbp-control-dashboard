@@ -27,6 +27,16 @@ class PreviewActionsTest(unittest.TestCase):
         manifest = {'document': {'nodes': [{'title': 'Start dashboard-managed persistent preview for remote review'}]}}
         self.assertEqual(project_preview._kind(manifest['document']['nodes'][0]), 'preview-review')
 
+    def test_preview_uses_the_story_workspace_inside_the_approved_project_root(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            nested = root / 'site'; (nested / 'tools').mkdir(parents=True)
+            (nested / 'tools' / 'verify-preview.sh').write_text('#!/usr/bin/env bash\nprintf "action=%s cwd=%s\\n" "$1" "$PWD"\n', encoding='utf-8')
+            card = SimpleNamespace(working_dir=str(nested))
+            result = project_preview.run(project(root, 'Start dashboard-managed persistent preview for remote review'), card, SimpleNamespace(node_key='preview'), 'serve', proxy_base='/api/preview')
+            self.assertTrue(result['ok'])
+            self.assertIn(f'action=serve cwd={nested}', result['output'])
+
     def test_preview_story_does_not_accept_arbitrary_host_actions(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
