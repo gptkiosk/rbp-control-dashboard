@@ -43,7 +43,9 @@ def _kind(node: dict) -> str | None:
     title = str(node.get('title') or '').lower()
     if 'preview verifier' in title:
         return 'preview-verify'
-    if 'persistent loopback preview' in title:
+    if ('persistent loopback preview' in title
+            or ('persistent' in title and 'preview' in title)
+            or ('dashboard-managed' in title and 'preview' in title)):
         return 'preview-review'
     return None
 

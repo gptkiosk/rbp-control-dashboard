@@ -23,6 +23,10 @@ class PreviewActionsTest(unittest.TestCase):
             self.assertIn(f'action=verify cwd={root}', result['output'])
             self.assertIsNone(result['proxy_url'])
 
+    def test_dashboard_managed_persistent_preview_title_is_a_review_action(self):
+        manifest = {'document': {'nodes': [{'title': 'Start dashboard-managed persistent preview for remote review'}]}}
+        self.assertEqual(project_preview._kind(manifest['document']['nodes'][0]), 'preview-review')
+
     def test_preview_story_does_not_accept_arbitrary_host_actions(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
