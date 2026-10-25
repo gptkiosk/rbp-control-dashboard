@@ -32,6 +32,9 @@ def _valid(t):
             if not isinstance(t.get(key, []), list) or not all(isinstance(x, str) for x in t.get(key, [])):
                 return False
         tiers = t.get("media_default_tiers", {})
+        from project_intake import valid_questions
+        if not valid_questions(t.get('intake_questions', [])):
+            return False
         if not isinstance(tiers, dict) or not all(k in {"image", "video"} and v in {"draft", "standard", "premium"} for k, v in tiers.items()):
             return False
         for pattern in t.get("suggest", []):

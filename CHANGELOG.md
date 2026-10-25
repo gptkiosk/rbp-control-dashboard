@@ -10,6 +10,19 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.6.68] - 2026-10-25
+
+### Added
+
+- New projects ask a few questions matched to the selected template, with optional details and a complete-brief path. Answers remain editable project facts and follow the plan into relevant task context.
+- Project chat and paired Hermes use the same template intake questions, reuse prior answers and prepare a compact summary for review. Media and cloud preferences never authorize charges.
+- Reference images can be attached during intake and upload before planning; a failed upload leaves a saved draft instead of starting an incomplete plan.
+
+### Fixed
+
+- Installable packages now include the project template files. Packaging refuses a release that omits the five built-in templates.
+
+
 ## [0.6.67] - 2026-10-25
 
 ### Added
@@ -1095,3 +1108,5 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 [0.6.61]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.60...v0.6.61
 
 [0.6.62]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.61...v0.6.62
+
+[0.6.68]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.67...v0.6.68

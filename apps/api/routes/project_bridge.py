@@ -15,7 +15,7 @@ router=APIRouter(prefix='/api/hermes-projects')
 
 class Bridge(BaseModel):
     model_config=ConfigDict(extra='forbid',hide_input_in_errors=True)
-    action:Literal['pair','intake','list','get','save','plan','diagram','limits','limits_reroute','failures','failure','maintenance','maintenance_propose','standards','standards_propose','propose_repository','bootstrap_status','issue_task','capabilities','types','context','models','status','task','workspace','repository_intake','reserve_workspace','record_handoff','pause_dispatch','resume_dispatch']
+    action:Literal['pair','intake','list','get','save','plan','diagram','limits','limits_reroute','failures','failure','maintenance','maintenance_propose','standards','standards_propose','propose_repository','bootstrap_status','issue_task','capabilities','types','context','models','status','task','workspace','repository_intake','reserve_workspace','record_handoff','pause_dispatch','resume_dispatch','intake_questions']
     discord_user_id:str=Field(pattern=r'^[0-9]{16,22}$')
     discord_channel_id:str=Field(pattern=r'^[0-9]{16,22}$')
     source_message_id:str=Field(default='',pattern=r'^([0-9]{16,22})?$')
@@ -45,6 +45,7 @@ class Bridge(BaseModel):
     repo_name:str=Field(default='',max_length=100)
     repo_description:str=Field(default='',max_length=200)
     issue_url:str=Field(default='',max_length=500)
+    intake_answers:dict[str,str]|None=Field(default=None,max_length=10)
     document:Document|None=None
     snapshot:str=Field(default='',max_length=64)
     operation_id:str=Field(default='',max_length=36)
@@ -100,7 +101,7 @@ def command(body:Bridge,request:Request,s:Session=Depends(get_session)):
         except ValidationError:
             raise HTTPException(422,'Use the current revision/snapshot and a UUID operation ID; handoffs need a summary.') from None
         s.commit();return result
-    if body.action in ('capabilities','types','context','models','status','task','workspace','repository_intake'):
+    if body.action in ('capabilities','types','context','models','status','task','workspace','repository_intake','intake_questions'):
         if body.action in ('status','task','workspace','repository_intake') and not pref.allow_discord_diagnostics:
             raise HTTPException(403,'Enable Discord diagnostics in your profile first.')
         import coordinator_read
@@ -182,8 +183,15 @@ def command(body:Bridge,request:Request,s:Session=Depends(get_session)):
     if body.action=='intake':
         wd=body.working_dir or pref.working_dir
         missing=[name for name,value in (('title',body.title.strip()),('brief',body.brief.strip()),('working_dir',wd)) if not value]
-        if missing:return {'needs_information':missing,'message':'Ask the operator for these missing fields before creating a project. Confirm the goal, exclusions and preference (Balanced by default).','working_directory_roots':[str(p) for p in settings.workdir_roots]}
-        d=Document(title=body.title,brief=body.brief,constraints=body.constraints,working_dir=wd,project_type=body.project_type,planning_bias=body.planning_bias if body.planning_bias is not None else pref.planning_bias).model_dump()
+        if missing:
+            import project_intake
+            return {'needs_information':missing,'intake':project_intake.assessment(body.project_type,settings=settings),'message':'Ask for missing facts using this template. Reuse answers already in the conversation; no prewritten brief is required.','working_directory_roots':[str(p) for p in settings.workdir_roots]}
+        import project_intake
+        try: intake = project_intake.assessment(body.project_type, body.intake_answers, settings)
+        except ValueError as exc: raise HTTPException(422,str(exc)) from None
+        if body.intake_answers is not None and intake['missing']:
+            return {'needs_information':intake['missing'],'intake':intake,'message':'Ask only for missing facts, reusing the conversation. Help me decide is valid. No project was created.'}
+        d=Document(intake_answers=body.intake_answers or {},title=body.title,brief=body.brief,constraints=body.constraints,working_dir=wd,project_type=body.project_type,planning_bias=body.planning_bias if body.planning_bias is not None else pref.planning_bias).model_dump()
         if not body.source_message_id:raise HTTPException(422,'A trusted Discord message ID is required for intake.')
         intake_key=f'{body.discord_channel_id}:{body.discord_user_id}:{body.source_message_id}'
         p=s.scalar(select(Project).where(Project.intake_key==intake_key))

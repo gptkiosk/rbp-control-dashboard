@@ -79,7 +79,7 @@ it('lets the owner say when it is enough, then writes up the brief and opens it 
  const w=mount(ProjectConsultant,options)
  await w.get('button').trigger('click');await w.get('input').setValue('Site');await w.get('textarea').setValue('A simple site');await w.get('form').trigger('submit');await flushPromises()
  expect(w.emitted('review')).toBeUndefined()                                          // talking does not submit anything
- await w.findAll('button').find(b=>b.text().includes('Write up the plan'))!.trigger('click');await flushPromises()
+ await w.findAll('button').find(b=>b.text().includes('Review project summary'))!.trigger('click');await flushPromises()
  await vi.advanceTimersByTimeAsync(2100);await flushPromises()
  const ask=f.mock.calls.filter(([url])=>url==='/api/chat/threads/11/messages').map(([,init])=>JSON.parse(String(init?.body)))
  expect(ask).toHaveLength(2);expect(ask[1].text).toContain('That is enough')

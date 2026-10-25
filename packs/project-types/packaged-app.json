@@ -103,5 +103,25 @@
       "assignee": "human",
       "message": "No story that makes the application screenshots. Agents cannot run a browser: add a human story (or a pipeline job) that runs the Playwright screenshot script against seeded test data and commits the images the README uses."
     }
+  ],
+  "intake_questions": [
+    {
+      "id": "features",
+      "label": "Main workflows",
+      "prompt": "What should the app do from start to finish? List the essential screens or workflows.",
+      "required": true
+    },
+    {
+      "id": "target",
+      "label": "Platform and delivery",
+      "prompt": "Where should it run, and what should the finished delivery include?",
+      "required": true
+    },
+    {
+      "id": "data",
+      "label": "Data and integrations",
+      "prompt": "What information is stored and which services connect? Include sign-in/privacy needs and configuration names only; no keys.",
+      "required": false
+    }
   ]
 }

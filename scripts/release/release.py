@@ -426,6 +426,11 @@ def build_once(args: argparse.Namespace, out_dir: Path) -> dict:
     lock = lock_path(key)
     packages = parse_lock(lock)
     sources = collect_sources(product["include"])
+    if "apps/api/project_types.py" in sources:
+        required_types = {f"packs/project-types/{kind}.json" for kind in ("packaged-app", "gcp-hosted-app", "local-website", "gcp-hosted-website", "other")}
+        missing = required_types - sources.keys()
+        if missing:
+            die("release omits runtime project templates: " + ", ".join(sorted(missing)))
     validate_python_sources(sources, platform["python_version"])
     sde, sde_from = resolve_source_date_epoch(args.source_date_epoch, source, sources)
     source_records = file_records({rel: (p.read_bytes(), file_mode(rel, p)) for rel, p in sources.items()})

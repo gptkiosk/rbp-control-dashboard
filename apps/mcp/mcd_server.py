@@ -206,7 +206,7 @@ def list_agents() -> list[dict]:
 
 
 @server.tool(description="Read shared Coordinator capabilities, project types, selected-type context, model evidence or a project status. Scoped reads only; use returned links for unsupported actions.")
-def coordinator_read(operation:Literal['capabilities','types','context','models','status','workspace','repository_intake'],
+def coordinator_read(operation:Literal['capabilities','types','context','models','status','workspace','repository_intake','intake_questions'],
         project_id:int|None=None,working_dir:str='',project_type:str|None=None) -> dict:
     query={'operation':operation}
     if project_id is not None: query['project_id']=project_id

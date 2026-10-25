@@ -42,3 +42,9 @@ Artificial Analysis is an optional research source: [Model Recommender](https://
 ## Workspace continuity and import
 
 See [Project workspaces](project-workspaces.md) for host-aware state, compact handoffs, cooperative external-work reservations and static repository intake. Shared reads and paired Discord use the same services; reservation/handoff writes require Discord control plus diagnostics. These additions do not grant native read/draft tokens execution rights or complete every channel control adapter.
+
+## Start with a conversation or a template
+
+Projects → Plan with chat starts a read-only intake conversation; New project opens the guided form. Both use general intake plus only the chosen type. Hermes reads `intake_questions(project_type)` through its paired tool (or Coordinator read API) before asking missing questions. Reuse already-confirmed answers, ask two or three at a time and permit Help me decide. Confirm a compact summary before planning; the planner owns the story graph and readiness checks. Media selection, spending and consequential release choices remain separate app actions.
+
+The form stores up to 6,000 answer characters separately from the goal. Those answers are rendered into the existing brief, not another unbounded prompt field; task brief and consultant context caps remain unchanged. Selected intake questions add at most roughly 3 KB to consultant context, within its existing 20,000-character cap. The consultant's fixed instruction was shortened; unrelated templates are not included. Role pack 23 adds intake guidance; use the existing Agent roles preview/apply control for an already configured Coordinator. Native Hermes plugin changes require its supported installer/upgrade flow; publication does not overwrite live native configuration.

@@ -279,6 +279,9 @@ def check_revision(p, revision):
 def validate(doc, settings, executable=False, overlaps=False):
     parsed = Document.model_validate(doc).model_dump()
     if len(json.dumps(parsed,ensure_ascii=False).encode()) > 150000: fail('Project exceeds 150 KiB. Split it into smaller projects.', 422)
+    import project_intake
+    try: parsed['intake_answers'] = project_intake.validate(parsed.get('intake_answers', {}), parsed.get('project_type'), settings)
+    except ValueError as exc: fail(str(exc), 422)
     parsed['title'], parsed['brief'] = parsed['title'].strip(), parsed['brief'].strip()
     if not parsed['title'] or not parsed['brief']: fail('Project title and brief are required.', 422)
     wd = approval.resolve_workdir(parsed['working_dir'], settings.workdir_roots)
@@ -734,6 +737,8 @@ def _requeue_planning_card(card, agent, model):
 def _brief(p, include_nodes=False):
     d=document(p)
     payload={k:d[k] for k in (('title','brief','constraints','nodes') if include_nodes else ('title','brief','constraints'))}
+    import project_intake
+    payload['brief'] = project_intake.brief(d, get_settings())
     payload.update(planning_bias=d['planning_bias'], assignment_policy=planning_policy(d['planning_bias']), dispatch_mode=d['dispatch_mode'])
     payload['project_type']=d.get('project_type')
     payload['guidance']={'mode':'general_plus_selected_type','guides':project_types.selected_guides(d.get('project_type'),get_settings()),
@@ -824,7 +829,9 @@ def consultant_context(s, settings, working_dir, project_type=None):
     found = standards.resolve(str(wd), settings.data_dir)
     packet = project_types.guidance_packet(project_type, settings)
     methods = packet['text']
-    parts = [('How the software is delivered', RoleStore(settings).source('context.md').strip()),
+    import project_intake
+    parts = [('Project intake questions', project_intake.consultant_text(project_type, settings)),
+             ('How the software is delivered', RoleStore(settings).source('context.md').strip()),
              ('Standards that apply to this working directory', standards.prompt_section(found)),
              ('Methods and practices to build the plan on', methods),
              ('Selected project type', project_types.consultant_text(settings, type_id=project_type)),
@@ -1598,7 +1605,8 @@ def ledger_path(settings, p):
 def write_brief(p, d, amends=None):
     """The full brief, with every amendment, as a file beside the ledger, for the stories whose prompt carries only its first BRIEF_LIMIT
     characters (or only the newest amendments). Written only when needed and only when it changed. Returns the path, or None."""
-    brief=str(d.get('brief') or '')
+    import project_intake
+    brief=project_intake.brief(d, get_settings())
     if amends:
         brief+='\n\n## Amendments (newest last; they override the brief where they differ)\n'+''.join(
             f"\n### {datetime.fromtimestamp(a['created_at']).isoformat(timespec='minutes') if a.get('created_at') else ''}\n\n{a['text']}\n" for a in amends)
@@ -1713,7 +1721,7 @@ def context_payload(s,p,story=None,workspace=None):
     nodes=[{k:n.get(k) for k in ('key','title','assignee','model','depends_on')} for n in story_nodes]
     artifact_keys=visible if story else set(manifest.get('artifacts',{}))
     payload={'execution_workspace':workspace or d['working_dir'],'project_id':p.id,'revision':manifest['revision'],'title':d['title'],
-        'brief':_context_excerpt(d['brief'],BRIEF_LIMIT,write_brief(p,d,amendments(s,p)) or 'Projects'),'constraints':_context_excerpt(d['constraints'],3000),'stories':nodes,'accepted_memory':[],
+        'brief':_context_excerpt(__import__('project_intake').brief(d,get_settings()),BRIEF_LIMIT,write_brief(p,d,amendments(s,p)) or 'Projects'),'constraints':_context_excerpt(d['constraints'],3000),'stories':nodes,'accepted_memory':[],
         'accepted_artifacts':{k:{f:(a.get(f)[:50] if isinstance(a.get(f),list) else a.get(f)) for f in ('workspace','branch','head','commits','files')} for k,a in manifest.get('artifacts',{}).items() if k in artifact_keys},
         'memory_compaction':{'mode':'deterministic_dependency_aware','budget_bytes':CONTEXT_PAYLOAD_BUDGET,
             'ledger_entries_scanned':len(rows),'entries_included':0,'entries_omitted':0,'digested':0,
