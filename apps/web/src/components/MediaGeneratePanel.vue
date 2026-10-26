@@ -1,15 +1,33 @@
 <script setup lang="ts">
 import NoteFold from '@/components/NoteFold.vue'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { getJson, postJson } from '@/lib/api'
+import { getJson, postJson, patchJson } from '@/lib/api'
 interface Plan { endpoint: string; estimate_usd: number | null }
-interface Slot { name: string; kind: 'image' | 'video'; world: string | null; purpose: string; prompt: string; published: boolean; published_bytes?: number; skipped?: boolean; history?: { ts: number; event: string; detail: string }[]; inbox?: string | null; candidates: string[]; waiting_for_stills: string[]; plans: Record<Tier, Plan> }
+interface Slot { plan_sha256?: string; width?: number; height?: number; resolution?: string | null; seconds?: number[] | null; name: string; kind: 'image' | 'video'; world: string | null; purpose: string; prompt: string; published: boolean; published_bytes?: number; skipped?: boolean; history?: { ts: number; event: string; detail: string }[]; inbox?: string | null; candidates: string[]; waiting_for_stills: string[]; plans: Record<Tier, Plan> }
 interface Storage { published_bytes: number; unused_bytes: number; unused_count: number }
 interface Summary { published: number; skipped: number; pending: number; total: number; complete: boolean; text: string }
 interface Job { id: string; state: 'queued' | 'running' | 'done' | 'failed'; progress: string; slot: string; error: string | null; files: { path: string; bytes: number }[] }
 type Tier = 'draft' | 'standard' | 'premium'
 // An omitted boolean prop would be read as false; undefined means "look it up yourself".
 const props = withDefaults(defineProps<{ keySaved?: boolean; workingDir?: string }>(), { keySaved: undefined, workingDir: undefined })
+const editing = ref<string | null>(null), savingPlan = ref(false)
+const editPlan = ref({ prompt:'', purpose:'', world:'', width:1920, height:1080, resolution:'', minSeconds:4, maxSeconds:8 })
+function openPlan(s: Slot) {
+  editing.value=s.name
+  editPlan.value={prompt:s.prompt,purpose:s.purpose,world:s.world || '',width:s.width || 1920,height:s.height || 1080,resolution:s.resolution || '',minSeconds:s.seconds?.[0] || 4,maxSeconds:s.seconds?.[1] || 8}
+}
+async function savePlan(s: Slot) {
+  if (!s.plan_sha256 || savingPlan.value || busy.value) return
+  savingPlan.value=true;error.value=''
+  try {
+    const {resolution,minSeconds,maxSeconds,...fields}=editPlan.value
+    await patchJson('/api/media/slots',{working_dir:folder.value,slot:s.name,expected_sha256:s.plan_sha256,...fields,resolution:resolution || null,...(s.kind==='video' ? {seconds:[minSeconds,maxSeconds]} : {})})
+    editing.value=null;confirm.value=false
+    note.value[s.name]={ok:true,text:'Asset plan saved. Review refreshed estimates and confirm spending again before generation.'}
+    await loadSlots()
+  } catch(e) { error.value=e instanceof Error ? e.message : String(e) }
+  finally {savingPlan.value=false}
+}
 const keyOk = ref(props.keySaved ?? false)
 const summary = ref<Summary | null>(null)
 const cost = ref<{ spent_usd: number; spent_runs: number } | null>(null)
@@ -84,14 +102,14 @@ function needConfirm(slot?: string) {
   confirmBox.value?.scrollIntoView?.({ block: 'center' }); confirmBox.value?.focus()
 }
 async function generateAll() {
-  if (busy.value || !eligible.value.length) return
+  if (busy.value || savingPlan.value || editing.value || !eligible.value.length) return
   if (!confirm.value) { needConfirm(); return }
   const n = eligible.value.length, tierName = batchTier.value === 'each' ? 'chosen' : batchTier.value
   const price = batch.value.unknown ? `about $${batch.value.total.toFixed(2)} plus ${batch.value.unknown} with no listed price` : `about $${batch.value.total.toFixed(2)}`
   if (!window.confirm(`Generate ${n} item${n === 1 ? '' : 's'} at the ${tierName} tier? Estimated cost ${price}. This spends from your fal account and cannot be undone; fal's invoice is the truth.`)) return
   busy.value = true; error.value = ''
   try {
-    for (const s of eligible.value) queue(s.name, (await postJson<{ jobs: string[] }>('/api/media/generate', { working_dir: folder.value, slot: s.name, tier: tierFor(s), count: 1, confirm_spend: true })).jobs)
+    for (const s of eligible.value) queue(s.name, (await postJson<{ jobs: string[] }>('/api/media/generate', { working_dir: folder.value, slot: s.name, tier: tierFor(s), count: 1, confirm_spend: true, expected_sha256:s.plan_sha256 })).jobs)
     poll()
   } catch (e) { error.value = e instanceof Error ? e.message : String(e); if (jobs.value.length) poll() } finally { busy.value = false }
 }
@@ -112,14 +130,14 @@ const candidateUrl = (name: string) => `/api/media/candidate?working_dir=${encod
 const isVideo = (name: string) => /\.(mp4|webm)$/i.test(name)
 function estimate(s: Slot) { const e = s.plans[tier.value[s.name] || 'standard'].estimate_usd; return e === null ? null : e * (count.value[s.name] || 1) }
 async function generate(s: Slot, anotherTake = false) {
-  if (busy.value) return
+  if (busy.value || savingPlan.value || editing.value) return
   if (!confirm.value) { needConfirm(s.name); return }
   const n = count.value[s.name] || 1, price = money(estimate(s))
   if (!window.confirm(`Generate ${n} for ${s.name} at the ${tier.value[s.name] || 'standard'} tier? Estimated cost ${price}. This spends from your fal account.`)) return
   busy.value = true; offerTake.value[s.name] = false
   note.value[s.name] = { ok: true, text: 'Requested. It appears here when fal finishes (about a minute for an image, a few for a clip).' }
   try {
-    queue(s.name, (await postJson<{ jobs: string[] }>('/api/media/generate', { working_dir: folder.value, slot: s.name, tier: tier.value[s.name] || 'standard', count: n, confirm_spend: true, ...(anotherTake ? { another_take: true } : {}) })).jobs)
+    queue(s.name, (await postJson<{ jobs: string[] }>('/api/media/generate', { working_dir: folder.value, slot: s.name, tier: tier.value[s.name] || 'standard', count: n, confirm_spend: true, expected_sha256:s.plan_sha256, ...(anotherTake ? { another_take: true } : {}) })).jobs)
     more.value[s.name] = false
     poll()
   } catch (e) {
@@ -206,7 +224,7 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
       <div class="controls">
         <select v-model="batchTier" class="input" aria-label="Tier for all"><option value="each">each slot's own tier</option><option value="draft">draft (cheapest)</option><option value="standard">standard</option><option value="premium">premium</option></select>
         <span class="small">{{ eligible.length ? (batch.unknown ? `about $${batch.total.toFixed(2)} plus ${batch.unknown} with no listed price` : `about $${batch.total.toFixed(2)}`) : 'nothing to generate' }}</span>
-        <button type="button" class="btn primary" :disabled="!keyOk || busy || !eligible.length" @click="generateAll">Generate all missing</button>
+        <button type="button" class="btn primary" :disabled="!keyOk || busy || savingPlan || !!editing || !eligible.length" @click="generateAll">Generate all missing</button>
       </div>
       <p class="muted small">Draft stills are too small to publish. Clips need their approved stills published first, so accept the stills, then run this again for the rest.</p>
     </div>
@@ -230,7 +248,7 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
         <select v-model="tier[s.name]" class="input" :aria-label="`${s.name} tier`"><option value="draft">draft (cheapest)</option><option value="standard">standard</option><option value="premium">premium</option></select>
         <input v-model.number="count[s.name]" class="input" type="number" min="1" max="4" :aria-label="`${s.name} how many`" />
         <span class="small">{{ money(estimate(s)) }}</span>
-        <button type="button" class="btn primary" :disabled="!keyOk || busy || activeFor(s.name)" @click="generate(s)">{{ activeFor(s.name) ? 'Generating…' : 'Generate' }}</button>
+        <button type="button" class="btn primary" :disabled="!keyOk || busy || savingPlan || !!editing || activeFor(s.name)" @click="generate(s)">{{ activeFor(s.name) ? 'Generating…' : 'Generate' }}</button>
       </div>
       <p v-if="note[s.name]" class="small" :class="note[s.name]!.ok ? 'ok-text' : 'error-text'" :role="note[s.name]!.ok ? 'status' : 'alert'" :data-note="s.name">{{ note[s.name]!.text }}</p>
       <p v-for="(j, i) in jobsFor(s.name)" :key="j.id" class="job small" :class="j.state === 'failed' ? 'error-text' : j.state === 'done' ? 'ok-text' : ''" :role="j.state === 'failed' ? 'alert' : 'status'" :data-job="s.name">
@@ -246,11 +264,22 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
         <p v-if="s.purpose" class="muted small">{{ s.purpose }}</p>
         <p v-if="s.waiting_for_stills.length" class="small">Waiting for the approved still: {{ s.waiting_for_stills.join(', ') }} (accept it first).</p>
       </div>
+      <button v-if="s.plan_sha256 && editing !== s.name" class="btn" type="button" :disabled="busy || savingPlan || unfinished > 0" @click="openPlan(s)">Edit asset plan</button>
+      <form v-if="editing === s.name" class="asset-plan" @submit.prevent="savePlan(s)">
+        <p class="muted small">Refine this ungenerated asset. Names, types and references stay fixed; add/remove assets through a reviewed inventory amendment. Saving does not generate or approve spending.</p>
+        <label>Artwork prompt<textarea v-model="editPlan.prompt" class="input" maxlength="4000" rows="4" required /></label>
+        <label>Purpose<input v-model="editPlan.purpose" class="input" maxlength="500" /></label>
+        <label>World / theme<input v-model="editPlan.world" class="input" maxlength="80" /></label>
+        <div class="controls"><label>Width<input v-model.number="editPlan.width" class="input" type="number" min="128" max="4096" required /></label><label>Height<input v-model.number="editPlan.height" class="input" type="number" min="128" max="4096" required /></label><label>Resolution<select v-model="editPlan.resolution" class="input"><option value="">Use generation tier</option><template v-if="s.kind === 'image'"><option value="1K">1K</option><option value="2K">2K</option><option value="4K">4K</option></template><template v-else><option value="480P">480P</option><option value="768P">768P</option><option value="1080P">1080P</option></template></select></label></div>
+        <p class="muted small">Display dimensions choose the aspect ratio; resolution controls provider output and cost.</p>
+        <div v-if="s.kind === 'video'" class="controls"><label>Minimum seconds<input v-model.number="editPlan.minSeconds" class="input" type="number" min="2" max="10" /></label><label>Maximum seconds<input v-model.number="editPlan.maxSeconds" class="input" type="number" min="2" max="10" /></label></div>
+        <div class="controls"><button class="btn primary" :disabled="savingPlan || busy">{{ savingPlan ? 'Saving…' : 'Save asset plan' }}</button><button class="btn" type="button" :disabled="savingPlan" @click="editing=null">Cancel</button></div>
+      </form>
       <div class="controls">
         <select v-model="tier[s.name]" class="input" :aria-label="`${s.name} tier`"><option value="draft">draft (cheapest)</option><option value="standard">standard</option><option value="premium">premium</option></select>
         <input v-model.number="count[s.name]" class="input" type="number" min="1" max="4" :aria-label="`${s.name} how many`" />
         <span class="small">{{ money(estimate(s)) }}</span>
-        <button type="button" class="btn primary" :disabled="!keyOk || busy || activeFor(s.name) || s.waiting_for_stills.length > 0" @click="generate(s)">{{ activeFor(s.name) ? 'Generating…' : 'Generate' }}</button>
+        <button type="button" class="btn primary" :disabled="!keyOk || busy || savingPlan || !!editing || activeFor(s.name) || s.waiting_for_stills.length > 0" @click="generate(s)">{{ activeFor(s.name) ? 'Generating…' : 'Generate' }}</button>
         <button type="button" class="btn" :disabled="working[s.name]" :aria-label="`Skip ${s.name}`" @click="decide(s, 'skip')">Skip: use the fallback</button>
       </div>
       <p v-if="note[s.name]" class="small" :class="note[s.name]!.ok ? 'ok-text' : 'error-text'" :role="note[s.name]!.ok ? 'status' : 'alert'" :data-note="s.name">{{ note[s.name]!.text }}</p>
@@ -289,7 +318,7 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
             <select v-model="tier[s.name]" class="input" :aria-label="`${s.name} tier`"><option value="draft">draft (cheapest)</option><option value="standard">standard</option><option value="premium">premium</option></select>
             <input v-model.number="count[s.name]" class="input" type="number" min="1" max="4" :aria-label="`${s.name} how many`" />
             <span class="small">{{ money(estimate(s)) }}</span>
-            <button type="button" class="btn primary" :disabled="!keyOk || busy || activeFor(s.name)" @click="generate(s)">{{ activeFor(s.name) ? 'Generating…' : 'Generate' }}</button>
+            <button type="button" class="btn primary" :disabled="!keyOk || busy || savingPlan || !!editing || activeFor(s.name)" @click="generate(s)">{{ activeFor(s.name) ? 'Generating…' : 'Generate' }}</button>
           </div>
         </details>
         <p v-if="note[s.name]" class="small" :class="note[s.name]!.ok ? 'ok-text' : 'error-text'" :role="note[s.name]!.ok ? 'status' : 'alert'" :data-note="s.name">{{ note[s.name]!.text }}</p>
@@ -305,6 +334,9 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
   </section>
 </template>
 <style scoped>
+.asset-plan { display:grid; gap:var(--gap-sm); width:100%; min-width:0; padding:var(--gap); border:1px solid var(--surface-border); border-radius:var(--radius); }
+.asset-plan label { display:grid; gap:var(--gap-xs); min-width:0; }
+.asset-plan .controls label { flex:1; }
 .storage { display: flex; align-items: center; flex-wrap: wrap; gap: var(--gap-sm); padding: var(--gap-xs) var(--gap-sm); border: 1px solid var(--surface-border); border-radius: var(--radius); }
 .small-btn { padding: 0 var(--gap-sm); }
 .key-needed { display: flex; flex-wrap: wrap; align-items: center; gap: var(--gap-sm); }

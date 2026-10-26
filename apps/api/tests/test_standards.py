@@ -393,13 +393,13 @@ def test_the_consultant_and_the_planner_know_what_is_installed_and_the_spending_
     assert '## This installation and its configuration' in text and f'{settings.product_name} on' in text
     assert '- claude (' in text and ': installed' in text.split('- claude (')[1].split('\n')[0]
     assert 'not installed' in text.split('- codex (')[1].split('\n')[0]
-    assert 'free routes only (paid routes are refused)' in text and 'Project Coordinator (current setting):' in text
+    assert 'free API routes only; configured membership routes' in text and 'Project Coordinator (current setting):' in text
     for private in (str(wd), '/Users/', 'sk-', '@'):
         assert private not in text.split('## This installation and its configuration')[1].split('## Models')[0], private
     p = new(app, [])
     with s() as db:
         prompt = projects._planner_prompt(projects.get(db, p['id']), [], db)
-    assert 'This installation:' in prompt and 'free routes only' in prompt
+    assert 'This installation:' in prompt and 'free API routes only' in prompt
 
 
 def test_the_consultant_context_follows_the_chosen_project_type(app):  # noqa: F811

@@ -31,6 +31,8 @@ import native_routes
 from role_pack import RoleStore, RoleError
 import project_outputs
 import project_types
+import project_contract
+import project_readiness
 import project_schedule as schedule
 import route_reliability as recovery
 from settings import get_settings
@@ -800,7 +802,7 @@ def installation_text(s, settings):
         pass
     lines.append(f"Project Coordinator (current setting): {delegator or 'none assigned'}.")
     cap = billing.limits(s, settings)
-    lines.append('Spending policy: ' + ('free routes only (paid routes are refused)' if settings.dispatch_free_only else 'paid routes allowed when approved')
+    lines.append('Spending policy: ' + ('free API routes only; configured membership routes use their separately allowed subscription policy' if settings.dispatch_free_only else 'paid routes allowed when approved')
                  + ('; per-run cap $' + format(cap['per_run_cap_usd'], 'g') if cap['per_run_cap_usd'] else '; no per-run dollar cap (set limits in Agents, Billing & rates)')
                  + ('; a reviewed price is required before a run starts' if cap['require_reviewed_pricing'] else '') + '.')
     try:
@@ -816,7 +818,7 @@ def installation_text(s, settings):
                 state = 'engine accessible' if health.get(name) else 'engine unavailable to RCD'
             facts.append(f'{name}: {state}')
         if facts:
-            lines.append('Host tool readiness: ' + '; '.join(facts) + '. Do not assign an agent story to an unavailable or host-only tool; use a human or CI verification story instead.')
+            lines.append('Host tool readiness: ' + '; '.join(facts) + '. Resolve missing tools through supported setup controls before dependent work; use declared dashboard host actions or CI for host-only verification, not repeated manual command stories.')
     except Exception:
         pass
     return '\n'.join(lines)
@@ -1219,6 +1221,8 @@ def _planner_prompt(p,catalog=None,s=None,fresh=False,replan=None):
     typed=project_types.planner_section(document(p).get('project_type'),settings)
     methods=project_types.guidance_packet(document(p).get('project_type'),settings)['text']
     text+='\n\nGeneral and selected-type methods:\n'+methods
+    text+='\n\nSaved-intent contract:\n'+project_contract.prompt(document(p))
+    if s is not None: text+='\n\n'+project_readiness.prompt(s,p,settings)
     return text+('\n\n'+typed if typed else '')+('\n\nThis installation:\n'+where if where else '')+('\n'+extra if extra else '')
 
 
@@ -1227,9 +1231,13 @@ def submit(s,p,action,settings,actor,github_store=None):
     if p.state in {'dispatching','active','paused','complete'}: return
     if p.state=='planning': fail('Wait for planning to finish.')
     d=validate(document(p),settings,True,overlaps=True)
-    blockers=project_types.blocking_findings(d.get('project_type'),d['nodes'],settings)
+    blockers=[f for f in project_types.check_document(d,settings) if f['severity']=='block']
     if blockers:
         fail('Repair these plan blockers before dispatch: '+'; '.join(f['message'] for f in blockers),422)
+    if d.get('project_type') in {'local-website','gcp-hosted-website'} or project_contract.generated_media(d):
+        readiness=project_readiness.report(s,p,settings)
+        missing=[row['detail'] for row in readiness['checks'] if row['status']=='missing']
+        if missing: fail('Resolve coordinator setup checks before dispatch: '+'; '.join(missing),422)
     configured_targets = {row['id'] for row in native_routes.read(settings, wait=True)['openclaw']['targets']}   # submission must be current
     for n in d['nodes']:
         if n['kind']=='story' and n['assignee']=='openclaw' and n['agent_target'] and n['agent_target'] not in configured_targets:
@@ -1433,12 +1441,14 @@ def advance(s,settings):
                 elif step=='plan':
                     if not isinstance(data,dict) or set(data)!={'nodes'}: fail('Planner response must contain only nodes.',422)
                     proposed=proposal(document(p),data['nodes'],settings)
-                    c=_queue(s,p,'return plan',pipeline.get('delegator', {'agent':'hermes'})['agent'],pipeline.get('delegator', {}).get('model',''),role_prompt('review', schema=json.dumps(Node.model_json_schema()), catalog=json.dumps(pipeline.get('execution_catalog',[])), project=_brief(p)+_replan_prompt(pipeline.get('replan')), proposal=json.dumps(proposed['nodes'])),settings)
+                    c=_queue(s,p,'return plan',pipeline.get('delegator', {'agent':'hermes'})['agent'],pipeline.get('delegator', {}).get('model',''),role_prompt('review', schema=json.dumps(Node.model_json_schema()), catalog=json.dumps(pipeline.get('execution_catalog',[])), project=_brief(p)+_replan_prompt(pipeline.get('replan')), proposal=json.dumps(proposed['nodes']))+'\n\n'+project_contract.prompt(proposed)+'\n\n'+project_readiness.prompt(s,p,settings),settings)
                     p.pipeline=json.dumps({**pipeline,'step':'return','card_id':c.id})
                     memory(s,p,'proposal','Subscription/API planner returned a validated proposal. It is not approved for execution.',r.agent,r.card_id,r.id)
                 elif step=='return':
                     if not isinstance(data,dict) or set(data)!={'nodes'}: fail('Delegator response must contain only nodes.',422)
                     proposed=proposal(document(p),data['nodes'],settings)
+                    preferred=apply_saved_story_route(s,proposed,settings)
+                    if preferred: memory(s,p,'checkpoint','Applied saved story preference to free/API primary assignments before review: '+', '.join(preferred[:12]),'mcd',r.card_id,r.id)
                     pinned=pin_free_routes(s,proposed,settings)
                     add_recovery_routes(s,p,proposed,settings)
                     fixed_modes=fix_implement_modes(proposed)
@@ -2004,6 +2014,12 @@ def accept_story(s,p,card_id,data,actor):
         if output and data.output_sha256!=output['sha256']:
             fail('Inspect the current Markdown output and acknowledge it before accepting this handoff.')
     elif data.run_id is not None: fail('Human stories do not have a run.',422)
+    if c.assignee_type=='human':
+        node=next((n for n in json.loads(p.approved_manifest)['document']['nodes'] if n['key']==link.node_key),{})
+        if node.get('media_stage') in {'generate','publish'}:
+            import media_plan
+            try: media_plan.require_evidence(Path(c.working_dir or document(p)['working_dir']),node['media_stage'])
+            except __import__('media_generate').MediaError as exc: fail(str(exc),exc.status)
     if not data.summary.strip(): fail('A verified handoff summary is required.',422)
     m=json.loads(p.approved_manifest);ws=m.get('workspaces',{}).get(link.node_key)
     if output:
@@ -2193,6 +2209,7 @@ def route_all(s,p,revision,agent,model,settings,actor,backups=None):
         n['routes']=mine if mine is not None else [r for r in n['routes'] if (r['agent'],r['model'])!=(agent,model)]
         changed.append(n['title'])
     if not changed: fail('Every agent story already uses that route'+(' (high-risk stories stay off a free route)' if skipped else '')+'.',409)
+    d['story_route']={'agent':agent,'model':model}
     save(s,p,d,revision,settings,actor)
     memory(s,p,'decision',f'Operator set {agent} · {model} for {len(changed)} stor'+('y' if len(changed)==1 else 'ies')+(' with backups '+', '.join(b['agent']+' · '+b['model'] for b in backups) if backups else '')+(f'; {len(skipped)} high-risk stor'+('y keeps' if len(skipped)==1 else 'ies keep')+' its route, because a free route is not allowed there' if skipped else '')+'.',actor)
     return changed,skipped
@@ -2292,3 +2309,33 @@ def pending_subscription_routes(s,settings):
     if not route_reliability.allowed_class(s,settings,'subscription'): return []
     return [{'agent':a,'model':m} for a in LOW_COST_AGENTS if REGISTRY[a].available(settings) and subscription(s,a)
             for m in dict.fromkeys([subscription_model(a,50),subscription_model(a,90),REGISTRY[a].default_model()]) if m]
+
+
+def apply_saved_story_route(s, proposed, settings):
+    """Only an editable proposal changes. Never enable billing or replace a capability-specific subscription route."""
+    route = project_contract.preferred_route(proposed)
+    if not route or route['agent'] not in {'claude', 'codex'}: return []
+    if not REGISTRY[route['agent']].available(settings) or not subscription(s, route['agent']): return []
+    if not recovery.allowed_class(s, settings, 'subscription'): return []
+    changed = []
+    for n in proposed['nodes']:
+        if n['kind'] != 'story' or n['assignee'] not in {'hermes', 'openclaw'}: continue
+        if 'capability exception' in n.get('route_reason', '').lower(): continue
+        n.update(assignee=route['agent'], model=route['model'], agent_target='')
+        n['routes']=[r for r in n['routes'] if r != route]
+        n['route_reason']='Saved primary story preference; membership quota. Approved recovery routes remain available.'
+        n['rationale']='Follows the saved story-model preference instead of a template/free-only default.'
+        changed.append(n['title'])
+    return changed
+
+
+def repair_plan_defaults(s, p, revision, settings, actor):
+    check_revision(p, revision)
+    if p.state not in {'draft','review','planning_failed'}: fail('Repair only an unsubmitted editable plan. Approved/running work needs a continuation replan.',409)
+    d=document(p)
+    changed=apply_saved_story_route(s,d,settings)
+    modes=fix_implement_modes(d)
+    if not changed and not modes: fail('No safe default repair is available. Use the reported setup links or replan the bounded scope; no access or paid route was changed.',422)
+    save(s,p,d,revision,settings,actor)
+    memory(s,p,'decision','Coordinator repaired editable plan defaults as a new revision. Saved primary route applied to '+str(len(changed))+' stories; write-mode repaired for '+str(len(modes))+'. No host change, spend, dispatch or acceptance.',actor)
+    return {'routes':len(changed),'modes':len(modes)}

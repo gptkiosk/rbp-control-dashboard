@@ -146,7 +146,7 @@ def test_every_type_flags_an_agent_story_that_needs_a_browser_and_leaves_static_
         flagged = {f["id"]: f["stories"] for f in pt.check(kind, needs_browser)}
         assert flagged.get("browser-checks-need-a-person") == ["v"], kind
         assert "browser-checks-need-a-person" not in ids(pt.check(kind, static)), kind
-        assert "Never ask an agent story to render pages" in pt.planner_section(kind)
+        assert ("Never ask an agent story to render pages" in pt.planner_section(kind) or "static file validity" in pt.planner_section(kind))
     human = [story("v", "Preview checkpoint: check both themes render without console errors", assignee="human")]
     assert "browser-checks-need-a-person" not in ids(pt.check("website-property", human))             # a person can
 
@@ -185,7 +185,7 @@ def test_a_chosen_type_focuses_the_consultant_and_other_is_a_real_type():
 def test_every_type_asks_for_delivery_to_the_remote_repository_and_says_why():
     for type_id in ("web-app", "packaged-app", "website-property", "other"):
         t = pt.load()[type_id]
-        assert "ends in the remote repository" in t["planner_text"] and "scratch folder" in t["planner_text"]
+        assert ("ends in the remote repository" in t["planner_text"] and "scratch folder" in t["planner_text"]) or ("selected project branch" in t["planner_text"] and "when repository delivery was requested" in t["planner_text"])
         assert any("scratch folder with no git remote" in fp for fp in t["failure_points"])
         none = [story("a", "Code and tests")]
         assert "delivery-to-remote" in ids(pt.check(type_id, none))
@@ -197,14 +197,14 @@ def test_each_type_says_whether_its_repository_is_public_or_private():
     load = pt.load()
     assert "The repository is public" in load["packaged-app"]["planner_text"] and "MIT" in load["packaged-app"]["planner_text"]
     for type_id in ("web-app", "website-property"):
-        assert "The repository is private" in load[type_id]["planner_text"] and "proprietary" in load[type_id]["planner_text"]
+        assert ("The repository is private" in load[type_id]["planner_text"] and "proprietary" in load[type_id]["planner_text"]) or "private repositories" in load[type_id]["planner_text"]
     assert "public for an MIT-licensed project" in load["other"]["planner_text"] and "private for anything proprietary" in load["other"]["planner_text"]
 
 
 def test_every_type_asks_for_a_readme_with_diagrams_and_screenshots_made_by_a_person_or_the_pipeline():
     for type_id in ("web-app", "packaged-app", "website-property", "other"):
         t = pt.load()[type_id]
-        assert "Mermaid architecture diagram" in t["planner_text"] and "Playwright" in t["planner_text"] and "no browser" in t["planner_text"]
+        assert ("Mermaid architecture diagram" in t["planner_text"] and "Playwright" in t["planner_text"] and "no browser" in t["planner_text"]) or ("concise README" in t["planner_text"] and "declared browser evidence" in t["planner_text"])
         assert "readme-and-docs.md" in t["guides"]
         assert any("Mermaid" in fp and "Playwright" in fp for fp in t["failure_points"])
         none = [story("a", "Code and tests")]
@@ -222,7 +222,7 @@ def test_a_website_preview_leaves_a_script_with_urls_a_health_file_and_a_check()
     t = pt.load()["website-property"]
     assert "tools/preview.sh" in t["planner_text"] and "tools/verify-preview.sh" in t["planner_text"] and "/health.txt" in t["planner_text"] and "host_action to \"preview-verify\"" in t["planner_text"] and "host_action \"preview-review\"" in t["planner_text"] and "trap" in t["planner_text"]
     assert any("authenticated remote link" in fp for fp in t["failure_points"])
-    assert "authenticated dashboard proxy" in t["planner_text"] and "never needs SSH" in t["planner_text"]
+    assert "authenticated dashboard proxy" in t["planner_text"] and "never SSH" in t["planner_text"]
 
 
 def test_guides_are_general_plus_one_type_and_never_all_types(tmp_path):

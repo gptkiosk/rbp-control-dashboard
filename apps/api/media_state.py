@@ -10,10 +10,11 @@ from __future__ import annotations
 import json
 import os
 import time
+import threading
 from pathlib import Path
 
 FILE = Path("media") / "decisions.json"
-EVENTS = {"generated", "generate_failed", "accepted", "rejected", "published", "skipped", "restored", "regenerated"}
+EVENTS = {"generated", "generate_failed", "accepted", "rejected", "published", "skipped", "restored", "regenerated", "plan_edited"}
 MAX_HISTORY = 40
 
 
@@ -42,7 +43,18 @@ def _write(root, data):
     os.replace(tmp, path)
 
 
+_LOCKS = {}
+_LOCKS_GUARD = threading.Lock()
+
+
 def record(root, slot, event, detail="", actor=""):
+    with _LOCKS_GUARD:
+        lock = _LOCKS.setdefault(str(Path(root).resolve()), threading.RLock())
+    with lock:
+        return _record(root, slot, event, detail, actor)
+
+
+def _record(root, slot, event, detail="", actor=""):
     """Append an event to a slot's history. `skipped` and `restored` also set or clear the skip flag. Returns the slot's entry."""
     if event not in EVENTS:
         raise ValueError(event)

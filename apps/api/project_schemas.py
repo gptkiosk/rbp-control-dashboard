@@ -38,6 +38,7 @@ class Node(Strict):
     host_action: Literal['preview-verify', 'preview-review'] | None = None
     # Used only when the project builds in parallel (see project_schedule.py). `touches` lists the files or folders a story changes, so two stories
     # that can run together can be checked for overlap; `integration` marks a story that joins the branches of the stories it depends on.
+    media_stage: Literal['inventory', 'generate', 'publish', 'integrate'] | None = None
     touches: list[str] = Field(default_factory=list, max_length=20)
     integration: bool = False
 
@@ -86,6 +87,7 @@ class Document(Strict):
         from project_intake import answers
         return answers(value)
 
+    story_route: Route | None = None  # Explicit operator story preference; planning route remains separate.
     repository: Repository | None = None
     nodes: list[Node] = Field(default_factory=list, max_length=100)
 

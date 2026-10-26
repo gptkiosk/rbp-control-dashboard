@@ -87,7 +87,7 @@ GUIDE_LABELS = {'practices.md': 'Development practice', 'security.md': 'Applicat
     'website-design-delivery.md': 'Website design', 'website-spacing-and-timing.md': 'Website spacing and timing'}
 GUIDANCE_BUDGET = 7000
 MEDIA_RULES = ("Generated media is made by the dashboard Media Studio with the operator's fal key, never by an agent. "
-               "Group spend and candidate selection into meaningful decisions; link directly to the project's Media tab. "
+               "Use distinct inventory, generation after spend acknowledgement, candidate publication and integration stages; link directly to the project's Media tab. "
                "Website clips start on the cheapest video tier. Check existing candidates before another take.")
 
 
@@ -202,7 +202,8 @@ def _text(n, scope="title"):
     read the title so a passing mention in a long description is not mistaken for the gate; not_agent_for reads everything because the risky
     command is usually in the description."""
     keys = ("title", "description", "acceptance") if scope == "all" else ("title",)
-    return " ".join(str(n.get(k) or "") for k in keys).lower()
+    text = " ".join(str(n.get(k) or "") for k in keys).lower()
+    return text
 
 
 def _ancestors(by_key, key):
@@ -260,3 +261,8 @@ def blocking_findings(type_id, nodes, settings=None):
     """The small safety subset that must be repaired before dispatch, rather than
     predictably consuming a run on unavailable or privileged host access."""
     return [f for f in check(type_id, nodes, settings) if f["severity"] == "block"]
+
+
+def check_document(document, settings=None):
+    import project_contract
+    return check(document.get('project_type'), document.get('nodes', []), settings) + project_contract.findings(document)

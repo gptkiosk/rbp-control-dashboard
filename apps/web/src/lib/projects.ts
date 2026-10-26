@@ -5,11 +5,13 @@ export interface ProjectNode {
   model: string; agent_target: string; mode: 'read' | 'edit'; rationale: string; x: number; y: number
   fallbacks: ('claude' | 'codex' | 'grok')[]
   routes: { agent: 'claude' | 'codex' | 'grok' | 'hermes' | 'openclaw'; model: string }[]
+  media_stage?: 'inventory' | 'generate' | 'publish' | 'integrate' | null
   touches?: string[]; integration?: boolean
 }
 export interface ProjectDocument {
   title: string; brief: string; constraints: string; working_dir: string
   repository?: { name: string; repo: string; folder: string; branch: string } | null
+  story_route?: { agent: ProjectNode['assignee']; model: string } | null
   intake_answers?: Record<string, string>
   project_type?: string | null; planner_agent: 'auto' | 'claude' | 'codex' | 'grok' | 'hermes' | 'openclaw'; planner_model: string; planning_bias: number; dispatch_mode: 'sequential' | 'parallel'; nodes: ProjectNode[]
 }

@@ -659,3 +659,12 @@ def recover(settings, sessions):
                 runtime_.ledger.add({**ledger, "status": "failed", "error": message})
                 journal_add(settings, {"id": entry["id"], "state": "failed", "ts": int(time.time()), "error": message})
         runtime_.pool.submit(resume)
+
+
+_PLAN_LOCKS = {}
+_PLAN_LOCKS_GUARD = threading.Lock()
+
+def plan_lock(root):
+    """Serialize operator slot edits and generation admission on this dashboard process."""
+    with _PLAN_LOCKS_GUARD:
+        return _PLAN_LOCKS.setdefault(str(root), threading.RLock())
