@@ -10,6 +10,11 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+### Fixed
+
+- Reference-first artwork checks now recognise briefs that say a character reference comes *then* the scenes (for example "one approved heroine reference, then paired illustrations"), "once the character reference is approved" or "next". Such plans must use separate reference and scene passes before submission. Previously only "first", "before" or "followed by" triggered the rule.
+- Project packets for folders without Git (scratch projects) now track freshness by file path, size and time instead of reporting Unknown. A folder that is missing or too large to list in time still reports Unknown with the reason.
+
 ## [0.6.74] - 2026-10-26
 
 ### Added

@@ -182,9 +182,17 @@ def findings(document):
     return found
 
 
+# A sequence word between a character/style reference and the scene artwork that must follow it:
+# "heroine reference first", "approved heroine reference, then paired illustrations", "after approving the character reference, generate scenes".
+_REFERENCE_SEQUENCE = re.compile(
+    r'\b(?:heroine|character|style)\b.{0,70}\breference\b.{0,80}\b(?:first|before|followed by)\b'
+    r'|\bfirst\b.{0,70}\b(?:generate|publish|approve)\b.{0,70}\b(?:heroine|character|style)\b.{0,40}\breference\b'
+    r'|\b(?:heroine|character)\b.{0,40}\breference\b[^.\n]{0,40}\b(?:then|next|after that|afterwards)\b[^.\n]{0,80}\b(?:scenes?|illustrations?|paired|images?|artwork|stills?)\b'
+    r'|\b(?:after|once)\b[^.\n]{0,40}\b(?:heroine|character)\b.{0,40}\breference\b[^.\n]{0,80}\b(?:scenes?|illustrations?|paired|images?|artwork|stills?)\b', re.I)
+
+
 def reference_first(document):
-    text = saved_text(document)
-    return generated_media(document) and bool(re.search(r'\b(?:heroine|character|style)\b.{0,70}\breference\b.{0,80}\b(?:first|before|followed by)\b|\bfirst\b.{0,70}\b(?:generate|publish|approve)\b.{0,70}\b(?:heroine|character|style)\b.{0,40}\breference\b', text, re.I))
+    return generated_media(document) and bool(_REFERENCE_SEQUENCE.search(saved_text(document)))
 
 
 def reference_findings(document, stories, by_key):

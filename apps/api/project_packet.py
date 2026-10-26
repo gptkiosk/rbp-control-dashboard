@@ -117,10 +117,44 @@ def _discard_baselines(session):
     session.info.pop(_BASELINES, None)
 
 
-def set_baseline(settings, pid, path, source):
+SNAPSHOT_SKIP = {'.git', 'node_modules', '.venv', 'venv', '__pycache__', '.cache', '.preview'}
+SNAPSHOT_FILES = 5000
+SNAPSHOT_SECONDS = 3
+
+
+def file_snapshot(path):
+    """A folder without Git (a scratch project): a hash of every file's path, size and modification time.
+    Bounded; links are not followed and file contents are not read. None when the folder is too large to walk in time."""
+    rows, start = [], time.monotonic()
+    for current, dirs, files in os.walk(path, followlinks=False):
+        dirs[:] = sorted(d for d in dirs if d not in SNAPSHOT_SKIP)
+        for name in sorted(files):
+            if len(rows) >= SNAPSHOT_FILES or time.monotonic() - start > SNAPSHOT_SECONDS:
+                return None
+            full = os.path.join(current, name)
+            try:
+                meta = os.lstat(full)
+            except OSError:
+                continue
+            rows.append((os.path.relpath(full, path), meta.st_size, meta.st_mtime_ns))
+    return hashlib.sha256(json.dumps(rows).encode()).hexdigest(), len(rows)
+
+
+def workspace_facts(path):
+    """Git facts when the workspace is a repository; otherwise a file snapshot so a scratch folder still has a freshness baseline."""
     import workspace_handoff
     facts = workspace_handoff.observation(path)
-    _write(folder(settings, pid) / 'baseline.json', json.dumps({k: facts[k] for k in ('path', 'head', 'branch', 'changed', 'snapshot', 'state')}
+    if facts['state'] == 'ready' or facts.get('repository_root') or not path.is_dir() or path.is_symlink():
+        return facts
+    snap = file_snapshot(path)
+    if snap is None:
+        return facts | {'reason': f'More than {SNAPSHOT_FILES} files or {SNAPSHOT_SECONDS} seconds to list; changes cannot be tracked.'}
+    return facts | {'state': 'files', 'snapshot': snap[0], 'files': snap[1]}
+
+
+def set_baseline(settings, pid, path, source):
+    facts = workspace_facts(path)
+    _write(folder(settings, pid) / 'baseline.json', json.dumps({k: facts.get(k) for k in ('path', 'head', 'branch', 'changed', 'snapshot', 'state', 'files')}
         | {'recorded_at': int(time.time()), 'source': source}))
     return facts
 
@@ -128,8 +162,8 @@ def set_baseline(settings, pid, path, source):
 def freshness(s, p, settings, path, facts):
     """current / stale / in_progress / unknown, with the reasons. Unreported changes are never attributed."""
     import workspace_handoff
-    if facts['state'] != 'ready':
-        return 'unknown', ['Workspace Git state is unavailable (missing folder, not a repository, or the read timed out). Changes cannot be attributed.']
+    if facts['state'] not in ('ready', 'files'):
+        return 'unknown', [facts.get('reason') or 'The workspace folder is missing, or its Git state could not be read in time. Changes cannot be attributed.']
     reserve = workspace_handoff.blocking(s, path)
     if reserve:
         return 'in_progress', [f'Reserved for external work ({reserve.label}). Record its handoff in Workspace to update the packet.']
@@ -147,10 +181,14 @@ def freshness(s, p, settings, path, facts):
         return 'current', ['Baseline set at this packet generation; earlier workspace changes are not attributed to any story.']
     if base.get('snapshot') == facts['snapshot']:
         return 'current', []
+    since = 'the last recorded work' if base.get('source') == 'recorded work' else 'this packet was first generated'
+    if facts['state'] == 'files':
+        count = f" ({base.get('files')} → {facts.get('files')} files)" if base.get('files') != facts.get('files') else ''
+        return 'stale', [f'Files in this folder (no Git) changed{count} since {since} ({_when(base.get("recorded_at"))}). '
+                         'These changes are unreported; authorship is unknown. Record the work in Workspace or accept the story handoff.']
     moved = (f"HEAD moved from {(base.get('head') or 'unknown')[:12]} to {(facts['head'] or 'unknown')[:12]}"
              if base.get('head') != facts['head'] else f"HEAD {(facts['head'] or 'unknown')[:12]} is unchanged")
     dirty = '; the worktree has uncommitted changes' if facts['changed'] else ''
-    since = 'the last recorded work' if base.get('source') == 'recorded work' else 'this packet was first generated'
     return 'stale', [f'{moved}{dirty} since {since} ({_when(base.get("recorded_at"))}). '
                      'These changes are unreported; authorship is unknown. Record the work in Workspace or accept the story handoff.']
 
@@ -420,7 +458,8 @@ def _start_here(p, d, path, facts, fresh, stories, living, product):
     review = [x for x in stories if x['status'].startswith('reported') or x['status'] == 'failed'][:3]
     lines = [f"# Start here: {d['title']}", '',
              f"{product} project {p.id} · revision {p.revision} · {d.get('project_type') or 'other'} · state {p.state}",
-             f"Workspace: {path} · {facts.get('branch') or 'unknown branch'} @ {(facts.get('head') or 'unknown')[:12]}",
+             f"Workspace: {path} · " + (f"no Git; {facts.get('files')} files tracked by path, size and time" if facts.get('state') == 'files'
+                                          else f"{facts.get('branch') or 'unknown branch'} @ {(facts.get('head') or 'unknown')[:12]}"),
              f"Freshness: {fresh[0].upper()}" + (f": {fresh[1][0]}" if fresh[1] else ''), '',
              '## How to continue', '',
              '1. If the workspace has AGENTS.md or CLAUDE.md, read it first; it governs how to work there.',
@@ -459,11 +498,10 @@ def ensure(s, p, settings, refresh_source=False):
 
 
 def _ensure(s, p, settings, refresh_source):
-    import workspace_handoff
     from version import __version__, git_sha
     d = projects.document(p)
     path = workspace_path(p)
-    facts = workspace_handoff.observation(path)
+    facts = workspace_facts(path)
     fresh = freshness(s, p, settings, path, facts)
     living = living_docs(path) if facts.get('state') == 'ready' or path.is_dir() else []
     smap = source_map(settings, p.id, path, facts, refresh_source)
