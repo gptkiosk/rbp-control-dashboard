@@ -198,3 +198,230 @@ def test_workspace_read_works_for_a_submitted_project(app):
     assert r.status_code == 200, r.text
     a = [t['card_id'] for t in p['tasks'] if t['role'] == 'story'][0]
     assert [t['id'] for t in r.json()['next_tasks']] == [a]
+
+
+PNG = b'\x89PNG\r\n\x1a\n' + b'\0' * 32
+
+
+def export_zip(c, pid, **params):
+    import io, zipfile
+    r = c.get(f'/api/projects/{pid}/packet.zip', params=params)
+    assert r.status_code == 200, r.text
+    return r, zipfile.ZipFile(io.BytesIO(r.content))
+
+
+def visual_project(c, wd):
+    repo(wd)
+    (wd / 'media/references').mkdir(parents=True)
+    (wd / 'media/references/style.png').write_bytes(PNG)
+    (wd / 'media/slots.json').write_text(json.dumps({'slots': [{'name': 'hero', 'kind': 'image', 'prompt': 'A hero image'},
+                                                              {'name': 'later', 'kind': 'image', 'prompt': 'Not made yet'}]}))
+    (wd / 'assets/img').mkdir(parents=True)
+    (wd / 'assets/img/hero.jpg').write_bytes(b'\xff\xd8\xff' + b'\0' * 64)
+    (wd / 'docs/project').mkdir(parents=True)
+    (wd / 'docs/project/decisions.md').write_text('# Decisions\nUse plain CSS.\n')
+    (wd / 'docs/project/leak.md').symlink_to(wd / '.env')
+    return create(c, wd)
+
+
+def test_export_carries_documents_living_docs_and_reference_art_but_no_source_or_secrets(app):
+    import hashlib
+    c, sessions, wd, settings = app
+    pid = visual_project(c, wd)
+    before = git(wd, 'status', '--porcelain=v1', '--untracked-files=all')
+    r, z = export_zip(c, pid)
+    assert r.headers['content-disposition'] == f'attachment; filename="{r.headers["content-disposition"].split(chr(34))[1]}"'
+    assert r.headers['content-disposition'].split('"')[1].startswith(f'{settings.product_short_name.lower()}-project-{pid}-packet-')
+    names = set(z.namelist())
+    m = json.loads(z.read('project-packet/PACKET.json'))
+    for member in m['export']['members']:
+        assert hashlib.sha256(z.read('project-packet/' + member['path'])).hexdigest() == member['sha256']
+    assert {'project-packet/START-HERE.md', 'project-packet/history/ledger.md', 'project-packet/living/docs/project/decisions.md',
+            'project-packet/media/references/style.png'} <= names
+    assert not any(n.endswith(('app.py', '.env', 'hero.jpg')) for n in names)
+    every = b''.join(z.read(n) for n in names)
+    assert b'packet-secret-value-123' not in every
+    by = {(a['kind'], a.get('path') or a.get('slot')): a for a in m['assets']}
+    assert by[('reference', 'media/references/style.png')]['included'] is True
+    assert by[('living_doc', 'docs/project/leak.md')]['included'] is False  # a link is listed, never followed
+    assert 'opt-in' in by[('published', 'assets/img/hero.jpg')]['missing_reason'] and by[('slot', 'later')]['missing_reason'] == 'Not published yet.'
+    assert 'Not included' in m['export']['source_code']
+    assert git(wd, 'status', '--porcelain=v1', '--untracked-files=all') == before
+
+
+def test_published_media_is_included_only_when_asked(app):
+    c, sessions, wd, settings = app
+    pid = visual_project(c, wd)
+    r, z = export_zip(c, pid, include_media='true')
+    m = json.loads(z.read('project-packet/PACKET.json'))
+    hero = next(a for a in m['assets'] if a.get('slot') == 'hero')
+    assert hero['included'] and 'project-packet/assets/img/hero.jpg' in z.namelist()
+
+
+def test_an_asset_over_the_packet_limit_is_listed_with_where_to_copy_it(app, monkeypatch):
+    c, sessions, wd, settings = app
+    pid = visual_project(c, wd)
+    monkeypatch.setattr(project_packet, 'EXPORT_LIMIT', 1)
+    r, z = export_zip(c, pid)
+    m = json.loads(z.read('project-packet/PACKET.json'))
+    ref = next(a for a in m['assets'] if a['kind'] == 'reference')
+    assert ref['included'] is False and 'copy it from' in ref['missing_reason']
+
+
+def test_export_and_context_download_respect_ownership_and_name_the_product(app):
+    c, sessions, wd, settings = app
+    repo(wd)
+    pid = create(c, wd)
+    r = c.get(f'/api/projects/{pid}/context')
+    assert r.headers['content-disposition'] == f'attachment; filename="{settings.product_short_name.lower()}-project-{pid}-context.md"'
+    with sessions() as s:
+        s.get(Project, pid).created_by = 'someone-else'; s.commit()
+    assert c.get(f'/api/projects/{pid}/packet.zip').status_code == 403
+
+
+# ------------------------------------------------------------- import
+
+def rezip(z, change=None, extra=None):
+    """A copy of a packet archive with members replaced, removed (None) or added."""
+    import io, zipfile
+    out = io.BytesIO()
+    with zipfile.ZipFile(out, 'w') as w:
+        for info in z.infolist():
+            name = info.filename
+            data = z.read(name)
+            if change and name in change:
+                if change[name] is None:
+                    continue
+                data = change[name]
+            w.writestr(zipfile.ZipInfo(name, date_time=info.date_time), data)
+        for info, data in (extra or []):
+            w.writestr(info, data)
+    return out.getvalue()
+
+
+def upload(c, raw):
+    return c.post('/api/projects/packet-import', content=raw, headers={'Content-Type': 'application/zip'})
+
+
+def test_round_trip_creates_one_draft_with_intent_history_and_references_but_no_authority(app):
+    from tests.test_projects import active, finish, node
+    from dispatcher import Dispatcher
+    c, sessions, wd, settings = app
+    visual_project(c, wd)
+    p = active(app, [node('a'), node('b', depends_on=['a'])], title='Packet site', brief='Build the site.')
+    a = [t['card_id'] for t in p['tasks'] if t['role'] == 'story'][0]
+    Dispatcher(sessions, settings)._claim(2)
+    rid = finish(app, a, 'Done A.')
+    assert c.post(f"/api/projects/{p['id']}/stories/{a}/accept", json={'run_id': rid, 'summary': 'Accepted A.'}).status_code == 200
+    r, z = export_zip(c, p['id'])
+    review = upload(c, r.content)
+    assert review.status_code == 201, review.text
+    body = review.json()
+    assert body['intent']['title'] == 'Packet site' and body['references'] == ['media/references/style.png']
+    assert [s['status'] for s in body['stories']][0] == 'accepted' and 'not instructions' in body['rule']
+    dest = wd.parent / 'continued'
+    dest.mkdir()
+    made = c.post(f"/api/projects/packet-import/{body['import_id']}/create", json={'working_dir': str(dest), 'copy_references': True})
+    assert made.status_code == 201, made.text
+    q = made.json()
+    assert q['state'] == 'draft' and q['tasks'] == [] and q['document']['nodes'] == [] and q['revision'] == 1
+    assert 'Continuation from project packet' in q['document']['brief'] and 'Accepted in the source project:\n- a: a' in q['document']['brief']
+    assert q['handoff_approval']['mode'] != 'automatic' and not q['model_lock']
+    assert (dest / 'media/references/style.png').read_bytes() == PNG
+    imported = project_packet.folder(settings, q['id']) / 'imported'
+    assert (imported / 'START-HERE.md').is_file() and str(imported) in q['document']['brief']
+    note = [m for m in q['memory'] if m['kind'] == 'decision' and 'Imported project packet' in m['text']][0]['text']
+    assert 'not the source commit' in note and 'no tasks, approvals, routes, grants or spending decisions' in note
+    # The staged upload is used once.
+    assert c.post(f"/api/projects/packet-import/{body['import_id']}/create", json={'working_dir': str(dest)}).status_code == 404
+
+
+def test_altered_unsafe_or_newer_packets_are_refused_with_a_reason(app):
+    import zipfile
+    c, sessions, wd, settings = app
+    pid = visual_project(c, wd)
+    r, z = export_zip(c, pid)
+    m = json.loads(z.read('project-packet/PACKET.json'))
+    cases = {
+        'does not match its recorded hash': rezip(z, {'project-packet/01-brief.md': b'# changed'}),
+        'file list does not match': rezip(z, {'project-packet/04-state.md': None}),
+        'Unsafe path': rezip(z, extra=[(zipfile.ZipInfo('project-packet/../evil.md'), b'x')]),
+        'newer version': rezip(z, {'project-packet/PACKET.json': json.dumps({**m, 'schema': 'bamcio.project-packet/2'}).encode()}),
+        'not a project packet': b'not a zip at all',
+    }
+    stored = rezip(z, {'project-packet/01-brief.md': None}, extra=[(zipfile.ZipInfo('project-packet/01-brief.md'), b'# Unique brief marker')])
+    cases['Damaged file'] = stored.replace(b'# Unique brief marker', b'# Unique brief markeR')  # same size, CRC no longer matches
+    link = zipfile.ZipInfo('project-packet/living/docs/project/link.md'); link.external_attr = (0o120777 << 16)
+    cases['Links and special files'] = rezip(z, extra=[(link, b'/etc/passwd')])
+    secret = b'token: ghp_' + b'a' * 36
+    import hashlib
+    members = m['export']['members'] + [{'path': 'living/docs/project/keys.md', 'bytes': len(secret), 'sha256': hashlib.sha256(secret).hexdigest()}]
+    cases['appears to contain a credential'] = rezip(z, {'project-packet/PACKET.json': json.dumps({**m, 'export': {**m['export'], 'members': members}}).encode()},
+                                                     extra=[(zipfile.ZipInfo('project-packet/living/docs/project/keys.md'), secret)])
+    for reason, raw in cases.items():
+        res = upload(c, raw)
+        assert res.status_code == 422 and reason in res.json()['detail'], (reason, res.text)
+    assert not project_packet_import_root(settings).exists()  # nothing refused is staged
+
+
+def project_packet_import_root(settings):
+    import project_packet_import
+    return project_packet_import.stage_root(settings)
+
+
+def test_a_staged_import_belongs_to_its_uploader_and_needs_an_approved_destination(app):
+    c, sessions, wd, settings = app
+    pid = visual_project(c, wd)
+    r, z = export_zip(c, pid)
+    body = upload(c, r.content).json()
+    owner = project_packet_import_root(settings) / body['import_id'] / 'owner.json'
+    owner.write_text(json.dumps({'owner': 'someone-else', 'created_at': 0}))
+    assert c.post(f"/api/projects/packet-import/{body['import_id']}/create", json={'working_dir': str(wd)}).status_code == 403
+    body = upload(c, r.content).json()
+    outside = c.post(f"/api/projects/packet-import/{body['import_id']}/create", json={'working_dir': '/etc'})
+    assert outside.status_code == 422
+    assert c.post('/api/projects/packet-import/not-an-id/create', json={'working_dir': str(wd)}).status_code == 404
+
+
+def test_coordinator_packet_read_returns_the_summary_and_web_only_links(app):
+    c, sessions, wd, settings = app
+    repo(wd)
+    pid = create(c, wd)
+    r = c.get(f'/api/projects/coordinator?operation=packet&project_id={pid}')
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body['download'] == f'/api/projects/{pid}/packet.zip' and 'web-only' in body['instructions'] and body['start_here'].startswith('# Start here')
+    caps = c.get('/api/projects/coordinator?operation=capabilities').json()
+    assert 'packet' in caps['reads']
+    assert any(f['feature'] == 'project_packet_export_import' and f['discord_actions'] == [] for f in caps['workflow'])
+
+
+def test_story_context_and_copy_handoff_point_to_the_packet(app):
+    from tests.test_projects import active, node
+    c, sessions, wd, settings = app
+    repo(wd)
+    p = active(app, [node('a')])
+    with sessions() as s:
+        payload = json.loads(projects.context(s, s.get(Project, p['id']), 'a').rsplit('\n', 1)[1])  # both products end with the JSON payload
+    pointer = payload['project_packet']
+    assert pointer['start_here'].endswith(f"project-{p['id']}/START-HERE.md") and pointer['living_docs'] == 'docs/project/'
+    assert len(json.dumps(pointer)) < 450
+    keys = list(payload)
+    assert keys.index('project_packet') < keys.index('stories') < keys.index('current_story')
+    handoff = c.get(f"/api/projects/coordinator?operation=workspace&project_id={p['id']}").json()['packet']
+    assert 'Project packet (this host):' in handoff and 'START-HERE.md' in handoff
+
+
+def test_concurrent_readers_rebuild_the_packet_without_colliding(app):
+    from concurrent.futures import ThreadPoolExecutor
+    c, sessions, wd, settings = app
+    repo(wd)
+    pid = create(c, wd)
+
+    def build(_):
+        with sessions() as s:
+            return project_packet.ensure(s, s.get(Project, pid), settings)['stamp']
+    with ThreadPoolExecutor(8) as pool:
+        stamps = list(pool.map(build, range(16)))
+    assert len(set(stamps)) <= 2  # the first build sets the baseline; later ones agree
+    assert not list(project_packet.folder(settings, pid).rglob('*.tmp'))

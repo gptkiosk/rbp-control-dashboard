@@ -6,6 +6,7 @@ import ProjectIntake from '@/components/ProjectIntake.vue'
 import ProjectPlanningProgress from '@/components/ProjectPlanningProgress.vue'
 import ProjectWorkspace from '@/components/ProjectWorkspace.vue'
 import RepositoryIntake from '@/components/RepositoryIntake.vue'
+import PacketImport from '@/components/PacketImport.vue'
 import PlanChecks from '@/components/PlanChecks.vue'
 import ReferenceArtPanel from '@/components/ReferenceArtPanel.vue'
 import MediaGeneratePanel from '@/components/MediaGeneratePanel.vue'
@@ -28,7 +29,7 @@ import ProjectReviewDialog from '@/components/ProjectReviewDialog.vue'
 import RouteAdvice from '@/components/RouteAdvice.vue'
 import { usePolledJson } from '@/composables/usePolledJson'
 import { useGuideAction } from '@/composables/useGuideAction'
-import { getJson, postJson, patchJson, postFile } from '@/lib/api'
+import { getJson, postJson, patchJson, postFile, downloadFile } from '@/lib/api'
 import type { ReportContent, Reports } from '@/lib/operations'
 import { actionableFindings } from '@/lib/findings'
 import { firstInstalled } from '@/lib/agentMix'
@@ -362,12 +363,11 @@ async function retry(task: ProjectTask, selectedRoute?: ProjectNode['routes'][nu
 async function retryPlanning(task: ProjectTask, selectedRoute?: {agent:ProjectNode['assignee'];model:string}) { await perform(async () => { if (!project.value) return
   apply(await postJson<Project>(`/api/projects/${project.value.id}/planning-tasks/${task.card_id}/retry`, { revision: project.value.revision, ...(selectedRoute ? {route:selectedRoute} : {}) })); refreshDetail()
 }) }
+const packetDialog = ref(false)
+async function packetCreated(p: Project) { packetDialog.value = false; await router.push({ path: '/projects', query: { project: String(p.id) } }); apply(p) }
 async function exportContext() { await perform(async () => {
   if (!project.value) return
-  const response = await fetch(`/api/projects/${project.value.id}/context`, { cache: 'no-store' })
-  if (!response.ok) throw new Error('Shared context could not be exported.')
-  const url = URL.createObjectURL(new Blob([await response.text()], { type: 'text/markdown' }))
-  const a = document.createElement('a'); a.href = url; a.download = `mcd-project-${project.value.id}-context.md`; a.click(); URL.revokeObjectURL(url)
+  await downloadFile(`/api/projects/${project.value.id}/context`, `project-${project.value.id}-context.md`)
 }) }
 function point(key: string) { return draft.value.nodes.find(n => n.key === key) }
 function edge(from: ProjectNode, to: ProjectNode) {
@@ -429,7 +429,7 @@ function human(task: ProjectTask) { return draft.value.nodes.find(n => n.key ===
 
 <template>
   <section aria-labelledby="projects-title">
-    <PageHead id="projects-title" title="Projects" icon="tasks" sub="Plan, review and follow each handoff." help="projects"><button class="btn primary" @click="startNew">+ New project</button></PageHead>
+    <PageHead id="projects-title" title="Projects" icon="tasks" sub="Plan, review and follow each handoff." help="projects"><button class="btn" @click="packetDialog = true">Import packet…</button><button class="btn primary" @click="startNew">+ New project</button></PageHead>
     <p v-if="error || listError || detailError" class="notice-warn" role="alert">{{ error || listError || detailError }}</p>
     <p v-if="referenceProgress" role="status">{{ referenceProgress }}</p><div class="project-layout">
       <aside class="project-index card"><h2>Project library</h2><p v-if="!listing?.projects.length" class="muted small">No projects yet. Start with a brief.</p><button v-for="p in listing?.projects" :key="p.id" class="project-link" :class="[{ selected: p.id === selectedId, opening: p.id === selectedId && !project },`status-${p.id === project?.id ? projectStatus : p.state}`]" :aria-busy="p.id === selectedId && !project" @click="select(p.id)"><strong>{{ p.title }}</strong><small>{{ p.id === selectedId && !project ? 'Opening…' : `${label(p.state)} · revision ${p.revision}` }}</small></button></aside>
@@ -476,6 +476,7 @@ function human(task: ProjectTask) { return draft.value.nodes.find(n => n.key ===
         <div v-if="tab === 'work'" class="card work-panel"><h2>Stories & runs</h2><label v-if="['active','paused'].includes(project.state)" class="check"><input type="checkbox" :checked="!!project.model_lock" :disabled="busy" @change="toggleModelLock" />Model lock</label><p class="muted">{{ project.model_lock ? 'Failures stop on the assigned model. Retry explicitly when ready.' : 'Approved equivalent models can take over when a model reaches its limit.' }}</p><p class="muted">Stories run in dependency order. Parallel mode gives independent stories separate Git worktrees; sequential mode uses one workspace. {{ project.handoff_approval?.mode === 'automatic' ? 'Successful eligible agent handoffs advance automatically under your project policy. Listed exceptions still need individual review.' : 'A successful agent run waits for your definition-of-done review before releasing dependent stories.' }} Pausing or canceling a run does not complete it.</p><p v-if="!nodeTasks.length" class="muted">Submit the reviewed map to have Hermes create the board stories.</p><article v-for="t in project.tasks" :key="t.card_id" class="work-row"><div><small class="muted">{{ t.role === 'story' ? 'STORY' : 'PLANNING' }} · {{ t.superseded ? 'Superseded by replan' : label(t.column) }}</small><h3><RouterLink :to="`/tasks?card=${t.card_id}`">#{{ t.card_id }} {{ t.title }}</RouterLink></h3><small v-if="t.working_dir" class="muted workspace-path">{{ t.agent ? agentLabel(t.agent)+' · '+(t.model || 'Agent default') : 'Human' }}<br />{{ t.working_dir }}</small><small v-if="t.run_stage" class="muted">Run #{{ t.run_id }} · {{ label(t.run_stage) }}</small></div><div class="actions"><template v-if="!t.superseded && t.role !== 'story' && project.state === 'planning_failed' && t.planning_retry_routes?.length"><button v-for="r in t.planning_retry_routes" :key="r.agent + '/' + r.model" class="btn primary" :disabled="busy" @click="retryPlanning(t,r)">{{ r.agent === t.agent && r.model === t.model ? 'Retry planning task' : `Retry with ${agentLabel(r.agent)} · ${r.model}` }}</button></template><button v-if="!t.superseded && t.output_approval" class="btn primary" :disabled="busy" @click="showContinue(t)">Approve output &amp; continue</button><button v-if="!t.superseded && t.role === 'story' && ['active','paused'].includes(project.state) && ((t.column === 'review' && t.run_stage !== 'awaiting_approval' && !(project.handoff_approval?.mode === 'automatic' && project.handoff_approval?.eligible.some(e => e.card_id === t.card_id))) || (human(t) && t.column !== 'done'))" class="btn primary" :disabled="busy" @click="showAccept(t,false)">Review handoff</button><button v-if="!t.superseded && t.role === 'story' && t.column === 'failed' && project.workspaces[t.node_key]?.integration_error" class="btn" :disabled="busy" @click="showAccept(t,true)">Review integration</button><button v-if="!t.superseded && t.role === 'story' && t.column === 'failed'" class="btn" :disabled="busy" @click="retry(t)">Retry same story</button><button v-if="!t.superseded && t.role === 'story' && t.column === 'failed' && t.incomplete_reason && t.run_id" class="btn" :disabled="busy" data-testid="accept-anyway" @click="acceptDespiteReport(t)">Accept anyway…</button><button v-if="!t.superseded && t.role === 'story' && t.run_stage === 'succeeded' && !human(t) && ((t.column === 'review' && ['active','paused'].includes(project.state)) || (t.column === 'done' && ['active','complete'].includes(project.state) && dependentsNotStarted(t)))" class="btn" :disabled="busy" @click="retry(t)">Rerun same story</button><template v-if="!t.superseded && t.role === 'story' && t.column === 'failed' && project.state === 'active'"><button v-for="r in t.retry_routes || []" :key="r.agent + '/' + r.model" class="btn" :disabled="busy" @click="retry(t,r)">Retry with {{ agentLabel(r.agent) }} · {{ r.model }}</button></template></div></article></div>
       </div>
     </div>
+    <ModalShell class="project-dialog" v-if="packetDialog" labelledby="packet-import-title" @close="packetDialog = false"><PacketImport :workdirs="workdirs?.workdirs || []" :scratch-root="workdirs?.scratch_root" @cancel="packetDialog = false" @created="packetCreated" /></ModalShell>
     <ModalShell class="project-dialog" v-if="approvalDialog" labelledby="handoff-policy-title" @close="approvalDialog = false">
       <form @submit.prevent="updateHandoffPolicy(automaticHandoffs ? 'automatic' : 'batch')">
         <h2 id="handoff-policy-title">Approve all except human-required tasks</h2>

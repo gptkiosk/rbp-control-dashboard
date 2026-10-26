@@ -22,6 +22,12 @@ ENV = re.compile(r'(?:process\.env\.|import\.meta\.env\.|os\.environ\[\s*[\'"]|(
 
 def read_text(root, parts, limit):
     """Walk via directory descriptors; a concurrent link swap cannot escape root."""
+    data = read_bytes(root, parts, min(128000, limit))
+    return None if data is None else data.decode('utf-8')
+
+
+def read_bytes(root, parts, limit):
+    """A regular file of at most `limit` bytes under root, read through directory descriptors; None otherwise."""
     flags = os.O_RDONLY | os.O_DIRECTORY | getattr(os, 'O_NOFOLLOW', 0)
     directory = os.open(root, flags)
     try:
@@ -31,9 +37,10 @@ def read_text(root, parts, limit):
         fd = os.open(parts[-1], os.O_RDONLY | getattr(os, 'O_NOFOLLOW', 0) | getattr(os, 'O_NONBLOCK', 0), dir_fd=directory)
         with os.fdopen(fd, 'rb') as stream:
             meta = os.fstat(stream.fileno())
-            if not stat.S_ISREG(meta.st_mode) or meta.st_size > min(128000, limit):
+            if not stat.S_ISREG(meta.st_mode) or meta.st_size > limit:
                 return None
-            return stream.read(min(128000, limit)).decode('utf-8')
+            data = stream.read(limit + 1)
+            return None if len(data) > limit else data
     finally:
         os.close(directory)
 

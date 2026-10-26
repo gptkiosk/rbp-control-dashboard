@@ -78,6 +78,32 @@ def coordinator_read_view(request:Request,operation:str,project_id:int|None=None
     return coordinator_read.read(s,get_settings(),operation,owner,project_id=project_id,task_id=task_id,
         working_dir=working_dir,project_type=project_type)
 
+class PacketImport(BaseModel):
+    model_config=ConfigDict(extra='forbid')
+    working_dir:str=Field(min_length=1,max_length=500)
+    copy_references:bool=True
+
+@router.post('/packet-import',status_code=201)
+async def inspect_packet(request:Request):
+    """Upload a project packet (.zip) as the raw request body. It is validated and staged for review; nothing is created yet."""
+    import project_packet_import as pi
+    who=actor(request)
+    declared=request.headers.get('content-length')
+    if declared and declared.isdigit() and int(declared)>pi.UPLOAD_LIMIT:
+        raise HTTPException(413,f'A packet can be at most {pi.UPLOAD_LIMIT//1048576} MB.')
+    data=bytearray()
+    async for chunk in request.stream():
+        data+=chunk
+        if len(data)>pi.UPLOAD_LIMIT: raise HTTPException(413,f'A packet can be at most {pi.UPLOAD_LIMIT//1048576} MB.')
+    return pi.inspect(get_settings(),bytes(data),who)
+
+@router.post('/packet-import/{import_id}/create',status_code=201)
+def create_from_packet(import_id:str,body:PacketImport,request:Request,s:Session=Depends(get_session)):
+    """Create the continuation draft from a reviewed packet. No tasks, approvals, routes or grants carry over."""
+    import project_packet_import as pi
+    who=actor(request);write(s)
+    p=pi.create(s,get_settings(),import_id,body.working_dir,body.copy_references,who);s.commit();return projects.detail(s,p)
+
 @router.get('/{project_id}')
 def get_project(project_id:int,request:Request,s:Session=Depends(get_session)):
     actor(request);return projects.detail(s,projects.get(s,project_id))
@@ -290,9 +316,24 @@ def project_packet_view(project_id:int,request:Request,refresh_source:bool=False
     p=coordinator_read.owned(s,project_id,actor(request))
     return project_packet.view(s,p,get_settings(),refresh_source)
 
+@router.get('/{project_id}/packet.zip')
+def project_packet_zip(project_id:int,request:Request,include_media:bool=False,s:Session=Depends(get_session)):
+    """Download the packet: documents, living docs and reference art; published media only when asked. No source code."""
+    import coordinator_read, project_packet
+    from fastapi.responses import StreamingResponse
+    p=coordinator_read.owned(s,project_id,actor(request))
+    handle,name,size=project_packet.export(s,p,get_settings(),include_media)
+    def chunks():
+        try:
+            while part:=handle.read(65536): yield part
+        finally: handle.close()
+    return StreamingResponse(chunks(),media_type='application/zip',headers={'Content-Disposition':f'attachment; filename="{name}"','Content-Length':str(size),'Cache-Control':'no-store'})
+
 @router.get('/{project_id}/context',response_class=PlainTextResponse)
 def context(project_id:int,request:Request,s:Session=Depends(get_session)):
-    actor(request);return projects.context(s,projects.get(s,project_id))
+    actor(request)
+    name=f'{get_settings().product_short_name.lower()}-project-{project_id}-context.md'
+    return PlainTextResponse(projects.context(s,projects.get(s,project_id)),headers={'Content-Disposition':f'attachment; filename="{name}"'})
 
 @router.post('/{project_id}/close')
 def close(project_id:int,body:Close,request:Request,s:Session=Depends(get_session)):

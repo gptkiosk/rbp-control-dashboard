@@ -15,7 +15,7 @@ router=APIRouter(prefix='/api/hermes-projects')
 
 class Bridge(BaseModel):
     model_config=ConfigDict(extra='forbid',hide_input_in_errors=True)
-    action:Literal['pair','intake','list','get','save','plan','diagram','limits','limits_reroute','failures','failure','maintenance','maintenance_propose','standards','standards_propose','propose_repository','bootstrap_status','issue_task','capabilities','types','context','models','status','task','workspace','repository_intake','reserve_workspace','record_handoff','pause_dispatch','resume_dispatch','intake_questions','readiness','plan_checks','repair_plan']
+    action:Literal['pair','intake','list','get','save','plan','diagram','limits','limits_reroute','failures','failure','maintenance','maintenance_propose','standards','standards_propose','propose_repository','bootstrap_status','issue_task','capabilities','types','context','models','status','task','workspace','repository_intake','packet','reserve_workspace','record_handoff','pause_dispatch','resume_dispatch','intake_questions','readiness','plan_checks','repair_plan']
     discord_user_id:str=Field(pattern=r'^[0-9]{16,22}$')
     discord_channel_id:str=Field(pattern=r'^[0-9]{16,22}$')
     source_message_id:str=Field(default='',pattern=r'^([0-9]{16,22})?$')
@@ -107,8 +107,8 @@ def command(body:Bridge,request:Request,s:Session=Depends(get_session)):
         except ValidationError:
             raise HTTPException(422,'Use the current revision/snapshot and a UUID operation ID; handoffs need a summary.') from None
         s.commit();return result
-    if body.action in ('capabilities','types','context','models','status','task','workspace','repository_intake','intake_questions','readiness','plan_checks'):
-        if body.action in ('status','task','workspace','repository_intake','readiness','plan_checks') and not pref.allow_discord_diagnostics:
+    if body.action in ('capabilities','types','context','models','status','task','workspace','repository_intake','packet','intake_questions','readiness','plan_checks'):
+        if body.action in ('status','task','workspace','repository_intake','packet','readiness','plan_checks') and not pref.allow_discord_diagnostics:
             raise HTTPException(403,'Enable Discord diagnostics in your profile first.')
         import coordinator_read
         return coordinator_read.read(s,settings,body.action,profile.owner,project_id=body.project_id,

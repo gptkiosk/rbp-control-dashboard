@@ -10,9 +10,15 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.6.74] - 2026-10-26
+
 ### Added
 
-- Project packets (in progress): each project keeps a versioned continuation packet (`bamcio.project-packet/1`) in the app's private data folder, never in the workspace. It holds a start-here document, brief, source map, environment variable names, state, decisions, evidence, media and a redacted ledger. It reports whether the workspace has changed since the last recorded handoff, without attributing unreported edits. `GET /api/projects/{id}/packet` reads it. Export, import and the Workspace panel follow before release.
+- Project packets: every project keeps a versioned continuation packet (`bamcio.project-packet/1`) in the app's private data folder, never in the workspace. It holds a start-here document, brief, source map, configuration variable names, state, decisions, evidence, media and a redacted ledger, and shows whether the workspace changed since the last recorded handoff. Projects → Workspace downloads it as a zip with `docs/project/` and reference images (published media optional). **Import packet…** validates a packet and creates a continuation draft only; tasks, approvals, routes, grants and spending decisions never carry over. Copy handoff, story context and the Coordinator/Discord `packet` read point to it. Planner role pack 27 asks stories to keep `docs/project/` current (about 350 bytes per story prompt, 259 bytes in the planner prompt).
+
+### Fixed
+
+- **Export context** now names its download for this product (`rcd-project-<id>-context.md` in RCD, `mcd-project-<id>-context.md` in MCD); RCD named it `mcd-project-…`.
 
 ## [0.6.73] - 2026-10-26
 
@@ -1176,4 +1182,5 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 [0.6.71]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.70...v0.6.71
 [0.6.70]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.69...v0.6.70
 
+[0.6.74]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.73...v0.6.74
 [0.6.73]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.72...v0.6.73

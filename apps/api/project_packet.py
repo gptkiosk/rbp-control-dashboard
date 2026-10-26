@@ -10,6 +10,7 @@ workspace changes without a recorded handoff are reported as unattributed, not g
 import hashlib
 import json
 import os
+import threading
 import time
 from datetime import datetime
 from pathlib import Path
@@ -40,6 +41,7 @@ DOCUMENTS = (('START-HERE.md', 'Entry document and continuation instructions'),
     ('07-media.md', 'Reference art, media slots and publication state'),
     ('history/ledger.md', 'Project ledger, redacted, newest entries kept within 1 MB'))
 _BASELINES = 'packet_baselines'
+_LOCKS, _LOCKS_GUARD = {}, threading.Lock()
 
 
 def folder(settings, pid):
@@ -71,7 +73,7 @@ def _when(ts):
 
 def _write(path, text):
     path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-    tmp = path.with_name('.' + path.name + '.tmp')
+    tmp = path.with_name(f'.{path.name}.{os.getpid()}.{threading.get_ident()}.tmp')  # concurrent writers never share a temp file
     fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
     with os.fdopen(fd, 'w', encoding='utf-8') as f:
         f.write(text)
@@ -105,7 +107,7 @@ def _record_baselines(session):
     from settings import get_settings
     for pid, path in pending.items():
         try:
-            set_baseline(get_settings(), pid, Path(path))
+            set_baseline(get_settings(), pid, Path(path), 'recorded work')
         except Exception:  # a freshness hint must never fail a commit; the next read reports it stale
             pass
 
@@ -115,11 +117,11 @@ def _discard_baselines(session):
     session.info.pop(_BASELINES, None)
 
 
-def set_baseline(settings, pid, path):
+def set_baseline(settings, pid, path, source):
     import workspace_handoff
     facts = workspace_handoff.observation(path)
     _write(folder(settings, pid) / 'baseline.json', json.dumps({k: facts[k] for k in ('path', 'head', 'branch', 'changed', 'snapshot', 'state')}
-        | {'recorded_at': int(time.time())}))
+        | {'recorded_at': int(time.time()), 'source': source}))
     return facts
 
 
@@ -141,14 +143,15 @@ def freshness(s, p, settings, path, facts):
         return 'in_progress', [f'Task #{waiting.id} reported a result that awaits operator review; workspace changes are reported, not accepted.']
     base = _read_json(folder(settings, p.id) / 'baseline.json')
     if not base or base.get('path') != str(path):
-        set_baseline(settings, p.id, path)
+        set_baseline(settings, p.id, path, 'first packet')
         return 'current', ['Baseline set at this packet generation; earlier workspace changes are not attributed to any story.']
     if base.get('snapshot') == facts['snapshot']:
         return 'current', []
     moved = (f"HEAD moved from {(base.get('head') or 'unknown')[:12]} to {(facts['head'] or 'unknown')[:12]}"
              if base.get('head') != facts['head'] else f"HEAD {(facts['head'] or 'unknown')[:12]} is unchanged")
     dirty = '; the worktree has uncommitted changes' if facts['changed'] else ''
-    return 'stale', [f'{moved}{dirty} since the last recorded handoff ({_when(base.get("recorded_at"))}). '
+    since = 'the last recorded work' if base.get('source') == 'recorded work' else 'this packet was first generated'
+    return 'stale', [f'{moved}{dirty} since {since} ({_when(base.get("recorded_at"))}). '
                      'These changes are unreported; authorship is unknown. Record the work in Workspace or accept the story handoff.']
 
 
@@ -443,8 +446,19 @@ def _stamp(p, rows, stories, facts, fresh, living, smap, refs, slots, product):
         living, smap.get('inventory_sha256') or smap.get('unavailable'), refs, slots], sort_keys=True, default=str).encode()).hexdigest()
 
 
+def _lock(pid):
+    with _LOCKS_GUARD:
+        return _LOCKS.setdefault(pid, threading.RLock())
+
+
 def ensure(s, p, settings, refresh_source=False):
-    """Bring the packet up to date and return its manifest. Writes only into the app's packet folder."""
+    """Bring the packet up to date and return its manifest. Writes only into the app's packet folder;
+    one rebuild per project at a time, so concurrent readers (panel, handoff, story claim) never interleave."""
+    with _lock(p.id):
+        return _ensure(s, p, settings, refresh_source)
+
+
+def _ensure(s, p, settings, refresh_source):
     import workspace_handoff
     from version import __version__, git_sha
     d = projects.document(p)
@@ -482,6 +496,11 @@ def ensure(s, p, settings, refresh_source=False):
             'head': facts.get('head'), 'changed': facts.get('changed'), 'snapshot': facts.get('snapshot')},
         'freshness': {'generated_at': int(time.time()), 'state': fresh[0], 'reasons': fresh[1],
             'last_memory_id': rows[-1].id if rows else 0, 'inventory_sha256': smap.get('inventory_sha256')},
+        'intent': {'title': d['title'], 'project_type': d.get('project_type'), 'brief': _redact(d.get('brief') or '', 20000),
+            'constraints': _redact(d.get('constraints') or '', 10000),
+            'intake_answers': {k: _redact(v, 4000) for k, v in (d.get('intake_answers') or {}).items()},
+            'repository': {k: (d.get('repository') or {}).get(k) for k in ('repo', 'branch')} if (d.get('repository') or {}).get('repo') else None},
+        'stories': [{k: x[k] for k in ('key', 'title', 'status', 'depends_on')} | {'acceptance': _redact(x['acceptance'], 600)} for x in stories][:100],
         'living_docs': {'path': LIVING_DOCS + '/', 'files': living},
         'documents': index,
         'assets': [{'kind': 'reference', 'path': r['path'], 'bytes': r.get('bytes')} for r in refs] +
@@ -503,3 +522,96 @@ def forget(settings, pid):
     path = folder(settings, pid)
     if path.is_dir() and not path.is_symlink():
         shutil.rmtree(path, ignore_errors=True)
+
+
+# ------------------------------------------------------------- export
+
+EXPORT_LIMIT = 64 * 1024 * 1024
+MEDIA_FILE_LIMIT = 32 * 1024 * 1024
+
+
+def _published_path(slot):
+    return f"assets/{'video' if slot['kind'] == 'video' else 'img'}/{slot['name']}.{'mp4' if slot['kind'] == 'video' else 'jpg'}"
+
+
+def export(s, p, settings, include_media=False):
+    """The packet as a zip in a temporary file: (file, name, size). Workspace files are read through
+    directory descriptors; anything left out is listed with the reason, never silently dropped.
+    Source code is not included: the manifest names the repository, branch and commit instead."""
+    import tempfile, zipfile
+    import media_generate, media_references
+    from repository_intake import read_bytes
+    data = ensure(s, p, settings)
+    out, path = folder(settings, p.id), Path(data['workspace']['path'])
+    members, assets, used = [], [], 0
+
+    def add(z, name, raw, compress=True):
+        nonlocal used
+        z.writestr(zipfile.ZipInfo('project-packet/' + name, date_time=(1980, 1, 1, 0, 0, 0)), raw,
+                   compress_type=zipfile.ZIP_DEFLATED if compress else zipfile.ZIP_STORED)
+        members.append({'path': name, 'bytes': len(raw), 'sha256': hashlib.sha256(raw).hexdigest()})
+        used += len(raw)
+
+    def workspace_file(rel, limit):
+        if used >= EXPORT_LIMIT:
+            return None, f'Packet is at its {EXPORT_LIMIT // 1048576} MB limit; copy it from {path / rel} on {data["source"]["host"]}.'
+        try:
+            raw = read_bytes(str(path), Path(rel).parts, min(limit, EXPORT_LIMIT - used))
+        except OSError:
+            raw = None
+        if raw is None:
+            return None, f'Missing, a link, or too large to include; copy it from {path / rel} on {data["source"]["host"]}.'
+        return raw, None
+
+    handle = tempfile.TemporaryFile()
+    with zipfile.ZipFile(handle, 'w') as z:
+        for d in data['documents']:
+            add(z, d['path'], (out / d['path']).read_bytes())
+        for f in data['living_docs']['files']:
+            if not f.get('path'):
+                continue
+            raw, why = workspace_file(f['path'], 128000)
+            if raw is None:
+                assets.append({'kind': 'living_doc', 'path': f['path'], 'included': False, 'missing_reason': why})
+            else:
+                add(z, 'living/' + f['path'], raw)
+        refs = media_references.listing(path) if path.is_dir() else []
+        for r in refs:
+            raw, why = workspace_file(r['path'], media_references.REF_MAX)
+            if raw is not None and not media_references._kind(raw):
+                raw, why = None, 'Not a recognised image; it was not included.'
+            entry = {'kind': 'reference', 'path': r['path'], 'bytes': r['size'], 'included': raw is not None, 'missing_reason': why}
+            if raw is not None:
+                add(z, r['path'], raw, compress=False)
+                entry['sha256'] = members[-1]['sha256']
+            assets.append(entry)
+        slots = {}
+        if media_generate.inside(path, 'media/slots.json'):
+            try:
+                slots = media_generate.load_slots(path)
+            except media_generate.MediaError:
+                slots = {}
+        for name, slot in slots.items():
+            if not media_generate.is_published(path, slot):
+                assets.append({'kind': 'slot', 'slot': name, 'published': False, 'included': False, 'missing_reason': 'Not published yet.'})
+                continue
+            rel = _published_path(slot)
+            entry = {'kind': 'published', 'slot': name, 'path': rel, 'published': True}
+            if not include_media:
+                entry.update(included=False, missing_reason='Published media is opt-in for export; it stays in the workspace.')
+            else:
+                raw, why = workspace_file(rel, MEDIA_FILE_LIMIT)
+                entry.update(included=raw is not None, missing_reason=why)
+                if raw is not None:
+                    add(z, rel, raw, compress=False)
+                    entry['sha256'] = members[-1]['sha256']
+            assets.append(entry)
+        manifest = {**data, 'assets': assets, 'export': {'exported_at': int(time.time()), 'include_media': include_media,
+            'members': members, 'source_code': 'Not included. Continue from the repository, branch and commit in "workspace"; '
+            'a project without a remote needs its source copied separately.'}}
+        z.writestr(zipfile.ZipInfo('project-packet/PACKET.json', date_time=(1980, 1, 1, 0, 0, 0)), json.dumps(manifest, indent=1),
+                   compress_type=zipfile.ZIP_DEFLATED)
+    size = handle.tell()
+    handle.seek(0)
+    name = f"{settings.product_short_name.lower()}-project-{p.id}-packet-{time.strftime('%Y%m%d-%H%M')}.zip"
+    return handle, name, size
