@@ -50,6 +50,16 @@ export async function getJson<T>(path: string): Promise<T> {
   return (await res.json()) as T
 }
 
+/** GET a file and save it under the name the server gives (Content-Disposition), or `fallback`. Throws ApiError with the server's `detail`. */
+export async function downloadFile(path: string, fallback: string): Promise<string> {
+  const res = await fetch(path, { cache: 'no-store' })
+  if (!res.ok) throw await toApiError(res)
+  const name = /filename="([^"]+)"/.exec(res.headers.get('Content-Disposition') || '')?.[1] || fallback
+  const url = URL.createObjectURL(await res.blob())
+  const a = document.createElement('a'); a.href = url; a.download = name; a.click(); URL.revokeObjectURL(url)
+  return name
+}
+
 /** Header the server requires on every state-changing request (it answers 403 without it). */
 export const GUARD_HEADER = 'X-Mac-Control'
 

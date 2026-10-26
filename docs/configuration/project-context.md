@@ -29,3 +29,7 @@ median from 27 KB to 19 KB, before any prompt caching. The budget is 16 KB for t
 ## Context selected by type
 
 See the [Coordinator context contract](coordinator-pipeline.md). Consultant and planner prompts load general guides plus one selected type. Story prompts carry the selected guide names and a private, hashed file reference; unrelated story tails are omitted. The full ledger remains available on demand.
+
+## Project packet pointer
+
+When the project packet can be built, story context carries `project_packet`: the START-HERE path, `docs/project/` and one sentence asking the story to update those docs when it changes architecture, configuration names, decisions or operating steps. It adds about 350 bytes, is identical for every story of a project and sits with the stable keys, so prompt caching is unaffected. See [project packets](project-packets.md).

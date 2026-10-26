@@ -4,6 +4,7 @@ import { getJson, postJson } from '@/lib/api'
 import type { Project } from '@/lib/projects'
 import LoadingCard from './LoadingCard.vue'
 import AppSelect from './AppSelect.vue'
+import ProjectPacket from './ProjectPacket.vue'
 
 const props = defineProps<{ project: Project }>()
 const emit = defineEmits<{ changed: []; pause: [] }>()
@@ -89,6 +90,7 @@ async function act(action: 'reserve' | 'handoff') {
       <details><summary>Record external work &amp; release workspace</summary><p class="muted small">Confirm the external agent has stopped. Record changes, checks and next steps. This does not accept a task or resume dispatch.</p><form @submit.prevent="act('handoff')"><label>Handoff<textarea v-model="summary" class="input" rows="5" maxlength="6000" required placeholder="Changes and commit, checks/results, remaining work and next task" /></label><button class="btn" :disabled="busy || summary.trim().length < 3 || !!state.active_runs.length || (!!state.reservation && state.reservation.project_id !== project.id)">Record handoff</button></form></details>
     </template>
     <p v-if="message" role="status">{{ message }}</p>
+    <ProjectPacket :project="project" />
   </section>
 </template>
 

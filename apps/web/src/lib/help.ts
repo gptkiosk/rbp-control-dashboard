@@ -260,6 +260,14 @@ export const helpGuides: HelpGuide[] = [
     note: 'Free routes can throttle or fail. Profile → AI defaults also supplies new chat, task and planning forms; existing work keeps its routes. Native membership accounts and API billing are separate. The built-in help chat uses local guides and makes no model calls.',
   },
   {
+    id: 'project-packets', title: 'Continue a project elsewhere with a project packet', area: 'Projects',
+    summary: 'A packet carries a project’s brief, state, decisions, evidence and reference art to another dashboard, host or coding app.',
+    keywords: ['project packet','export','import','continue','handoff','claude code','codex','grok build','docs/project','freshness','start here'],
+    steps: ['Open a project and choose Workspace. The Project packet section shows whether the packet is Current, Stale (the workspace changed with no recorded handoff), Work in progress or Unknown, with the reason.', 'Choose Download packet (.zip). It holds START-HERE, the brief, a source map, configuration variable names (never values), state, decisions, evidence, media and a redacted ledger, plus docs/project/ and the reference images. Published media is included only when you tick it. Anything left out is listed with where to copy it from.', 'Source code is not in the packet. It names the repository, branch and commit to continue from.', 'To continue in a coding app on this host, use Copy handoff or Copy START-HERE. Agents keep docs/project/ (architecture, decisions, operations) current as they change the source; the app never writes into the workspace.', 'To continue in another dashboard, choose Projects → Import packet…, select the file and review it: source, accepted and remaining work, and anything missing. Choose this host’s working directory and create the draft. Then review the brief and plan it as usual.'],
+    links: [{ label: 'Open Projects', to: '/projects' }],
+    note: 'Import creates a draft only. Tasks, approvals, model routes, branch access and spending decisions never carry over, and nothing in a packet runs. Imported statuses are history from the source project, not local acceptance.',
+  },
+  {
     id: 'project-types', title: 'Pick a project type so the plan follows a template', area: 'Projects',
     summary: 'A type tells the planner how this kind of project is planned and where it has failed before, then checks the plan.',
     keywords: ['project type','template','website','website property','web app','packaged app','plan checks','failure points','design guide','sign-offs'],

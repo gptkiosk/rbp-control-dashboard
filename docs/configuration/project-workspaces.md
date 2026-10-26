@@ -4,7 +4,7 @@ Open **Projects → Workspace** for the location, host, branch, commit, recent r
 
 ## Continue in a coding app
 
-Pause dispatch and let active runs finish. Choose the coding app and **Continue in coding app** to reserve the checkout, then **Copy handoff** into that app. The packet is capped at 3,000 characters and links to the project and full context. It includes current Git state, next task links and the latest recorded handoff. Follow the task's full definition of done at its link.
+Pause dispatch and let active runs finish. Choose the coding app and **Continue in coding app** to reserve the checkout, then **Copy handoff** into that app. The packet is capped at 3,000 characters and links to the project and full context. It includes current Git state, next task links and the latest recorded handoff. It also names the project packet's START-HERE file on this host; see [project packets](project-packets.md) to continue on another host or dashboard. Follow the task's full definition of done at its link.
 
 When the external agent has stopped, refresh and use **Record external work & release workspace**. Record its commit/files, checks/results, unfinished work and next steps. This appends reported evidence, releases the reservation and leaves dispatch paused. Acceptance still uses the task's normal review. The next project run gets a bounded reference to the latest external handoff, explicitly marked unaccepted.
 
