@@ -1,5 +1,7 @@
 # RCD documentation
 
+**[Why use MCD / RCD for project delivery?](project-workflow-value.md)** Benefits, measured planning evidence, context/model efficiency and honest limits.
+
 The public RCD repository currently contains documentation, license and community configuration. Application source publication awaits explicit operator sign-off. These pages describe the verified prototype, its intended workflow and the boundaries still under review.
 
 | Topic | Guide |
