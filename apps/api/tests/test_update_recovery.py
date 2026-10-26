@@ -2,7 +2,7 @@
 
 Synthetic roots under tmp_path, a recording service and injected readiness, as in
 test_update_engine.py. Nothing here touches the API, a port or a real service manager; the app is
-"down" because health_url points at a closed loopback port.
+"down" through a synthetic health observation; no fixed host port is probed. A separate test exercises the real probe against an ephemeral server.
 """
 
 from __future__ import annotations
@@ -24,6 +24,7 @@ from tests.test_update_engine import (  # noqa: F401  (fixtures)
 @pytest.fixture(autouse=True)
 def private_helper_dir(tmp_path, monkeypatch):
     monkeypatch.setattr(ur, "HERE", tmp_path)  # the pinned-helper directory check needs an owner-only folder
+    monkeypatch.setattr(ur, "probe_health", lambda cfg: {"reachable": False, "detail": "synthetic app down"})
 
 
 @pytest.fixture
@@ -226,3 +227,24 @@ def test_recovery_module_uses_only_the_engine_and_standard_library():
     assert imports <= {"__future__", "argparse", "json", "os", "sys", "time", "urllib", "pathlib", "typing",
                        "update_engine"}
     assert "requests" not in src and "fastapi" not in src and sys.version_info >= (3, 9)
+
+
+def test_real_probe_uses_an_ephemeral_synthetic_server(cfg):
+    import dataclasses
+    import threading
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+    from importlib.util import module_from_spec, spec_from_file_location
+    # Load the unpatched function separately from the down-state CLI fixture.
+    spec = spec_from_file_location('synthetic_recovery_probe', ur.__file__)
+    module = module_from_spec(spec); spec.loader.exec_module(module)
+    class Health(BaseHTTPRequestHandler):
+        def do_GET(self):
+            self.send_response(200); self.end_headers()
+            self.wfile.write(b'{"status":"ok","version":"synthetic"}')
+        def log_message(self, *args): pass
+    server=ThreadingHTTPServer(('127.0.0.1',0),Health)
+    thread=threading.Thread(target=server.serve_forever,daemon=True);thread.start()
+    local=dataclasses.replace(cfg,health_url=f'http://127.0.0.1:{server.server_port}/healthz')
+    try: assert module.probe_health(local)['reachable'] is True
+    finally: server.shutdown();server.server_close();thread.join()
+    assert module.probe_health(local)['reachable'] is False
