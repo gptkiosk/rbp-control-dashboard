@@ -35,6 +35,17 @@ condition = "AND"
 paths = ['''apps/web/src/__tests__/SetupView\.spec\.ts$''']
 regexes = ['''sk-or-test-private1234''']
 
+[[rules.allowlists]]
+description = "Synthetic credentials that prove project packets redact or refuse them."
+condition = "AND"
+paths = [
+  '''apps/api/tests/test_project_packet\.py''',
+]
+regexes = [
+  '''sk-or-abcdefgh12345678''',
+  '''ghp_a{36}''',
+]
+
 [[rules]]
 id = "discord-client-id"
 
