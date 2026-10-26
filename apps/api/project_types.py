@@ -226,6 +226,8 @@ def browser_execution(node, pattern):
     """Keep positive execution requirements; ignore scoped negation and authored future behavior.
     Role labels never exempt direct browser commands. Mixed author/run instructions still block.
     """
+    if node.get('host_action') in {'preview-verify','preview-review'}:
+        return False  # Host executor owns rendering; the separate ownership gate still applies.
     author = bool(re.search(r'\b(?:write|author|prepare|create|implement)\b', node.get('title', ''), re.I)
                   and re.search(r'script|verifier|preview', node.get('title', ''), re.I))
     negative = re.compile(r"\b(?:do not|does not|must not|will not|cannot|never|don't|won't|not required to|without (?:running|executing|launching))\b", re.I)

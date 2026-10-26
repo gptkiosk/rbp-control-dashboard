@@ -229,3 +229,20 @@ def test_acceptance_signals_include_measured_units_and_published_evidence_but_no
     assert CHECKABLE.search('DESIGN.md specifies a 1500ms transition.')
     assert CHECKABLE.search('The published nonempty asset matches the inventory.')
     assert not CHECKABLE.search('Looks good and feels professional.')
+
+
+def test_empty_published_reference_does_not_unlock_scene_generation_or_approval(tmp_path):
+    import media_generate as mg,media_plan
+    slots=media_inventory(tmp_path)
+    folder=tmp_path/'assets/img';folder.mkdir(parents=True);(folder/'heroine.jpg').touch()
+    assert not mg.is_published(tmp_path,slots[0])
+    with pytest.raises(mg.MediaError):media_plan.require_evidence(tmp_path,'publish','reference')
+    with pytest.raises(mg.MediaError):mg.build_request(tmp_path,slots[1],'standard')
+
+
+def test_host_operation_is_not_agent_rendering_but_cannot_be_dispatched_to_a_coding_model():
+    node=story(title='Dashboard Verify',host_action='preview-verify',description='The host captures browser checks and screenshots.')
+    assert not any(f['id']=='browser-checks-need-a-person' for f in project_types.check('local-website',[node]))
+    assert any(f['id']=='dashboard-preview-owner' for f in contract.findings({'project_type':'local-website','nodes':[node]}))
+    node['assignee']='human';node['model']=''
+    assert not any(f['id']=='dashboard-preview-owner' for f in contract.findings({'project_type':'local-website','nodes':[node]}))

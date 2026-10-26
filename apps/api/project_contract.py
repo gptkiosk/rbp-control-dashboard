@@ -168,6 +168,8 @@ def findings(document):
         if not file_checks: add('static-file-verification','Website preview needs static file/asset verification first; preparing the verifier script is a separate prerequisite.')
         bad=[key for key in verifies if not file_checks.intersection(_ancestors(by_key,key))]
         if bad: add('static-before-host-preview','The dashboard verification checkpoint must depend on static file/asset verification, not merely script preparation.',bad)
+        wrong_owner=[n['key'] for n in stories if n.get('host_action') in {'preview-verify','preview-review'} and n.get('assignee')!='human']
+        if wrong_owner: add('dashboard-preview-owner','Fixed dashboard host actions must use assignee human with no agent execution; the operator uses the in-app button and the app runs the approved script. Do not route a host action to a coding model.',wrong_owner)
         if not verifies: add('dashboard-preview-verify','Website verification needs explicit host_action preview-verify so the app exposes its fixed Verify button.')
         if not reviews: add('dashboard-preview-review','Website visual review needs explicit host_action preview-review so the app exposes authenticated Start/Open/Stop controls.')
         bad=[n['key'] for n in reviews if not verifies.intersection(_ancestors(by_key,n['key']))]

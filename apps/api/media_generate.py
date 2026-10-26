@@ -512,7 +512,8 @@ IMAGE_SUFFIXES_IN = {".png", ".jpg", ".jpeg", ".webp", ".avif", ".heic"}
 
 def is_published(root, slot):
     folder = "video" if slot["kind"] == "video" else "img"
-    return inside(root, f"assets/{folder}/{slot['name']}." + ("mp4" if slot["kind"] == "video" else "jpg")) is not None
+    path = inside(root, f"assets/{folder}/{slot['name']}." + ("mp4" if slot["kind"] == "video" else "jpg"))
+    return path is not None and path.stat().st_size > 0
 
 
 def inbox_file(root, slot):
