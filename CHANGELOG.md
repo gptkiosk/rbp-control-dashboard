@@ -10,6 +10,14 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.6.69] - 2026-10-25
+
+### Changed
+
+- Project planning now has a prominent progress panel with an activity spinner, actual coordinator stages, queued/running/approval states and a direct task-log link. The empty story counter stays hidden until dispatch finishes.
+- Planning progress respects reduced motion, works on narrow screens and stops animating when planning needs attention or the map is ready. It uses existing status polling without additional model calls or prompt context.
+
+
 ## [0.6.68] - 2026-10-25
 
 ### Added
@@ -1110,3 +1118,5 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 [0.6.62]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.61...v0.6.62
 
 [0.6.68]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.67...v0.6.68
+
+[0.6.69]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.68...v0.6.69
