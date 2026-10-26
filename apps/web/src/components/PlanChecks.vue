@@ -29,7 +29,7 @@ watch(() => [props.projectId, props.revision], load, { immediate: true })
     <p v-if="!result.findings.length" class="small" role="status">No selected-template or recognized saved-scope conflicts found. Review the actual plan and setup evidence before submitting.</p>
     <template v-else>
       <p class="muted small">Saved requirements take precedence over template examples. Required findings must be repaired before submission.</p>
-      <ul><li v-for="f in result.findings" :key="f.id" :data-check="f.id"><strong v-if="f.severity === 'block'">Required: </strong>{{ f.message }}<span v-if="f.stories.length" class="muted small"> ({{ f.stories.join(', ') }})</span></li></ul>
+      <ul><li v-for="f in result.findings" :key="f.id" :data-check="f.id"><strong v-if="f.severity === 'block'">Required: </strong>{{ f.message }}<span v-if="f.stories.length" class="muted small"> (stories: {{ f.stories.join(', ') }})</span></li></ul>
       <button v-if="result.findings.some(f=>f.id === 'saved-model-preference')" class="btn" :disabled="busy || disabled || readiness?.checks.some(c=>c.id === 'story-route' && c.status === 'missing')" @click="repair">{{ busy ? 'Preparing revision…' : 'Restore saved model preference' }}</button>
     </template>
     <details v-if="readiness" :open="!readiness.ready"><summary>Coordinator setup · {{ readiness.ready ? 'ready or planned' : 'needs attention' }}</summary>
