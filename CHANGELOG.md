@@ -16,6 +16,7 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 - The model slider is a provider-neutral capability/cost threshold. Coordinator guidance matches task specialty, complexity, risk, tools and vision to dated model facts, local outcomes, latency and membership versus API costs.
 - New projects use automatic planning independently of the story slider, with focused/general membership candidates and bounded retries on approved routes. Automatic plan review uses the selected planner rather than returning the map to a weaker default.
+- Model profiles accept normalized, dated API observations from multiple sources and provide a fixed public LiteLLM reference refresh alongside the OpenRouter snapshot. Conflicting metrics, benchmark scales and environments stay visible; billing and routes never change on refresh.
 - Model profiles show sourced routing classes separately from benchmark rankings and local run results. Replanning sends a bounded prior-map summary instead of repeating the full source document; the complete source remains available for cancellation.
 
 ### Fixed

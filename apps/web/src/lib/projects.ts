@@ -38,9 +38,9 @@ export interface ProjectSummary { id: number; title: string; state: string; revi
 export function emptyProject(working_dir = ''): ProjectDocument {
   return { title: '', brief: '', constraints: '', working_dir, planner_agent: 'auto', planner_model: '', planning_bias: 50, dispatch_mode: 'sequential', nodes: [] }
 }
-export function newNode(kind: 'phase' | 'story', index: number, parent: string | null = null, planningBias = 50, openclawTarget = ''): ProjectNode {
+export function newNode(kind: 'phase' | 'story', index: number, parent: string | null = null, _planningBias = 50, _openclawTarget = ''): ProjectNode {
   return { key: crypto.randomUUID(), kind, title: kind === 'phase' ? 'New phase' : 'New story', description: '', acceptance: '', scope: '', parent,
-    depends_on: [], assignee: planningBias < 50 ? 'openclaw' : 'codex', model: planningBias >= 50 && planningBias < 63 ? 'gpt-6-luna' : '', agent_target: planningBias < 50 ? openclawTarget : '', mode: 'read', rationale: '', x: kind === 'phase' ? 40 : 380,
+    depends_on: [], assignee: 'codex', model: '', agent_target: '', mode: 'read', rationale: '', x: kind === 'phase' ? 40 : 380,
     y: 50 + index * 150, fallbacks: [], routes: [] }
 }
 /** Stable hierarchy layout; dependency arrows are rendered separately. */

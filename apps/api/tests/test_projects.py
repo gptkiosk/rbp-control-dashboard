@@ -1049,10 +1049,13 @@ def test_delegator_pipeline_keeps_assigned_agent_and_model_during_role_change(ap
     finish(app,p['pipeline']['card_id'],json.dumps({'nodes':[node('story')]}));advance(app)
     p=client.get('/api/projects/1').json()
     assert p['pipeline']['delegator'] == route
+    # Automatic planning pins its selected planner as the separate return reviewer.
+    # A later global Coordinator role change cannot replace either assignment.
+    assert p['pipeline']['reviewer'] == selected
     with app[1]() as db:
         card=db.get(Card,p['pipeline']['card_id'])
-        assert card.agent == agent
-        assert (card.model or '') == route['model']
+        assert card.agent == selected['agent']
+        assert (card.model or '') == selected['model']
 
 def test_free_only_setup_can_plan_with_hermes_without_subscription_clis(app, monkeypatch, tmp_path):
     monkeypatch.setattr(AgentSpec, 'available', lambda self, settings: self.id == 'hermes')

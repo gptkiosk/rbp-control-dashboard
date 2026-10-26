@@ -10,7 +10,7 @@ import { money, seconds, percent } from '@/lib/telemetry'
 // computed; notes are only ever people's, with a source and a date. Refreshing reads OpenRouter's public list and changes nothing else.
 const data = ref<Profiles | null>(null)
 const result = ref<RefreshResult | null>(null)
-const error = ref(''), busy = ref(false)
+const error = ref(''), busy = ref(false), researchResult = ref('')
 const note = ref({ model: '', text: '', source: '', date: new Date().toISOString().slice(0, 10) })
 
 async function load() {
@@ -20,6 +20,11 @@ function fail(e: unknown) { error.value = e instanceof ApiError || e instanceof 
 async function refresh() {
   busy.value = true; error.value = ''
   try { result.value = await postJson<RefreshResult>('/api/models/refresh', { confirm: true }); await load() } catch (e) { fail(e) } finally { busy.value = false }
+}
+async function refreshResearch() {
+  busy.value=true; error.value=''; researchResult.value=''
+  try { const r=await postJson<{changed:number;observations:number}>('/api/models/evidence/refresh',{confirm:true}); researchResult.value=`Read ${r.observations} reference observations; ${r.changed} changed. Billing and routes were not changed.`; await load() }
+  catch(e) { fail(e) } finally { busy.value=false }
 }
 async function addNote() {
   busy.value = true; error.value = ''
@@ -63,6 +68,8 @@ onMounted(load)
         <p v-if="!result.diff.new_free.length && !result.diff.no_longer_free.length && !result.diff.changed.length" class="muted">No differences from the catalog.</p>
       </div>
     </div>
+
+    <details class="card detail" aria-label="Model research data"><summary>Research data · sources and dates</summary><p class="muted small">Compare API-fed cost, capabilities, speed and task-specific scores with local results. Different benchmark scales and environments are kept separate. Reference data never changes billing or active routes.</p><button type="button" class="btn" :disabled="busy" @click="refreshResearch">Refresh reference data · LiteLLM</button><p v-if="researchResult" class="small" role="status">{{researchResult}}</p><ul class="small"><template v-for="m in data.models" :key="m.id"><li v-for="(e,i) in m.evidence || []" :key="m.id + i"><strong>{{m.id}}</strong>: {{e.metric}} {{e.value}} {{e.unit}}{{e.benchmark ? ` · ${e.benchmark} / ${e.scale_max}` : ''}} · {{e.as_of}}{{e.stale ? ' · stale' : ''}}{{e.conflicting ? ' · conflicting values' : ''}} · <a :href="e.source" target="_blank" rel="noopener noreferrer">Source</a><span v-if="e.environment || e.method"> · {{e.environment}} · {{e.method}}</span></li></template></ul></details>
 
     <details class="card detail" aria-label="Model profiles table">
       <summary>Model profiles: the numbers</summary>
