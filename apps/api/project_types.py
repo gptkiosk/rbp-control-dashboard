@@ -258,7 +258,16 @@ def check(type_id, nodes, settings=None):
     for c in t.get("checks", []):
         kind, bad = c["kind"], []
         if kind == "has_story":
-            ok = any(re.search(c["match"], _text(n, c.get("scope", "title"))) and _who(n, c.get("assignee")) for n in stories) if c.get("match") else any(_who(n, c.get("assignee")) for n in stories)
+            import project_contract
+            def role_match(n):
+                if c['id'] == 'design-direction-first':
+                    return n.get('work_kind') in {'plan','research'} and bool(re.search(r'\b(?:write|create|specify)\b.{0,80}\bdesign\.md\b', n.get('description',''), re.I))
+                if c['id'] == 'readme-story':
+                    return n.get('work_kind') == 'docs'
+                if c['id'] == 'verification-story':
+                    return project_contract.static_verification(n)
+                return False
+            ok = any((role_match(n) or re.search(c["match"], _text(n, c.get("scope", "title")))) and _who(n, c.get("assignee")) for n in stories) if c.get("match") else any(_who(n, c.get("assignee")) for n in stories)
             if not ok:
                 findings.append({"id": c["id"], "severity": c.get("severity", "warn"), "message": c["message"], "stories": []})
             continue

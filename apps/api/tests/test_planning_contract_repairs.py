@@ -216,3 +216,16 @@ def test_batch_approval_refuses_unlabelled_required_slots(tmp_path):
     (tmp_path/'media/slots.json').write_text(json.dumps({'slots':slots}))
     with pytest.raises(mg.MediaError,match='label every required'):
         media_plan.require_evidence(tmp_path,'generate','reference')
+
+
+def test_dedicated_roles_satisfy_advisory_checks_without_template_title_phrases():
+    nodes=[{'key':'design','title':'Specify original worlds','work_kind':'plan','description':'Write DESIGN.md with original characters.'},
+           {'key':'docs','title':'Write operation and handoff notes','work_kind':'docs'}]
+    assert not {'design-direction-first','readme-story'} & {f['id'] for f in project_types.check('local-website',nodes)}
+
+
+def test_acceptance_signals_include_measured_units_and_published_evidence_but_not_empty_praise():
+    from coordinator_score import CHECKABLE
+    assert CHECKABLE.search('DESIGN.md specifies a 1500ms transition.')
+    assert CHECKABLE.search('The published nonempty asset matches the inventory.')
+    assert not CHECKABLE.search('Looks good and feels professional.')
