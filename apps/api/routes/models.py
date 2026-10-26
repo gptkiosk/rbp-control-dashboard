@@ -6,6 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.orm import Session
 
 import model_profiles as mp
+import model_evidence
 import model_watch
 import projects
 import telemetry
@@ -84,3 +85,32 @@ def delete_note(note_id: str, request: Request):
     if not mp.delete_note(get_settings().data_dir, note_id):
         raise HTTPException(404, "No such note.")
     return {"deleted": note_id}
+
+
+class EvidenceIn(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    observations: list[model_evidence.Observation] = Field(min_length=1,max_length=300)
+    confirm: bool = False
+
+
+@router.get('/evidence')
+def evidence(request: Request):
+    operator(request)
+    return {'schema':1,'units':model_evidence.UNITS,'observations':model_evidence.records(get_settings().data_dir)}
+
+
+@router.post('/evidence')
+def import_evidence(request: Request, body: EvidenceIn):
+    operator(request)
+    if not body.confirm:raise HTTPException(422,'Confirm the sourced model-data import. It cannot change billing or routes.')
+    try:return model_evidence.ingest(get_settings().data_dir,body.observations)
+    except (ValueError,OSError):raise HTTPException(409,'Model data could not be stored. Check the private data directory and record limit.') from None
+
+
+@router.post('/evidence/refresh')
+def refresh_evidence(request: Request, body: RefreshIn):
+    operator(request)
+    if not body.confirm:raise HTTPException(422,'Confirm the public reference-data refresh.')
+    if not get_settings().model_refresh_enabled:raise HTTPException(409,'Model refresh is switched off.')
+    try:return model_evidence.refresh_litellm(get_settings().data_dir)
+    except (ValueError,OSError):raise HTTPException(409,'The public LiteLLM reference map could not be read or stored; no routes or billing were changed.') from None

@@ -38,9 +38,9 @@ export interface ProjectSummary { id: number; title: string; state: string; revi
 export function emptyProject(working_dir = ''): ProjectDocument {
   return { title: '', brief: '', constraints: '', working_dir, planner_agent: 'auto', planner_model: '', planning_bias: 50, dispatch_mode: 'sequential', nodes: [] }
 }
-export function newNode(kind: 'phase' | 'story', index: number, parent: string | null = null, planningBias = 50, openclawTarget = ''): ProjectNode {
+export function newNode(kind: 'phase' | 'story', index: number, parent: string | null = null, _planningBias = 50, _openclawTarget = ''): ProjectNode {
   return { key: crypto.randomUUID(), kind, title: kind === 'phase' ? 'New phase' : 'New story', description: '', acceptance: '', scope: '', parent,
-    depends_on: [], assignee: planningBias < 50 ? 'openclaw' : 'codex', model: planningBias >= 50 && planningBias < 63 ? 'gpt-6-luna' : '', agent_target: planningBias < 50 ? openclawTarget : '', mode: 'read', rationale: '', x: kind === 'phase' ? 40 : 380,
+    depends_on: [], assignee: 'codex', model: '', agent_target: '', mode: 'read', rationale: '', x: kind === 'phase' ? 40 : 380,
     y: 50 + index * 150, fallbacks: [], routes: [] }
 }
 /** Stable hierarchy layout; dependency arrows are rendered separately. */
@@ -59,14 +59,14 @@ export function arrange(nodes: ProjectNode[]): ProjectNode[] {
 export function label(state: string): string { return state === 'awaiting_approval' ? 'Awaiting output approval' : state === 'timeout' ? 'Timed out' : state.replaceAll('_', ' ').replace(/^./, c => c.toUpperCase()) }
 
 export function planningBiasLabel(value: number): string {
-  if (value < 13) return 'Economy · OpenClaw first'
-  if (value < 38) return 'Lean toward OpenClaw'
+  if (value < 13) return 'Economy'
+  if (value < 38) return 'Cost conscious'
   if (value < 63) return 'Balanced'
-  if (value < 88) return 'Lean toward Claude & Codex'
-  return 'Capability · Claude & Codex first'
+  if (value < 88) return 'Capability leaning'
+  return 'Capability'
 }
 export function planningBiasHint(value: number): string {
-  if (value < 38) return 'Favor OpenClaw for bounded tasks. If a subscription is needed, start with Haiku or Luna.'
-  if (value < 63) return 'Use OpenClaw for routine slices and Haiku/Luna for routine subscription work; step up to Sonnet/Terra only when justified.'
-  return 'Favor Claude and Codex for implementation and critical reasoning. Use OpenClaw for smaller supporting tasks.'
+  if (value < 38) return 'Use focused models where adequate. Compare total cost, speed and likely retries before choosing a route.'
+  if (value < 63) return 'Match each task to its specialty: focused models for bounded work, general models for integration and ambiguity.'
+  return 'Use stronger reasoning for complex or critical work. Simple tasks can still use faster, smaller models with a clear reason.'
 }

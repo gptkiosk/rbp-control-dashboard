@@ -9,13 +9,13 @@ const label = computed(() => planningBiasLabel(props.modelValue))
 
 <template>
   <div class="planning-preference" :class="{ disabled, compact }">
-    <div class="preference-heading"><label :for="id">Story assignment preference</label><output :for="id">{{ label }}</output></div>
+    <div class="preference-heading"><label :for="id">Model matching preference</label><output :for="id">{{ label }}</output></div>
     <input :id="id" type="range" min="0" max="100" step="25" :value="modelValue" :disabled="disabled"
       :aria-valuetext="label" :aria-describedby="compact ? `${id}-hint` : `${id}-hint ${id}-note`"
       :style="{ '--bias-fill': `${modelValue}%` }" @input="emit('update:modelValue', Number(($event.target as HTMLInputElement).value))" />
-    <div class="preference-endpoints" aria-hidden="true"><span><strong>Economy</strong><small>OpenClaw first</small></span><span class="midpoint"><strong>Balanced</strong><small>Haiku/Luna first</small></span><span><strong>Capability</strong><small>Claude & Codex first</small></span></div>
+    <div class="preference-endpoints" aria-hidden="true"><span><strong>Economy</strong><small>Cost and speed</small></span><span class="midpoint"><strong>Balanced</strong><small>Task fit</small></span><span><strong>Capability</strong><small>Stronger reasoning</small></span></div>
     <p :id="`${id}-hint`" class="preference-hint">{{ planningBiasHint(modelValue) }}</p>
-    <p v-if="!compact" :id="`${id}-note`" class="preference-note">{{ mapped ? 'Save and replan to use a new preference. Existing story assignments stay as edited; new stories use this default.' : 'Sets initial recommendations. You can edit each story’s agent and model on the map.' }} Subscription fees stay fixed; OpenClaw uses free-first cloud routes with capped BYOK fallback.</p>
+    <p v-if="!compact" :id="`${id}-note`" class="preference-note">{{ mapped ? 'Save and replan to use a new preference. Existing story assignments stay as edited; new stories use this default.' : 'Sets a model classification threshold, not a provider or fixed model. The Coordinator matches specialty, complexity, cost and speed per task.' }} Membership quota and API spending approvals stay separate. Planner quality is selected independently.</p>
   </div>
 </template>
 

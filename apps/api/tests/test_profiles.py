@@ -98,6 +98,7 @@ def test_intake_questions_idempotency_revision_and_separate_approval(secured,tmp
     import billing   # RCD ships free-only; planning picks a subscription agent, so this test opts in to them
     monkeypatch.setattr(billing,'DEFAULT_ACCOUNTS',{**billing.DEFAULT_ACCOUNTS,
         'claude':{'mode':'subscription','monthly_usd':20.0},'codex':{'mode':'subscription','monthly_usd':20.0}})
+    monkeypatch.setattr(billing,'DEFAULT_LIMITS',{**billing.DEFAULT_LIMITS,'allow_subscription_in_free_only':True})
     b,_=paired(secured,tmp_path)
     r=call(b,'intake');assert r.json()['needs_information']==['title','brief']
     assert call(b,'intake',title='A project',brief='Build a bounded feature',request_planning=True).status_code==403

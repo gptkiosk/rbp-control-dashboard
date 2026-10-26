@@ -234,13 +234,13 @@ it('saves a new project preference without starting models',async()=>{
  await modal.get('input[data-autofocus]').setValue('Economical project')
  await modal.get('textarea').setValue('A bounded project brief')
  const slider=modal.get('input[type=range]');expect((slider.element as HTMLInputElement).value).toBe('50')
- await slider.setValue('0');expect(slider.attributes('aria-valuetext')).toBe('Economy · OpenClaw first')
+ await slider.setValue('0');expect(slider.attributes('aria-valuetext')).toBe('Economy')
  await modal.findAll('button').find(b=>b.text()==='Save draft')!.trigger('click');await flushPromises()
  const writes=f.mock.calls.filter(([u,init])=>(init?.method??'GET')!=='GET'&&u!=='/api/keys/check')
  expect(writes).toHaveLength(1);expect(writes[0]![0]).toBe('/api/projects')
  expect(JSON.parse(String(writes[0]![1]?.body)).planning_bias).toBe(0);w.unmount()
 })
-it('changing a mapped preference leaves existing routes intact and sets new story defaults',async()=>{
+it('changing a mapped threshold leaves existing routes intact and uses an installed agent for manual stories',async()=>{
  const {w,f}=await setup()
  await w.get('input[type=range]').setValue('0')
  expect(w.text()).toContain('Save and replan')
@@ -250,9 +250,9 @@ it('changing a mapped preference leaves existing routes intact and sets new stor
  const doc=JSON.parse(String(write[1]?.body)).document
  expect(doc.planning_bias).toBe(0)
  expect(doc.nodes[1].assignee).toBe('codex');expect(doc.nodes[1].routes[0].model).toBe('claude-sonnet-5-5')
- expect(doc.nodes[2].assignee).toBe('openclaw');expect(doc.nodes[2].model).toBe('')
+ expect(doc.nodes[2].assignee).toBe('codex');expect(doc.nodes[2].model).toBe('')
  await w.findAll('button').find(b=>b.text()==='Review & submit')!.trigger('click');await flushPromises()
- expect(document.body.textContent).toContain('Story preference');expect(document.body.textContent).toContain('Economy · OpenClaw first');w.unmount()
+ expect(document.body.textContent).toContain('Story preference');expect(document.body.textContent).toContain('Economy');w.unmount()
 })
 
 it('retries a failed story only through an explicitly selected reviewed route',async()=>{
@@ -437,11 +437,11 @@ it('offers no close action for a completed or planning project',async()=>{
  }
 })
 
-it('keeps the economy worker default free of a subscription-only model',()=>{
+it('keeps manual draft models unselected at every classification threshold',()=>{
  const economy=newNode('story',0,null,45)
- expect(economy.assignee).toBe('openclaw');expect(economy.model).toBe('')
+ expect(economy.assignee).toBe('codex');expect(economy.model).toBe('')
  const balanced=newNode('story',0,null,50)
- expect(balanced.assignee).toBe('codex');expect(balanced.model).toBe('gpt-6-luna')
+ expect(balanced.assignee).toBe('codex');expect(balanced.model).toBe('')
 })
 
 it('locks models at project level and restores approved failover when unlocked',async()=>{

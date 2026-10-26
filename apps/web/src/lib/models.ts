@@ -2,6 +2,8 @@
 export interface ModelNote { id: string; model: string; text: string; source: string; date: string; stale: boolean }
 export interface KindStat { kind: string; runs: number; success_rate: number; first_pass: number; proven: boolean }
 export interface ModelProfile {
+  evidence?: { metric: string; value: number | boolean; unit: string; source: string; as_of: string; benchmark: string; scale_max: number | null; environment: string; method: string; stale: boolean; conflicting: boolean }[]
+  selection?: { class: string; use: string; speed: string; source: string | null; verified: string | null; vision: boolean | null; stale?: boolean }
   id: string; name: string; free: boolean | null; platform: string | null; agents: string[]; status: string | null; in_catalog: boolean; in_snapshot: boolean
   context: number | null; tools: boolean | null; structured: boolean | null; reasoning: boolean | null; inputs: string[]
   price_in: number | null; price_out: number | null

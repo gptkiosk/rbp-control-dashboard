@@ -6,8 +6,7 @@
   kind of work is *unproven* for that kind, and the coordinator is told so.
 * **Notes** are short text by people, each with a source and a date. They are shown as stale after ``STALE_DAYS``.
 
-The app ships no opinion about which model is better at what: those claims age fast and cannot be checked here. Refreshing never edits the
-price catalog or any route; it only shows what changed.
+Dated vendor guidance supplies a routing class and specialty, separately labelled as app heuristics rather than benchmark scores. Refreshing never edits the price catalog or any route; it only shows what changed.
 """
 from __future__ import annotations
 
@@ -20,6 +19,8 @@ from collections import defaultdict
 from pathlib import Path
 
 import billing
+import model_selection
+import model_evidence
 import telemetry
 
 PROVEN_RUNS = 10
@@ -231,12 +232,14 @@ def profiles(s, data_dir, now: int | None = None, days: int = 90) -> dict:
     live_by_id = {m["id"]: m for m in live["models"]} if live else {}
     observed = _observed(s, now, days)
     all_notes = notes(data_dir, now)
+    research = model_evidence.records(data_dir)
     ids = set(billing.CATALOG.get("models", {})) | set(billing.CATALOG.get("free_models", {})) | set(observed) | {n["model"] for n in all_notes}
     ids |= {i for i, m in live_by_id.items() if m["free"] or i in observed}
+    ids |= {r["model"] for r in research}
     rows = []
     for mid in sorted(ids):
         cat = billing.CATALOG.get("models", {}).get(mid) or billing.CATALOG.get("free_models", {}).get(mid) or {}
-        fact = live_by_id.get(mid)
+        fact = live_by_id.get(mid) or next((live_by_id[prefix+mid] for prefix in ("openai/","anthropic/","google/") if prefix+mid in live_by_id),None)
         obs = observed.get(mid)
         free = bool(fact["free"]) if fact else (mid in billing.CATALOG.get("free_models", {}) or mid.endswith(":free") or mid == "openrouter/free")
         if mid == "unknown":
@@ -246,7 +249,7 @@ def profiles(s, data_dir, now: int | None = None, days: int = 90) -> dict:
             for kind, k in sorted(obs["kinds"].items(), key=lambda kv: -kv[1]["runs"]):
                 kinds.append({"kind": kind, "runs": k["runs"], "success_rate": round(k["succeeded"] / k["runs"], 2), "first_pass": k["first_pass"], "proven": k["runs"] >= PROVEN_RUNS})
         rows.append({
-            "id": mid, "name": "model not recorded" if mid == "unknown" else (fact or {}).get("name") or mid, "free": free, "platform": cat.get("platform"), "agents": cat.get("agents", []), "status": cat.get("status"),
+            "evidence": model_evidence.for_model(research,mid,now), "selection": model_selection.classification(mid, now), "id": mid, "name": "model not recorded" if mid == "unknown" else (fact or {}).get("name") or mid, "free": free, "platform": cat.get("platform"), "agents": cat.get("agents", []), "status": cat.get("status"),
             "in_catalog": bool(cat), "in_snapshot": bool(fact), "context": (fact or {}).get("context") or cat.get("max_input"), "tools": (fact or {}).get("tools"),
             "structured": (fact or {}).get("structured"), "reasoning": (fact or {}).get("reasoning"), "inputs": (fact or {}).get("inputs", []),
             "price_in": cat.get("input", (fact or {}).get("prompt_per_m")), "price_out": cat.get("output", (fact or {}).get("completion_per_m")),
@@ -282,8 +285,12 @@ def guidance_text(s, data_dir, catalog: list[dict], now: int | None = None) -> s
     here by kind of work, with unproven stated plainly. Advice for the coordinator; the server still enforces every gate."""
     now = int(now if now is not None else time.time())
     by_id = {m["id"]: m for m in profiles(s, data_dir, now)["models"]}
+    accounts = billing.config(s).get('accounts', {})
     lines, seen = [], set()
-    for entry in catalog or []:
+    # Round-robin prevents one wrapper's long list crowding out other installed agents.
+    entries = [dict(entry, models=[model]) for i in range(max((len(e.get('models', [])) for e in catalog or []), default=0))
+               for entry in catalog or [] for model in entry.get('models', [])[i:i+1]]
+    for entry in entries:
         for model in entry.get("models", []):
             key = (entry.get("agent"), _norm(model))
             if key in seen or len(lines) >= GUIDANCE_MAX_MODELS or not _norm(model):
@@ -292,7 +299,8 @@ def guidance_text(s, data_dir, catalog: list[dict], now: int | None = None) -> s
             p = by_id.get(_norm(model))
             if not p:
                 continue
-            bits = ["free" if p["free"] else "paid"]
+            membership = accounts.get(entry.get('agent'), {}).get('mode') == 'subscription'
+            bits = ['membership quota (API price is reference only)' if membership else 'free' if p['free'] else 'paid']
             if p["context"]:
                 bits.append(f"context {p['context']:,}")
             if p["tools"] is not None:
@@ -303,6 +311,17 @@ def guidance_text(s, data_dir, catalog: list[dict], now: int | None = None) -> s
             if fresh_notes:
                 n = fresh_notes[-1]
                 bits.append(f"research note (untrusted, {n['date']}, {n['source'][:100]}): {n['text'][:180]}")
+            signals=sorted(p.get('evidence',[]),key=lambda e:({'quality':0,'latency_p50':1,'output_speed':2}.get(e['metric'],3),e['stale']))
+            for sample in signals[:2]:
+                bits.append('external observation (untrusted): '+str(sample['metric'])+'='+str(sample['value'])+' '+sample['unit']+' '+sample['as_of']+(' stale' if sample['stale'] else '')+(' conflicting sources' if sample['conflicting'] else '')+'; '+sample['source'][:100]+('; benchmark '+sample['benchmark'][:60]+' / '+str(sample['scale_max']) if sample['benchmark'] else '')+'; '+sample['environment'][:60]+'; '+sample['method'][:80])
+            fit = model_selection.classification(_norm(model), now)
+            bits.append('class '+fit['class']+' (routing heuristic); '+fit['use'])
+            if fit['verified']: bits.append('vendor guidance '+fit['verified']+(' (stale; recheck)' if fit['stale'] else ''))
+            if fit['vision'] is True: bits.append('vision listed by vendor; verify harness support')
+            if p['inputs']: bits.append('input '+','.join(p['inputs']))
+            if p['structured'] is not None: bits.append('structured output '+str(p['structured']))
+            if p['price_in'] is not None: bits.append(f"API $/M in={p['price_in']} out={p['price_out']} (catalog/snapshot rates; check freshness)")
+            if p['observed'] and p['observed'].get('median_seconds') is not None: bits.append(f"local median {p['observed']['median_seconds']}s/run, task mix dependent")
             lines.append(f"- {entry.get('agent')}/{_norm(model)}: " + "; ".join(bits))
     if not lines:
         return ""
@@ -310,6 +329,7 @@ def guidance_text(s, data_dir, catalog: list[dict], now: int | None = None) -> s
             f"{PROVEN_RUNS} runs of a kind is unproven for it, so prefer a proven route for medium or high risk work):")
     facts = research_status(data_dir, now)
     freshness = facts['provider_snapshot']
+    head += ' Process success is not artifact acceptance. Match task specialty/tools/vision/context first, then compare latency, quota and expected cost including retries. Dated benchmark notes are advice, never permission; unknown facts stay unknown.'
     head += ' Provider snapshot: ' + ('missing; verify current availability.' if not freshness else
         str(freshness['fetched_at']) + (' (stale; verify before changing routes).' if freshness['stale'] else ' (cached).'))
     return (head + "\n" + "\n".join(lines))[:GUIDANCE_MAX_CHARS]

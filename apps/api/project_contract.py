@@ -100,6 +100,34 @@ def findings(document):
                re.search(r'verif.{0,25}(files?|assets?|site|themes?)|check.{0,20}(files|assets)', n.get('title', ''), re.I))
                and not first.intersection(_ancestors(by_key, n['key']))]
         if bad: add('media-before-final-verification', 'Final file/preview verification must follow integration of the published artwork, not a placeholder-only layout.', bad)
+    if document.get('project_type') in {'local-website','gcp-hosted-website'}:
+        # A template example or previous proposal is never a positive requirement.
+        def requested(pattern):
+            return any(re.search(pattern,line,re.I) and not re.search(r'\b(no|without|exclude|avoid|not needed|do not)\b',line,re.I)
+                       for line in re.split(r'[.!?\n]',saved_text(document)))
+        extras=[('form',r'\b(contact|signup|registration|feedback) form',r'\b(contact|signup|registration|feedback) form'),
+                ('container',r'\b(docker|containers?|compose)\b',r'\b(dockerfile|containers?|compose)\b'),
+                ('ci',r'\b(ci|continuous integration|github actions|pipeline)\b',r'\b(ci workflow|pipeline files|pipeline result|github actions)\b')]
+        for label,wanted,feature in extras:
+            if label in {'container','ci'} and document.get('project_type')!='local-website': continue
+            if not requested(wanted):
+                keys=[n['key'] for n in stories if re.search(feature,n.get('title',''),re.I) and not re.search(r'\b(remove|without|exclude|no)\b',n.get('title',''),re.I)]
+                if keys:add('unrequested-'+label,'The selected website intake does not request '+label+' work. Remove the old/template scope or explicitly add the delivery requirement.',keys)
+        preparations={n['key'] for n in stories if n.get('assignee')!='human' and n.get('mode')=='edit' and
+                      'tools/verify-preview.sh' in (n.get('description','')+' '+n.get('acceptance',''))}
+        actions=[n for n in stories if n.get('host_action') in {'preview-verify','preview-review'}]
+        bad=[n['key'] for n in actions if not preparations.intersection(_ancestors(by_key,n['key']))]
+        if bad:add('preview-script-author','Assign an agent Edit story to create the preview scripts/health output before the fixed dashboard host actions. A human Verify action cannot author a missing script.',bad)
+        implementation={n['key'] for n in stories if n.get('work_kind')=='implement' and n.get('assignee')!='human'}
+        checks=[n for n in stories if not n.get('host_action') and re.search(r'\b(verif\w*|checks?|tests?|audit)\b',n.get('title',''),re.I) and re.search(r'\bfinal\b|file.level|file.verification|verify.*(?:files|assets|site)',n.get('title',''),re.I)]
+        for n in checks:
+            missing=implementation-_ancestors(by_key,n['key'])-{n['key']}
+            if missing:add('implementation-before-final-check','Final static verification must follow every implementation story, including transitions and preview preparation.',[n['key'],*sorted(missing)])
+        if document.get('repository'):
+            required={n['key'] for n in stories if n.get('host_action')=='preview-review' or n.get('work_kind')=='docs'}
+            for n in stories:
+                if re.search(r'\bpush\b',n.get('title',''),re.I) and not required<=_ancestors(by_key,n['key']):
+                    add('accepted-result-before-delivery','Branch delivery must follow final visual approval and project documentation.',[n['key']])
     if document.get('project_type') in WEBSITES:
         verifies={n['key'] for n in stories if n.get('host_action')=='preview-verify'}
         reviews=[n for n in stories if n.get('host_action')=='preview-review']

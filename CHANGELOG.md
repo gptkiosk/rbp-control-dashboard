@@ -10,6 +10,20 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.6.71] - 2026-10-25
+
+### Changed
+
+- The model slider is a provider-neutral capability/cost threshold. Coordinator guidance matches task specialty, complexity, risk, tools and vision to dated model facts, local outcomes, latency and membership versus API costs.
+- New projects use automatic planning independently of the story slider, with focused/general membership candidates and bounded retries on approved routes. Automatic plan review uses the selected planner rather than returning the map to a weaker default.
+- Model profiles accept normalized, dated API observations from multiple sources and provide a fixed public LiteLLM reference refresh alongside the OpenRouter snapshot. Conflicting metrics, benchmark scales and environments stay visible; billing and routes never change on refresh.
+- Model profiles show sourced routing classes separately from benchmark rankings and local run results. Replanning sends a bounded prior-map summary instead of repeating the full source document; the complete source remains available for cancellation.
+
+### Fixed
+
+- Current website plans reject unrequested form/container/CI scope, missing agent preview-script preparation and implementation work omitted from final verification. Returned semantic defects use the existing bounded repair and approved-route escalation flow.
+- Generated-media instructions require approved character references before paired scenes. Project brief sidecars are refreshed even for short briefs, preventing stale content when deleted project IDs are reused.
+
 ## [0.6.70] - 2026-10-25
 
 ### Changed
@@ -1134,4 +1148,5 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 
 [0.6.69]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.68...v0.6.69
 
+[0.6.71]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.70...v0.6.71
 [0.6.70]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.69...v0.6.70

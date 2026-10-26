@@ -10,7 +10,7 @@ import { money, seconds, percent } from '@/lib/telemetry'
 // computed; notes are only ever people's, with a source and a date. Refreshing reads OpenRouter's public list and changes nothing else.
 const data = ref<Profiles | null>(null)
 const result = ref<RefreshResult | null>(null)
-const error = ref(''), busy = ref(false)
+const error = ref(''), busy = ref(false), researchResult = ref('')
 const note = ref({ model: '', text: '', source: '', date: new Date().toISOString().slice(0, 10) })
 
 async function load() {
@@ -20,6 +20,11 @@ function fail(e: unknown) { error.value = e instanceof ApiError || e instanceof 
 async function refresh() {
   busy.value = true; error.value = ''
   try { result.value = await postJson<RefreshResult>('/api/models/refresh', { confirm: true }); await load() } catch (e) { fail(e) } finally { busy.value = false }
+}
+async function refreshResearch() {
+  busy.value=true; error.value=''; researchResult.value=''
+  try { const r=await postJson<{changed:number;observations:number}>('/api/models/evidence/refresh',{confirm:true}); researchResult.value=`Read ${r.observations} reference observations; ${r.changed} changed. Billing and routes were not changed.`; await load() }
+  catch(e) { fail(e) } finally { busy.value=false }
 }
 async function addNote() {
   busy.value = true; error.value = ''
@@ -31,7 +36,7 @@ async function removeNote(id: string) {
 }
 const observed = computed(() => (data.value?.models ?? []).filter(m => m.observed))
 const withNotes = computed(() => (data.value?.models ?? []).filter(m => m.notes.length))
-const route = (m: ModelProfile) => (m.free === null ? 'not recorded' : m.free ? 'free' : 'paid')
+const route = (m: ModelProfile) => (m.free === null ? 'not recorded' : m.free ? 'free API' : 'API priced')
 const flags = (m: ModelProfile) => [m.tools ? 'tools' : null, m.structured ? 'structured output' : null, m.reasoning ? 'reasoning' : null].filter(Boolean).join(', ') || '–'
 const when = (ts: number) => new Date(ts * 1000).toLocaleDateString()
 onMounted(load)
@@ -39,7 +44,7 @@ onMounted(load)
 <template>
   <section v-if="data" class="models" aria-label="Models">
     <h2 class="section-title">Models</h2>
-    <NoteFold label="Where these numbers come from"><p class="muted small">Facts come from the price catalog and OpenRouter's public list; observed numbers come from your own runs; notes are only ever people's, with a source and a date. A model with fewer than {{ data.proven_runs }} runs of a kind is unproven for it.</p></NoteFold>
+    <NoteFold label="Where these numbers come from"><p class="muted small">Facts come from the price catalog and OpenRouter's public list; observed numbers come from your own runs; notes are only ever people's, with a source and a date. A model with fewer than {{ data.proven_runs }} runs of a kind is unproven for it. Process success is not accepted artifact quality. API prices are reference rates; membership routes use their configured quota. Routing classes are heuristics informed by dated vendor guidance, not benchmark rankings.</p></NoteFold>
     <p v-if="error" class="notice-warn" role="alert">{{ error }}</p>
 
     <StackedBars title="Observed success by model" :parts="[{ key: 'ok', label: 'Succeeded', color: 'var(--ok)' }, { key: 'bad', label: 'Did not succeed', color: 'var(--danger)' }]"
@@ -64,6 +69,8 @@ onMounted(load)
       </div>
     </div>
 
+    <details class="card detail" aria-label="Model research data"><summary>Research data · sources and dates</summary><p class="muted small">Compare API-fed cost, capabilities, speed and task-specific scores with local results. Different benchmark scales and environments are kept separate. Reference data never changes billing or active routes.</p><button type="button" class="btn" :disabled="busy" @click="refreshResearch">Refresh reference data · LiteLLM</button><p v-if="researchResult" class="small" role="status">{{researchResult}}</p><ul class="small"><template v-for="m in data.models" :key="m.id"><li v-for="(e,i) in m.evidence || []" :key="m.id + i"><strong>{{m.id}}</strong>: {{e.metric}} {{e.value}} {{e.unit}}{{e.benchmark ? ` · ${e.benchmark} / ${e.scale_max}` : ''}} · {{e.as_of}}{{e.stale ? ' · stale' : ''}}{{e.conflicting ? ' · conflicting values' : ''}} · <a :href="e.source" target="_blank" rel="noopener noreferrer">Source</a><span v-if="e.environment || e.method"> · {{e.environment}} · {{e.method}}</span></li></template></ul></details>
+
     <details class="card detail" aria-label="Model profiles table">
       <summary>Model profiles: the numbers</summary>
       <div class="table-scroll"><table class="data-table">
@@ -71,7 +78,7 @@ onMounted(load)
         <thead><tr><th>Model</th><th>Route</th><th class="num">Context</th><th>Can do</th><th class="num">Runs</th><th class="num">Success</th><th>Proven for</th><th class="num">Notes</th></tr></thead>
         <tbody><tr v-for="m in data.models" :key="m.id">
           <td :title="m.name">{{ m.id }}</td><td>{{ route(m) }}{{ m.price_in != null && m.free === false ? ` · $${m.price_in}/$${m.price_out} per M` : '' }}</td>
-          <td class="num">{{ m.context ? m.context.toLocaleString() : '–' }}</td><td>{{ flags(m) }}</td>
+          <td class="num">{{ m.context ? m.context.toLocaleString() : '–' }}</td><td>{{ flags(m) }}<span v-if="m.selection" class="small" :title="m.selection.use + '; ' + m.selection.speed"> · {{ m.selection.class }}<a v-if="m.selection.source" :href="m.selection.source" target="_blank" rel="noopener noreferrer"> · source {{m.selection.verified}}{{m.selection.stale ? ' (stale)' : ''}}</a></span></td>
           <td class="num">{{ m.observed?.runs ?? 0 }}</td><td class="num">{{ m.observed ? percent(m.observed.success_rate) : '–' }}</td>
           <td>{{ m.kinds.filter(k => k.proven).map(k => k.kind).join(', ') || (m.observed ? 'unproven' : '–') }}</td><td class="num">{{ m.notes.length }}</td>
         </tr></tbody>

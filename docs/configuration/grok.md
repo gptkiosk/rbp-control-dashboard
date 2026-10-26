@@ -44,7 +44,7 @@ Use Grok only on work you are willing to share with xAI.
 |---|---|
 | Task, chat, project story agent, approved fallback | yes |
 | Operator-granted git push to a project branch | yes (same rules as Claude Code) |
-| Project planner (Hermes, Claude Code or Codex plan; auto assignment by planning bias) | no: only chosen by hand |
+| Project planner (Hermes, Claude Code or Codex plan; automatic planner choice independent of story threshold) | no: only chosen by hand |
 | Usage and cost | from the runs RCD dispatches (tokens and the CLI's reported cost); the CLI's own session history is not read |
 | Subscription limit notice and reroute | no (the CLI's limit wording is not known yet) |
 | MCP server management from RCD | no |

@@ -559,7 +559,7 @@ def test_legacy_bias_default_is_read_only_and_edits_preserve_assignments(app):
     saved=app[0].patch('/api/projects/1',json={'revision':1,'document':p['document']}).json()
     assert saved['document']['planning_bias']==0 and saved['document']['nodes']==original
 
-@pytest.mark.parametrize('bias,phrase',[(0,'Economy / OpenClaw first'),(50,'Balanced.'),(100,'Capability / Claude and Codex first')])
+@pytest.mark.parametrize('bias,phrase',[(0,'Economy.'),(50,'Balanced.'),(100,'Capability.')])
 def test_bias_reaches_each_planning_stage_and_reviewed_edits_win(app,bias,phrase):
     c,s,_,_=app
     c.app.state.collector=SimpleNamespace(subagents={'openclaw':{'agents':[{'id':'mm-developer','name':'Local Dev','model':'openrouter/thinkingmachines/inkling:free','secret':'must-not-propagate'}]}})
@@ -1049,10 +1049,13 @@ def test_delegator_pipeline_keeps_assigned_agent_and_model_during_role_change(ap
     finish(app,p['pipeline']['card_id'],json.dumps({'nodes':[node('story')]}));advance(app)
     p=client.get('/api/projects/1').json()
     assert p['pipeline']['delegator'] == route
+    # Automatic planning pins its selected planner as the separate return reviewer.
+    # A later global Coordinator role change cannot replace either assignment.
+    assert p['pipeline']['reviewer'] == selected
     with app[1]() as db:
         card=db.get(Card,p['pipeline']['card_id'])
-        assert card.agent == agent
-        assert (card.model or '') == route['model']
+        assert card.agent == selected['agent']
+        assert (card.model or '') == selected['model']
 
 def test_free_only_setup_can_plan_with_hermes_without_subscription_clis(app, monkeypatch, tmp_path):
     monkeypatch.setattr(AgentSpec, 'available', lambda self, settings: self.id == 'hermes')

@@ -11,7 +11,7 @@ Pending capture: `profile-settings.png` (preferences), `profile-settings-account
 ## Controls
 
 1. Open **Settings** at the bottom of the sidebar or in the discrete header account menu. The account menu also contains Sign out when available; Help chat is a separate control.
-2. Select **Appearance** (Follow device, Light or Dark), the default working directory and Story assignment preference, then **Save preferences**. The header theme toggle changes appearance for the whole app.
+2. Select **Appearance** (Follow device, Light or Dark), the default working directory and Model matching preference, then **Save preferences**. The header theme toggle changes appearance for the whole app.
 3. Under **Hermes on Discord**, set your channel and dashboard address, select notification/planning permissions and **Save connection**. Choose **Get pairing code**, send that private instruction to Hermes within ten minutes, then **Check pairing**. Use **Unlink Discord** to revoke the pairing.
 4. Permit Discord planning only when you want your requests there to start subscription planning with Hermes coordination. Paid API planners and implementation stories still require separate review. Hermes asks whether you need a diagram before sending one.
 5. Under **Private credentials**, enter an OpenRouter key or optional Discord bot token and **Save credential**. The UI shows a short saved hint, not the secret. Remove a saved credential when appropriate. **Check key spending** reads the saved OpenRouter key’s reported usage.
