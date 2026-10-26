@@ -283,6 +283,13 @@ def continue_output(project_id:int,card_id:int,body:ContinueOutput,request:Reque
     identity=actor(request);write(s);p=projects.get(s,project_id)
     projects.continue_output(s,p,card_id,body,get_settings(),identity);s.commit();return projects.detail(s,p)
 
+@router.get('/{project_id}/packet')
+def project_packet_view(project_id:int,request:Request,refresh_source:bool=False,s:Session=Depends(get_session)):
+    """The project's continuation packet, brought up to date. Writes only the app's private packet folder."""
+    import coordinator_read, project_packet
+    p=coordinator_read.owned(s,project_id,actor(request))
+    return project_packet.view(s,p,get_settings(),refresh_source)
+
 @router.get('/{project_id}/context',response_class=PlainTextResponse)
 def context(project_id:int,request:Request,s:Session=Depends(get_session)):
     actor(request);return projects.context(s,projects.get(s,project_id))
