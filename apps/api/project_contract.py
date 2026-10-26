@@ -103,10 +103,18 @@ def findings(document):
     if document.get('project_type') in WEBSITES:
         verifies={n['key'] for n in stories if n.get('host_action')=='preview-verify'}
         reviews=[n for n in stories if n.get('host_action')=='preview-review']
+        file_checks={n['key'] for n in stories if not n.get('host_action') and re.search(r'verif.{0,25}(files?|assets?|site|themes?)|check.{0,20}(files|assets)',n.get('title',''),re.I)}
+        if not file_checks: add('static-file-verification','Website preview needs static file/asset verification first; preparing the verifier script is a separate prerequisite.')
+        bad=[key for key in verifies if not file_checks.intersection(_ancestors(by_key,key))]
+        if bad: add('static-before-host-preview','The dashboard verification checkpoint must depend on static file/asset verification, not merely script preparation.',bad)
         if not verifies: add('dashboard-preview-verify','Website verification needs explicit host_action preview-verify so the app exposes its fixed Verify button.')
         if not reviews: add('dashboard-preview-review','Website visual review needs explicit host_action preview-review so the app exposes authenticated Start/Open/Stop controls.')
         bad=[n['key'] for n in reviews if not verifies.intersection(_ancestors(by_key,n['key']))]
         if bad: add('dashboard-preview-order','Persistent visual review must depend on the dashboard verification checkpoint.',bad)
+    repository=document.get('repository') or re.search(r'(?:github\.com/|(?:repository|repo)\s*:\s*)[A-Za-z0-9_-]+/[A-Za-z0-9_.-]+',saved_text(document),re.I)
+    if document.get('project_type') in WEBSITES and repository:
+        delivered=any(re.search(r'\bpush\b',n.get('title','')+' '+n.get('description',''),re.I) for n in stories)
+        if not delivered: add('requested-remote-delivery','Repository-backed delivery needs a story that pushes the checked project branch and verifies the remote SHA; a local commit is insufficient. PR/CI work is conditional.')
     return found
 
 

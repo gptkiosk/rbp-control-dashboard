@@ -85,23 +85,6 @@
       "assignee": "agent"
     },
     {
-      "id": "verify-before-preview",
-      "severity": "warn",
-      "kind": "order",
-      "first": "verif.{0,30}(file|asset|theme|site)|check.{0,20}(files|assets)",
-      "then": "preview",
-      "message": "The automated preview-verification checkpoint does not follow a file verification story."
-    },
-    {
-      "id": "preview-before-look-signoff",
-      "severity": "warn",
-      "kind": "order",
-      "first": "preview",
-      "then": "(approve|sign.?off).{0,40}(look|art|design|theme|visual)",
-      "assignee": "human",
-      "message": "The human look approval does not come after an automated preview-verification checkpoint."
-    },
-    {
       "id": "container-after-pages",
       "severity": "warn",
       "kind": "order",
@@ -139,13 +122,6 @@
       "kind": "has_story",
       "match": "responsive|polish|layout.{0,20}(review|audit)|spacing",
       "message": "No responsive and polish review. Add a human story that reviews the preview at phone, tablet and wide desktop widths in both themes for sideways scroll, overlapping header pieces, text spacing and art that does not fill its box."
-    },
-    {
-      "id": "delivery-to-remote",
-      "severity": "warn",
-      "kind": "has_story",
-      "match": "push|pull request|\\bpr\\b|pipeline (run|result|status)|ci (run|result|status)|deliver",
-      "message": "When repository delivery is requested, push the checked project branch and verify its remote SHA. Add PR/CI work only when requested or required by the chosen delivery."
     },
     {
       "id": "readme-story",
