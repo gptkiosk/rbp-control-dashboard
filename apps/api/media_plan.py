@@ -60,10 +60,15 @@ def update(root, name, expected, changes, jobs):
     return {'slot': name, 'plan_sha256': hashlib.sha256(encoded).hexdigest(), 'changed': sorted(changes)}
 
 
-def require_evidence(root, stage):
+def require_evidence(root, stage, batch=None):
     slots=mg.load_slots(root)
     required=[slot for slot in slots.values() if slot.get('required',True)]
     if not required: raise mg.MediaError('The media inventory has no required assets to verify. Review the illustrated scope before approval.')
+    if batch is not None:
+        if batch not in {'reference', 'scenes'} or any(slot.get('batch') not in {'reference','scenes'} for slot in required):
+            raise mg.MediaError('Reference-first inventory must label every required slot batch reference or scenes before approval.',409)
+        required=[slot for slot in required if slot['batch']==batch]
+        if not required: raise mg.MediaError('The inventory has no required assets for this media batch.',409)
     missing=[]
     for slot in required:
         if mg.is_published(root,slot): continue

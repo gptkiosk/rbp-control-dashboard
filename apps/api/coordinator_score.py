@@ -26,8 +26,8 @@ BRIEFS_FILE = Path(REPO_ROOT) / "packs" / "evaluation" / "briefs.json"
 SIZE_FACTOR = 3.0                       # an estimate within a factor of three of the size class is sane
 MIN_ACCEPTANCE_CHARS = 30
 MIN_SCOPE_CHARS = 15
-CHECKABLE = re.compile(r"\b(tests?|pass(es|ed)?|fail(s|ed)?|returns?|shows?|displays?|exists?|verif(y|ied)|confirm(s|ed)?|no more than|at least|exactly|\d+|command|output|error|log|receipt|diff|screenshot|passes)\b", re.I)
-SIGNATURE_FIELDS = ("title", "description", "scope", "acceptance", "assignee", "model", "risk", "size", "estimate_minutes", "depends_on", "work_kind", "area", "mode")
+CHECKABLE = re.compile(r"\b(tests?|pass(es|ed)?|fail(s|ed)?|returns?|shows?|displays?|exists?|verif(y|ied)|confirm(s|ed)?|no more than|at least|exactly|\d+|command|output|error|log|receipt|diff|screenshot|passes|recorded|published|nonempty|non-empty|matches?|maps?|linked|documented|\d+(?:px|ms|em|rem|s))\b", re.I)
+SIGNATURE_FIELDS = ("title", "description", "scope", "acceptance", "assignee", "model", "risk", "size", "estimate_minutes", "depends_on", "work_kind", "area", "mode", "host_action", "media_stage", "media_batch", "verification_stage")
 
 
 def briefs() -> list[dict]:
@@ -86,7 +86,7 @@ def score_plan(nodes: list[dict], expect: dict | None = None, found: dict | None
             off.append(f"{n['key']} ({n.get('size')} but {est} min)")
     checks.append(_check("estimates", "Estimates fit the size class", not off, "; ".join(off[:4])))
     vague = [n["key"] for n in stories if len((n.get("acceptance") or "").strip()) < MIN_ACCEPTANCE_CHARS or not CHECKABLE.search(n.get("acceptance") or "")]
-    checks.append(_check("acceptance", "Acceptance criteria can be checked", not vague, f"vague: {', '.join(vague[:5])}" if vague else ""))
+    checks.append(_check("acceptance", "Acceptance criteria name observable evidence", not vague, f"vague: {', '.join(vague[:5])}" if vague else ""))
     unbounded = [n["key"] for n in stories if len((n.get("scope") or "").strip()) < MIN_SCOPE_CHARS]
     checks.append(_check("scope", "Every story has a bounded scope", not unbounded, f"no scope: {', '.join(unbounded[:5])}" if unbounded else ""))
     story_keys = {n["key"] for n in stories}

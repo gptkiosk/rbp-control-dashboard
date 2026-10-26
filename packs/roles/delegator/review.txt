@@ -6,3 +6,7 @@ Preserve well-matched configured subscription routes and approved fallbacks. Exp
 Execution candidates: $catalog
 Project: $project
 Proposed plan: $proposal
+
+Mark the distinct static file/asset check verification_stage "static"; this label never grants browser execution. For reference-first artwork, label generation/publication passes media_batch "reference" or "scenes". Encode reference generate → reference publish → scenes generate → scenes publish → integrate → static verification → preview-verify → preview-review in depends_on. Keep these role fields explicit; a title or prose promise is not a dependency. Do not redraw valid work to repair a missing role label.
+For those reference-first passes, inventory slots declare batch reference or scenes; every scene refs lists the exact published assets/img/<reference-slot>.jpg paths. Required slots all have a batch. Reference approval verifies only that batch; final scene approval verifies scenes. Choose provider sizes and min_width that permit publication, not a draft too small to publish.
+Both fixed host_action nodes must use assignee human (empty model/target), never a coding-agent route. Human here identifies the operator-facing app button; the app executes the approved operation programmatically. This is not permission or a requirement for terminal commands. Do not change a fixed host action to Codex to satisfy the routine-work preference.

@@ -209,3 +209,24 @@ def test_failure_categories(error,kind):
 def test_generic_hermes_exit_keeps_provider_diagnostics_useful_without_exposing_them(result,kind):
     assert recovery.failure_kind(SimpleNamespace(stage='failed',error='hermes exit code 1',result_text=result))==kind
     assert recovery.failure_kind(SimpleNamespace(stage='succeeded',error=None,result_text=result)) is None
+
+
+def test_invalid_work_label_repairs_only_that_field_then_returns_to_normal_review(app):
+    c,sessions,settings,workspace=app
+    assert c.put('/api/profile/route-reliability',json={'enabled':True,'routes':[{'agent':'claude','model':'claude-haiku-5-5'}]}).status_code==200
+    p=project(c,workspace)
+    assert c.post(f"/api/projects/{p['id']}/plan",json={'revision':1,'approve_coordination':True}).status_code==200
+    with sessions() as s:
+        p=s.get(Project,p['id']);pipe=json.loads(p.pipeline);card=s.get(Card,pipe['card_id'])
+        choice=pipe['choices'][0]
+        run(s,card,result=json.dumps(choice));projects.advance(s,settings);s.commit()
+        pipe=json.loads(p.pipeline);card=s.get(Card,pipe['card_id']);original_body=card.body
+        source={'nodes':[{'key':'a','title':'Implement a bounded file','description':'Create one file.','scope':'one.txt','acceptance':'one.txt exists.', 'work_kind':'design','mode':'edit','assignee':'codex','model':'gpt-6-luna','depends_on':[]}]}
+        run(s,card,result=json.dumps(source));projects.advance(s,settings);s.commit()
+        assert p.state=='planning' and 'field_repair' in json.loads(p.pipeline)
+        assert 'Return ONLY {"repairs"' in card.body
+        run(s,card,result=json.dumps({'repairs':[{'key':'a','field':'work_kind','value':'implement'}]}))
+        projects.advance(s,settings);s.commit()
+        assert json.loads(p.pipeline)['step']=='return' and 'field_repair' not in json.loads(p.pipeline)
+        assert card.body==original_body
+        assert not list(s.scalars(select(ProjectTask).where(ProjectTask.project_id==p.id,ProjectTask.role=='story')))
