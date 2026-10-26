@@ -50,11 +50,42 @@ def media_stage(node):
         return node['media_stage']
     title = node.get('title', '').lower()
     # Compatibility for existing saved maps. Never infer generation from select/publish alone.
-    if re.search(r'(media|asset) (inventory|plan|slots?)|media/slots\.json', title): return 'inventory'
+    if re.search(r'\b(?:media|assets?|artwork|illustrations?|slots?)\b.{0,35}\b(?:inventory|plan|slots?)\b|\binventory\b.{0,35}\b(?:media|assets?|artwork|illustrations?|slots?)\b|media/slots\.json', title): return 'inventory'
     if re.search(r'\b(generate|make)\b.{0,55}\b(media|art\w*|images?|illustrations?|stills?|clips?)\b', title): return 'generate'
     if re.search(r'\b(publish|select|approve)\b.{0,55}\b(media|art\w*|images?|illustrations?|stills?|clips?|candidates?)\b', title): return 'publish'
     if re.search(r'\b(integrat\w*|wire)\b.{0,55}\b(media|art\w*|images?|illustrations?|stills?|clips?)\b', title): return 'integrate'
     return None
+
+
+def static_verification(node):
+    """Recognize a distinct static check in either word order, never mere script authorship."""
+    if node.get('host_action') or node.get('kind', 'story') != 'story':
+        return False
+    if node.get('verification_stage') == 'static':
+        return True
+    title = node.get('title', '').lower()
+    return bool(re.search(r'\b(?:verif\w*|checks?|tests?|audit)\b', title) and
+                re.search(r'\b(?:static|files?|assets?|links?|syntax)\b|file.level', title) and
+                not re.search(r'\b(?:author|create|prepare|write|implement)\b', title))
+
+
+def normalize_roles(node):
+    """Fill unambiguous role labels on a new proposal only. Never edits content or graph."""
+    row = dict(node)
+    if row.get('kind', 'story') == 'story':
+        if not row.get('media_stage'):
+            stage = media_stage(row)
+            if stage:
+                row['media_stage'] = stage
+        if row.get('media_stage') in {'generate', 'publish'} and not row.get('media_batch'):
+            title = row.get('title', '').lower()
+            reference = bool(re.search(r'\b(?:heroine|character)\b|\breference\b(?!-conditioned)', title))
+            scenes = bool(re.search(r'\b(?:scenes?|pairs?|paired)\b|\b(?:page|world)\b.{0,35}\b(?:illustrations?|images?|artwork|stills?)\b', title))
+            if reference != scenes:
+                row['media_batch'] = 'reference' if reference else 'scenes'
+        if not row.get('verification_stage') and static_verification(row):
+            row['verification_stage'] = 'static'
+    return row
 
 
 def findings(document):
@@ -89,6 +120,8 @@ def findings(document):
         groups = {stage: [n for n in stories if media_stage(n) == stage] for stage in ('inventory', 'generate', 'publish', 'integrate')}
         for stage, nodes in groups.items():
             if not nodes: add('media-stage-' + stage, f'Requested generated artwork needs a distinct {stage} story. Selecting or publishing existing candidates does not generate them.')
+            missing = [n['key'] for n in nodes if not n.get('media_stage')]
+            if missing: add('media-role-label', 'Media work exists but needs its explicit media_stage label before submission; repair the label, not a duplicate story.', missing)
             wrong = [n['key'] for n in nodes if (n.get('assignee') == 'human') != (stage in {'generate', 'publish'})]
             if wrong: add('media-owner-' + stage, 'Generation/publication run through dashboard Media Studio decisions; agents inventory/integrate files and never receive the provider key.', wrong)
         for previous, following in zip(('inventory', 'generate', 'publish'), ('generate', 'publish', 'integrate')):
@@ -97,7 +130,7 @@ def findings(document):
             if bad: add('media-order-' + following, f'Media {following} must depend on {previous}; keep the paid generation and candidate decision in the correct order.', bad)
         first = {n['key'] for n in groups['integrate']}
         bad = [n['key'] for n in stories if (n.get('host_action') in {'preview-verify', 'preview-review'} or
-               re.search(r'verif.{0,25}(files?|assets?|site|themes?)|check.{0,20}(files|assets)', n.get('title', ''), re.I))
+               static_verification(n))
                and not first.intersection(_ancestors(by_key, n['key']))]
         if bad: add('media-before-final-verification', 'Final file/preview verification must follow integration of the published artwork, not a placeholder-only layout.', bad)
     if document.get('project_type') in {'local-website','gcp-hosted-website'}:
@@ -119,7 +152,7 @@ def findings(document):
         bad=[n['key'] for n in actions if not preparations.intersection(_ancestors(by_key,n['key']))]
         if bad:add('preview-script-author','Assign an agent Edit story to create the preview scripts/health output before the fixed dashboard host actions. A human Verify action cannot author a missing script.',bad)
         implementation={n['key'] for n in stories if n.get('work_kind')=='implement' and n.get('assignee')!='human'}
-        checks=[n for n in stories if not n.get('host_action') and re.search(r'\b(verif\w*|checks?|tests?|audit)\b',n.get('title',''),re.I) and re.search(r'\bfinal\b|file.level|file.verification|verify.*(?:files|assets|site)',n.get('title',''),re.I)]
+        checks=[n for n in stories if static_verification(n)]
         for n in checks:
             missing=implementation-_ancestors(by_key,n['key'])-{n['key']}
             if missing:add('implementation-before-final-check','Final static verification must follow every implementation story, including transitions and preview preparation.',[n['key'],*sorted(missing)])
@@ -131,7 +164,7 @@ def findings(document):
     if document.get('project_type') in WEBSITES:
         verifies={n['key'] for n in stories if n.get('host_action')=='preview-verify'}
         reviews=[n for n in stories if n.get('host_action')=='preview-review']
-        file_checks={n['key'] for n in stories if not n.get('host_action') and re.search(r'verif.{0,25}(files?|assets?|site|themes?)|check.{0,20}(files|assets)',n.get('title',''),re.I)}
+        file_checks={n['key'] for n in stories if static_verification(n)}
         if not file_checks: add('static-file-verification','Website preview needs static file/asset verification first; preparing the verifier script is a separate prerequisite.')
         bad=[key for key in verifies if not file_checks.intersection(_ancestors(by_key,key))]
         if bad: add('static-before-host-preview','The dashboard verification checkpoint must depend on static file/asset verification, not merely script preparation.',bad)
@@ -143,6 +176,39 @@ def findings(document):
     if document.get('project_type') in WEBSITES and repository:
         delivered=any(re.search(r'\bpush\b',n.get('title','')+' '+n.get('description',''),re.I) for n in stories)
         if not delivered: add('requested-remote-delivery','Repository-backed delivery needs a story that pushes the checked project branch and verifies the remote SHA; a local commit is insufficient. PR/CI work is conditional.')
+    found.extend(reference_findings(document, stories, by_key))
+    return found
+
+
+def reference_first(document):
+    text = saved_text(document)
+    return generated_media(document) and bool(re.search(r'\b(?:heroine|character|style)\b.{0,70}\breference\b.{0,80}\b(?:first|before|followed by)\b|\bfirst\b.{0,70}\b(?:generate|publish|approve)\b.{0,70}\b(?:heroine|character|style)\b.{0,40}\breference\b', text, re.I))
+
+
+def reference_findings(document, stories, by_key):
+    from project_types import _ancestors
+    if not reference_first(document):
+        return []
+    found = []
+    def add(id_, message, keys):
+        found.append({'id': id_, 'severity':'block', 'message':message, 'stories':keys})
+    operations = [n for n in stories if media_stage(n) in {'generate', 'publish'}]
+    missing = [n['key'] for n in operations if not n.get('media_batch')]
+    if missing:
+        add('media-batch-label', 'Reference-first art needs media_batch reference or scenes on each generation/publication story. Label the existing passes; do not merge them.', missing)
+    reference_generate = {n['key'] for n in operations if n.get('media_batch')=='reference' and media_stage(n)=='generate'}
+    reference_publish = {n['key'] for n in operations if n.get('media_batch')=='reference' and media_stage(n)=='publish'}
+    scene_generate = {n['key'] for n in operations if n.get('media_batch')=='scenes' and media_stage(n)=='generate'}
+    scene_publish = {n['key'] for n in operations if n.get('media_batch')=='scenes' and media_stage(n)=='publish'}
+    if not all((reference_generate, reference_publish, scene_generate, scene_publish)):
+        add('reference-first-passes', 'Use separate reference generation/publication and scene generation/publication passes; prose inside one Generate-all task is insufficient.', [n['key'] for n in operations])
+    for keys, prerequisites, id_ in [(reference_publish, reference_generate, 'reference-publication-order'), (scene_generate, reference_publish, 'reference-before-scenes'), (scene_publish, scene_generate, 'scene-publication-order')]:
+        bad = [key for key in keys if not prerequisites or not prerequisites <= _ancestors(by_key,key)]
+        if bad:
+            add(id_, 'Encode the published-reference to scene-generation chain in depends_on; each required prior pass must finish first.', sorted(bad))
+    bad = [n['key'] for n in stories if media_stage(n)=='integrate' and (not scene_publish or not scene_publish <= _ancestors(by_key,n['key']))]
+    if bad:
+        add('scenes-before-integration', 'Final artwork integration must follow publication of all required scene batches.', bad)
     return found
 
 

@@ -6,6 +6,8 @@ export interface ProjectNode {
   fallbacks: ('claude' | 'codex' | 'grok')[]
   routes: { agent: 'claude' | 'codex' | 'grok' | 'hermes' | 'openclaw'; model: string }[]
   media_stage?: 'inventory' | 'generate' | 'publish' | 'integrate' | null
+  media_batch?: 'reference' | 'scenes' | null
+  verification_stage?: 'static' | null
   touches?: string[]; integration?: boolean
 }
 export interface ProjectDocument {

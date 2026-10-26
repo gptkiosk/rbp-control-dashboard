@@ -106,6 +106,8 @@ def load_slots(root):
             raise MediaError("Every slot needs a unique lowercase name.")
         if item.get("kind") not in {"image", "video"} or not isinstance(item.get("prompt"), str) or not 1 <= len(item["prompt"]) <= 4000:
             raise MediaError(f"Slot {item['name']} needs a kind of image or video and a prompt.")
+        if "batch" in item and (not isinstance(item["batch"], str) or item["batch"] not in {"reference", "scenes"}):
+            raise MediaError(f"Slot {item['name']} has an invalid batch.")
         for key in ("refs",):
             if not isinstance(item.get(key, []), list) or len(item.get(key, [])) > 4 or not all(isinstance(r, str) and len(r) < 200 for r in item.get(key, [])):
                 raise MediaError(f"Slot {item['name']} has invalid references.")
@@ -190,6 +192,14 @@ def minimax_seconds(slot):
 
 def build_request(root, slot, tier, model=None, aspect=None):
     """(endpoint, input body) for a slot. Reads the reference and still images from the folder."""
+    if slot.get('batch') == 'scenes':
+        slots = load_slots(root)
+        references = [s for s in slots.values() if s.get('required',True) and s.get('batch')=='reference']
+        if not references or any(s['kind'] != 'image' or not is_published(root,s) for s in references):
+            raise MediaError('Publish the required character/style reference before generating scene artwork.',409)
+        paths = {f"assets/img/{s['name']}.jpg" for s in references}
+        if not paths <= set(slot.get('refs', [])):
+            raise MediaError('Each scene must use the published reference paths in refs before generation.',409)
     endpoint = endpoint_for(slot, tier, model)
     if slot["kind"] == "image":
         aspect = aspect or aspect_for(slot)

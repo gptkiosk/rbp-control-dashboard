@@ -222,6 +222,31 @@ def _who(n, assignee):
     return human if assignee == "human" else (not human) if assignee == "agent" else True
 
 
+def browser_execution(node, pattern):
+    """Keep positive execution requirements; ignore scoped negation and authored future behavior.
+    Role labels never exempt direct browser commands. Mixed author/run instructions still block.
+    """
+    author = bool(re.search(r'\b(?:write|author|prepare|create|implement)\b', node.get('title', ''), re.I)
+                  and re.search(r'script|verifier|preview', node.get('title', ''), re.I))
+    negative = re.compile(r"\b(?:do not|does not|must not|will not|cannot|never|don't|won't|not required to|without (?:running|executing|launching))\b", re.I)
+    for field in ('title', 'description', 'acceptance'):
+        # A contrast or follow-up command must not inherit an earlier negation.
+        for clause in re.split(r'[;\n.!?]|\b(?:but|however|then|also)\b', str(node.get(field) or ''), flags=re.I):
+            matches = list(re.finditer(pattern, clause, re.I))
+            for match in matches:
+                prefix = clause[:match.start()]
+                if negative.search(prefix) or re.search(r'\b(?:no\s*|non[- ])$', prefix, re.I):
+                    continue
+                if field == 'acceptance' and node.get('work_kind') == 'implement' and match.group().lower().startswith('render') and not re.search(r'\b(?:verify|check|assert|open|run|browser|console)\b', clause, re.I):
+                    continue  # Desired artifact appearance is judged by the downstream preview.
+                # A program subject before the operation describes future script behavior,
+                # not the author executing it. A separate imperative remains blocked.
+                if author and field != 'title' and re.search(r'\b(?:scripts?|runner|they)\b', prefix, re.I) and not re.search(r'\b(?:and|then)\s+(?:run|launch|execute|take|capture|generate|make)\b', prefix, re.I):
+                    continue
+                return True
+    return False
+
+
 def check(type_id, nodes, settings=None):
     """Findings for a plan: [{id, severity, message, stories}]. Empty when the plan fits the type or no type is chosen."""
     t = load(settings).get(type_id or "")
@@ -238,7 +263,8 @@ def check(type_id, nodes, settings=None):
                 findings.append({"id": c["id"], "severity": c.get("severity", "warn"), "message": c["message"], "stories": []})
             continue
         if kind == "not_agent_for":
-            bad = [n["key"] for n in stories if n.get("assignee") != "human" and re.search(c["match"], _text(n, c.get("scope", "all")))]
+            bad = [n["key"] for n in stories if n.get("assignee") != "human" and
+                   (browser_execution(n, c["match"]) if c['id'] == 'browser-checks-need-a-person' else re.search(c["match"], _text(n, c.get("scope", "all"))))]
         elif kind == "requires_story":
             triggered = any(re.search(c["match"], _text(n, c.get("scope", "all"))) for n in stories)
             ok = any(re.search(c["requires_match"], _text(n, c.get("requires_scope", "title"))) and _who(n, c.get("assignee")) for n in stories)

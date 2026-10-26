@@ -10,6 +10,16 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.6.73] - 2026-10-26
+
+### Fixed
+
+- Planning JSON rejects duplicate keys, including dependency and route fields, instead of silently keeping the last value. Non-finite numbers are refused as well.
+- Website checks distinguish static verification from script preparation, recognize verification titles in either word order, and avoid treating scoped non-browser checks or future script behavior as agent browser execution. Positive browser execution still requires its approved host or human route.
+- New proposals receive unambiguous media/static role labels without changing their graph, scope or routes. Reference-first artwork uses explicit reference and scene passes, with publication dependencies checked before generation and final integration.
+- Reference-first media approval verifies the declared inventory batch instead of waiting for future scenes. Scene generation requires the published reference and its exact reference paths before provider requests.
+- Bounded classification repairs preserve the original proposal and accept only listed field patches; they cannot replace nodes, dependencies, routes or scope. Other repairs can read their previous response from a private sidecar instead of redrafting blindly. Existing route, retry, spending and submission approvals remain in force.
+
 ## [0.6.72] - 2026-10-25
 
 ### Changed
