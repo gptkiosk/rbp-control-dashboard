@@ -437,11 +437,11 @@ it('offers no close action for a completed or planning project',async()=>{
  }
 })
 
-it('keeps the economy worker default free of a subscription-only model',()=>{
+it('keeps manual draft models unselected at every classification threshold',()=>{
  const economy=newNode('story',0,null,45)
- expect(economy.assignee).toBe('openclaw');expect(economy.model).toBe('')
+ expect(economy.assignee).toBe('codex');expect(economy.model).toBe('')
  const balanced=newNode('story',0,null,50)
- expect(balanced.assignee).toBe('codex');expect(balanced.model).toBe('gpt-6-luna')
+ expect(balanced.assignee).toBe('codex');expect(balanced.model).toBe('')
 })
 
 it('locks models at project level and restores approved failover when unlocked',async()=>{
