@@ -15,7 +15,7 @@ router=APIRouter(prefix='/api/hermes-projects')
 
 class Bridge(BaseModel):
     model_config=ConfigDict(extra='forbid',hide_input_in_errors=True)
-    action:Literal['pair','intake','list','get','save','plan','diagram','limits','limits_reroute','failures','failure','maintenance','maintenance_propose','standards','standards_propose','propose_repository','bootstrap_status','issue_task','capabilities','types','context','models','status','task','workspace','repository_intake','reserve_workspace','record_handoff','pause_dispatch','resume_dispatch','intake_questions']
+    action:Literal['pair','intake','list','get','save','plan','diagram','limits','limits_reroute','failures','failure','maintenance','maintenance_propose','standards','standards_propose','propose_repository','bootstrap_status','issue_task','capabilities','types','context','models','status','task','workspace','repository_intake','reserve_workspace','record_handoff','pause_dispatch','resume_dispatch','intake_questions','readiness','plan_checks','repair_plan']
     discord_user_id:str=Field(pattern=r'^[0-9]{16,22}$')
     discord_channel_id:str=Field(pattern=r'^[0-9]{16,22}$')
     source_message_id:str=Field(default='',pattern=r'^([0-9]{16,22})?$')
@@ -76,6 +76,12 @@ def command(body:Bridge,request:Request,s:Session=Depends(get_session)):
     profile=s.scalar(select(UserProfile).where(UserProfile.discord_user_id==body.discord_user_id))
     if not profile or profiles.prefs(s,profile.owner).discord_channel_id!=body.discord_channel_id:raise HTTPException(403,'Link this Discord account and channel in your RCD profile.')
     pref=profiles.prefs(s,profile.owner)
+    if body.action=='repair_plan':
+        if not pref.allow_discord_planning: raise HTTPException(403,'Enable Discord planning before editing a proposed plan.')
+        import coordinator_read
+        p=coordinator_read.owned(s,body.project_id,profile.owner)
+        result=projects.repair_plan_defaults(s,p,body.revision,settings,'hermes:'+profile.owner)
+        s.commit();return {'project_id':p.id,'revision':p.revision,'repaired':result,'link':f'/projects?project={p.id}','instructions':'Proposed revision only. Operator review/submission still required.'}
     if body.action in ('pause_dispatch','resume_dispatch'):
         if not pref.allow_discord_control:
             raise HTTPException(403,'Enable Discord control in your profile first.')
@@ -101,8 +107,8 @@ def command(body:Bridge,request:Request,s:Session=Depends(get_session)):
         except ValidationError:
             raise HTTPException(422,'Use the current revision/snapshot and a UUID operation ID; handoffs need a summary.') from None
         s.commit();return result
-    if body.action in ('capabilities','types','context','models','status','task','workspace','repository_intake','intake_questions'):
-        if body.action in ('status','task','workspace','repository_intake') and not pref.allow_discord_diagnostics:
+    if body.action in ('capabilities','types','context','models','status','task','workspace','repository_intake','intake_questions','readiness','plan_checks'):
+        if body.action in ('status','task','workspace','repository_intake','readiness','plan_checks') and not pref.allow_discord_diagnostics:
             raise HTTPException(403,'Enable Discord diagnostics in your profile first.')
         import coordinator_read
         return coordinator_read.read(s,settings,body.action,profile.owner,project_id=body.project_id,

@@ -324,11 +324,11 @@ def delete_project(project_id:int,body:DeleteIn,request:Request,s:Session=Depend
 
 @router.get('/{project_id}/checks')
 def plan_checks(project_id:int,request:Request,s:Session=Depends(get_session)):
-    """What the project's type expects of a plan and where this plan falls short. Warnings only; nothing here blocks a submit."""
+    """What the project's type expects of a plan and where this plan falls short. Context-aware required findings block submission; inspection itself changes nothing."""
     actor(request);p=projects.get(s,project_id);doc=projects.document(p)
     import project_types
     kind=doc.get('project_type')
-    return {'project_type':kind,'findings':project_types.check(kind,doc.get('nodes',[]),get_settings()) if kind else []}
+    return {'project_type':kind,'findings':project_types.check_document(doc,get_settings())}
 
 @router.post('/{project_id}/pause')
 def pause(project_id:int,body:Action,request:Request,s:Session=Depends(get_session)):
@@ -447,3 +447,17 @@ def queued_route(project_id:int,card_id:int,body:QueuedRouteChange,request:Reque
     identity=actor(request);write(s);p=projects.get(s,project_id)
     projects.change_queued_route(s,p,card_id,body,get_settings(),identity)
     s.commit();return projects.detail(s,p)
+
+
+@router.get('/{project_id}/readiness')
+def project_readiness_view(project_id:int, request:Request, s:Session=Depends(get_session)):
+    import project_readiness
+    actor(request)
+    return project_readiness.report(s,projects.get(s,project_id),get_settings())
+
+
+@router.post('/{project_id}/repair-plan')
+def repair_plan_defaults(project_id:int,body:Action,request:Request,s:Session=Depends(get_session)):
+    identity=actor(request);write(s);p=projects.get(s,project_id)
+    result=projects.repair_plan_defaults(s,p,body.revision,get_settings(),identity)
+    s.commit();return {**projects.detail(s,p),'repaired':result}

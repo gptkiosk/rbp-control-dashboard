@@ -12,7 +12,7 @@ import model_profiles
 import projects
 import failure_mining
 
-OPERATIONS = ('capabilities', 'types', 'intake_questions', 'context', 'models', 'status', 'task', 'workspace', 'repository_intake')
+OPERATIONS = ('capabilities', 'types', 'intake_questions', 'readiness', 'plan_checks', 'context', 'models', 'status', 'task', 'workspace', 'repository_intake')
 
 
 def capabilities():
@@ -20,6 +20,7 @@ def capabilities():
         'context_mode': 'general_plus_selected_type',
         'reads': list(OPERATIONS),
         'workflow': [
+            {'feature':'setup_and_plan_repair','discord_actions':['readiness','plan_checks','repair_plan','save'],'operator_link':'/projects'},
             {'feature': 'intake_and_planning', 'discord_actions': ['intake_questions', 'intake', 'get', 'save', 'plan'], 'operator_link': '/projects'},
             {'feature': 'diagnostics', 'discord_actions': ['failures', 'failure', 'task', 'status'], 'operator_link': '/telemetry'},
             {'feature': 'pause_resume', 'discord_actions': ['pause_dispatch', 'resume_dispatch'], 'operator_link': '/projects'},
@@ -53,6 +54,11 @@ def read(s, settings, operation, owner, *, project_id=None, task_id=None, workin
         import project_intake
         d = projects.document(p) if p else {}
         return project_intake.assessment(d.get('project_type', project_type), d.get('intake_answers'), settings)
+    if operation in {'readiness', 'plan_checks'}:
+        p = p or owned(s, project_id, owner)
+        if operation == 'plan_checks': return {'project_id':p.id, 'revision':p.revision, 'findings':project_types.check_document(projects.document(p),settings), 'repair':'Use repair_plan for safe saved-route/write-mode defaults; use save for a reviewed draft correction, or plan/replan for revised scope; never dispatch or grant access from findings.'}
+        import project_readiness
+        return project_readiness.report(s,p,settings)
     if operation == 'repository_intake':
         import repository_intake
         return repository_intake.inspect(settings, projects.document(p)['working_dir'] if p else working_dir)

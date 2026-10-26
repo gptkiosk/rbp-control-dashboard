@@ -10,6 +10,19 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.6.70] - 2026-10-25
+
+### Changed
+
+- Website plans follow saved scope and story-model preferences instead of adding generic forms, backend, container or CI work. Generated artwork uses distinct inventory, dashboard fal.ai generation, publication and integration stages with checked dependencies and file evidence before acceptance.
+- Coordinator plan/setup checks are shared across web and paired Hermes. Safe saved-route and write-mode corrections create an editable revision; missing runtime, provider, repository and preview prerequisites have direct app setup links and block dependent dispatch.
+- Media Studio can edit an ungenerated asset's prompt, purpose, theme, display dimensions, resolution and video duration. Edits use stale-plan protection, preserve asset identities/references, refresh estimates and require renewed spend confirmation.
+
+### Fixed
+
+- Selecting or publishing candidates no longer counts as a missing generation task. An explicitly generated-media workflow cannot complete its media decisions on placeholders or skipped required assets.
+
+
 ## [0.6.69] - 2026-10-25
 
 ### Changed
@@ -1120,3 +1133,5 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 [0.6.68]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.67...v0.6.68
 
 [0.6.69]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.68...v0.6.69
+
+[0.6.70]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.69...v0.6.70
