@@ -559,7 +559,7 @@ def test_legacy_bias_default_is_read_only_and_edits_preserve_assignments(app):
     saved=app[0].patch('/api/projects/1',json={'revision':1,'document':p['document']}).json()
     assert saved['document']['planning_bias']==0 and saved['document']['nodes']==original
 
-@pytest.mark.parametrize('bias,phrase',[(0,'Economy / OpenClaw first'),(50,'Balanced.'),(100,'Capability / Claude and Codex first')])
+@pytest.mark.parametrize('bias,phrase',[(0,'Economy.'),(50,'Balanced.'),(100,'Capability.')])
 def test_bias_reaches_each_planning_stage_and_reviewed_edits_win(app,bias,phrase):
     c,s,_,_=app
     c.app.state.collector=SimpleNamespace(subagents={'openclaw':{'agents':[{'id':'mm-developer','name':'Local Dev','model':'openrouter/thinkingmachines/inkling:free','secret':'must-not-propagate'}]}})

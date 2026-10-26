@@ -23,6 +23,7 @@ import cards
 import job_envelope
 import standards
 import model_profiles
+import model_selection
 import scorecard
 import project_workspaces as workspaces
 import provider_limits
@@ -57,26 +58,12 @@ def document(p):
     return data
 
 def planning_policy(bias):
-    if bias < 38:
-        preference = ('Economy / OpenClaw first. Prefer configured OpenClaw agents and free-first routes for most well-bounded stories; '
-            'when a subscription agent is needed, start with Claude Haiku 5.5 or Codex GPT-6 Luna and reserve larger models for demonstrated complexity or risk.')
-    elif bias < 63:
-        preference = ('Balanced. Use configured OpenClaw agents for routine, bounded stories. For subscription stories, default to Claude Haiku 5.5 '
-            'or Codex GPT-6 Luna; step up to Claude Sonnet 5.5 or Codex GPT-5.6 Terra only for difficult reasoning, security-sensitive work or integration. '
-            'Use Opus, Sol or Astra only when the assignment rationale explains why the mid tier is insufficient.')
-    else:
-        preference = 'Capability / Claude and Codex first. Prefer subscription agents for most implementation and critical reasoning; use OpenClaw for small, well-defined supporting stories.'
-    return (f'Operator planning bias {bias}/100 (0=economy, 100=capability). '+preference+
-        ' Bias strength increases toward the chosen endpoint; this is a soft preference, not a fixed percentage. '
-        'Match each story and its model tier to its complexity and risk; use lighter suggested models for routine work and stronger models for difficult reasoning. Explain any exception in its assignment rationale. '
-        'Choose among supplied installed agents/models/targets only; leave model or target blank for its configured default when unsure. '
-        'OpenClaw runs locally but uses provider-hosted models. Free-first routes may fall back to capped Google BYOK. '
-        'Subscriptions have fixed fees and shared quota, so this is not a cost or quality guarantee. '
-        'The preference applies to story assignments, not planner selection or execution permission. '
-        'Keep all recommendations editable; never expand paid approvals or execute a story during planning.')
+    return model_selection.policy(bias)
 
 def subscription_model(agent, bias, *, planner=False):
     """Return the cost-aware native subscription route for this preference."""
+    if planner:
+        return 'claude-haiku-5-5' if agent == 'claude' else 'gpt-6-luna'
     if bias < 38:
         return 'claude-haiku-5-5' if agent == 'claude' else 'gpt-6-luna'
     if bias < 63:
@@ -259,7 +246,7 @@ def execution_catalog(settings, subagents=None, bias=50):
         if default: models.append(default)
         if agent=='codex': models += ['gpt-6.1-sol','gpt-5.6-terra','gpt-6-astra','gpt-6-luna','gpt-5.6-sol']
         if agent in {'claude','codex'}:
-            models = [subscription_model(agent, bias), *models]
+            models = [r['model'] for r in model_selection.planning_routes() if r['agent']==agent] + models
         if agent in {'hermes','openclaw'}:
             models += [('openrouter/' if agent=='openclaw' else '')+m for m in ('thinkingmachines/inkling:free','google/gemma-4-31b-it:free')]
             models += native[agent]['models']
@@ -689,7 +676,7 @@ def create(s, doc, settings, actor):
     except Exception:
         _drop_empty(made); raise
     p = Project(document=json.dumps(data), revision=1, state='draft', created_by=actor, created_at=now(), updated_at=now())
-    s.add(p); s.flush(); memory(s,p,'decision',f'Project created with story planning bias {data["planning_bias"]}/100. Planning prefers subscriptions; paid API planning requires approval.',actor)
+    s.add(p); s.flush(); write_brief(p,data); memory(s,p,'decision',f'Project created with story planning bias {data["planning_bias"]}/100. Planning prefers subscriptions; paid API planning requires approval.',actor)
     return p
 
 def save(s, p, doc, revision, settings, actor):
@@ -701,6 +688,7 @@ def save(s, p, doc, revision, settings, actor):
         _drop_empty(made); raise
     pin_free_routes(s,data,settings)
     p.document=json.dumps(data); p.revision+=1; p.state='draft'; p.error=None; p.approved_manifest=None; p.pipeline=None
+    write_brief(p,data,amendments(s,p))
     memory(s,p,'decision',f'Plan saved as revision {p.revision}; story planning bias {data["planning_bias"]}/100. Preference is advisory; prior approval does not apply.',actor)
 
 def subscription(s, agent):
@@ -743,7 +731,12 @@ def _brief(p, include_nodes=False):
     payload={k:d[k] for k in (('title','brief','constraints','nodes') if include_nodes else ('title','brief','constraints'))}
     import project_intake
     payload['brief'] = project_intake.brief(d, get_settings())
+    if include_nodes:
+        payload.pop('nodes', None)
+        payload['prior_map'] = model_selection.compact_nodes(d.get('nodes', []))
+    if d.get('story_route'): payload['story_route'] = d['story_route']
     payload.update(planning_bias=d['planning_bias'], assignment_policy=planning_policy(d['planning_bias']), dispatch_mode=d['dispatch_mode'])
+    payload['planning_load']={'proposed_stories':sum(n.get('kind')=='story' for n in d.get('nodes',[])), 'generated_media':project_contract.generated_media(d)}
     payload['project_type']=d.get('project_type')
     payload['guidance']={'mode':'general_plus_selected_type','guides':project_types.selected_guides(d.get('project_type'),get_settings()),
         'rule':'Use the approved brief, current story, accepted prerequisites and these guides only. Other template rules and unrelated chat history are not project context.'}
@@ -896,7 +889,7 @@ def _next_planning_route(s, settings, p, pipeline, step):
     if step == 'plan':
         candidates = list(pipeline.get('choices', ())) + list(pipeline.get('recovery_routes', ())) + free_routes
     else:
-        delegate = pipeline.get('delegator', {})
+        delegate = pipeline.get('reviewer', pipeline.get('delegator', {})) if step=='return' else pipeline.get('delegator', {})
         candidates = ([delegate] if delegate.get('agent') and delegate.get('model') else [])
         candidates.extend(pipeline.get('recovery_routes', ()))
         candidates.extend(free_routes)
@@ -907,7 +900,11 @@ def _next_planning_route(s, settings, p, pipeline, step):
     for route in candidates:
         unique.setdefault((route['agent'], route['model']), route)
     health={(r['agent'],r['model']):r for r in recovery.stats(s)}
-    routes=sorted(unique.values(),key=lambda r:bool(health.get((r['agent'],r['model']),{}).get('persistent')))
+    current=pipeline.get('chosen' if step=='plan' else 'reviewer',pipeline.get('delegator',{}))
+    rank={'unclassified':-1,'focused':0,'general':1,'deep':2}
+    promote=step in {'plan','return'} and rank[model_selection.classification(current.get('model'))['class']]<=0
+    routes=sorted(unique.values(),key=lambda r:(bool(health.get((r['agent'],r['model']),{}).get('persistent')),
+        not (promote and rank[model_selection.classification(r['model'])['class']]>0)))
     return next((route for route in routes if (route['agent'], route['model']) not in attempted), None)
 
 
@@ -918,7 +915,7 @@ def planning_retry_routes(s, settings, pipeline, step, owner=None):
     if step == 'plan':
         candidates = list(pipeline.get('choices', ())) + list(pipeline.get('recovery_routes', ())) + free_planner_routes(s, settings)
     else:
-        delegate = pipeline.get('delegator', {})
+        delegate = pipeline.get('reviewer', pipeline.get('delegator', {})) if step=='return' else pipeline.get('delegator', {})
         candidates = ([delegate] if delegate.get('agent') and delegate.get('model') else [])
         candidates.extend(pipeline.get('recovery_routes', ()))
         candidates.extend(free_planner_routes(s, settings))
@@ -958,7 +955,7 @@ def _retry_unusable_planning_result(s, p, pipeline, step, run, card, settings, e
         return False
     role = {'coordinate': 'coordinate', 'plan': 'plan', 'return': 'return plan'}[step]
     _requeue_planning_card(card, route['agent'], route['model'])
-    route_updates = {'delegator': route} if step in {'coordinate','return'} else {'chosen': route}
+    route_updates = {('reviewer' if step=='return' else 'delegator'): route} if step in {'coordinate','return'} else {'chosen': route}
     p.pipeline = json.dumps({**pipeline, 'card_id': card.id, **route_updates})
     p.state = 'planning'
     p.error = None
@@ -1050,8 +1047,8 @@ def plan(s,p,action,settings,actor,subagents=None):
         if (delegate['agent'],delegate['model']) in attempted_coordinate:
             alternate=next((route for route in free_routes if (route['agent'],route['model']) not in attempted_coordinate),None)
             if alternate: delegate=alternate
-    choices = [{'agent':a,'model':subscription_model(a,d['planning_bias'],planner=True)}
-        for a in ('claude','codex') if subscription(s,a) and REGISTRY[a].available(settings)] if agent=='auto' else [{'agent':agent,'model':d['planner_model'] or (subscription_model(agent,d['planning_bias'],planner=True) if agent in {'claude','codex'} else REGISTRY[agent].default_model() or '')}]
+    choices = [r for r in model_selection.planning_routes() if subscription(s,r['agent']) and REGISTRY[r['agent']].available(settings)
+        and _planning_route_allowed(s,settings,r)] if agent=='auto' else [{'agent':agent,'model':d['planner_model'] or (subscription_model(agent,d['planning_bias'],planner=True) if agent in {'claude','codex'} else REGISTRY[agent].default_model() or '')}]
     choices = [{**c, 'model': resolve_free_alias(s, settings, c['agent'], None, c['model'])} for c in choices]    # the generic free default becomes the agent's own free model
     if retrying:
         attempted={(v.agent,v.model_requested or '') for v in s.scalars(select(Run).join(ProjectTask,ProjectTask.card_id==Run.card_id).where(
@@ -1074,9 +1071,10 @@ def plan(s,p,action,settings,actor,subagents=None):
         fail('This planner uses API billing. Separate paid-planning approval is required.',422)
     if settings.dispatch_free_only and retrying and not any(_planning_route_allowed(s,settings,c) for c in choices):
         fail('No configured free planner route is available. Configure a reviewed-free Hermes model/provider route; this project remains saved for retry.',422)
-    prompt = role_prompt('coordinate', candidates=json.dumps(choices), project=_brief(p)) + _replan_prompt(getattr(p,'_replan_context',None))
+    prompt = role_prompt('coordinate', candidates=json.dumps(choices), project=_brief(p)) + '\n'+model_profiles.guidance_text(s,settings.data_dir,[{'agent':r['agent'],'models':[r['model']]} for r in choices]) + _replan_prompt(getattr(p,'_replan_context',None))
     c=_queue(s,p,'coordinate',delegate['agent'],delegate['model'],prompt,settings)
     recovery_routes=[route for route in free_routes if route not in choices]
+    if agent=='auto': recovery_routes=list({(r['agent'],r['model']):r for r in choices+recovery_routes}.values())
     p.state='planning'; p.error=None; p.pipeline=json.dumps({'step':'coordinate','delegator':delegate,'card_id':c.id,'choices':choices,
         'recovery_routes':recovery_routes,'api_planning_approved':action.approve_api_planning,'fresh':bool(action.fresh),'revision':p.revision,'execution_catalog':execution_catalog(settings,subagents,d['planning_bias'])})
     planning_mode='from scratch, current stories not shown to the planner' if action.fresh else 'from the current map'
@@ -1144,7 +1142,7 @@ def retry_planning_task(s, p, card_id, body, settings, actor):
     if chosen not in routes:
         fail('Choose the same route or another route already approved for this planning step.', 422)
     _requeue_planning_card(card, chosen['agent'], chosen['model'])
-    updates = {'delegator': chosen} if step == 'coordinate' else {'chosen': chosen} if step == 'plan' else {'delegator': chosen}
+    updates = {'delegator': chosen} if step == 'coordinate' else {'chosen': chosen} if step == 'plan' else {'reviewer': chosen}
     p.pipeline = json.dumps({**pipeline, 'card_id': card.id, **updates,
         'api_planning_approved':bool(body.approve_api_planning or pipeline.get('api_planning_approved')),
         'recovery_routes':list({(r['agent'],r['model']):r for r in list(pipeline.get('recovery_routes',[]))+[chosen]}.values())})
@@ -1207,8 +1205,11 @@ def _replan_context(s,p,reason,source_state='paused',source_document=None):
 
 def _replan_prompt(context):
     if not context: return ''
-    return ('\n\nMID-PROJECT REPLAN (operator approved): '+json.dumps(context, ensure_ascii=False)+
-        '\nReturn a continuation map for untouched work only. Preserve the completed and attempted history exactly as context; do not duplicate it.')
+    # Full source document is retained privately for cancellation, not sent to every model.
+    bounded={k:context[k] for k in ('source_revision','source_state','reason','preserve','instruction') if k in context}
+    return ('\n\nMID-PROJECT REPLAN (operator approved): '+json.dumps(bounded, ensure_ascii=False)+
+        '\nCompleted/attempted work is immutable. Rebuild untouched work from current saved intake and template; old proposal nodes are not requirements. Drop unrequested scope. Return only the continuation map.')
+
 
 def _planner_prompt(p,catalog=None,s=None,fresh=False,replan=None):
     settings=get_settings()
@@ -1421,7 +1422,7 @@ def advance(s,settings):
                     +(r.error or '')+'\n'+(r.result_text or ''),r.agent,c.id,r.id)
                 role_title={'coordinate':'coordinate','plan':'plan','return':'return plan'}[step]
                 _requeue_planning_card(c,alternative['agent'],alternative['model'])
-                route_updates={'delegator':alternative} if step in {'coordinate','return'} else {'chosen':alternative}
+                route_updates={('reviewer' if step=='return' else 'delegator'):alternative} if step in {'coordinate','return'} else {'chosen':alternative}
                 p.pipeline=json.dumps({**pipeline,'card_id':c.id,**route_updates});continue
         if not c or not r or r.stage!='succeeded':
             p.state='planning_failed' if p.state=='planning' else 'dispatch_failed'
@@ -1441,8 +1442,9 @@ def advance(s,settings):
                 elif step=='plan':
                     if not isinstance(data,dict) or set(data)!={'nodes'}: fail('Planner response must contain only nodes.',422)
                     proposed=proposal(document(p),data['nodes'],settings)
-                    c=_queue(s,p,'return plan',pipeline.get('delegator', {'agent':'hermes'})['agent'],pipeline.get('delegator', {}).get('model',''),role_prompt('review', schema=json.dumps(Node.model_json_schema()), catalog=json.dumps(pipeline.get('execution_catalog',[])), project=_brief(p)+_replan_prompt(pipeline.get('replan')), proposal=json.dumps(proposed['nodes']))+'\n\n'+project_contract.prompt(proposed)+'\n\n'+project_readiness.prompt(s,p,settings),settings)
-                    p.pipeline=json.dumps({**pipeline,'step':'return','card_id':c.id})
+                    reviewer=pipeline.get('chosen') if document(p).get('planner_agent')=='auto' else pipeline.get('delegator', {'agent':'hermes'})
+                    c=_queue(s,p,'return plan',reviewer['agent'],reviewer.get('model',''),role_prompt('review', schema=json.dumps(Node.model_json_schema()), catalog=json.dumps(pipeline.get('execution_catalog',[])), project=_brief(p)+_replan_prompt(pipeline.get('replan')), proposal=json.dumps(proposed['nodes']))+'\n\n'+project_contract.prompt(proposed)+'\n\n'+project_readiness.prompt(s,p,settings)+'\n'+model_profiles.guidance_text(s,settings.data_dir,pipeline.get('execution_catalog',[])),settings)
+                    p.pipeline=json.dumps({**pipeline,'step':'return','card_id':c.id,'reviewer':reviewer})
                     memory(s,p,'proposal','Subscription/API planner returned a validated proposal. It is not approved for execution.',r.agent,r.card_id,r.id)
                 elif step=='return':
                     if not isinstance(data,dict) or set(data)!={'nodes'}: fail('Delegator response must contain only nodes.',422)
@@ -1453,6 +1455,8 @@ def advance(s,settings):
                     add_recovery_routes(s,p,proposed,settings)
                     fixed_modes=fix_implement_modes(proposed)
                     if pinned: memory(s,p,'checkpoint','MCD gave '+str(len(pinned))+' stor'+('y' if len(pinned)==1 else 'ies')+' with no priced model a reviewed free model and free fallbacks, so they run without a per-task model choice: '+'; '.join(t[:60] for t in pinned[:12])+'.','mcd',r.card_id,r.id)
+                    defects=[f for f in project_types.check_document(proposed,settings) if f['severity']=='block']
+                    if defects: fail('Plan quality checks: '+'; '.join(f['id']+': '+f['message'] for f in defects[:6]),422)
                     source_revision=(pipeline.get('replan') or {}).get('source_revision')
                     p.document=json.dumps(proposed);p.revision+=1;p.state='review'
                     try: scorecard.record_returned(s,p,proposed['nodes'],settings,pipeline.get('chosen'),{'agent':r.agent,'model':r.model_reported or r.model_requested})
@@ -1622,16 +1626,16 @@ def write_brief(p, d, amends=None):
     if amends:
         brief+='\n\n## Amendments (newest last; they override the brief where they differ)\n'+''.join(
             f"\n### {datetime.fromtimestamp(a['created_at']).isoformat(timespec='minutes') if a.get('created_at') else ''}\n\n{a['text']}\n" for a in amends)
-    elif len(brief)<=BRIEF_LIMIT: return None
+    # Short briefs are synced too: reused IDs must never expose a deleted project's sidecar.
     try:
         path=ledger_path(get_settings(),p).with_name(f'project-{p.id}-brief.md')
-        if path.exists() and path.read_text(encoding='utf-8')==brief: return str(path)
+        if path.exists() and path.read_text(encoding='utf-8')==brief: return str(path) if len(brief)>BRIEF_LIMIT or amends else None
         path.parent.mkdir(mode=0o700,parents=True,exist_ok=True)
         tmp=path.with_suffix('.tmp')
         fd=os.open(tmp,os.O_WRONLY|os.O_CREAT|os.O_TRUNC,0o600)
         with os.fdopen(fd,'w',encoding='utf-8') as f: f.write(brief)
         os.replace(tmp,path)
-        return str(path)
+        return str(path) if len(brief)>BRIEF_LIMIT or amends else None
     except OSError:
         return None
 

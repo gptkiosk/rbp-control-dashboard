@@ -68,3 +68,10 @@ Refresh, so `MAC_CONTROL_MODEL_REFRESH_ENABLED=false` stops it too.
 ## Sourced research in Coordinator guidance
 
 Fresh notes for configured candidate models now enter bounded planner guidance with their source and date; stale notes and notes for unrelated models are excluded. Provider snapshot freshness is explicit. `models` in the Coordinator read API exposes the same evidence to supported channels. External benchmarks such as [Artificial Analysis](https://artificialanalysis.ai/models/recommend) are optional research, not an automatic route change. Its API/MCP connection requires separate account setup and is reported as not connected until implemented. See the [Coordinator contract](coordinator-pipeline.md).
+
+
+### Task matching (0.6.71)
+
+The Coordinator receives a provider-neutral model classification threshold and must match each story's specialty, complexity/risk, required tools/vision/context, expected latency and total cost including retries. Model profiles now expose dated source links and the app's focused/general/deep routing heuristic separately from source facts. Unknown and legacy models remain unclassified until researched; the app does not infer quality from a free price or a provider name. Vendor guidance is marked stale after90 days; provider-snapshot and note freshness remain separate.
+
+Membership routes are labelled as quota use in planner guidance; API token rates remain estimates from the dated price catalog/provider snapshot, not a per-task subscription invoice. Local median run duration is task-mix dependent, and process success is not acceptance of the result. Existing sourced notes, on-demand public model refresh and optional weekly watch keep facts reviewable. Artificial Analysis is a research reference; no automatic benchmark feed or score is invented. New projects select an automatic focused/general membership planner independently of the story threshold; manually chosen planners and all billing/route gates remain explicit.

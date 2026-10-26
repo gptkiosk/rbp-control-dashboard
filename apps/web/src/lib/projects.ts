@@ -59,14 +59,14 @@ export function arrange(nodes: ProjectNode[]): ProjectNode[] {
 export function label(state: string): string { return state === 'awaiting_approval' ? 'Awaiting output approval' : state === 'timeout' ? 'Timed out' : state.replaceAll('_', ' ').replace(/^./, c => c.toUpperCase()) }
 
 export function planningBiasLabel(value: number): string {
-  if (value < 13) return 'Economy · OpenClaw first'
-  if (value < 38) return 'Lean toward OpenClaw'
+  if (value < 13) return 'Economy'
+  if (value < 38) return 'Cost conscious'
   if (value < 63) return 'Balanced'
-  if (value < 88) return 'Lean toward Claude & Codex'
-  return 'Capability · Claude & Codex first'
+  if (value < 88) return 'Capability leaning'
+  return 'Capability'
 }
 export function planningBiasHint(value: number): string {
-  if (value < 38) return 'Favor OpenClaw for bounded tasks. If a subscription is needed, start with Haiku or Luna.'
-  if (value < 63) return 'Use OpenClaw for routine slices and Haiku/Luna for routine subscription work; step up to Sonnet/Terra only when justified.'
-  return 'Favor Claude and Codex for implementation and critical reasoning. Use OpenClaw for smaller supporting tasks.'
+  if (value < 38) return 'Use focused models where adequate. Compare total cost, speed and likely retries before choosing a route.'
+  if (value < 63) return 'Match each task to its specialty: focused models for bounded work, general models for integration and ambiguity.'
+  return 'Use stronger reasoning for complex or critical work. Simple tasks can still use faster, smaller models with a clear reason.'
 }

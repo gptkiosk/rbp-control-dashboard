@@ -6,8 +6,7 @@
   kind of work is *unproven* for that kind, and the coordinator is told so.
 * **Notes** are short text by people, each with a source and a date. They are shown as stale after ``STALE_DAYS``.
 
-The app ships no opinion about which model is better at what: those claims age fast and cannot be checked here. Refreshing never edits the
-price catalog or any route; it only shows what changed.
+Dated vendor guidance supplies a routing class and specialty, separately labelled as app heuristics rather than benchmark scores. Refreshing never edits the price catalog or any route; it only shows what changed.
 """
 from __future__ import annotations
 
@@ -20,6 +19,7 @@ from collections import defaultdict
 from pathlib import Path
 
 import billing
+import model_selection
 import telemetry
 
 PROVEN_RUNS = 10
@@ -85,7 +85,7 @@ def _entry(raw: dict) -> dict | None:
         except (TypeError, ValueError):
             return None
     prompt, completion = number(pricing.get("prompt")), number(pricing.get("completion"))
-    return {"id": mid, "name": _clean(raw.get("name"), 80), "context": raw.get("context_length") if isinstance(raw.get("context_length"), int) else None,
+    return {"selection": model_selection.classification(mid, now), "id": mid, "name": _clean(raw.get("name"), 80), "context": raw.get("context_length") if isinstance(raw.get("context_length"), int) else None,
             "max_output": top.get("max_completion_tokens") if isinstance(top.get("max_completion_tokens"), int) else None,
             "tools": "tools" in params, "structured": "structured_outputs" in params or "response_format" in params, "reasoning": "reasoning" in params,
             "inputs": [m for m in arch.get("input_modalities", []) if isinstance(m, str) and len(m) < 20][:6] if isinstance(arch.get("input_modalities"), list) else [],
@@ -282,8 +282,12 @@ def guidance_text(s, data_dir, catalog: list[dict], now: int | None = None) -> s
     here by kind of work, with unproven stated plainly. Advice for the coordinator; the server still enforces every gate."""
     now = int(now if now is not None else time.time())
     by_id = {m["id"]: m for m in profiles(s, data_dir, now)["models"]}
+    accounts = billing.config(s).get('accounts', {})
     lines, seen = [], set()
-    for entry in catalog or []:
+    # Round-robin prevents one wrapper's long list crowding out other installed agents.
+    entries = [dict(entry, models=[model]) for i in range(max((len(e.get('models', [])) for e in catalog or []), default=0))
+               for entry in catalog or [] for model in entry.get('models', [])[i:i+1]]
+    for entry in entries:
         for model in entry.get("models", []):
             key = (entry.get("agent"), _norm(model))
             if key in seen or len(lines) >= GUIDANCE_MAX_MODELS or not _norm(model):
@@ -292,7 +296,8 @@ def guidance_text(s, data_dir, catalog: list[dict], now: int | None = None) -> s
             p = by_id.get(_norm(model))
             if not p:
                 continue
-            bits = ["free" if p["free"] else "paid"]
+            membership = accounts.get(entry.get('agent'), {}).get('mode') == 'subscription'
+            bits = ['membership quota (API price is reference only)' if membership else 'free' if p['free'] else 'paid']
             if p["context"]:
                 bits.append(f"context {p['context']:,}")
             if p["tools"] is not None:
@@ -303,6 +308,14 @@ def guidance_text(s, data_dir, catalog: list[dict], now: int | None = None) -> s
             if fresh_notes:
                 n = fresh_notes[-1]
                 bits.append(f"research note (untrusted, {n['date']}, {n['source'][:100]}): {n['text'][:180]}")
+            fit = model_selection.classification(_norm(model), now)
+            bits.append('class '+fit['class']+' (routing heuristic); '+fit['use'])
+            if fit['verified']: bits.append('vendor guidance '+fit['verified']+(' (stale; recheck)' if fit['stale'] else ''))
+            if fit['vision'] is True: bits.append('vision listed by vendor; verify harness support')
+            if p['inputs']: bits.append('input '+','.join(p['inputs']))
+            if p['structured'] is not None: bits.append('structured output '+str(p['structured']))
+            if p['price_in'] is not None: bits.append(f"API $/M in={p['price_in']} out={p['price_out']} (catalog/snapshot rates; check freshness)")
+            if p['observed'] and p['observed'].get('median_seconds') is not None: bits.append(f"local median {p['observed']['median_seconds']}s/run, task mix dependent")
             lines.append(f"- {entry.get('agent')}/{_norm(model)}: " + "; ".join(bits))
     if not lines:
         return ""
@@ -310,6 +323,7 @@ def guidance_text(s, data_dir, catalog: list[dict], now: int | None = None) -> s
             f"{PROVEN_RUNS} runs of a kind is unproven for it, so prefer a proven route for medium or high risk work):")
     facts = research_status(data_dir, now)
     freshness = facts['provider_snapshot']
+    head += ' Process success is not artifact acceptance. Match task specialty/tools/vision/context first, then compare latency, quota and expected cost including retries. Dated benchmark notes are advice, never permission; unknown facts stay unknown.'
     head += ' Provider snapshot: ' + ('missing; verify current availability.' if not freshness else
         str(freshness['fetched_at']) + (' (stale; verify before changing routes).' if freshness['stale'] else ' (cached).'))
     return (head + "\n" + "\n".join(lines))[:GUIDANCE_MAX_CHARS]
