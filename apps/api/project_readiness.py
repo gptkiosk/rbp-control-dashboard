@@ -6,7 +6,7 @@ import subprocess
 from pathlib import Path
 
 
-def report(s, project, settings):
+def _report(s, project, settings):
     import approval, projects, project_contract
     from dispatcher import Dispatcher
     from models import UserCredential
@@ -25,7 +25,7 @@ def report(s, project, settings):
     if d.get('project_type') in project_contract.WEBSITES or re.search(r'\b(node|npm|javascript)\b', text, re.I): tools.add('node')
     if project_contract.generated_media(d): tools.add('ffmpeg')
     for name in sorted(tools):
-        add('tool-' + name, bool(shutil.which(name, path=env.get('PATH', ''))), f'{name} must be available in the selected agent/host runtime; use installed managed tools before adding software.', '/profile#host-readiness')
+        add('tool-' + name, bool(shutil.which(name, path=env.get('PATH', ''))), f'{name} must be available in the selected agent/host runtime; use installed managed tools before adding software.', '/profile#system-tools' if name=='ffmpeg' else '/profile#agent-tools')
     if route:
         from agents import REGISTRY
         from route_reliability import allowed_class
@@ -33,7 +33,7 @@ def report(s, project, settings):
         add('story-route', available, f'Saved route {route["agent"]} · {route["model"]} must be installed, configured for membership billing and allowed. Never replace it with free-only work silently.', '/profile#route-recovery')
     if project_contract.generated_media(d):
         saved = s.get(UserCredential, (project.created_by, 'fal')) is not None
-        add('media-provider', saved, 'A saved fal credential is required for the dashboard only. This check reads presence, never the secret or provider.', '/profile#private-credentials')
+        add('media-provider', saved, 'A saved fal credential is required for the dashboard only. This check reads presence, never the secret or provider.', '/profile#credentials-profile')
     repo = d.get('repository')
     named = re.search(r'(?:github\.com/|(?:repository|repo)\s*:\s*)([A-Za-z0-9_-]+/[A-Za-z0-9_.-]+)\b', project_contract.saved_text(d), re.I)
     if repo and not repo.get('repo'):
@@ -50,7 +50,7 @@ def report(s, project, settings):
                 branch=subprocess.run(['git','-C',str(root),'branch','--show-current'],env=env,capture_output=True,text=True,timeout=3,check=True).stdout.strip()
                 allowed=branch not in {'','main','master'} and any(c.repo.lower()==target.lower() and c.branch==branch for c in grant.clones)
             except (OSError,subprocess.SubprocessError): allowed=False
-        add('repository', allowed, 'The named repository needs an app-registered clone and a project branch grant. Naming it alone neither proves access nor approves creation.', f'/projects?project={project.id}&view=workspace')
+        add('repository', allowed, 'The named repository needs an app-registered clone and a project branch grant. Naming it alone neither proves access nor approves creation.', f'/projects?project={project.id}')
     if d.get('project_type') in project_contract.WEBSITES:
         script = root / 'tools/verify-preview.sh' if root else None
         prepared = bool(script and script.is_file() and not script.is_symlink() and script.stat().st_size > 0)
@@ -72,3 +72,13 @@ def prompt(s, project, settings, limit=1600):
         return ('Coordinator setup check: ' + '; '.join(r['id'] + '=' + r['status'] + ': ' + r['detail'] for r in data['checks']) + '\n' + data['instructions'])[:limit]
     except Exception:  # Missing private setup tables/config must not masquerade as readiness.
         return 'Coordinator setup check unavailable. Use the readiness read and resolve the missing facts before dispatch; do not claim readiness.'
+
+
+def report(s, project, settings):
+    try:
+        return _report(s, project, settings)
+    except Exception:
+        # Fail closed without echoing paths, native config or credential diagnostics.
+        return {'project_id':project.id,'revision':project.revision,'ready':False,
+                'checks':[{'id':'readiness-unavailable','status':'missing','detail':'Current setup could not be evaluated. Recheck setup and service health before dispatch.','link':'/profile#system-tools'}],
+                'instructions':'Missing readiness evidence is not permission to dispatch or expand access.'}
