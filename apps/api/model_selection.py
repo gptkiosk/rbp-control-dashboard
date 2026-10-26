@@ -8,7 +8,7 @@ RESEARCH = 'https://artificialanalysis.ai/models/recommend'
 
 def _classification(model):
     """Class is an app routing heuristic. Unknown/provider aliases stay unclassified."""
-    model = (model or '').removeprefix('openrouter/').removeprefix('anthropic/')
+    model = (model or '').removeprefix('openrouter/').removeprefix('anthropic/').removeprefix('openai/')
     if model in {'claude-haiku-5-5', 'gpt-6-luna'}:
         return {'class': 'focused', 'use': 'bounded edits, extraction, triage, routine checks',
                 'speed': 'vendor describes latency/cost optimized', 'source': ANTHROPIC if model.startswith('claude') else OPENAI,

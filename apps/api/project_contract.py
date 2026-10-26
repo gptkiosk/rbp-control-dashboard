@@ -119,7 +119,7 @@ def findings(document):
         bad=[n['key'] for n in actions if not preparations.intersection(_ancestors(by_key,n['key']))]
         if bad:add('preview-script-author','Assign an agent Edit story to create the preview scripts/health output before the fixed dashboard host actions. A human Verify action cannot author a missing script.',bad)
         implementation={n['key'] for n in stories if n.get('work_kind')=='implement' and n.get('assignee')!='human'}
-        checks=[n for n in stories if not n.get('host_action') and re.search(r'final|file.level|file.verification|verify.*(?:files|assets|site)',n.get('title',''),re.I)]
+        checks=[n for n in stories if not n.get('host_action') and re.search(r'\b(verif\w*|checks?|tests?|audit)\b',n.get('title',''),re.I) and re.search(r'\bfinal\b|file.level|file.verification|verify.*(?:files|assets|site)',n.get('title',''),re.I)]
         for n in checks:
             missing=implementation-_ancestors(by_key,n['key'])-{n['key']}
             if missing:add('implementation-before-final-check','Final static verification must follow every implementation story, including transitions and preview preparation.',[n['key'],*sorted(missing)])
