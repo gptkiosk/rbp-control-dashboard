@@ -10,6 +10,13 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.6.75] - 2026-10-26
+
+### Fixed
+
+- Reference-first artwork checks now recognise briefs that say a character reference comes *then* the scenes (for example "one approved heroine reference, then paired illustrations"), "once the character reference is approved" or "next". Such plans must use separate reference and scene passes before submission. Previously only "first", "before" or "followed by" triggered the rule.
+- Project packets for folders without Git (scratch projects) now track freshness by file path, size and time instead of reporting Unknown. A folder that is missing or too large to list in time still reports Unknown with the reason.
+
 ## [0.6.74] - 2026-10-26
 
 ### Added
@@ -1069,7 +1076,7 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 
 [0.3.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.0
 [0.6.72]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.70...v0.6.72
-[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.67...HEAD
+[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.75...HEAD
 [0.6.67]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.66...v0.6.67
 [0.6.66]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.65...v0.6.66
 [0.6.65]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.64...v0.6.65
@@ -1182,5 +1189,6 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 [0.6.71]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.70...v0.6.71
 [0.6.70]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.69...v0.6.70
 
+[0.6.75]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.74...v0.6.75
 [0.6.74]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.73...v0.6.74
 [0.6.73]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.72...v0.6.73

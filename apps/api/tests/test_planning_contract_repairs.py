@@ -246,3 +246,24 @@ def test_host_operation_is_not_agent_rendering_but_cannot_be_dispatched_to_a_cod
     assert any(f['id']=='dashboard-preview-owner' for f in contract.findings({'project_type':'local-website','nodes':[node]}))
     node['assignee']='human';node['model']=''
     assert not any(f['id']=='dashboard-preview-owner' for f in contract.findings({'project_type':'local-website','nodes':[node]}))
+
+
+def test_reference_then_scenes_wording_from_a_real_intake_requires_two_pass_artwork():
+    # The pilot's own media answer: "then" (not "first") must still trigger the reference-first graph rules.
+    pilot = ('Use fal.ai to create coordinated final artwork: one approved heroine reference, then paired reality/fantasy '
+             'illustrations for the doorway, family room and garden. Maintain the same character, clothing and recognisable room layouts across scenes.')
+    for text in (pilot, 'Generate art with fal.ai. Once the character reference is approved, generate the paired scene stills.',
+                 'Generate illustrations with fal.ai: a heroine reference sheet; next, the six page illustrations.'):
+        assert contract.reference_first({'intake_answers': {'media': text}}), text
+    single = {'intake_answers': {'media': pilot}, 'nodes': [
+        {'key': 'gen', 'title': 'Generate all art', 'media_stage': 'generate', 'assignee': 'human', 'depends_on': []},
+        {'key': 'pub', 'title': 'Publish all art', 'media_stage': 'publish', 'assignee': 'human', 'depends_on': ['gen']}]}
+    ids = {f['id'] for f in contract.reference_findings(single, single['nodes'], {n['key']: n for n in single['nodes']})}
+    assert {'media-batch-label', 'reference-first-passes'} <= ids
+
+
+def test_sequence_words_without_a_character_reference_do_not_trigger_reference_first():
+    for text in ('Generate background illustrations with fal.ai. Use the uploaded style reference, then build the pages.',
+                 'Generate illustrations with fal.ai, then publish them. No characters.',
+                 'Use only existing assets; the heroine reference is already approved, then integrate the scenes.'):
+        assert not contract.reference_first({'brief': text}), text

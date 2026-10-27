@@ -1,6 +1,7 @@
 """One context contract through operator UI, paired Discord and scoped native agents."""
 import json
 from sqlalchemy import select
+import host_readiness
 import profiles
 import model_profiles as mp
 from models import Project, ProjectTask, Card, Run
@@ -16,7 +17,10 @@ def make_project(c, wd):
     return r.json()
 
 
-def test_context_manifest_matches_across_ui_discord_and_native_scope(secured,tmp_path):
+def test_context_manifest_matches_across_ui_discord_and_native_scope(secured,tmp_path,monkeypatch):
+    # The context text carries live host facts; a container engine that flips between calls is not a context mismatch.
+    monkeypatch.setattr(host_readiness,'check_tools',lambda settings:{'tools':[{'id':'node','installed':True},{'id':'docker','installed':True},{'id':'gh','installed':True}]})
+    monkeypatch.setattr(host_readiness,'system_tools_health',lambda settings:{'checks':[{'id':'docker','ok':True}]})
     bridge,_=paired(secured,tmp_path)
     project=make_project(secured,tmp_path/'ws/proj')
     ui=secured.get('/api/projects/coordinator',params={'operation':'context','project_id':project['id']})

@@ -115,13 +115,37 @@ def test_living_docs_are_indexed_by_hash_never_rewritten_and_regeneration_is_sta
     assert 'docs/project/architecture.md' in (project_packet.folder(settings, pid) / '02-architecture.md').read_text()
 
 
-def test_a_folder_without_git_reports_unknown_instead_of_guessing(app):
+def test_a_scratch_folder_without_git_is_tracked_by_file_snapshot(app):
     c, sessions, wd, settings = app
     wd.mkdir(parents=True, exist_ok=True)
+    (wd / 'index.html').write_text('<h1>draft</h1>')
     pid = create(c, wd)
-    m = packet(c, pid)['manifest']
-    assert m['freshness']['state'] == 'unknown'
-    assert 'unknown' in (project_packet.folder(settings, pid) / '02-architecture.md').read_text()
+    first = packet(c, pid)['manifest']
+    assert first['freshness']['state'] == 'current' and 'Baseline set' in first['freshness']['reasons'][0]
+    assert 'no Git; 1 files tracked' in (project_packet.folder(settings, pid) / 'START-HERE.md').read_text()
+    assert 'unavailable' in (project_packet.folder(settings, pid) / '02-architecture.md').read_text()
+    (wd / 'site.css').write_text('body{}')
+    fresh = packet(c, pid)['manifest']['freshness']
+    assert fresh['state'] == 'stale' and 'no Git' in fresh['reasons'][0] and '1 → 2 files' in fresh['reasons'][0]
+    with sessions() as s:
+        projects.memory(s, s.get(Project, pid), 'checkpoint', 'Styles added and reviewed.', 'op'); s.commit()
+    assert packet(c, pid)['manifest']['freshness']['state'] == 'current'
+    assert not any(p.name.startswith('.') or p.suffix == '.tmp' for p in wd.rglob('*'))  # nothing written into the folder
+
+
+def test_a_missing_folder_or_one_too_large_to_list_reports_unknown(app, monkeypatch):
+    import shutil
+    c, sessions, wd, settings = app
+    wd.mkdir(parents=True, exist_ok=True)
+    (wd / 'a.txt').write_text('a'); (wd / 'b.txt').write_text('b')
+    pid = create(c, wd)
+    monkeypatch.setattr(project_packet, 'SNAPSHOT_FILES', 1)
+    fresh = packet(c, pid)['manifest']['freshness']
+    assert fresh['state'] == 'unknown' and 'More than 1 files' in fresh['reasons'][0]
+    monkeypatch.setattr(project_packet, 'SNAPSHOT_FILES', 5000)
+    shutil.rmtree(wd)
+    fresh = packet(c, pid)['manifest']['freshness']
+    assert fresh['state'] == 'unknown' and 'missing' in fresh['reasons'][0]
 
 
 def test_story_states_keep_accepted_and_reported_apart(app):
