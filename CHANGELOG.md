@@ -10,6 +10,8 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.6.77] - 2026-10-27
+
 ### Fixed
 
 - The project route strip showed the saved revision's routes under the heading of unsaved project choices, so a narrowing looked applied (with the Coordinator still on `openrouter/free`) before it was saved. The strip and **Change…** now preview what the current choices allow (`POST /api/routes/preview`, which saves nothing), and the strip says "not saved" until you save.
@@ -1101,7 +1103,7 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 
 [0.3.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.0
 [0.6.72]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.70...v0.6.72
-[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.76...HEAD
+[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.77...HEAD
 [0.6.67]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.66...v0.6.67
 [0.6.66]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.65...v0.6.66
 [0.6.65]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.64...v0.6.65
@@ -1214,6 +1216,7 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 [0.6.71]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.70...v0.6.71
 [0.6.70]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.69...v0.6.70
 
+[0.6.77]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.76...v0.6.77
 [0.6.76]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.75...v0.6.76
 [0.6.75]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.74...v0.6.75
 [0.6.74]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.73...v0.6.74
