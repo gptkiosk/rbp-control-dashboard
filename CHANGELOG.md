@@ -10,19 +10,24 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.6.76] - 2026-10-27
+
 ### Added
 
-- Route policy, groundwork: one policy decides which providers, runtimes, models and cost classes (free, membership, paid API) may be used, app-wide or for one project, with an optional managed policy for locked-down installs (`MAC_CONTROL_MANAGED_ROUTE_POLICY`). Each scope can only narrow the one above it, and a project starts as "Same as app". `GET /api/routes?feature=…` lists the allowed routes for the Coordinator, planner, stories, chat or tasks with the default, and every hidden route with the reason it is hidden. Model lists now come from each runtime's table in the agent registry. Not yet enforced or shown in the app.
-- Settings → **Models & providers**: one page for the app route policy, with presets (Memberships, recommended; Single provider…, which can allow paid API for the Coordinator only; Free only, with a reliability warning; Custom), cost classes, providers, runtimes, default routes, a banner and greyed choices for an installation-managed policy, and a summary of what each feature can use now. Model recovery shows the cost classes and links here instead of having its own switches.
-- Each project shows its routes at the top (policy in force, Coordinator, planner, story default) with **Change…** to pick the planner and narrow the policy for that project; the planner fields left the brief panel. Every route menu (new project, story editor, chat, new task, finding tasks) lists only what the policy allows, with provider, cost class and recent reliability, and can show hidden routes with the reason each is hidden. When nothing is allowed, the message names the nearest route and what stops it.
+- Settings → **Models & providers**: one route policy decides which providers, runtimes, models and cost classes (membership, free, paid API) the Coordinator, planner, stories, chat and tasks may use. It has presets: Memberships (recommended); Single provider…, which can allow paid API for the Coordinator only; Free only, with a reliability warning; and Custom. It also sets default routes and shows a summary of what each feature can use now. Every route menu (new project, story editor, chat, new task, finding tasks) lists only what the policy allows, with provider, cost class and recent reliability, and can show hidden routes with the reason. When nothing is allowed, the message names the nearest route and what stops it. `GET /api/routes?feature=…` serves the same lists. See [Models & providers](docs/configuration/route-policy.md).
+- Each project shows its routes at the top (policy in force, Coordinator, planner, story default). **Change…** picks the planner and can narrow the policy for that project. A project can only narrow the app policy, and starts as "Same as app". The planner fields left the brief panel.
+- An installation can lock the app with a managed policy file (`MAC_CONTROL_MANAGED_ROUTE_POLICY`), for example Grok Build only. Nothing in the app can widen it, and an unreadable file allows nothing. Agent tools, the Setup wizard and Billing & rates leave out the runtimes it removes and say which are hidden.
+- **Prices to review** on Models & providers: routes whose price was never reviewed (they count as paid API when a run starts) can be recorded as paid API, or as free when the model is listed at no cost. A review can be cleared. Installation-configured route classes still take precedence.
+- Help: a "Choose which providers and models the app uses" guide.
 
 ### Changed
 
-- The route policy is now enforced. Planning uses the Coordinator model and planner routes it allows (the automatic planner also considers allowed memberships such as Grok Build), the planner only sees allowed story routes, submission is blocked by a story route outside the policy (a backup outside it is a warning), Route all stories refuses one, chat refuses one up front, and every run is checked against the current policy just before it starts (`ROUTE_POLICY`). Membership routes are always preferred, then free models; paid API (including a route whose price was never reviewed) is the last resort and still needs approval per plan or task. A Coordinator model that bills API usage now needs paid-planning approval.
+- The route policy is enforced. Planning uses only the Coordinator model and planner routes it allows. The automatic planner also considers allowed memberships such as Grok Build, and the planner sees only allowed story routes. Submission is blocked by a story route outside the policy; a backup route outside it is only a warning. Route all stories refuses such a route, and chat refuses it up front. Every run is checked against the current policy just before it starts (`ROUTE_POLICY`), and failure mining and route reliability count that refusal as policy, not as a route failure.
+- Membership routes are always preferred, then free models. Paid API, including a route whose price was never reviewed, is the last resort and still needs approval per plan or task. A Coordinator model that bills API usage now needs paid-planning approval. Model recovery shows the cost classes and links to Models & providers instead of having its own switches.
 
 ### Removed
 
-- The free-only setting (`MAC_CONTROL_DISPATCH_FREE_ONLY`) and the two "Allow … in free only" switches. They are read once, when no route policy is saved yet, to write the first app policy with the same cost classes; the Model recovery switches now change the policy.
+- The free-only setting (`MAC_CONTROL_DISPATCH_FREE_ONLY`) and the two "Allow … in free only" switches. On the first start, they are read once to write the first app policy with the same cost classes. RCD, which was free-only by default, keeps paid API off.
 
 ## [0.6.75] - 2026-10-26
 
@@ -1090,7 +1095,7 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 
 [0.3.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.0
 [0.6.72]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.70...v0.6.72
-[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.75...HEAD
+[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.76...HEAD
 [0.6.67]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.66...v0.6.67
 [0.6.66]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.65...v0.6.66
 [0.6.65]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.64...v0.6.65
@@ -1203,6 +1208,7 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 [0.6.71]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.70...v0.6.71
 [0.6.70]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.69...v0.6.70
 
+[0.6.76]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.75...v0.6.76
 [0.6.75]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.74...v0.6.75
 [0.6.74]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.73...v0.6.74
 [0.6.73]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.72...v0.6.73

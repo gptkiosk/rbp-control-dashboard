@@ -48,7 +48,7 @@ For the operator: find clear steps for any MCD feature and open the relevant pag
 - `MAC_CONTROL_LOG_LEVEL`: does not affect help behavior.
 - `MAC_CONTROL_COLLECTOR_ENABLED`: independent; the help page does not show metrics.
 - `MAC_CONTROL_ALERTS_CONFIG_PATH`: independent; the help page does not manage alerts.
-- Guide IDs (`id`) are fixed strings in `help.ts` (`profile-discord`, `projects`, `project-models`, `getting-started`, `overview`, `hardware`, `services`, `updates`, `agent-tasks`, `human-tasks`, `dependencies`, `task-filters`, `approvals`, `runs`, `agent-explorer`, `openclaw-chat`, `agent-chat`, `subscriptions`, `model-rates`, `openrouter`, `mcp`, `hermes-access`, `github`, `reports`, `alerts`, `sign-in`, `remote`). Changing an `id` requires updating all references (`pageGuide`, links in other docs, and any external links).
+- Guide IDs (`id`) are fixed strings in `help.ts` (`profile-discord`, `projects`, `models-providers`, `project-models`, `getting-started`, `overview`, `hardware`, `services`, `updates`, `agent-tasks`, `human-tasks`, `dependencies`, `task-filters`, `approvals`, `runs`, `agent-explorer`, `openclaw-chat`, `agent-chat`, `subscriptions`, `model-rates`, `openrouter`, `mcp`, `hermes-access`, `github`, `reports`, `alerts`, `sign-in`, `remote`). Changing an `id` requires updating all references (`pageGuide`, links in other docs, and any external links).
 
 ## Troubleshooting
 

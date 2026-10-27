@@ -48,7 +48,7 @@ Refresh, so `MAC_CONTROL_MODEL_REFRESH_ENABLED=false` stops it too.
 
 - **Planner guidance.** When a plan is requested, the planner is given a compact paragraph for the models it may choose: free or paid,
   context, tool support, and what has actually happened here by kind of work (success rate and how many runs), with **unproven**
-  stated plainly. It is advice, not authorization: the free-only gate, reviewed routes, the standards' risk floors and your approvals
+  stated plainly. It is advice, not authorization: the route policy, reviewed routes, the standards' risk floors and your approvals
   still decide. The paragraph is added after your coordinator text is filled in, so your own `plan.txt` copy keeps working.
 - **Route advice before you submit.** The submit review shows non-blocking advice for each story's route: a model with a proven poor
   record for that kind of work (under half of at least 10 runs), a model that does not list tool use for work that edits files, and a

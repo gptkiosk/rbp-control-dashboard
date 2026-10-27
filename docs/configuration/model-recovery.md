@@ -4,7 +4,7 @@ Settings → Coordinator setup → **Model recovery** (`/profile#route-recovery`
 
 ## Billing and permissions
 
-Configured Claude/Codex membership routes consume the account’s quota; optional provider overage still applies. On a free-only installation, the operator can explicitly allow membership routes alongside free routes. Paid API routes remain refused unless the operator separately enables **Allow separately approved paid API routes**, then approves the specific planning/task use. A membership does not include provider API charges. Paid planning alternatives need separate API approval on the planning request or manual retry; a saved fallback list alone cannot authorize them. Price checks, budget caps, model locks, execution scopes and human approval gates remain effective.
+Configured Claude/Codex membership routes consume the account’s quota; optional provider overage still applies. Which cost classes may run is set in **Settings → Models & providers** ([route policy](route-policy.md)); Model recovery shows them and links there. Paid API routes remain refused unless the policy allows paid API and the operator approves the specific planning/task use. A membership does not include provider API charges. Paid planning alternatives need separate API approval on the planning request or manual retry; a saved fallback list alone cannot authorize them. Price checks, budget caps, model locks, execution scopes and human approval gates remain effective.
 
 ## Bounded recovery
 
