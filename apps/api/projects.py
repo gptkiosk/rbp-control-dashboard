@@ -245,12 +245,10 @@ def execution_catalog(settings, subagents=None, bias=50):
         models = list(spec.suggested_models)
         default = spec.default_model()
         if default: models.append(default)
-        if agent=='codex': models += ['gpt-6.1-sol','gpt-5.6-terra','gpt-6-astra','gpt-6-luna','gpt-5.6-sol']
         if agent in {'claude','codex'}:
             models = [r['model'] for r in model_selection.planning_routes() if r['agent']==agent] + models
         if agent in {'hermes','openclaw'}:
-            models += [('openrouter/' if agent=='openclaw' else '')+m for m in ('thinkingmachines/inkling:free','google/gemma-4-31b-it:free')]
-            models += native[agent]['models']
+            models += list(spec.free_models) + native[agent]['models']
         targets = []
         if agent=='openclaw':
             for row in native[agent]['targets'] or ((subagents or {}).get(agent) or {}).get('agents', []):

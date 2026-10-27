@@ -144,6 +144,7 @@ class Settings(BaseSettings):
     grok_path: str = Field(default_factory=lambda: find_tool("grok"))
     hermes_path: str = Field(default_factory=lambda: find_tool("hermes"))
     openclaw_path: str = Field(default_factory=lambda: find_tool("openclaw"))
+    managed_route_policy: Path | None = Field(default=None, description="Optional managed route policy (JSON) for a locked-down install. The app and project policies can only narrow it, and the UI cannot widen it. A file that is set but missing or invalid allows no route.")
     hermes_config_path: Path | None = None
     openclaw_config_path: Path | None = None
     agent_executables: tuple[str, ...] = Field(

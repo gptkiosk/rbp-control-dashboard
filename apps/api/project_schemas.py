@@ -2,6 +2,8 @@
 from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, field_validator
 
+from route_policy import Policy as RoutePolicy
+
 class Strict(BaseModel):
     model_config = ConfigDict(extra='forbid', allow_inf_nan=False)
 
@@ -90,6 +92,7 @@ class Document(Strict):
         return answers(value)
 
     story_route: Route | None = None  # Explicit operator story preference; planning route remains separate.
+    route_policy: RoutePolicy | None = None  # None: same as the app policy. A project policy can only narrow it (route_policy.py).
     repository: Repository | None = None
     nodes: list[Node] = Field(default_factory=list, max_length=100)
 

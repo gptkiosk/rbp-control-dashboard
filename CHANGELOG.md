@@ -10,6 +10,10 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+### Added
+
+- Route policy, groundwork: one policy decides which providers, runtimes, models and cost classes (free, membership, paid API) may be used, app-wide or for one project, with an optional managed policy for locked-down installs (`MAC_CONTROL_MANAGED_ROUTE_POLICY`). Each scope can only narrow the one above it, and a project starts as "Same as app". `GET /api/routes?feature=…` lists the allowed routes for the Coordinator, planner, stories, chat or tasks with the default, and every hidden route with the reason it is hidden. Model lists now come from each runtime's table in the agent registry. Not yet enforced or shown in the app.
+
 ## [0.6.75] - 2026-10-26
 
 ### Fixed

@@ -35,6 +35,7 @@ from routes import maintenance as maintenance_routes
 from routes import standards as standards_routes
 from routes import host_readiness as host_readiness_routes
 from routes import models as models_routes
+from routes import route_policy as route_policy_routes
 from routes import coordinator as coordinator_routes
 from routes import telemetry as telemetry_routes
 from alerts import AlertMonitor, HermesSender
@@ -266,6 +267,7 @@ def create_app() -> FastAPI:
     app.include_router(standards_routes.router)
     app.include_router(host_readiness_routes.router)
     app.include_router(models_routes.router)
+    app.include_router(route_policy_routes.router)
     app.include_router(coordinator_routes.router)
     app.include_router(telemetry_routes.router)
     app.include_router(profile_routes.router)
