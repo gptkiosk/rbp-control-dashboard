@@ -10,6 +10,12 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+### Fixed
+
+- The project route strip showed the saved revision's routes under the heading of unsaved project choices, so a narrowing looked applied (with the Coordinator still on `openrouter/free`) before it was saved. The strip and **Change…** now preview what the current choices allow (`POST /api/routes/preview`, which saves nothing), and the strip says "not saved" until you save.
+- **Change…** now shows the Coordinator. It explains that Hermes reaches models only through free or paid API, and warns before saving when the choices leave it no allowed model. The dialog adds **Also offer free models from any provider** and **Paid API for the Coordinator only**. The second is offered only when the app policy allows paid API for the Coordinator, and the reason shows when it is off.
+- The Plan button names the planner, for example "Plan (Codex planner)", instead of "Plan with Hermes"; "Revise plan with Hermes…" is now "Revise plan…".
+
 ## [0.6.76] - 2026-10-27
 
 ### Added

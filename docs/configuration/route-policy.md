@@ -14,6 +14,12 @@ Open it in **Settings → Models & providers**.
 
 Inside one scope, a feature's own rule replaces that scope's general rule for that feature. For example, an app policy can allow paid API for the Coordinator only. Across scopes, every rule applies, so a project can never allow what the app removes, and the app can never allow what the installation removes.
 
+## The Coordinator always needs a free or paid API model
+
+Every plan has three steps. The **Coordinator** reviews the brief, the **planner** builds the map, and the Coordinator checks it. The Coordinator is Hermes (Settings → Agent roles), and Hermes reaches models only through free or paid API, never a membership. A policy that allows memberships only therefore leaves the Coordinator nothing, even when the planner is a membership such as Codex.
+
+The project route strip and **Change…** show what the current choices allow before you save, including the Coordinator, and warn when it has no allowed model. Two choices fix it while providers are limited: **Also offer free models from any provider**, or **Paid API for the Coordinator only**. The second is offered only when the app policy allows paid API for the Coordinator.
+
 ## Cost classes
 
 - **Membership**: a Claude, Codex or Grok Build account you are signed in to, set as Subscription in Agents → Billing & rates. It uses account quota, and any overage you enabled with the provider still applies.

@@ -72,10 +72,16 @@ def catalog(s, settings, providers=()):
     return out
 
 
-def policies(s, settings, project=None):
-    """(managed, managed_error, app, app_saved, project_policy) for one request."""
+_SAVED = object()
+
+
+def policies(s, settings, project=None, draft=_SAVED):
+    """(managed, managed_error, app, app_saved, project_policy) for one request. `draft` replaces the project's saved policy (None: Same as
+    app) to preview unsaved choices."""
     managed, error = rp.load_managed(settings)
     app, saved = rp.load_app(s, settings)
+    if draft is not _SAVED:
+        return managed, error, app, saved, draft
     project_policy = rp.load_project(_document(project)) if project is not None else None
     return managed, error, app, saved, project_policy
 
@@ -109,11 +115,12 @@ def _fallback_default(s, settings, feature, project):
     return None
 
 
-def for_feature(s, settings, feature, project=None):
-    """Allowed routes for one feature, the default, and every hidden route with the reason it is hidden."""
+def for_feature(s, settings, feature, project=None, draft=_SAVED):
+    """Allowed routes for one feature, the default, and every hidden route with the reason it is hidden. `draft` previews an unsaved
+    project policy (policies())."""
     if feature not in rp.FEATURES:
         raise rp.PolicyError('Unknown feature.')
-    managed, error, app, saved, project_policy = policies(s, settings, project)
+    managed, error, app, saved, project_policy = policies(s, settings, project, draft)
     coordinator = rp.coordinator_runtime(settings) if feature == 'coordinator' else None
     allowed, hidden = [], []
     for route in catalog(s, settings, _named_providers(managed, app, project_policy)):

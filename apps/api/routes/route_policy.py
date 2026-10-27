@@ -30,6 +30,25 @@ def routes(feature: str = Query(..., max_length=20), project_id: int | None = Qu
         raise HTTPException(422, str(error)) from None
 
 
+class PreviewIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    features: list[str]
+    project_id: int | None = None
+    policy: rp.Policy | None   # the project's unsaved policy; null previews "Same as app"
+
+
+@router.post("/preview")
+def preview(body: PreviewIn, s: Session = Depends(get_session)):
+    """What each feature would allow with an unsaved project policy. Saves nothing; the managed and app policies still apply on top."""
+    if not 1 <= len(body.features) <= len(rp.FEATURES):
+        raise HTTPException(422, "Name one to five features.")
+    project = projects.get(s, body.project_id) if body.project_id else None
+    try:
+        return {f: route_catalog.for_feature(s, get_settings(), f, project, draft=body.policy) for f in body.features}
+    except rp.PolicyError as error:
+        raise HTTPException(422, str(error)) from None
+
+
 @router.get("/policy")
 def get_policy(s: Session = Depends(get_session)):
     return route_catalog.policy_view(s, get_settings())

@@ -13,7 +13,7 @@ Pending capture: `projects-brief.png` (new project), `projects-planning-map.png`
 ### From goal to work
 
 1. Create a project with a name, goal, constraints/exclusions and an allowlisted working directory. Set **Story assignment preference**, centered on Balanced by default, and save the draft.
-2. Review **Plan with Hermes**. Hermes coordinates an approved subscription planner, MCD runs the selected CLI and Hermes reviews the returned proposal. Paid API planning needs its own approval. A validated plan returns for your review; it does not begin story execution.
+2. Review **Plan** (the button names your planner). Hermes, the Coordinator, coordinates an approved subscription planner, MCD runs the selected CLI and Hermes reviews the returned proposal. Paid API planning needs its own approval. A validated plan returns for your review; it does not begin story execution.
 3. Edit phases and stories on the map. Use Arrange/Fit map; review instructions, scope, definition of done, dependencies, agent/model, OpenClaw target and Read/Edit mode. Add ordered alternate model routes if wanted. Circular dependencies are refused.
 4. Use **Review & submit** to freeze the reviewed revision, workspace, assignments and routes. Hermes proposes a dependency-respecting order; MCD materializes each story once on the board.
 5. In **Stories & runs**, inspect each successful result against its definition of done. Review the handoff summary and artifact files before accepting. Human stories require the actual operator decision. Dependents wait for acceptance, not just a successful process exit.
