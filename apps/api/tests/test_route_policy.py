@@ -108,6 +108,7 @@ def test_free_models_from_any_provider_never_include_router_aliases():
 
 def test_routes_api_lists_allowed_and_hidden_routes_with_reasons(app):
     c, _, settings, _ = app
+    assert c.patch('/api/routes/policy/cost', json={'paid': False}).status_code == 200   # the seeded value differs by product (RCD off, MCD on)
     planner = c.get('/api/routes', params={'feature': 'planner'}).json()
     allowed = keys(planner['allowed'])
     assert {('claude', 'claude-opus-5-5'), ('codex', 'gpt-6.1-sol'), ('grok', 'grok-build-0.1'), ('hermes', 'openrouter/free')} <= allowed
