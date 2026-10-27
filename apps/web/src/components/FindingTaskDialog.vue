@@ -6,6 +6,7 @@ import ModalShell from '@/components/ModalShell.vue'
 import { ApiError, getJson, postJson, type Agent, type AgentId, type AgentsPayload, type Card, type CardMode, type Workdir, type WorkdirsPayload } from '@/lib/api'
 import { dateLabel, type ReportFinding } from '@/lib/operations'
 import { directoryDetail, directoryName } from '@/lib/selectLabels'
+import { allowedModels, runtimeAllowed, useRoutes } from '@/lib/routes'
 
 const props = defineProps<{ reportId: string; reportModified: number; finding: ReportFinding }>()
 const emit = defineEmits<{ close: []; created: [task: Card] }>()
@@ -29,8 +30,11 @@ const agent = computed(() => agents.value.find(a => a.id === agentId.value) ?? n
 const dir = computed(() => workdirs.value.find(w => w.path === workingDir.value) ?? null)
 const modelOptions = computed(() => {
   const a = agent.value
-  return a ? [...new Set([...(a.default_model ? [a.default_model] : []), ...a.suggested_models])] : []
+  if (!a) return []
+  // Only what Models & providers allows for this feature (memberships first); the agent's own list until the catalog loads.
+  return allowedModels(routes.data.value, a.id, [...new Set([...(a.default_model ? [a.default_model] : []), ...a.suggested_models])])
 })
+const routes = useRoutes('tasks')
 const editOnMain = computed(() => mode.value === 'edit' && (dir.value?.branch === 'main' || dir.value?.branch === 'master'))
 const evidenceLabel = computed(() => `${props.finding.status === 'crit' ? 'Critical' : 'Warning'} · captured ${dateLabel(props.reportModified)}`)
 
@@ -107,10 +111,11 @@ async function submit(): Promise<void> {
         <div class="field">
           <label for="ft-agent">Agent</label>
           <AppSelect id="ft-agent" v-model="agentId" class="input" required>
-            <option v-for="a in agents" :key="a.id" :value="a.id" :disabled="!a.available" :data-label="a.name" :data-description="a.available ? (a.role === 'manager' ? 'Coordinator' : 'Worker') : 'Not installed'">
+            <option v-for="a in agents" :key="a.id" :value="a.id" :disabled="!a.available || !runtimeAllowed(routes.data.value, a.id)" :data-label="a.name" :data-description="!a.available ? 'Not installed' : !runtimeAllowed(routes.data.value, a.id) ? 'Not allowed by Models & providers' : (a.role === 'manager' ? 'Coordinator' : 'Worker')">
               {{ a.name }}{{ a.available ? '' : ' (not installed)' }}
             </option>
           </AppSelect>
+          <p v-if="routes.data.value?.empty_reason" class="notice-warn small" role="alert">{{ routes.data.value.empty_reason }} <RouterLink to="/profile#models-providers">Models &amp; providers</RouterLink></p>
         </div>
         <div class="field">
           <label for="ft-model">Model</label>

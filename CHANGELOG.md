@@ -13,6 +13,8 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 ### Added
 
 - Route policy, groundwork: one policy decides which providers, runtimes, models and cost classes (free, membership, paid API) may be used, app-wide or for one project, with an optional managed policy for locked-down installs (`MAC_CONTROL_MANAGED_ROUTE_POLICY`). Each scope can only narrow the one above it, and a project starts as "Same as app". `GET /api/routes?feature=…` lists the allowed routes for the Coordinator, planner, stories, chat or tasks with the default, and every hidden route with the reason it is hidden. Model lists now come from each runtime's table in the agent registry. Not yet enforced or shown in the app.
+- Settings → **Models & providers**: one page for the app route policy, with presets (Memberships, recommended; Single provider…, which can allow paid API for the Coordinator only; Free only, with a reliability warning; Custom), cost classes, providers, runtimes, default routes, a banner and greyed choices for an installation-managed policy, and a summary of what each feature can use now. Model recovery shows the cost classes and links here instead of having its own switches.
+- Each project shows its routes at the top (policy in force, Coordinator, planner, story default) with **Change…** to pick the planner and narrow the policy for that project; the planner fields left the brief panel. Every route menu (new project, story editor, chat, new task, finding tasks) lists only what the policy allows, with provider, cost class and recent reliability, and can show hidden routes with the reason each is hidden. When nothing is allowed, the message names the nearest route and what stops it.
 
 ### Changed
 

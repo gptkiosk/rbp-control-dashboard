@@ -14,6 +14,7 @@ export interface ProjectDocument {
   title: string; brief: string; constraints: string; working_dir: string
   repository?: { name: string; repo: string; folder: string; branch: string } | null
   story_route?: { agent: ProjectNode['assignee']; model: string } | null
+  route_policy?: import('./routes').Filter | null   // null or absent: same as the app route policy; a project can only narrow it
   intake_answers?: Record<string, string>
   project_type?: string | null; planner_agent: 'auto' | 'claude' | 'codex' | 'grok' | 'hermes' | 'openclaw'; planner_model: string; planning_bias: number; dispatch_mode: 'sequential' | 'parallel'; nodes: ProjectNode[]
 }

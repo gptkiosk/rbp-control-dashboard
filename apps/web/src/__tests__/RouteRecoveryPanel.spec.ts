@@ -31,17 +31,14 @@ it('explains persistent failures and cost, and saves only the explicitly enabled
   expect(calls[0]?.body).toEqual({enabled:true,apply_to_stories:false,routes:[{agent:'hermes',model:'openrouter/free'}]})
   expect(w.emitted('saved')).toHaveLength(1)
 })
-it('requires a deliberate membership toggle and keeps its cost explanation visible',async()=>{
-  const calls:unknown[]=[]
-  stubFetch((url,init)=>{
-    if(url==='/api/routes/policy/cost'){calls.push(JSON.parse(String(init?.body)));return {body:{}}}
-    if(url==='/api/profile/route-reliability')return {body:info()}
-  })
-  const w=mount(RouteRecoveryPanel,{global:{stubs:{RouterLink:true}}});await flushPromises()
-  expect(w.text()).toContain('overage settings still apply')
-  expect(calls).toEqual([])
-  await w.findAll('input[role="switch"]').at(2)!.setValue(true);await flushPromises()
-  expect(calls).toEqual([{membership:true}])
+it('shows the cost classes and sends changes to Models & providers instead of a second switch',async()=>{
+  stubFetch(url=>{ if(url==='/api/profile/route-reliability')return {body:info()} })
+  const w=mount(RouteRecoveryPanel,{global:{stubs:{RouterLink:{props:['to'],template:'<a :href="to"><slot /></a>'}}}});await flushPromises()
+  const line=w.get('[data-testid="cost-classes"]')
+  expect(line.text()).toContain('membership off')
+  expect(line.text()).toContain('overage settings still apply')
+  expect(line.get('a').attributes('href')).toBe('/profile#models-providers')
+  expect(w.findAll('input[role="switch"]')).toHaveLength(2)
 })
 it('points a failed task directly to the recovery toggle without changing a setting',()=>{
   const w=mount(RouteRecoveryNotice,{props:{failed:true},global:{stubs:{RouterLink:{props:['to'],template:'<a :href="to"><slot /></a>'}}}})

@@ -117,8 +117,9 @@ def for_feature(s, settings, feature, project=None):
     coordinator = rp.coordinator_runtime(settings) if feature == 'coordinator' else None
     allowed, hidden = [], []
     for route in catalog(s, settings, _named_providers(managed, app, project_policy)):
-        why = error or ('Not installed: install it in Agent tools' if not route['ready'] else
-                        rp.reason(route, managed, app, project_policy, feature, coordinator))
+        # The policy reason first: "not installed" only matters for a route the policy would allow.
+        why = error or rp.reason(route, managed, app, project_policy, feature, coordinator) or (
+            None if route['ready'] else 'Not installed: install it in Agent tools')
         (hidden if why else allowed).append({**route, **({'hidden_because': why} if why else {})})
     allowed.sort(key=lambda r: rp.cost_rank(r['cost_class']))   # stable: membership, free, then paid API last
     default, default_note = None, None
@@ -143,10 +144,21 @@ def for_feature(s, settings, feature, project=None):
             'empty_reason': None if allowed else _empty_reason(feature, hidden)}
 
 
+# Reasons that only say the policy removed a route. Any other reason (not installed, a cost class switched off, an unreviewed price) is the
+# actionable one, so the nearest such route is named first.
+FILTERED = ('not an allowed provider', 'is not allowed', 'provider varies', 'The Coordinator is', 'not in the allowed models', 'is blocked')
+
+
 def _empty_reason(feature, hidden):
-    """No silent blocks: say why nothing is offered, using the most common reason."""
+    """No silent blocks: say why nothing is offered, naming the nearest route and what stops it when there is one."""
+    from agents import REGISTRY
     if not hidden:
         return f'No {FEATURE_LABELS[feature]} route is available on this host.'
+    near = [r for r in hidden if not any(k in r['hidden_because'] for k in FILTERED)]
+    if near:
+        r = near[0]
+        name = REGISTRY[r['runtime']].name if r['runtime'] in REGISTRY else r['runtime']
+        return f"No {FEATURE_LABELS[feature]} route is allowed. Nearest: {name} · {r['model']}: {r['hidden_because']}."
     counts = {}
     for r in hidden:
         counts[r['hidden_because']] = counts.get(r['hidden_because'], 0) + 1

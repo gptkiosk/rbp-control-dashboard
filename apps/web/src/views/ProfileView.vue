@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import RoutePolicyPanel from '@/components/RoutePolicyPanel.vue'
 import RouteRecoveryPanel from '@/components/RouteRecoveryPanel.vue'
 import RolesPanel from '@/components/RolesPanel.vue'
 import CredentialsPanel from '@/components/CredentialsPanel.vue'
@@ -31,9 +32,9 @@ const theme = useThemeStore()
 const router = useRouter()
 const bootstrapReadiness = ref<{ ready: boolean; checks: {id:string;label:string;ready:boolean;link:string}[] } | null>(null)
 // Keep coordinator bootstrap choices in their own profile section; old hash links still open the right group.
-const TABS = [{ id: 'settings', label: 'Settings' }, { id: 'coordinator', label: 'Coordinator setup' }, { id: 'updates', label: 'Updates & installs' }, { id: 'maintenance', label: 'Maintenance & access' }] as const
+const TABS = [{ id: 'settings', label: 'Settings' }, { id: 'models', label: 'Models & providers' }, { id: 'coordinator', label: 'Coordinator setup' }, { id: 'updates', label: 'Updates & installs' }, { id: 'maintenance', label: 'Maintenance & access' }] as const
 type Tab = typeof TABS[number]['id']
-const HOME: Record<string, Tab> = { 'coordinator-bootstrap': 'coordinator', 'route-recovery': 'coordinator', updates: 'updates', 'agent-tools': 'updates', 'system-tools': 'updates', 'agent-roles': 'maintenance', housekeeping: 'maintenance', 'github-settings': 'maintenance', 'github-actions': 'maintenance', 'bug-intake': 'maintenance', 'issue-tasks': 'maintenance', roles: 'maintenance', reports: 'maintenance' }
+const HOME: Record<string, Tab> = { 'models-providers': 'models', 'coordinator-bootstrap': 'coordinator', 'route-recovery': 'coordinator', updates: 'updates', 'agent-tools': 'updates', 'system-tools': 'updates', 'agent-roles': 'maintenance', housekeeping: 'maintenance', 'github-settings': 'maintenance', 'github-actions': 'maintenance', 'bug-intake': 'maintenance', 'issue-tasks': 'maintenance', roles: 'maintenance', reports: 'maintenance' }
 const THEMES = [{ id: 'system', label: 'Device' }, { id: 'light', label: 'Light' }, { id: 'dark', label: 'Dark' }] as const
 const tab = ref<Tab>('settings')
 function fromHash() {
@@ -178,6 +179,7 @@ async function importPreferences(event: Event) { await action(async () => {
       </div>
     </div>
 
+    <div v-show="tab === 'models'" class="group" role="tabpanel" aria-label="Models and providers"><RoutePolicyPanel /></div>
     <RouteRecoveryPanel v-show="tab === 'coordinator'" @saved="p => { if (preferences) preferences.route_recovery = p; if (profile) profile.preferences.route_recovery = p }" />
     <form v-if="profile && preferences" v-show="tab === 'coordinator'" id="coordinator-bootstrap" class="card bootstrap-card" role="tabpanel" aria-labelledby="bootstrap-title" @submit.prevent="save">
       <header class="card-head"><div><h2 id="bootstrap-title">Coordinator setup</h2><p class="muted small">The dashboard checks the platforms you pick and sets up what is missing. No model runs until you start the validation project.</p></div><RouterLink to="/help?topic=maintenance" class="small">How-to</RouterLink></header>

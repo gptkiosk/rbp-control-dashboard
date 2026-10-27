@@ -20,6 +20,7 @@ import {
   type WorkdirsPayload,
 } from '@/lib/api'
 import { isCoordinatorAgent } from '@/lib/cards'
+import { allowedModels, runtimeAllowed, useRoutes } from '@/lib/routes'
 
 const emit = defineEmits<{ close: []; created: [thread: ChatThread] }>()
 
@@ -43,8 +44,10 @@ const dir = computed(() => workdirs.value.find((w) => w.path === workingDir.valu
 const modelOptions = computed(() => {
   const a = agent.value
   if (!a) return []
-  return [...new Set([...(a.default_model ? [a.default_model] : []), ...a.suggested_models])]
+  // Only what Models & providers allows for this feature (memberships first); the agent's own list until the catalog loads.
+  return allowedModels(routes.data.value, a.id, [...new Set([...(a.default_model ? [a.default_model] : []), ...a.suggested_models])])
 })
+const routes = useRoutes('chat')
 const editOnMain = computed(
   () => mode.value === 'edit' && (dir.value?.branch === 'main' || dir.value?.branch === 'master'),
 )
@@ -124,11 +127,12 @@ async function submit(): Promise<void> {
         <div class="field">
           <label for="nchat-agent">Agent</label>
           <AppSelect id="nchat-agent" v-model="agentId" class="input" required data-autofocus>
-            <option v-for="a in agents" :key="a.id" :value="a.id" :disabled="!a.available" :data-label="a.name" :data-description="a.available ? (a.role === 'manager' ? 'Coordinator' : 'Worker') : 'Not installed'">
+            <option v-for="a in agents" :key="a.id" :value="a.id" :disabled="!a.available || !runtimeAllowed(routes.data.value, a.id)" :data-label="a.name" :data-description="!a.available ? 'Not installed' : !runtimeAllowed(routes.data.value, a.id) ? 'Not allowed by Models & providers' : (a.role === 'manager' ? 'Coordinator' : 'Worker')">
               {{ a.name }}{{ isCoordinatorAgent(a.id) ? ' (coordinator)' : ''
               }}{{ a.available ? '' : ' (not installed)' }}
             </option>
           </AppSelect>
+          <p v-if="routes.data.value?.empty_reason" class="notice-warn small" role="alert">{{ routes.data.value.empty_reason }} <RouterLink to="/profile#models-providers">Models &amp; providers</RouterLink></p>
         </div>
 
         <div class="field">

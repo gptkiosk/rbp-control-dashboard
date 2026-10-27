@@ -151,7 +151,8 @@ def test_nothing_allowed_says_why(app):
     assert c.put('/api/routes/policy', json={'policy': {'providers': ['xai'], 'cost': {'free': True, 'membership': False, 'paid': False}}, 'confirm': True}).status_code == 200
     body = c.get('/api/routes', params={'feature': 'coordinator'}).json()
     assert body['allowed'] == [] and body['default'] is None
-    assert body['empty_reason'].startswith('No Coordinator route is allowed. Most common reason:')
+    # The nearest route is named with its actionable reason, not the policy filter that removed the rest.
+    assert body['empty_reason'] == 'No Coordinator route is allowed. Nearest: Hermes · x-ai/grok-4.5: App policy: paid API is off (price not reviewed, so it counts as paid).'
 
 
 def test_managed_policy_cannot_be_widened_and_fails_closed(app):
