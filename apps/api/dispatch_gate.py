@@ -37,11 +37,12 @@ def amount(value):
 _UNSET = object()
 
 
-def admit(settings, run, argv, *, default_free_only=True, current_price_class=_UNSET, limits=None):
+def admit(settings, run, argv, *, current_price_class=_UNSET, limits=None, route_policy_reason=None):
     """Called immediately before spawn/start, for board tasks and chat alike.
 
     Returns evidence to persist. Spending limits are off unless the operator turned them on (billing.limits): without them a run that can cost money is admitted with
-    a disclaimer, and only the checks below that are about correctness (a pinned model, a consistent snapshot, free-only when chosen) still refuse.
+    a disclaimer, and only the checks below that are about correctness (a pinned model, a consistent snapshot) and the route policy still refuse.
+    `route_policy_reason` is route_policy.run_reason for this run under the current policy: a policy narrowed after the claim refuses it here.
     """
     limits = {**{"require_reviewed_pricing": False, "per_run_cap_usd": None, "paid_needs_runtime_limit": False}, **(limits or {})}
     try:
@@ -62,10 +63,8 @@ def admit(settings, run, argv, *, default_free_only=True, current_price_class=_U
     reviewed = isinstance(price_class, str) and price_class in {"free", "subscription", "paid"}
     if not reviewed and limits["require_reviewed_pricing"]:
         raise DispatchDenied("PRICE_UNKNOWN: route has no reviewed pricing class")
-    membership_allowed = price_class == "subscription" and limits.get("allow_subscription_in_free_only", False)
-    paid_allowed = price_class == "paid" and limits.get("allow_paid_in_free_only", False)
-    if getattr(settings, "dispatch_free_only", default_free_only) and price_class != "free" and not membership_allowed and not paid_allowed:
-        raise DispatchDenied("FREE_ONLY: only reviewed free routes may start")
+    if route_policy_reason:
+        raise DispatchDenied(f"ROUTE_POLICY: {route_policy_reason}. Change the route or the policy in Models & providers.")
     cap = amount(policy.get("budget_usd"))
     run_cap = amount(limits["per_run_cap_usd"])
     if run_cap and (cap is None or cap > run_cap):     # a per-run cap the operator chose in Spending & limits: the run's budget must be valid and fit under it
@@ -99,7 +98,7 @@ def admit(settings, run, argv, *, default_free_only=True, current_price_class=_U
     elif not reviewed:
         disclaimer = ("This route's price has not been reviewed, so it may cost money. MCD does not limit spending unless you turn a limit on in Agents, Billing & rates, Spending & limits.")
     return {"route": key, "price_class": price_class, "budget_usd": cap,
-            "free_only": getattr(settings, "dispatch_free_only", default_free_only), **({"disclaimer": disclaimer} if disclaimer else {})}
+            "route_policy": "allowed", **({"disclaimer": disclaimer} if disclaimer else {})}
 
 
 def reviewed_route_class(s, settings, source, model: str | None) -> str | None:
@@ -120,6 +119,13 @@ def reviewed_route_class(s, settings, source, model: str | None) -> str | None:
     configured = getattr(settings, "dispatch_route_classes", {}).get(key)
     if key in getattr(settings, "dispatch_route_classes", {}):
         return configured
+    # A price the operator reviewed in Models & providers (billing.route_prices). The installation's configured classes above win.
+    try:
+        reviewed = billing.route_prices(s).get(key)
+    except (ValueError, TypeError, AttributeError):
+        reviewed = None
+    if reviewed:
+        return reviewed
     # The exact configured Hermes free route is operator-owned evidence.
     # Capped Google BYOK is still API billing and must never be classified free.
     if agent == "hermes" and model:

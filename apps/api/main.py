@@ -35,6 +35,7 @@ from routes import maintenance as maintenance_routes
 from routes import standards as standards_routes
 from routes import host_readiness as host_readiness_routes
 from routes import models as models_routes
+from routes import route_policy as route_policy_routes
 from routes import coordinator as coordinator_routes
 from routes import telemetry as telemetry_routes
 from alerts import AlertMonitor, HermesSender
@@ -75,6 +76,10 @@ def create_app() -> FastAPI:
     engine = make_engine(settings.db_path)
     upgrade_to_head(engine)
     sessions = make_session_factory(engine)
+    with sessions() as s:
+        import route_policy   # write the first app route policy once, replacing the retired free-only setting (route_policy.default_app)
+        if route_policy.ensure_saved(s, settings):
+            s.commit()
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -266,6 +271,7 @@ def create_app() -> FastAPI:
     app.include_router(standards_routes.router)
     app.include_router(host_readiness_routes.router)
     app.include_router(models_routes.router)
+    app.include_router(route_policy_routes.router)
     app.include_router(coordinator_routes.router)
     app.include_router(telemetry_routes.router)
     app.include_router(profile_routes.router)

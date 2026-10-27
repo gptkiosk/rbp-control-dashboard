@@ -67,12 +67,27 @@ Tasks needing human interaction, decisions or required answers stay manual, incl
 
 [Open project library](http://127.0.0.1:8800/projects) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=project-approvals)
 
+## Choose which providers and models the app uses
+
+One policy for the Coordinator, planner, stories, chat and tasks: every route menu lists only what it allows.
+
+1. Open Settings → Models & providers. Start from a preset: Memberships (recommended), Single provider (for example only xAI, with paid API for the Coordinator only if you want Hermes to reach those models), Free only (expect timeouts) or Custom. Save Models & providers.
+2. Turn cost classes on or off: membership, free, paid API. Membership routes are tried first, then free; paid API is the last resort and still needs approval per plan or task.
+3. Untick providers or runtimes you do not want. Routes whose provider varies per request (openrouter/free) are hidden whenever providers are limited; Also offer free models from any provider adds specific free models back.
+4. Read What each feature can use now. When a feature has nothing allowed, it names the nearest route and what stops it.
+5. Under Prices to review, record the price of routes nobody has reviewed. They count as paid API until you do. Free is offered only for a model listed at no cost; memberships are set in Billing & rates.
+6. To narrow one project, open it and choose Change… on the Routes strip, then Narrow for this project. A project can only narrow the app policy, never widen it, and the default is Same as app.
+
+An installation can set a managed policy (MAC_CONTROL_MANAGED_ROUTE_POLICY) that the app cannot widen. Its removed runtimes are also hidden in Agent tools, Setup and Billing & rates. A run outside the policy stops with ROUTE_POLICY before it starts. The old free-only setting is retired; the first policy was written from it. Details: [Models & providers](configuration/route-policy.md).
+
+[Open Models & providers](http://127.0.0.1:8800/profile#models-providers) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=models-providers)
+
 ## Choose models and recover failed work
 
 Configure ordered alternatives and retry the same task without rebuilding the project.
 
 1. Open Settings → Coordinator setup → Model recovery. Enable automatic route recovery and select up to six configured alternatives in the order you want. A route can use a different runtime/model. Hermes retains the Coordinator guidance; planning helpers only return proposals.
-2. On a free-only host, explicitly enable Allow membership routes alongside free models to use configured subscription accounts. Membership consumes shared account quota and any enabled account overage still applies. This switch does not enable paid API routes; their separate toggle and planning/task approval are required.
+2. Which cost classes may run (membership, free, paid API) is set in Settings → Models & providers; Model recovery shows them and links there. Membership consumes shared account quota and any enabled account overage still applies. Paid API also needs planning/task approval.
 3. Planning permits one output repair on its approved route, followed by untried approved alternatives. Validation applies to every route. After all alternatives fail, the saved project and task remain available for a manual route choice; no project stories start before plan approval.
 4. Open the failed planning task to choose another configured model. A paid route requires a separate API-charge acknowledgment. Membership access does not cover provider API billing. Global spending settings and host restrictions remain in force.
 5. Enable Include alternatives in future project plans to put eligible free and membership alternatives on the editable story map. Review them before submitting. Provider/rate-limit failures may hand off to an approved untried route; model lock disables automatic story switching, and editing timeouts require review of partial work.
@@ -259,7 +274,7 @@ Read/Edit restrictions depend on the agent. Check the explanatory note in New ch
 
 Compare captured API-equivalent usage against each agent’s full monthly subscription.
 
-1. RCD is free-only by default. If this installation deliberately provides a native Claude Code or Codex subscription route, open Agents → Billing & rates and explicitly save that account as Subscription.
+1. RCD starts with no membership account configured. If this installation deliberately provides a native Claude Code or Codex subscription route, open Agents → Billing & rates and explicitly save that account as Subscription.
 2. Select This month in Agents and read the agent’s subscription and savings summary.
 3. Savings compare captured API-equivalent usage for this calendar month against the full monthly subscription, counted once across that agent’s sub-agents.
 

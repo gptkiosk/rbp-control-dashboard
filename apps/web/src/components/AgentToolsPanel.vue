@@ -2,6 +2,8 @@
 import ManagedItem, { type Health } from '@/components/ManagedItem.vue'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { ApiError, getJson, postJson } from '@/lib/api'
+import { agentLabel } from '@/lib/cards'
+import { useManagedRuntimes } from '@/lib/routes'
 
 type Action = 'install' | 'update' | 'remove' | 'rollback' | 'repair'
 const ACTIONS: Action[] = ['install', 'update', 'repair', 'rollback', 'remove']
@@ -43,6 +45,9 @@ const watching = ref<{ tool: string; action: Action; beforeTx: string | null; sa
 let timer: ReturnType<typeof setTimeout> | undefined
 let disposed = false, authRefused = false
 const updatedAt = ref('')
+// Runtimes an installation-managed route policy removes are not offered here; other tools are always listed.
+const managed = useManagedRuntimes()
+const shownTools = computed(() => (status.value?.tools ?? []).filter(t => managed.shown(t.id)))
 const health = ref<Record<string, Health>>({}), healthBusy = ref(false)
 // Read-only follow-up: does each installed tool run, is it the copy a new terminal reaches, what to do next.
 async function checkHealth(tool?: string) {
@@ -198,8 +203,9 @@ onBeforeUnmount(() => { disposed = true; if (timer) clearTimeout(timer) })
       <p class="muted small" data-test="host">{{ hostLine }} · installs under {{ status.root }}</p>
       <p v-if="updatedAt" class="muted small" role="status">Last checked {{ updatedAt }} · {{ working ? 'refreshing every 3 seconds' : 'refreshing every 15 seconds' }}</p>
 
+      <p v-if="managed.hidden.value.length" class="muted small" data-testid="managed-hidden">Hidden by this installation's route policy: {{ managed.hidden.value.map(agentLabel).join(', ') }}. <RouterLink to="/profile#models-providers">Models &amp; providers</RouterLink></p>
       <ul class="items">
-        <ManagedItem v-for="t in status.tools" :key="t.id" :data-tool="t.id" :name="t.name" :mark="markOf(t)" :word="wordOf(t)"
+        <ManagedItem v-for="t in shownTools" :key="t.id" :data-tool="t.id" :name="t.name" :mark="markOf(t)" :word="wordOf(t)"
           :version="t.installed_version" :latest="t.pinned_version" :detail="stateText(t)" :busy="workingOn(t.id)"
           :progress="workingOn(t.id) ? progress : ''" :log="status.log.length && showToolLog(t.id) ? status.log : []" :log-title="`${t.name} log`"
           :health="health[t.id] ?? null" :health-busy="healthBusy" :health-disabled="!t.installed" :data-output="t.id" @health="checkHealth(t.id)">

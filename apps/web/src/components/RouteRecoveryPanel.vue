@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { getJson, putJson, patchJson } from '@/lib/api'
+import { getJson, putJson } from '@/lib/api'
 import { agentLabel } from '@/lib/cards'
 import type { RecoveryInfo, RecoveryPolicy, RecoveryRoute } from '@/lib/routeRecovery'
 import PanelHead from './PanelHead.vue'
@@ -28,14 +28,6 @@ async function save() {
   try { apply(await putJson('/api/profile/route-reliability', policy.value)); saved.value = true; emit('saved', JSON.parse(JSON.stringify(policy.value))) }
   catch(e) { error.value = e instanceof Error ? e.message : String(e) } finally { busy.value = false }
 }
-async function membership(on: boolean, paid = false) {
-  busy.value = true; error.value = ''
-  try {
-    await patchJson('/api/billing', {limits:{[paid ? 'allow_paid_in_free_only' : 'allow_subscription_in_free_only']:on}})
-    const fresh = await getJson<RecoveryInfo>('/api/profile/route-reliability')
-    data.value = fresh
-  } catch(e) { error.value = e instanceof Error ? e.message : String(e) } finally { busy.value = false }
-}
 </script>
 <template>
   <section id="route-recovery" class="card recovery-panel" aria-labelledby="route-recovery-title">
@@ -44,9 +36,7 @@ async function membership(on: boolean, paid = false) {
     <RouteRecoveryNotice :info="data" />
     <ToggleSwitch v-model="policy.enabled" label="Enable automatic route recovery" hint="One output repair, then the next approved route. Each route is tried once per planning step." />
     <ToggleSwitch v-model="policy.apply_to_stories" :disabled="!policy.enabled" label="Include alternatives in future project plans" hint="Adds eligible free and membership routes to the editable map. Plan approval authorizes their use." />
-    <ToggleSwitch v-if="data?.host_free_only" :model-value="data.subscription_allowed" :disabled="busy" label="Allow membership routes alongside free models" hint="Uses a configured Claude/Codex membership and its quota. Provider overage settings still apply. Paid API routes require their own opt-in." @update:model-value="membership" />
-    <ToggleSwitch v-if="data?.host_free_only" :model-value="data.paid_allowed" :disabled="busy" label="Allow separately approved paid API routes" hint="Additional provider API charges. Each plan or task still needs paid-route approval; price and budget checks remain active." @update:model-value="on => membership(on,true)" />
-    <p v-if="data?.host_free_only" class="muted small">Membership uses account quota; provider overage settings still apply. The paid toggle allows additional API charges only after separate plan/task approval.</p>
+    <p v-if="data" class="muted small" data-testid="cost-classes">Cost classes: membership {{ data.subscription_allowed ? 'allowed' : 'off' }}, paid API {{ data.paid_allowed ? 'allowed (last resort)' : 'off' }}. Membership uses account quota; provider overage settings still apply. Change them in <RouterLink to="/profile#models-providers">Models &amp; providers</RouterLink>.</p>
     <ol v-if="policy.routes.length" class="route-order" aria-label="Recovery order">
       <li v-for="(r, i) in policy.routes" :key="r.agent + r.model"><span>{{ agentLabel(r.agent) }} · {{ r.model }}</span><button type="button" class="btn small-btn" :disabled="i === 0" :aria-label="`Move ${r.model} earlier`" @click="move(i,-1)">↑</button><button type="button" class="btn small-btn" :disabled="i === policy.routes.length - 1" :aria-label="`Move ${r.model} later`" @click="move(i,1)">↓</button><button type="button" class="btn small-btn" @click="choose(r,false)">Remove</button></li>
     </ol>

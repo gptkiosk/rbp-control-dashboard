@@ -237,7 +237,9 @@ def repair_incomplete_execution(s, p, card_id, data, settings, actor):
         f'The same scope and acceptance will retry in edit mode using {card.agent} {card.model}. '
         'Dependencies, workspace, human decisions, security gates and publication gates are unchanged.', actor, card.id, run.id)
 
-def execution_catalog(settings, subagents=None, bias=50):
+def execution_catalog(settings, subagents=None, bias=50, s=None, p=None):
+    """Routes the planner may assign to stories. With a session, only what the route policy allows for this project's stories, memberships
+    first and paid API last."""
     result = []
     native = native_routes.read(settings)
     for agent, spec in REGISTRY.items():
@@ -245,18 +247,22 @@ def execution_catalog(settings, subagents=None, bias=50):
         models = list(spec.suggested_models)
         default = spec.default_model()
         if default: models.append(default)
-        if agent=='codex': models += ['gpt-6.1-sol','gpt-5.6-terra','gpt-6-astra','gpt-6-luna','gpt-5.6-sol']
         if agent in {'claude','codex'}:
             models = [r['model'] for r in model_selection.planning_routes() if r['agent']==agent] + models
         if agent in {'hermes','openclaw'}:
-            models += [('openrouter/' if agent=='openclaw' else '')+m for m in ('thinkingmachines/inkling:free','google/gemma-4-31b-it:free')]
-            models += native[agent]['models']
+            models += list(spec.free_models) + native[agent]['models']
         targets = []
         if agent=='openclaw':
             for row in native[agent]['targets'] or ((subagents or {}).get(agent) or {}).get('agents', []):
                 if isinstance(row.get('id'), str):
                     targets.append({k:row.get(k) for k in ('id','name','model','default')})
         result.append({'agent':agent,'models':list(dict.fromkeys(models)), 'targets':targets})
+    if s is not None:
+        import route_policy
+        for row in result:
+            row['models']=sorted([m for m in row['models'] if route_policy.allowed(s,settings,row['agent'],m,'stories',p,unknown_ok=True) is None],
+                                 key=lambda m: route_policy.cost_rank(route_policy.route_of(s,settings,row['agent'],m)['cost_class']))
+        result=[row for row in result if row['models']]
     return result
 def get(s, project_id):
     p = s.get(Project, project_id)
@@ -444,7 +450,7 @@ def other_free_routes(routes,card):
 def paid_retry_routes(settings,s=None):
     """Configured OpenRouter models that are not free, on the configured OpenClaw targets. Choosing one is a per-task operator approval of API billing;
     the price class, budget caps and free-only settings still apply when it dispatches."""
-    if (settings.dispatch_free_only and (s is None or not recovery.allowed_class(s,settings,'paid'))) or not REGISTRY['openclaw'].available(settings): return []
+    if s is None or not recovery.allowed_class(s,settings,'paid') or not REGISTRY['openclaw'].available(settings): return []
     native=native_routes.read(settings)['openclaw']
     models=[m for m in native['models'] if m.startswith('openrouter/') and not m.endswith(':free')]
     return [{'agent':'openclaw','model':m,'agent_target':t['id']} for t in native['targets'] for m in models]
@@ -798,7 +804,9 @@ def installation_text(s, settings):
         pass
     lines.append(f"Project Coordinator (current setting): {delegator or 'none assigned'}.")
     cap = billing.limits(s, settings)
-    lines.append('Spending policy: ' + ('free API routes only; configured membership routes use their separately allowed subscription policy' if settings.dispatch_free_only else 'paid routes allowed when approved')
+    import route_policy
+    cost=route_policy.load_app(s,settings)[0].cost
+    lines.append('Route policy cost classes: ' + ', '.join(n for n,on in (('membership',cost.membership),('free',cost.free),('paid API (last resort, approved per plan or task)',cost.paid)) if on)
                  + ('; per-run cap $' + format(cap['per_run_cap_usd'], 'g') if cap['per_run_cap_usd'] else '; no per-run dollar cap (set limits in Agents, Billing & rates)')
                  + ('; a reviewed price is required before a run starts' if cap['require_reviewed_pricing'] else '') + '.')
     try:
@@ -836,7 +844,7 @@ def consultant_context(s, settings, working_dir, project_type=None):
              ('Methods and practices to build the plan on', methods),
              ('Selected project type', project_types.consultant_text(settings, type_id=project_type)),
              ('This installation and its configuration', installation_text(s, settings)),
-             ('Models you could recommend', model_profiles.guidance_text(s, settings.data_dir, execution_catalog(settings)))]
+             ('Models you could recommend', model_profiles.guidance_text(s, settings.data_dir, execution_catalog(settings, s=s)))]
     return '\n\n'.join(f'## {title}\n{body}' for title, body in parts if body)[:CONSULTANT_CONTEXT_MAX]
 
 
@@ -896,8 +904,9 @@ def _next_planning_route(s, settings, p, pipeline, step):
         candidates = ([delegate] if delegate.get('agent') and delegate.get('model') else [])
         candidates.extend(pipeline.get('recovery_routes', ()))
         candidates.extend(free_routes)
+    coordinator=(pipeline.get('delegator') or {}).get('agent')
     candidates = [route for route in candidates if isinstance(route, dict) and route.get('agent') and route.get('model')
-        and _planning_route_allowed(s,settings,route)]
+        and _planning_route_allowed(s,settings,route,p,'planner' if step=='plan' or route['agent']!=coordinator else 'coordinator')]
     candidates=[{'agent':r['agent'],'model':resolve_free_alias(s,settings,r['agent'],None,r['model']) or r['model']} for r in candidates]
     unique = {}
     for route in candidates:
@@ -906,7 +915,9 @@ def _next_planning_route(s, settings, p, pipeline, step):
     current=pipeline.get('chosen' if step=='plan' else 'reviewer',pipeline.get('delegator',{}))
     rank={'unclassified':-1,'focused':0,'general':1,'deep':2}
     promote=step in {'plan','return'} and rank[model_selection.classification(current.get('model'))['class']]<=0
-    routes=sorted(unique.values(),key=lambda r:(bool(health.get((r['agent'],r['model']),{}).get('persistent')),
+    import route_policy
+    routes=sorted(unique.values(),key=lambda r:(route_policy.cost_rank(route_policy.route_of(s,settings,r['agent'],r['model'])['cost_class']),
+        bool(health.get((r['agent'],r['model']),{}).get('persistent')),
         not (promote and rank[model_selection.classification(r['model'])['class']]>0)))
     return next((route for route in routes if (route['agent'], route['model']) not in attempted), None)
 
@@ -1064,48 +1075,55 @@ def plan(s,p,action,settings,actor,subagents=None):
             retry_planning_task(s,p,pipeline['card_id'],Retry(**action.model_dump(),route=route),settings,actor)
             return
     d=document(p)
-    delegate = delegator_route(settings, action)
+    delegate = policy_coordinator(s, settings, p, delegator_route(settings, action))
     agent=d['planner_agent']
     retrying=p.state=='planning_failed'
     free_routes=free_planner_routes(s,settings)
     configured_recovery=recovery.eligible(s,settings,actor,paid_approved=action.approve_api_planning)
-    free_routes=list({(r['agent'],r['model']):r for r in configured_recovery+free_routes}.values())
+    free_routes=[r for r in {(r['agent'],r['model']):r for r in configured_recovery+free_routes}.values() if _planning_route_allowed(s,settings,r,p)]
     if retrying and delegate['agent']=='hermes':
         attempted_coordinate={(v.agent,v.model_requested or '') for v in s.scalars(select(Run).join(ProjectTask,ProjectTask.card_id==Run.card_id).where(
             ProjectTask.project_id==p.id,ProjectTask.role=='coordinate',ProjectTask.revision==p.revision))}
         if (delegate['agent'],delegate['model']) in attempted_coordinate:
-            alternate=next((route for route in free_routes if (route['agent'],route['model']) not in attempted_coordinate),None)
+            alternate=next((route for route in free_routes if (route['agent'],route['model']) not in attempted_coordinate
+                            and _planning_route_allowed(s,settings,route,p,'coordinator')),None)
             if alternate: delegate=alternate
     choices = [r for r in model_selection.planning_routes() if subscription(s,r['agent']) and REGISTRY[r['agent']].available(settings)
-        and _planning_route_allowed(s,settings,r)] if agent=='auto' else [{'agent':agent,'model':d['planner_model'] or (subscription_model(agent,d['planning_bias'],planner=True) if agent in {'claude','codex'} else REGISTRY[agent].default_model() or '')}]
+        and _planning_route_allowed(s,settings,r,p)] if agent=='auto' else [{'agent':agent,'model':d['planner_model'] or (subscription_model(agent,d['planning_bias'],planner=True) if agent in {'claude','codex'} else REGISTRY[agent].default_model() or '')}]
+    if agent=='auto':
+        # Every membership planner the route policy allows (for example Grok Build under an xAI-only policy), after the built-in focused/general list.
+        import route_catalog
+        allowed_planners=[{'agent':r['runtime'],'model':r['model']} for r in route_catalog.for_feature(s,settings,'planner',p)['allowed']
+                          if r['cost_class']=='subscription' and subscription(s,r['runtime'])]
+        choices=list({(c['agent'],c['model']):c for c in choices+allowed_planners[:4]}.values())
     choices = [{**c, 'model': resolve_free_alias(s, settings, c['agent'], None, c['model'])} for c in choices]    # the generic free default becomes the agent's own free model
+    import route_policy
+    coordinator_class=route_policy.route_of(s,settings,delegate['agent'],delegate['model'])['cost_class']
+    if coordinator_class=='paid' and not action.approve_api_planning:
+        fail(f"The Coordinator route {delegate['agent']} · {delegate['model']} uses API billing. Separate paid-planning approval is required.",422)
+    if agent!='auto' and choices and (why:=route_policy.allowed(s,settings,choices[0]['agent'],choices[0]['model'],'planner',p,unknown_ok=True)):
+        fail(f"The project's planner {choices[0]['agent']} · {choices[0]['model']} is not allowed: {why}. Choose another planner for this project or change the policy in Models & providers.",422)
     if retrying:
         attempted={(v.agent,v.model_requested or '') for v in s.scalars(select(Run).join(ProjectTask,ProjectTask.card_id==Run.card_id).where(
             ProjectTask.project_id==p.id,ProjectTask.role=='plan',ProjectTask.revision==p.revision))}
-        candidates=[r for r in choices+free_routes if _planning_route_allowed(s,settings,r)]
+        candidates=[r for r in choices+free_routes if _planning_route_allowed(s,settings,r,p)]
         untried=[route for route in candidates if (route['agent'],route['model']) not in attempted]
         retry_routes=untried or candidates
         if retry_routes: choices=list({(route['agent'],route['model']):route for route in retry_routes}.values())
-    if settings.dispatch_free_only and retrying:
-        choices=[r for r in choices+free_routes if _planning_route_allowed(s,settings,r)]
-        attempted={(v.agent,v.model_requested or '') for v in s.scalars(select(Run).join(ProjectTask,ProjectTask.card_id==Run.card_id).where(
-            ProjectTask.project_id==p.id,ProjectTask.role=='plan',ProjectTask.revision==p.revision))}
-        untried=[route for route in choices if (route['agent'],route['model']) not in attempted]
-        if untried: choices=untried
-    if not choices and (_planning_route_allowed(s,settings,delegate) if settings.dispatch_free_only else
-            (subscription(s, delegate['agent']) or reviewed_free_planner(s, settings, delegate))):
+    choices=_paid_last(s,settings,[c for c in choices if _planning_route_allowed(s,settings,c,p)])
+    if not choices and _planning_route_allowed(s,settings,delegate,p) and (subscription(s, delegate['agent']) or reviewed_free_planner(s, settings, delegate)):
         choices = [delegate.copy()]
-    if not choices: fail('No installed subscription or reviewed free planner is available. Configure a planner explicitly.',422)
+    if not choices:
+        import route_catalog
+        fail((route_catalog.for_feature(s,settings,'planner',p)['empty_reason'] or 'No planner route is allowed.')+' Change the project planner or the policy in Models & providers; this project remains saved for retry.',422)
     if any(not subscription(s,c['agent']) and not reviewed_free_planner(s, settings, c) for c in choices) and not action.approve_api_planning:
         fail('This planner uses API billing. Separate paid-planning approval is required.',422)
-    if settings.dispatch_free_only and retrying and not any(_planning_route_allowed(s,settings,c) for c in choices):
-        fail('No configured free planner route is available. Configure a reviewed-free Hermes model/provider route; this project remains saved for retry.',422)
     prompt = role_prompt('coordinate', candidates=json.dumps(choices), project=_brief(p)) + '\n'+model_profiles.guidance_text(s,settings.data_dir,[{'agent':r['agent'],'models':[r['model']]} for r in choices]) + _replan_prompt(getattr(p,'_replan_context',None))
     c=_queue(s,p,'coordinate',delegate['agent'],delegate['model'],prompt,settings)
-    recovery_routes=[route for route in free_routes if route not in choices]
+    recovery_routes=_paid_last(s,settings,[route for route in free_routes if route not in choices])
     if agent=='auto': recovery_routes=list({(r['agent'],r['model']):r for r in choices+recovery_routes}.values())
     p.state='planning'; p.error=None; p.pipeline=json.dumps({'step':'coordinate','delegator':delegate,'card_id':c.id,'choices':choices,
-        'recovery_routes':recovery_routes,'api_planning_approved':action.approve_api_planning,'fresh':bool(action.fresh),'revision':p.revision,'execution_catalog':execution_catalog(settings,subagents,d['planning_bias'])})
+        'recovery_routes':recovery_routes,'api_planning_approved':action.approve_api_planning,'fresh':bool(action.fresh),'revision':p.revision,'execution_catalog':execution_catalog(settings,subagents,d['planning_bias'],s,p)})
     planning_mode='from scratch, current stories not shown to the planner' if action.fresh else 'from the current map'
     memory(s,p,'decision',f"Operator approved planning revision {p.revision}: Coordinator {delegate['agent']} · {delegate['model']}; candidates {json.dumps(choices)}; API planner approval={action.approve_api_planning}; planning {planning_mode}. Provider limits apply; budget is not a universal hard cap.",actor)
 
@@ -1191,7 +1209,7 @@ def resume_plan(s, p, revision, settings, actor):
     data = _json_result(run.result_text)
     if not isinstance(data, dict) or set(data) != {'nodes'}: fail('Saved response must contain only nodes.', 422)
     proposal(document(p), data['nodes'], settings)
-    pipeline['execution_catalog'] = execution_catalog(settings,bias=document(p)['planning_bias'])
+    pipeline['execution_catalog'] = execution_catalog(settings,bias=document(p)['planning_bias'],s=s,p=p)
     p.pipeline = json.dumps(pipeline); p.state = 'planning'; p.error = None
     memory(s,p,'decision','Operator resumed the successful saved proposal without rerunning the subscription planner. Current native execution routes will be reviewed.',actor,run.card_id,run.id)
     advance(s, settings)
@@ -1264,7 +1282,8 @@ def submit(s,p,action,settings,actor,github_store=None):
     if p.state in {'dispatching','active','paused','complete'}: return
     if p.state=='planning': fail('Wait for planning to finish.')
     d=validate(document(p),settings,True,overlaps=True)
-    blockers=[f for f in project_types.check_document(d,settings) if f['severity']=='block']
+    import route_policy
+    blockers=[f for f in project_types.check_document(d,settings)+route_policy.story_findings(s,settings,d,p) if f['severity']=='block']
     if blockers:
         fail('Repair these plan blockers before dispatch: '+'; '.join(f['message'] for f in blockers),422)
     if d.get('project_type') in {'local-website','gcp-hosted-website'} or project_contract.generated_media(d):
@@ -1276,7 +1295,7 @@ def submit(s,p,action,settings,actor,github_store=None):
         if n['kind']=='story' and n['assignee']=='openclaw' and n['agent_target'] and n['agent_target'] not in configured_targets:
             fail('OpenClaw target is no longer configured: '+n['agent_target']+'. Review this assignment before submission.',422)
     if not action.approve_coordination: fail('Approve project coordination usage for story dispatch.',422)
-    delegate = delegator_route(settings, action)
+    delegate = policy_coordinator(s, settings, p, delegator_route(settings, action))
     paid=[n['title'] for n in d['nodes'] if n['kind']=='story' and n['assignee']!='human' and not subscription(s,n['assignee'])] + [n['title'] for n in d['nodes'] if n['kind']=='story' for r in n['routes'] if not subscription(s,r['agent'])]
     if paid and not action.approve_api_work: fail('Approve API story usage before submitting these agents: '+', '.join(paid),422)
     for n in d['nodes']:
@@ -1428,7 +1447,7 @@ def advance(s,settings):
     for p in s.scalars(select(Project).where(Project.state.in_(['planning','dispatching']))).all():
         if workspace_handoff.blocking(s,document(p)['working_dir']): continue
         pipeline=json.loads(p.pipeline)
-        if 'execution_catalog' not in pipeline: pipeline['execution_catalog']=execution_catalog(settings,bias=document(p)['planning_bias'])
+        if 'execution_catalog' not in pipeline: pipeline['execution_catalog']=execution_catalog(settings,bias=document(p)['planning_bias'],s=s,p=p)
         c=s.get(Card,pipeline['card_id'])
         if c and c.column in {'queued','running'}: continue
         r=s.scalar(select(Run).where(Run.card_id==pipeline['card_id']).order_by(Run.id.desc()).limit(1))
@@ -2230,11 +2249,34 @@ def process_handoffs(s,p,actor=None,card_ids=None):
             continue
 
 
-def _planning_route_allowed(s,settings,route):
-    from dispatch_gate import reviewed_route_class
-    from types import SimpleNamespace
-    price=reviewed_route_class(s,settings,SimpleNamespace(agent=route['agent'],agent_target=''),route['model'])
-    return recovery.allowed_class(s,settings,price)
+def _planning_route_allowed(s,settings,route,p=None,feature='planner'):
+    """Whether the route policy (managed, app and this project's) allows a planning route."""
+    import route_policy
+    return route_policy.allowed(s,settings,route['agent'],route['model'],feature,p,unknown_ok=True) is None
+
+
+def _paid_last(s,settings,routes):
+    """Stable order with paid API routes (or unreviewed prices) after every membership and free route."""
+    import route_policy
+    return sorted(routes,key=lambda r: route_policy.cost_rank(route_policy.route_of(s,settings,r['agent'],r['model'])['cost_class']))
+
+
+def policy_coordinator(s,settings,p,delegate):
+    """The Coordinator route under the route policy. A Coordinator default set in a policy is used when it is allowed; otherwise the assigned
+    Coordinator keeps its own configured model when the policy allows it, and else the first allowed Coordinator route (paid API last). The model
+    is pinned per run and never written into the agent's own configuration. Refuses with the reason when no Coordinator route is allowed."""
+    import route_catalog, route_policy
+    managed,_=route_policy.load_managed(settings);app,_=route_policy.load_app(s,settings);project=route_policy.load_project(document(p))
+    chosen=next((x.defaults['coordinator'] for x in (project,app,managed) if x is not None and x.defaults.get('coordinator')),None)
+    if chosen and chosen.runtime==delegate['agent'] and route_policy.allowed(s,settings,chosen.runtime,chosen.model,'coordinator',p,unknown_ok=True) is None:
+        return {'agent':chosen.runtime,'model':chosen.model}
+    why=route_policy.allowed(s,settings,delegate['agent'],delegate['model'],'coordinator',p,unknown_ok=True)
+    if why is None:
+        return delegate
+    view=route_catalog.for_feature(s,settings,'coordinator',p)
+    if view['allowed']:
+        return {'agent':view['allowed'][0]['runtime'],'model':view['allowed'][0]['model']}
+    fail(f"The Coordinator route {delegate['agent']} · {delegate['model']} is not allowed: {why}. Choose an allowed Coordinator model or change the policy in Models & providers.",422)
 
 
 
@@ -2246,8 +2288,10 @@ def route_all(s,p,revision,agent,model,settings,actor,backups=None):
     options={(r['agent'],r['model']):r for r in recovery.options(s,settings)}
     option=options.get((agent,model))
     if not option or not option['allowed']: fail('That route is not available on this host. Choose one listed in the route menu.',422)
+    import route_policy
+    if (why:=route_policy.allowed(s,settings,agent,model,'stories',p,unknown_ok=True)): fail(f'That route is not allowed for this project: {why}.',422)
     backups=[dict(agent=b['agent'],model=b['model']) for b in (backups or [])]
-    if any(not (options.get((b['agent'],b['model'])) or {}).get('allowed') for b in backups):
+    if any(not (options.get((b['agent'],b['model'])) or {}).get('allowed') or route_policy.allowed(s,settings,b['agent'],b['model'],'stories',p,unknown_ok=True) for b in backups):
         fail('A backup route is not available on this host. Choose backups from the route menu.',422)
     backups=[b for b in dict.fromkeys((b['agent'],b['model']) for b in backups) if b!=(agent,model)][:5]
     backups=[{'agent':a,'model':m} for a,m in backups]

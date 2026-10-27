@@ -40,17 +40,19 @@ def row(agent, cap=0.0, target='', price_class='free'):
 
 @pytest.mark.parametrize('agent', AGENTS)
 @pytest.mark.parametrize('price_class,free_only,cap,expected', [
-    (None, False, 1, 'PRICE_UNKNOWN'), ('paid', True, 1, 'FREE_ONLY'),
-    ('subscription', True, 0, 'FREE_ONLY'), ('free', True, -1, 'BUDGET_EXCEEDED'),
+    (None, False, 1, 'PRICE_UNKNOWN'), ('paid', True, 1, 'ROUTE_POLICY'),
+    ('subscription', True, 0, 'ROUTE_POLICY'), ('free', True, -1, 'BUDGET_EXCEEDED'),
     ('free', True, float('nan'), 'BUDGET_EXCEEDED'),
     ('free', True, float('inf'), 'BUDGET_EXCEEDED'),
     ('free', True, None, 'BUDGET_EXCEEDED'), ('free', True, True, 'BUDGET_EXCEEDED'),
     ('free', True, 2, 'BUDGET_EXCEEDED'), ('paid', False, 0, 'BUDGET_EXCEEDED'),
 ])
 def test_fail_closed(tmp_path, agent, price_class, free_only, cap, expected):
-    cfg = settings(tmp_path, agent, price_class, dispatch_free_only=free_only)
+    # `free_only` now stands for a route policy that allows free routes only (route_policy.run_reason gives the reason).
+    cfg = settings(tmp_path, agent, price_class)
+    reason = f'App policy: {"paid API" if price_class == "paid" else "membership routes"} are off' if free_only and price_class != 'free' else None
     with pytest.raises(DispatchDenied, match=expected):
-        admit(cfg, row(agent, cap, price_class=price_class), ['runner', FLAGS[agent], 'assigned'])
+        admit(cfg, row(agent, cap, price_class=price_class), ['runner', FLAGS[agent], 'assigned'], route_policy_reason=reason)
 
 
 @pytest.mark.parametrize('agent', AGENTS)
@@ -82,8 +84,8 @@ def test_paid_requires_runtime_boundary(tmp_path, agent):
 @pytest.mark.parametrize('agent', AGENTS)
 @pytest.mark.parametrize('chat', [False, True])
 @pytest.mark.parametrize('price_class,free_only,cap,expected', [
-    (None, False, 0, 'PRICE_UNKNOWN'), ('paid', True, 1, 'FREE_ONLY'),
-    ('subscription', True, 0, 'FREE_ONLY'), ('free', True, 2, 'BUDGET_EXCEEDED'),
+    (None, False, 0, 'PRICE_UNKNOWN'), ('paid', True, 1, 'ROUTE_POLICY'),
+    ('subscription', True, 0, 'ROUTE_POLICY'), ('free', True, 2, 'BUDGET_EXCEEDED'),
     ('paid', False, 1, 'BUDGET_UNENFORCED'), ('free', True, 0, None),
 ])
 def test_launch_boundary(sessions, tmp_path, agent, chat, price_class, free_only, cap, expected):
@@ -93,7 +95,7 @@ def test_launch_boundary(sessions, tmp_path, agent, chat, price_class, free_only
     def build(card, prompt, model, budget, binary, session_id=None):
         return [sys.executable, '-c', program, FLAGS[agent], model]
     registry = {agent: AgentSpec(agent, agent, 'worker', 'claude_path', build, Parser)}
-    cfg = settings(tmp_path, agent, price_class, dispatch_free_only=free_only, default_budget_usd=cap)
+    cfg = settings(tmp_path, agent, price_class, default_budget_usd=cap)
     d = Dispatcher(sessions, cfg, registry=registry)
     with sessions.begin() as db:
         # Exercise exact API-route admission here. Subscription-account fallback
@@ -101,6 +103,8 @@ def test_launch_boundary(sessions, tmp_path, agent, chat, price_class, free_only
         # a reviewed native subscription.
         db.add(BillingConfig(id=1, payload=json.dumps({
             'accounts': {agent: {'mode': 'api', 'monthly_usd': 0}}, 'limits': STRICT,
+            # `free_only` is a saved route policy that allows free routes only; the dispatcher asks route_policy at admission.
+            'route_policy': {'cost': {'free': True, 'membership': not free_only, 'paid': not free_only}},
         })))
         if chat:
             thread = ChatThread(agent=agent, model='assigned', title='synthetic', mode='read',
@@ -294,8 +298,8 @@ def test_each_limit_is_independent_and_correctness_checks_still_refuse(tmp_path)
     assert _admit(cfg, open_row('hermes', 2), argv, limits=dict(per_run_cap_usd=2))['budget_usd'] == 2
     with pytest.raises(DispatchDenied, match='ROUTE_UNPINNED'):                    # a pinned model is correctness, not a spending limit: always checked
         _admit(cfg, open_row('hermes'), ['runner'])
-    with pytest.raises(DispatchDenied, match='FREE_ONLY'):                         # free-only is a switch the operator chose: still honoured
-        _admit(settings(tmp_path, 'hermes', dispatch_free_only=True), open_row('hermes'), argv)
+    with pytest.raises(DispatchDenied, match='ROUTE_POLICY'):                      # the route policy the operator chose is still honoured
+        _admit(cfg, open_row('hermes'), argv, route_policy_reason='App policy: paid API is off')
 
 
 def test_the_claude_dollar_flag_is_only_added_when_a_cap_exists():
@@ -310,9 +314,9 @@ def test_the_claude_dollar_flag_is_only_added_when_a_cap_exists():
 def test_limits_default_off_are_saved_in_one_place_and_can_be_cleared(make_client):
     import billing
     c = make_client()
-    assert c.get('/api/billing').json()['limits'] == {'require_reviewed_pricing': False, 'per_run_cap_usd': None, 'paid_needs_runtime_limit': False, 'allow_subscription_in_free_only': False, 'allow_paid_in_free_only': False}
+    assert c.get('/api/billing').json()['limits'] == {'require_reviewed_pricing': False, 'per_run_cap_usd': None, 'paid_needs_runtime_limit': False}
     saved = c.patch('/api/billing', json={'limits': {'per_run_cap_usd': 2.5, 'require_reviewed_pricing': True}}).json()['limits']
-    assert saved == {'require_reviewed_pricing': True, 'per_run_cap_usd': 2.5, 'paid_needs_runtime_limit': False, 'allow_subscription_in_free_only': False, 'allow_paid_in_free_only': False}
+    assert saved == {'require_reviewed_pricing': True, 'per_run_cap_usd': 2.5, 'paid_needs_runtime_limit': False}
     assert c.patch('/api/billing', json={'limits': {'paid_needs_runtime_limit': True}}).json()['limits']['per_run_cap_usd'] == 2.5          # untouched
     cleared = c.patch('/api/billing', json={'limits': {'per_run_cap_usd': None, 'require_reviewed_pricing': False}}).json()['limits']
     assert cleared['per_run_cap_usd'] is None and cleared['require_reviewed_pricing'] is False

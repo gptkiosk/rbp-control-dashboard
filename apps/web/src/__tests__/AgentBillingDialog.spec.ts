@@ -154,3 +154,17 @@ it('uses configured OpenClaw names and submits the selected ID', async () => {
   expect(JSON.parse(String(calls(f, 'POST', '/api/chat/threads')[0]![1]?.body)).agent_target).toBe('mm-dev')
   w.unmount()
 })
+it('leaves out the accounts of runtimes an installation-managed route policy removes', async () => {
+  const { resetManagedRuntimes } = await import('@/lib/routes')
+  resetManagedRuntimes()
+  stubFetch(u => u === '/api/billing' ? { body: { accounts: { codex: { mode: 'subscription', monthly_usd: 20 }, grok: { mode: 'subscription', monthly_usd: 30 } }, rates: {}, timezone: 'America/Los_Angeles' } }
+    : u === '/api/routes/policy' ? { body: { managed_runtimes: ['grok', 'hermes'] } } : undefined)
+  const w = mount(AgentBillingDialog, {
+    props: { agents: [agent({ id: 'codex', name: 'Codex' }), agent({ id: 'grok', name: 'Grok Build' })], models: [] },
+    global: { stubs: { RouterLink: { template: '<a><slot /></a>' } } },
+  })
+  await flushPromises()
+  expect(w.findAll('.account strong').map(s => s.text())).toEqual(['Grok Build'])
+  expect(w.get('[data-testid="managed-hidden"]').text()).toContain('Claude, Codex, OpenClaw')
+  resetManagedRuntimes()
+})

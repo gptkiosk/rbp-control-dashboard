@@ -42,7 +42,7 @@ The card detail shows the envelope and "Why this route".
 **How the planner chooses a route** (written into the Delegator role pack): prefer a free route when the story is read-only or easily
 reversible, low risk, small in context, needs no secrets, and a failed attempt only costs a retry. Choose a subscription or other
 foundation model when the work is high risk or security sensitive, hard to reverse, needs long context, or has already failed on free
-routes. A paid API route is only chosen when the execution catalog marks it approved. The dispatch gate still enforces free-only
+routes. A paid API route is only chosen when the execution catalog marks it approved. The dispatch gate still enforces the route
 policy and price classes whatever the plan says.
 
 ## Settings involved

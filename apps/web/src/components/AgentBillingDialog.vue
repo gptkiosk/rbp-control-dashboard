@@ -6,8 +6,13 @@ import MediaGeneratePanel from '@/components/MediaGeneratePanel.vue'
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import ModalShell from '@/components/ModalShell.vue'
 import { getJson, patchJson, type Agent, type BillingSettings, type MediaCatalog, type ModelRate } from '@/lib/api'
+import { agentLabel } from '@/lib/cards'
+import { useManagedRuntimes } from '@/lib/routes'
 const props = defineProps<{ agents: Agent[]; models: string[]; focus?: 'media' | null }>()
 const emit = defineEmits<{ close: []; saved: [] }>()
+// An installation-managed route policy hides the runtimes it removes; their saved accounts are kept.
+const managed = useManagedRuntimes()
+const shownAgents = computed(() => props.agents.filter(a => managed.shown(a.id)))
 const settings = ref<BillingSettings | null>(null)
 const error = ref('')
 const saving = ref(false)
@@ -125,7 +130,8 @@ async function save() {
       </p></NoteFold>
       <p v-if="!settings && !error" role="status">Loading billing settings…</p>
       <div v-if="settings" class="accounts">
-        <div v-for="a in agents" :key="a.id" class="account">
+        <p v-if="managed.hidden.value.length" class="muted small" data-testid="managed-hidden">Hidden by this installation's route policy: {{ managed.hidden.value.map(agentLabel).join(', ') }}. <RouterLink to="/profile#models-providers">Models &amp; providers</RouterLink></p>
+        <div v-for="a in shownAgents" :key="a.id" class="account">
           <strong>{{ a.name }}</strong>
           <label
             >Billing mode<AppSelect

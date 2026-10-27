@@ -473,8 +473,10 @@ class Dispatcher:
             try:
                 source = db.get(Card, row.card_id) if row.card_id else db.get(ChatThread, row.thread_id)
                 current_class = _reviewed_route_class(db, self.settings, source, row.model_requested) if source else None
-                evidence = admit_dispatch(self.settings, row, argv, default_free_only=True, current_price_class=current_class,
-                                          limits=billing_limits(db, self.settings))
+                import route_policy
+                policy_reason = route_policy.run_reason(db, self.settings, source, row.model_requested) if source else "the run has no task or chat"
+                evidence = admit_dispatch(self.settings, row, argv, current_price_class=current_class,
+                                          limits=billing_limits(db, self.settings), route_policy_reason=policy_reason)
             except DispatchDenied as exc:
                 db.add(RunEvent(run_id=run_id, ts=_now(), kind="note", text=f"dispatch denied: {exc}"))
                 problem = str(exc)

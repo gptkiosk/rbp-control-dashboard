@@ -2,9 +2,10 @@ import { afterEach, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { nextTick } from 'vue'
 import AgentToolsPanel from '@/components/AgentToolsPanel.vue'
+import { resetManagedRuntimes } from '@/lib/routes'
 import { calls, stubFetch } from './helpers'
 
-afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); vi.useRealTimers() })
+afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); vi.useRealTimers(); resetManagedRuntimes() })
 
 const LOGIN = {
   'claude-code': 'claude auth login', codex: 'codex login --device-auth', openclaw: 'openclaw onboard', hermes: 'hermes model', grok: 'grok login --device-code',
@@ -41,7 +42,7 @@ it('lists the five tools with Install buttons that show the pinned version, and 
   expect(w.findAll('button').map(b => b.text())).toEqual(['Install 1.0.0', 'Install 1.0.0', 'Install 1.0.0', 'Install 1.0.0', 'Install 1.0.0'])
   expect(w.get('[data-test="host"]').text()).toContain('3.8 GB memory')
   expect(w.get('[data-test="host"]').text()).toContain('20.0 GB free disk')
-  expect(f.mock.calls.map(([url, init]) => `${init?.method ?? 'GET'} ${url}`)).toEqual(['GET /api/agent-installs'])
+  expect(f.mock.calls.map(([url, init]) => `${init?.method ?? 'GET'} ${url}`).filter(c => c !== 'GET /api/routes/policy')).toEqual(['GET /api/agent-installs'])
   expect(w.text()).toContain('nothing here signs in to a tool or touches a key')
   w.unmount()
 })
@@ -287,5 +288,13 @@ it('offers Repair for a managed tool whose command wrapper is out of date, and a
   await repair.trigger('click'); await flushPromises()
   expect(JSON.parse(String(calls(f, 'POST', '/api/agent-installs/plan')[0]![1]!.body))).toEqual({ tool: 'hermes', action: 'repair' })
   expect(w.get('[data-test="confirm"]').text()).toContain('nothing is downloaded')
+  w.unmount()
+})
+
+it('hides the runtimes an installation-managed route policy removes and says so', async () => {
+  stubFetch(url => url === '/api/agent-installs' ? { body: status() } : url === '/api/routes/policy' ? { body: { managed_runtimes: ['grok', 'hermes'] } } : undefined)
+  const w = mount(AgentToolsPanel, stubs); await flushPromises()
+  expect(w.findAll('[data-tool]').map(e => e.attributes('data-tool'))).toEqual(['hermes', 'grok'])
+  expect(w.get('[data-testid="managed-hidden"]').text()).toContain("Hidden by this installation's route policy: Claude, Codex, OpenClaw")
   w.unmount()
 })

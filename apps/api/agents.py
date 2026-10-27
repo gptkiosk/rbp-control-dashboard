@@ -419,6 +419,8 @@ class AgentSpec:
     enforces_mode: bool = True
     notes: str = ""
     suggested_models: tuple[str, ...] = field(default_factory=tuple)
+    # Known free models this runtime can name directly (Hermes, OpenClaw), offered beside the ones in its own configuration.
+    free_models: tuple[str, ...] = field(default_factory=tuple)
     # True when the dashboard must choose the session id before the first turn (OpenClaw);
     # False when the agent reports its own session id and we resume it.
     preassigned_session: bool = False
@@ -447,6 +449,7 @@ REGISTRY: dict[str, AgentSpec] = {
     "codex": AgentSpec(
         "codex", "Codex", "worker", "codex_path", build_codex, CodexParser,
         default_model=codex_default_model,
+        suggested_models=("gpt-6.1-sol", "gpt-5.6-terra", "gpt-6-astra", "gpt-6-luna", "gpt-5.6-sol"),
         notes="Read = read-only sandbox; Edit = workspace-write sandbox. Model is not reported by Codex.",
     ),
     "grok": AgentSpec(
@@ -459,12 +462,13 @@ REGISTRY: dict[str, AgentSpec] = {
     ),
     "hermes": AgentSpec(
         "hermes", "Hermes", "manager", "hermes_path", build_hermes, HermesParser,
-        enforces_mode=False,
+        enforces_mode=False, free_models=("thinkingmachines/inkling:free", "google/gemma-4-31b-it:free"),
         notes="Management agent. Uses its own tool policy; Read/Edit is advisory.",
     ),
     "openclaw": AgentSpec(
         "openclaw", "OpenClaw", "worker", "openclaw_path", build_openclaw, OpenClawParser,
         enforces_mode=False, preassigned_session=True,
+        free_models=("openrouter/thinkingmachines/inkling:free", "openrouter/google/gemma-4-31b-it:free"),
         notes="Runs one turn via the OpenClaw gateway (default agent mm-main). Replies are never delivered to a channel.",
     ),
 }

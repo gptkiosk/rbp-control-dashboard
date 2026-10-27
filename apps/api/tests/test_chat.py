@@ -46,6 +46,7 @@ def tc(make_client, tmp_path, monkeypatch):
     import routes.chat as chat_routes
     monkeypatch.setattr(chat_routes, "REGISTRY", {**agents.REGISTRY, "fake": spec})
     with TestClient(client.app, headers={"X-Mac-Control": "1"}) as test_client:
+        assert test_client.patch("/api/routes/policy/cost", json={"membership": True, "paid": True}).status_code == 200
         client.app.state.dispatcher = Dispatcher(client.app.state.sessions, _settings(tmp_path),
                                                  registry={"fake": spec})
         yield test_client

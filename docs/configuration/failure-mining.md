@@ -14,7 +14,7 @@ redacted and bounded**; nothing is retried, rerouted, approved or changed from t
 
 ## Causes
 
-`price_gate` (PRICE_UNKNOWN, FREE_ONLY, BUDGET_*, ROUTE_UNPINNED), `subscription_limit`,
+`price_gate` (PRICE_UNKNOWN, ROUTE_POLICY, FREE_ONLY from older runs, BUDGET_*, ROUTE_UNPINNED), `subscription_limit`,
 `hook_rejection` (pre-commit, commit-msg, pre-push), `permission` (a command needed approval),
 `gateway` (OpenClaw gateway or provider timeout), `incomplete_handoff` (the agent said the work is
 unfinished), `test_failure`, `cancelled`, `interrupted` (cut off by a restart), `timeout`, `other`.

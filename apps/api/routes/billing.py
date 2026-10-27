@@ -33,8 +33,6 @@ class LimitsPatch(BaseModel):
     require_reviewed_pricing: bool | None = None
     per_run_cap_usd: float | None = Field(default=None, ge=0, le=100000)      # 0 or empty: no cap
     paid_needs_runtime_limit: bool | None = None
-    allow_subscription_in_free_only: bool | None = None
-    allow_paid_in_free_only: bool | None = None
 
 
 class BillingPatch(BaseModel):
@@ -78,7 +76,7 @@ def patch_billing(body: BillingPatch, s: Session = Depends(get_session)):
     if body.limits is not None:
         sent = body.limits.model_fields_set
         merged = dict(old.get("limits") or {})
-        for key in ("require_reviewed_pricing", "paid_needs_runtime_limit", "allow_subscription_in_free_only", "allow_paid_in_free_only"):
+        for key in ("require_reviewed_pricing", "paid_needs_runtime_limit"):
             if key in sent and getattr(body.limits, key) is not None:
                 merged[key] = getattr(body.limits, key)
         if "per_run_cap_usd" in sent:

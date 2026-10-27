@@ -11,7 +11,10 @@ SHARED_FILES = ['apps/web/src/components/QueuedTaskRouteAction.vue', 'apps/web/s
     'apps/web/src/components/RouteRecoveryPanel.vue', 'apps/web/src/components/RouteRecoveryNotice.vue',
     'apps/web/src/components/ProjectPlanningRetryAction.vue', 'apps/web/src/components/TaskRetryAction.vue',
     'apps/api/tests/test_route_reliability.py', 'apps/web/src/__tests__/RouteRecoveryPanel.spec.ts',
-    'apps/web/src/__tests__/ProjectPlanningRetryAction.spec.ts']
+    'apps/web/src/__tests__/ProjectPlanningRetryAction.spec.ts',
+    'apps/api/route_policy.py', 'apps/api/route_catalog.py', 'apps/api/routes/route_policy.py', 'apps/api/tests/test_route_policy.py',
+    'apps/web/src/lib/routes.ts', 'apps/web/src/components/RoutePicker.vue', 'apps/web/src/components/RoutePolicyPanel.vue',
+    'apps/web/src/components/ProjectRouteStrip.vue', 'apps/web/src/__tests__/RoutePolicy.spec.ts']
 SHARED_FUNCTIONS = ['change_queued_route', 'pending_subscription_routes', '_queue', '_next_planning_route', 'planning_retry_routes', '_planning_route_allowed',
     '_retry_unusable_planning_result', 'plan', 'retry_planning_task', 'add_recovery_routes', 'submit']
 SHARED_SCHEMAS = ['QueuedRouteChange', 'Route', 'Node', 'Document', 'Action', 'Retry', 'GoFree', 'LowCostRetry', 'PayRetry']

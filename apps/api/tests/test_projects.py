@@ -84,6 +84,7 @@ def app(make_client, monkeypatch, tmp_path):
     config.write_text(json.dumps({'agents':{'list':[{'id':'mm-main'},{'id':'mm-developer'},{'id':'mm-security'}]}}))
     get_settings().openclaw_config_path=config
     with client:
+        assert client.patch('/api/routes/policy/cost',json={'membership':True,'paid':True}).status_code==200   # paid flows still need their own approval
         yield client,client.app.state.sessions,tmp_path/'ws/proj',get_settings()
 
 def node(key,**kw):
@@ -1659,10 +1660,10 @@ def pending_subscriptions(monkeypatch):
 
 def test_pending_route_options_respect_host_membership_policy(app,pending_subscriptions):
     c,s,_,settings=app
-    settings.dispatch_free_only=True
+    assert c.patch('/api/routes/policy/cost',json={'membership':False}).status_code==200
     with s() as db:
         assert projects.pending_subscription_routes(db,settings)==[]
-    settings.dispatch_free_only=False
+    assert c.patch('/api/routes/policy/cost',json={'membership':True}).status_code==200
     with s() as db:
         assert {'agent':'codex','model':'gpt-6-luna'} in projects.pending_subscription_routes(db,settings)
 

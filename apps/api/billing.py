@@ -44,7 +44,7 @@ DEFAULT_ACCOUNTS = {
 
 
 # Spending limits are off unless the operator turns them on, in one place: Agents, Billing & rates, Spending & limits. Without a limit MCD only discloses that a route can cost money.
-DEFAULT_LIMITS = {"require_reviewed_pricing": False, "per_run_cap_usd": None, "paid_needs_runtime_limit": False, "allow_subscription_in_free_only": False, "allow_paid_in_free_only": False}
+DEFAULT_LIMITS = {"require_reviewed_pricing": False, "per_run_cap_usd": None, "paid_needs_runtime_limit": False}
 
 
 def limits(s, settings=None):
@@ -54,7 +54,7 @@ def limits(s, settings=None):
     out = dict(DEFAULT_LIMITS)
     if settings is not None and "dispatch_max_budget_usd" in getattr(settings, "model_fields_set", set()) and (settings.dispatch_max_budget_usd or 0) > 0:
         out["per_run_cap_usd"] = float(settings.dispatch_max_budget_usd)
-    for key in ("require_reviewed_pricing", "paid_needs_runtime_limit", "allow_subscription_in_free_only", "allow_paid_in_free_only"):
+    for key in ("require_reviewed_pricing", "paid_needs_runtime_limit"):
         if isinstance(saved.get(key), bool):
             out[key] = saved[key]
     if "per_run_cap_usd" in saved:
@@ -73,6 +73,34 @@ def config(s):
         "limits": limits(s),
         "media_rates": {k: float(v) for k, v in (saved.get("media_rates") or {}).items() if isinstance(v, (int, float)) and not isinstance(v, bool)},
     }
+
+
+# Price classes the operator reviewed in Models & providers, "runtime|target|model" -> "free" | "paid". A route nobody reviewed counts as paid
+# when a run is admitted; a review only records what the operator saw, and "free" is accepted only for a listed free model (route_policy.review_price).
+REVIEWABLE_CLASSES = ("free", "paid")
+
+
+def route_prices(s):
+    row = s.get(BillingConfig, 1)
+    saved = (json.loads(row.payload) if row else {}).get("route_prices") or {}
+    return {k: v for k, v in saved.items() if isinstance(k, str) and v in REVIEWABLE_CLASSES} if isinstance(saved, dict) else {}
+
+
+def save_route_price(s, key, cost_class):
+    """Record or clear (None) one reviewed price class."""
+    row = s.get(BillingConfig, 1)
+    payload = json.loads(row.payload) if row else {}
+    prices = route_prices(s)
+    if cost_class is None:
+        prices.pop(key, None)
+    else:
+        prices[key] = cost_class
+    payload["route_prices"] = prices
+    if row:
+        row.payload = json.dumps(payload)
+    else:
+        s.add(BillingConfig(id=1, payload=json.dumps(payload)))
+    s.flush()
 
 
 FREE_SUFFIX = ":free"

@@ -46,7 +46,7 @@ def failure_kind(run, contract_failed=False):
     generic_cli = bool(re.match(r'^(hermes|openclaw) exit code [1-9]',value,re.I))
     if generic_cli:
         value += '\n' + (getattr(run,'result_text',None) or '')[-4000:]
-    if re.search(r'FREE_ONLY|PRICE_UNKNOWN|BUDGET_|ROUTE_UNPINNED|APPROVAL|permission|denied|sandbox', value, re.I):
+    if re.search(r'FREE_ONLY|ROUTE_POLICY|PRICE_UNKNOWN|BUDGET_|ROUTE_UNPINNED|APPROVAL|permission|denied|sandbox', value, re.I):
         return 'policy'
     if re.search(r'authentication|unauthorized|invalid.api.key|sign.?in|log.?in|\b401\b|\b403\b', value, re.I):
         return 'sign_in'
@@ -122,10 +122,9 @@ def options(s, settings):
 
 
 def allowed_class(s, settings, price):
-    import billing
-    return not settings.dispatch_free_only or price == 'free' or (
-        price == 'subscription' and billing.limits(s, settings).get('allow_subscription_in_free_only', False)) or (
-        price == 'paid' and billing.limits(s, settings).get('allow_paid_in_free_only', False))
+    """Whether the route policy (Models & providers) allows this cost class at all. An unreviewed price counts as paid."""
+    import route_policy
+    return route_policy.cost_allowed(s, settings, price)
 
 
 def policy(s, owner):
@@ -145,10 +144,15 @@ def eligible(s, settings, owner, *, paid_approved=False):
         key = (route.agent, route.model)
         item = current.get(key)
         if item and item['allowed'] and (item['price_class'] != 'paid' or paid_approved):
-            result.append({'agent':route.agent,'model':resolve_free_alias(s,settings,route.agent,None,route.model) or route.model})
+            result.append({'agent':route.agent,'model':resolve_free_alias(s,settings,route.agent,None,route.model) or route.model,
+                           '_class':item['price_class']})
     result=list({(r['agent'],r['model']):r for r in result}.values())
-    # Preserve operator order within each group. A working alternative is tried before a persistently failing route.
-    return sorted(result, key=lambda r: bool(health.get((r['agent'], r['model']), {}).get('persistent')))
+    # Paid API is always the last resort (route_policy.COST_RANK); within a cost class a working alternative comes before a persistently
+    # failing route, and otherwise the operator's order is kept.
+    import route_policy
+    ordered = sorted(result, key=lambda r: (route_policy.cost_rank(None if r['_class'] == 'unknown' else r['_class']),
+                                            bool(health.get((r['agent'], r['model']), {}).get('persistent'))))
+    return [{'agent': r['agent'], 'model': r['model']} for r in ordered]
 
 
 def payload(s, settings, owner):
@@ -163,7 +167,6 @@ def payload(s, settings, owner):
                 'link': '/profile#route-recovery'})
     return {'policy': saved.model_dump(), 'options': options(s, settings), 'health': health,
         'recommendations': recommendations, 'window_days': 7, 'sample_limit': 500,
-        'host_free_only': settings.dispatch_free_only,
         'subscription_allowed': allowed_class(s, settings, 'subscription'),
         'paid_allowed': allowed_class(s,settings,'paid')}
 
