@@ -60,3 +60,28 @@ def patch_cost(body: CostIn, s: Session = Depends(get_session)):
     rp.save_app(s, policy.model_copy(update={"cost": cost}))
     s.commit()
     return route_catalog.policy_view(s, get_settings())
+
+
+@router.get("/prices")
+def get_prices(s: Session = Depends(get_session)):
+    """Routes whose price was never reviewed (they count as paid API) and the reviews recorded here."""
+    return route_catalog.prices(s, get_settings())
+
+
+class PriceIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    runtime: str
+    target: str = ""
+    model: str
+    cost_class: str | None
+
+
+@router.put("/prices")
+def put_price(body: PriceIn, s: Session = Depends(get_session)):
+    """Record a reviewed price class (free or paid API) for one route, or clear it with null."""
+    try:
+        rp.review_price(s, get_settings(), body.runtime, body.target, body.model, body.cost_class)
+    except rp.PolicyError as error:
+        raise HTTPException(422, str(error)) from None
+    s.commit()
+    return route_catalog.prices(s, get_settings())

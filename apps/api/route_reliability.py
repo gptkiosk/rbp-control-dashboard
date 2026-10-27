@@ -46,7 +46,7 @@ def failure_kind(run, contract_failed=False):
     generic_cli = bool(re.match(r'^(hermes|openclaw) exit code [1-9]',value,re.I))
     if generic_cli:
         value += '\n' + (getattr(run,'result_text',None) or '')[-4000:]
-    if re.search(r'FREE_ONLY|PRICE_UNKNOWN|BUDGET_|ROUTE_UNPINNED|APPROVAL|permission|denied|sandbox', value, re.I):
+    if re.search(r'FREE_ONLY|ROUTE_POLICY|PRICE_UNKNOWN|BUDGET_|ROUTE_UNPINNED|APPROVAL|permission|denied|sandbox', value, re.I):
         return 'policy'
     if re.search(r'authentication|unauthorized|invalid.api.key|sign.?in|log.?in|\b401\b|\b403\b', value, re.I):
         return 'sign_in'

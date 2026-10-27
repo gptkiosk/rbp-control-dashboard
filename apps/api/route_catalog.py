@@ -166,10 +166,31 @@ def _empty_reason(feature, hidden):
     return f'No {FEATURE_LABELS[feature]} route is allowed. Most common reason: {top}.'
 
 
+def prices(s, settings):
+    """Prices to review: routes the policy would allow except that their price was never reviewed (so they count as paid API), and the
+    reviews the operator already recorded here."""
+    import billing
+    managed, error, app, _, _ = policies(s, settings)
+    reviewed = billing.route_prices(s)
+    rows = catalog(s, settings, _named_providers(managed, app))
+    def relevant(route):
+        return not error and any(rp.reason(route, managed, app, None, f, None, unknown_ok=True) is None for f in rp.FEATURES)
+    def can_free(route):
+        return route['runtime'] in ('hermes', 'openclaw') and (billing.is_free(route['model']) or bool((route['listed_price'] or {}).get('free')))
+    pending = [{**r, 'can_mark_free': can_free(r)} for r in rows if r['cost_class'] is None and relevant(r)]
+    pending.sort(key=lambda r: (not r['can_mark_free'], r['runtime'], r['model']))
+    done = []
+    for key, cost_class in sorted(reviewed.items()):
+        runtime, target, model = (key.split('|', 2) + ['', ''])[:3]
+        done.append({'runtime': runtime, 'target': target, 'model': model, 'cost_class': cost_class})
+    return {'pending': pending, 'reviewed': done}
+
+
 def policy_view(s, settings):
     """The app and managed policies as the Models & providers page shows them."""
     managed, error, app, saved, _ = policies(s, settings)
     return {'app': app.model_dump(mode='json'), 'app_saved': saved,
             'managed': managed.model_dump(mode='json') if managed is not None else None, 'managed_error': error,
+            'managed_runtimes': rp.runtimes_allowed(managed),
             'features': list(rp.FEATURES), 'runtimes': list(rp.RUNTIMES),
             'providers': sorted({r['provider'] for r in catalog(s, settings, _named_providers(managed, app))} - {rp.ROUTER})}

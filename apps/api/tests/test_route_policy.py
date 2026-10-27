@@ -277,3 +277,55 @@ def test_xai_lockdown_end_to_end(app):
         found = {f['id']: f for f in rp.story_findings(s, settings, doc, p)}
         assert found['route-policy']['severity'] == 'block' and found['route-policy']['stories'] == ['a']
         assert found['route-policy-backups']['severity'] == 'warn' and found['route-policy-backups']['stories'] == ['b']
+
+
+def test_price_review_in_the_app_classifies_a_route_for_planning_and_admission(app):
+    client, sessions, settings, _ = app
+    # Listed paid models are candidates once the policy names their provider.
+    policy = rp.Policy(providers=['xai', 'google'], cost=rp.Cost(free=True, membership=True, paid=True))
+    assert client.put('/api/routes/policy', json={'policy': policy.model_dump(), 'confirm': True}).status_code == 200
+    pending = client.get('/api/routes/prices').json()['pending']
+    grok46 = next(r for r in pending if (r['runtime'], r['model']) == ('hermes', 'x-ai/grok-4.6'))
+    gemma = next(r for r in pending if (r['runtime'], r['model']) == ('hermes', 'google/gemma-4-31b-it:free'))
+    assert grok46['can_mark_free'] is False and gemma['can_mark_free'] is True
+    # A listed paid model cannot be reviewed as free, and a membership is not set here.
+    refused = client.put('/api/routes/prices', json={'runtime': 'hermes', 'model': 'x-ai/grok-4.6', 'cost_class': 'free'})
+    assert refused.status_code == 422 and 'no cost' in refused.json()['detail']
+    assert client.put('/api/routes/prices', json={'runtime': 'grok', 'model': 'grok-4.6', 'cost_class': 'subscription'}).status_code == 422
+    body = client.put('/api/routes/prices', json={'runtime': 'hermes', 'model': 'x-ai/grok-4.6', 'cost_class': 'paid'}).json()
+    assert {'runtime': 'hermes', 'target': '', 'model': 'x-ai/grok-4.6', 'cost_class': 'paid'} in body['reviewed']
+    assert ('hermes', 'x-ai/grok-4.6') not in keys(body['pending'])
+    assert client.put('/api/routes/prices', json={'runtime': 'hermes', 'model': 'google/gemma-4-31b-it:free', 'cost_class': 'free'}).status_code == 200
+    from types import SimpleNamespace
+    from dispatch_gate import reviewed_route_class
+    with sessions() as s:
+        assert reviewed_route_class(s, settings, SimpleNamespace(agent='hermes', agent_target=''), 'x-ai/grok-4.6') == 'paid'
+        assert reviewed_route_class(s, settings, SimpleNamespace(agent='openclaw', agent_target=''), 'x-ai/grok-4.6') is None   # exact route only
+    chat = client.get('/api/routes', params={'feature': 'chat'}).json()
+    assert next(r for r in chat['allowed'] if r['model'] == 'x-ai/grok-4.6' and r['runtime'] == 'hermes')['cost_class'] == 'paid'
+    # The installation's configured classes still win, and clearing a review returns the route to "not reviewed".
+    settings.dispatch_route_classes = {'hermes||x-ai/grok-4.6': 'free'}
+    try:
+        with sessions() as s:
+            assert reviewed_route_class(s, settings, SimpleNamespace(agent='hermes', agent_target=''), 'x-ai/grok-4.6') == 'free'
+    finally:
+        settings.dispatch_route_classes = {}
+    body = client.put('/api/routes/prices', json={'runtime': 'hermes', 'model': 'x-ai/grok-4.6', 'cost_class': None}).json()
+    assert ('hermes', 'x-ai/grok-4.6') in keys(body['pending'])
+
+
+def test_managed_policy_names_the_runtimes_it_leaves(app):
+    client, _, settings, tmp_path = app
+    assert client.get('/api/routes/policy').json()['managed_runtimes'] is None
+    assert rp.runtimes_allowed(rp.Policy(providers=['xai'])) == ['grok', 'hermes', 'openclaw']
+    assert rp.runtimes_allowed(rp.Policy(cost=rp.Cost(free=True, membership=False, paid=False))) == ['hermes', 'openclaw']
+    assert rp.runtimes_allowed(rp.Policy(runtimes=['grok'], features={'coordinator': rp.Filter(runtimes=['hermes'])})) == ['grok', 'hermes']
+    managed = tmp_path / 'managed.json'
+    managed.write_text(json.dumps({'providers': ['xai'], 'runtimes': ['grok', 'hermes']}))
+    settings.managed_route_policy = managed
+    try:
+        assert client.get('/api/routes/policy').json()['managed_runtimes'] == ['grok', 'hermes']
+        managed.write_text('not json')
+        assert client.get('/api/routes/policy').json()['managed_runtimes'] == []
+    finally:
+        settings.managed_route_policy = None

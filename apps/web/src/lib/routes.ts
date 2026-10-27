@@ -1,5 +1,5 @@
 // Route policy and route catalog (apps/api/route_policy.py, route_catalog.py): which providers, runtimes, models and cost classes may be used.
-import { ref, watch, type Ref } from 'vue'
+import { computed, ref, watch, type Ref } from 'vue'
 import { getJson } from '@/lib/api'
 import { agentLabel } from '@/lib/cards'
 
@@ -21,7 +21,12 @@ export interface FeatureRoutes {
 export interface Cost { free: boolean; membership: boolean; paid: boolean }
 export interface Filter { providers: string[] | null; runtimes: Runtime[] | null; models: { allow: string[]; block: string[] }; cost: Cost; any_free: boolean }
 export interface Policy extends Filter { features: Partial<Record<Feature, Filter>>; defaults: Partial<Record<Feature, Choice>> }
-export interface PolicyView { app: Policy; app_saved: boolean; managed: Policy | null; managed_error: string | null; features: Feature[]; runtimes: Runtime[]; providers: string[] }
+export interface PolicyView {
+  app: Policy; app_saved: boolean; managed: Policy | null; managed_error: string | null; managed_runtimes?: Runtime[] | null
+  features: Feature[]; runtimes: Runtime[]; providers: string[]
+}
+export interface PriceRow extends CatalogRoute { can_mark_free: boolean }
+export interface Prices { pending: PriceRow[]; reviewed: { runtime: Runtime; target: string; model: string; cost_class: 'free' | 'paid' }[] }
 
 export const RUNTIMES: Runtime[] = ['claude', 'codex', 'grok', 'hermes', 'openclaw']
 export const FEATURE_LABELS: Record<Feature, string> = { coordinator: 'Coordinator', planner: 'Planner', stories: 'Stories', chat: 'Chat', tasks: 'Tasks' }
@@ -94,3 +99,18 @@ export function allowedModels(data: FeatureRoutes | null, runtime: string, fallb
   return data ? [...new Set(data.allowed.filter(r => r.runtime === runtime).map(r => r.model))] : fallback
 }
 export function runtimeAllowed(data: FeatureRoutes | null, runtime: string) { return !data || data.allowed.some(r => r.runtime === runtime) }
+
+/** Runtimes an installation-managed policy leaves, for Agent tools, Setup and Billing & rates. Without a managed policy (or when the policy
+ *  cannot be read) every runtime is shown: hiding is a convenience, and routing still enforces the policy. */
+let managedLoad: Promise<Runtime[] | null> | null = null
+export function useManagedRuntimes() {
+  const runtimes = ref<Runtime[] | null>(null)
+  managedLoad ??= getJson<PolicyView>('/api/routes/policy').then(v => v.managed_runtimes ?? null, () => { managedLoad = null; return null })
+  void managedLoad.then(r => { runtimes.value = r })
+  // Agent tools names Claude Code's installer 'claude-code'.
+  const shown = (id: string) => { const r = id === 'claude-code' ? 'claude' : id; return !runtimes.value || !(RUNTIMES as string[]).includes(r) || (runtimes.value as string[]).includes(r) }
+  const hidden = computed(() => runtimes.value ? RUNTIMES.filter(r => !(runtimes.value as string[]).includes(r)) : [])
+  return { runtimes, shown, hidden }
+}
+/** Tests only: forget the cached managed policy. */
+export function resetManagedRuntimes() { managedLoad = null }

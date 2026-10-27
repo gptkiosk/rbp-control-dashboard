@@ -119,6 +119,13 @@ def reviewed_route_class(s, settings, source, model: str | None) -> str | None:
     configured = getattr(settings, "dispatch_route_classes", {}).get(key)
     if key in getattr(settings, "dispatch_route_classes", {}):
         return configured
+    # A price the operator reviewed in Models & providers (billing.route_prices). The installation's configured classes above win.
+    try:
+        reviewed = billing.route_prices(s).get(key)
+    except (ValueError, TypeError, AttributeError):
+        reviewed = None
+    if reviewed:
+        return reviewed
     # The exact configured Hermes free route is operator-owned evidence.
     # Capped Google BYOK is still API billing and must never be classified free.
     if agent == "hermes" and model:

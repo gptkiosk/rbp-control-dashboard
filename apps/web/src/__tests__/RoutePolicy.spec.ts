@@ -4,7 +4,7 @@ import RoutePicker from '@/components/RoutePicker.vue'
 import RoutePolicyPanel from '@/components/RoutePolicyPanel.vue'
 import ProjectRouteStrip from '@/components/ProjectRouteStrip.vue'
 import RouteRecoveryPanel from '@/components/RouteRecoveryPanel.vue'
-import { applyPreset, emptyPolicy, presetOf, reliabilityLabel, type CatalogRoute, type FeatureRoutes, type Feature, type PolicyView } from '@/lib/routes'
+import { applyPreset, emptyPolicy, presetOf, reliabilityLabel, type CatalogRoute, type FeatureRoutes, type Feature, type PolicyView, type Prices } from '@/lib/routes'
 import { calls, stubFetch } from './helpers'
 
 afterEach(() => vi.unstubAllGlobals())
@@ -88,6 +88,37 @@ describe('RoutePolicyPanel', () => {
     expect((w.get('[data-testid="provider-anthropic"]').element as HTMLInputElement).disabled).toBe(true)
     expect((w.get('[data-testid="runtime-claude"]').element as HTMLInputElement).disabled).toBe(true)
     expect((w.get('[data-testid="runtime-grok"]').element as HTMLInputElement).disabled).toBe(false)
+  })
+})
+
+describe('Prices to review', () => {
+  it('records a reviewed price, offers free only for a model listed at no cost, and clears a review', async () => {
+    const paid = { ...row('hermes', 'x-ai/grok-4.6', null, { listed_price: { free: false, prompt_per_m: 3, completion_per_m: 15 } }), can_mark_free: false }
+    const free = { ...row('hermes', 'google/gemma-4-31b-it:free', null, { provider: 'google', listed_price: { free: true, prompt_per_m: 0, completion_per_m: 0 } }), can_mark_free: true }
+    let prices: Prices = { pending: [free, paid], reviewed: [] }
+    const puts: unknown[] = []
+    stubFetch((url, init) => {
+      if (url === '/api/routes/prices' && init?.method === 'PUT') {
+        const b = JSON.parse(String(init.body)); puts.push(b)
+        prices = b.cost_class ? { pending: [free], reviewed: [{ runtime: 'hermes', target: '', model: b.model, cost_class: b.cost_class }] } : { pending: [free, paid], reviewed: [] }
+        return { body: prices }
+      }
+      if (url === '/api/routes/prices') return { body: prices }
+      if (url === '/api/routes/policy') return { body: view() }
+      if (url.startsWith('/api/routes?')) return { body: routes(new URLSearchParams(url.split('?')[1]).get('feature') as Feature) }
+    })
+    const w = mount(RoutePolicyPanel, { global: { stubs } })
+    await flushPromises()
+    const grok = w.get('[data-route="hermes|x-ai/grok-4.6"]')
+    expect(grok.text()).toContain('listed $3/M in, $15/M out')
+    expect((grok.get('[data-action="free"]').element as HTMLButtonElement).disabled).toBe(true)
+    expect((w.get('[data-route="hermes|google/gemma-4-31b-it:free"] [data-action="free"]').element as HTMLButtonElement).disabled).toBe(false)
+    await grok.get('[data-action="paid"]').trigger('click'); await flushPromises()
+    expect(puts[0]).toEqual({ runtime: 'hermes', target: '', model: 'x-ai/grok-4.6', cost_class: 'paid' })
+    expect(w.get('[data-reviewed="hermes|x-ai/grok-4.6"]').text()).toContain('paid API')
+    await w.get('[data-reviewed="hermes|x-ai/grok-4.6"] [data-action="clear"]').trigger('click'); await flushPromises()
+    expect(puts[1]).toMatchObject({ model: 'x-ai/grok-4.6', cost_class: null })
+    expect(w.find('[data-reviewed]').exists()).toBe(false)
   })
 })
 

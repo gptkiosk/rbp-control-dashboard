@@ -203,7 +203,7 @@ def test_failed_dispatch_uses_only_the_approved_dependency_order(app):
         assert len(list(s.scalars(select(ProjectTask).where(ProjectTask.project_id==p.id,ProjectTask.role=='story'))))==1
 
 
-@pytest.mark.parametrize('error,kind',[('429 quota','rate_limit'),('provider unavailable','provider'),('FREE_ONLY: refused','policy'),('401 sign in','sign_in')])
+@pytest.mark.parametrize('error,kind',[('429 quota','rate_limit'),('provider unavailable','provider'),('FREE_ONLY: refused','policy'),('ROUTE_POLICY: App policy: paid API is off','policy'),('401 sign in','sign_in')])
 def test_failure_categories(error,kind):
     assert recovery.failure_kind(SimpleNamespace(stage='failed',error=error))==kind
 

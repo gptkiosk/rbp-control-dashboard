@@ -151,6 +151,27 @@ def reason(route, managed, app, project, feature, coordinator=None, unknown_ok=F
     return None
 
 
+def runtimes_allowed(policy):
+    """Runtimes a policy allows for at least one feature, or None when there is no policy. Claude, Codex and Grok reach one provider each, so a
+    provider list that leaves theirs out, or cost classes without membership or paid API, removes them too. Agent tools, Setup and Billing &
+    rates hide the others under an installation-managed policy."""
+    if policy is None:
+        return None
+    out = []
+    for runtime in RUNTIMES:
+        for f in (policy, *policy.features.values()):
+            if f.runtimes is not None and runtime not in f.runtimes:
+                continue
+            native = NATIVE_PROVIDER.get(runtime)
+            if native and ((f.providers is not None and native not in f.providers) or not (f.cost.membership or f.cost.paid)):
+                continue
+            if not native and not (f.cost.free or f.cost.membership or f.cost.paid):
+                continue
+            out.append(runtime)
+            break
+    return out
+
+
 # --------------------------------------------------------------------------- storage
 
 def default_app(s, settings):
@@ -227,6 +248,23 @@ def load_project(document):
         return Policy.model_validate(raw)
     except ValidationError:
         return Policy(runtimes=[])  # Invalid saved data never widens: this project allows nothing until it is saved again.
+
+
+def review_price(s, settings, runtime, target, model, cost_class):
+    """Record the price class the operator reviewed for one route (Models & providers → Prices to review), or clear it with None.
+    "paid" can be recorded for any route. "free" only for Hermes or OpenClaw and a model that is a free variant or listed at no cost in the
+    cached OpenRouter list, so a review can never turn a billed route into a free one. A membership comes from Billing & rates, not here."""
+    import billing
+    import route_catalog
+    if runtime not in RUNTIMES or not model or len(model) > 200 or len(target or '') > 200:
+        raise PolicyError('Unknown route.')
+    if cost_class not in (None, *billing.REVIEWABLE_CLASSES):
+        raise PolicyError('A price can be reviewed as free or paid API. Memberships are set in Billing & rates.')
+    if cost_class == 'free':
+        listed = route_catalog._listed(settings).get(model.removeprefix('openrouter/')) or {}
+        if runtime not in ('hermes', 'openclaw') or not (billing.is_free(model) or listed.get('free') is True):
+            raise PolicyError('Only a free model variant, or one the OpenRouter list shows at no cost, can be marked free.')
+    billing.save_route_price(s, f'{runtime}|{target or ""}|{model}', cost_class)
 
 
 # --------------------------------------------------------------------------- enforcement

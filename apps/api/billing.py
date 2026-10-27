@@ -75,6 +75,34 @@ def config(s):
     }
 
 
+# Price classes the operator reviewed in Models & providers, "runtime|target|model" -> "free" | "paid". A route nobody reviewed counts as paid
+# when a run is admitted; a review only records what the operator saw, and "free" is accepted only for a listed free model (route_policy.review_price).
+REVIEWABLE_CLASSES = ("free", "paid")
+
+
+def route_prices(s):
+    row = s.get(BillingConfig, 1)
+    saved = (json.loads(row.payload) if row else {}).get("route_prices") or {}
+    return {k: v for k, v in saved.items() if isinstance(k, str) and v in REVIEWABLE_CLASSES} if isinstance(saved, dict) else {}
+
+
+def save_route_price(s, key, cost_class):
+    """Record or clear (None) one reviewed price class."""
+    row = s.get(BillingConfig, 1)
+    payload = json.loads(row.payload) if row else {}
+    prices = route_prices(s)
+    if cost_class is None:
+        prices.pop(key, None)
+    else:
+        prices[key] = cost_class
+    payload["route_prices"] = prices
+    if row:
+        row.payload = json.dumps(payload)
+    else:
+        s.add(BillingConfig(id=1, payload=json.dumps(payload)))
+    s.flush()
+
+
 FREE_SUFFIX = ":free"
 
 
