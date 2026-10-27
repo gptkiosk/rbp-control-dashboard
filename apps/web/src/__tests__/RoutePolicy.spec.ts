@@ -95,7 +95,8 @@ describe('Prices to review', () => {
   it('records a reviewed price, offers free only for a model listed at no cost, and clears a review', async () => {
     const paid = { ...row('hermes', 'x-ai/grok-4.6', null, { listed_price: { free: false, prompt_per_m: 3, completion_per_m: 15 } }), can_mark_free: false }
     const free = { ...row('hermes', 'google/gemma-4-31b-it:free', null, { provider: 'google', listed_price: { free: true, prompt_per_m: 0, completion_per_m: 0 } }), can_mark_free: true }
-    let prices: Prices = { pending: [free, paid], reviewed: [] }
+    const grokBuild = { ...row('grok', 'grok-build-0.1', null), can_mark_free: false }
+    let prices: Prices = { pending: [free, paid, grokBuild], reviewed: [] }
     const puts: unknown[] = []
     stubFetch((url, init) => {
       if (url === '/api/routes/prices' && init?.method === 'PUT') {
@@ -113,6 +114,8 @@ describe('Prices to review', () => {
     expect(grok.text()).toContain('listed $3/M in, $15/M out')
     expect((grok.get('[data-action="free"]').element as HTMLButtonElement).disabled).toBe(true)
     expect((w.get('[data-route="hermes|google/gemma-4-31b-it:free"] [data-action="free"]').element as HTMLButtonElement).disabled).toBe(false)
+    expect(w.get('[data-route="grok|grok-build-0.1"] [data-action="membership"]').attributes('href')).toBe('/agents?action=billing')
+    expect(w.find('[data-route="grok|grok-build-0.1"] [data-action="free"]').exists()).toBe(false)
     await grok.get('[data-action="paid"]').trigger('click'); await flushPromises()
     expect(puts[0]).toEqual({ runtime: 'hermes', target: '', model: 'x-ai/grok-4.6', cost_class: 'paid' })
     expect(w.get('[data-reviewed="hermes|x-ai/grok-4.6"]').text()).toContain('paid API')

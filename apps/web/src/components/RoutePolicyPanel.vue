@@ -30,6 +30,8 @@ async function refresh() {
 // paid; free is offered only for a model listed at no cost.
 const prices = ref<Prices | null>(null), allPrices = ref(false), priceError = ref('')
 const PRICE_ROWS = 8
+// Claude, Codex and Grok Build are memberships when their account is saved as Subscription in Billing & rates.
+const MEMBERSHIP_RUNTIMES: Runtime[] = ['claude', 'codex', 'grok']
 const pendingShown = computed(() => (prices.value?.pending ?? []).slice(0, allPrices.value ? undefined : PRICE_ROWS))
 function listed(r: PriceRow) {
   const p = r.listed_price
@@ -141,7 +143,8 @@ async function save() {
             <span><strong>{{ routeLabel(r) }}</strong><span v-if="r.target" class="muted small"> · {{ r.target }}</span> <span class="muted small">{{ providerLabel(r.provider) }} · {{ listed(r) }}</span></span>
             <span class="price-actions">
               <button type="button" class="btn" data-action="paid" @click="review(r, 'paid')">Paid API</button>
-              <button type="button" class="btn" data-action="free" :disabled="!r.can_mark_free" :title="r.can_mark_free ? '' : 'Only a model listed at no cost can be marked free'" @click="review(r, 'free')">Free</button>
+              <RouterLink v-if="MEMBERSHIP_RUNTIMES.includes(r.runtime)" class="btn" to="/agents?action=billing" data-action="membership">Membership: Billing &amp; rates</RouterLink>
+              <button v-else type="button" class="btn" data-action="free" :disabled="!r.can_mark_free" :title="r.can_mark_free ? '' : 'Only a model listed at no cost can be marked free'" @click="review(r, 'free')">Free</button>
             </span>
           </li>
         </ul>
