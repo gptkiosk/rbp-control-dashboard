@@ -43,3 +43,20 @@ def put_policy(body: PolicyIn, s: Session = Depends(get_session)):
     rp.save_app(s, body.policy)
     s.commit()
     return route_catalog.policy_view(s, get_settings())
+
+
+class CostIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    free: bool | None = None
+    membership: bool | None = None
+    paid: bool | None = None
+
+
+@router.patch("/policy/cost")
+def patch_cost(body: CostIn, s: Session = Depends(get_session)):
+    """Change only the app policy's cost classes (the switches shown in Model recovery). Paid API still needs approval per plan or task."""
+    policy, _ = rp.load_app(s, get_settings())
+    cost = policy.cost.model_copy(update={k: v for k, v in body.model_dump().items() if v is not None})
+    rp.save_app(s, policy.model_copy(update={"cost": cost}))
+    s.commit()
+    return route_catalog.policy_view(s, get_settings())

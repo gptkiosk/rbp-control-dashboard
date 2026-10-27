@@ -6,7 +6,7 @@ import { stubFetch } from './helpers'
 
 afterEach(() => vi.unstubAllGlobals())
 const info = () => ({
-  policy:{enabled:false,apply_to_stories:false,routes:[]}, host_free_only:true,subscription_allowed:false,
+  policy:{enabled:false,apply_to_stories:false,routes:[]},subscription_allowed:false,
   options:[{agent:'claude',model:'claude-haiku-5-5',price_class:'subscription',installed:true,allowed:false,cost:'Uses membership quota.'},
     {agent:'hermes',model:'openrouter/free',price_class:'free',installed:true,allowed:true,cost:'Free endpoint; availability varies.'}],
   health:[],recommendations:[{agent:'hermes',model:'openrouter/free',message:'3 of its last 5 attempts failed. A different route may be needed.',cost:'API routes add charges.',link:'/profile#route-recovery'}],window_days:7,sample_limit:500,
@@ -34,14 +34,14 @@ it('explains persistent failures and cost, and saves only the explicitly enabled
 it('requires a deliberate membership toggle and keeps its cost explanation visible',async()=>{
   const calls:unknown[]=[]
   stubFetch((url,init)=>{
-    if(url==='/api/billing'){calls.push(JSON.parse(String(init?.body)));return {body:{}}}
+    if(url==='/api/routes/policy/cost'){calls.push(JSON.parse(String(init?.body)));return {body:{}}}
     if(url==='/api/profile/route-reliability')return {body:info()}
   })
   const w=mount(RouteRecoveryPanel,{global:{stubs:{RouterLink:true}}});await flushPromises()
   expect(w.text()).toContain('overage settings still apply')
   expect(calls).toEqual([])
   await w.findAll('input[role="switch"]').at(2)!.setValue(true);await flushPromises()
-  expect(calls).toEqual([{limits:{allow_subscription_in_free_only:true}}])
+  expect(calls).toEqual([{membership:true}])
 })
 it('points a failed task directly to the recovery toggle without changing a setting',()=>{
   const w=mount(RouteRecoveryNotice,{props:{failed:true},global:{stubs:{RouterLink:{props:['to'],template:'<a :href="to"><slot /></a>'}}}})

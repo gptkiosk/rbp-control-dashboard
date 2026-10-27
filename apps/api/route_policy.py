@@ -12,8 +12,6 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 RUNTIMES = ('claude', 'codex', 'grok', 'hermes', 'openclaw')
 FEATURES = ('coordinator', 'planner', 'stories', 'chat', 'tasks')
-# v1: only Hermes holds the Coordinator role. The policy chooses its model.
-FEATURE_RUNTIMES = {'coordinator': ('hermes',)}
 # Native CLIs reach one provider each. Hermes and OpenClaw name the provider in the model id.
 NATIVE_PROVIDER = {'claude': 'anthropic', 'codex': 'openai', 'grok': 'xai'}
 PREFIX_PROVIDER = {'x-ai': 'xai', 'xai': 'xai', 'anthropic': 'anthropic', 'openai': 'openai', 'google': 'google', 'meta-llama': 'meta',
@@ -22,6 +20,17 @@ PREFIX_PROVIDER = {'x-ai': 'xai', 'xai': 'xai', 'anthropic': 'anthropic', 'opena
 ROUTER = 'router'
 ROUTER_ALIASES = {'openrouter/free', 'openrouter/auto', 'free', 'auto'}
 COST_CLASSES = ('free', 'subscription', 'paid')
+# Preference among allowed routes: memberships first, then free, and paid API (or an unreviewed price) only as a last resort, because it bills
+# per token on top of any membership (for example Grok Build membership before xAI models through OpenRouter).
+COST_RANK = {'subscription': 0, 'free': 1, 'paid': 2, None: 3}
+
+
+def cost_rank(cost_class):
+    return COST_RANK.get(cost_class if cost_class in COST_CLASSES else None, 3)
+
+
+# The project task roles of the planning pipeline and the feature that governs each.
+COORDINATOR_ROLES = {'coordinate', 'dispatch'}
 
 Runtime = Literal['claude', 'codex', 'grok', 'hermes', 'openclaw']
 
@@ -93,7 +102,7 @@ def _cost_name(cost_class):
     return {'free': 'free', 'subscription': 'membership', 'paid': 'paid'}.get(cost_class)
 
 
-def check(route, f: Filter, scope):
+def check(route, f: Filter, scope, unknown_ok=False):
     """Why one scope removes this route, or None. route: runtime, model, provider, cost_class."""
     label = {'managed': 'Managed by this installation', 'app': 'App policy', 'project': 'Project policy'}[scope]
     if f.runtimes is not None and route['runtime'] not in f.runtimes:
@@ -108,11 +117,14 @@ def check(route, f: Filter, scope):
         if route['provider'] == ROUTER:
             return f'{label}: provider varies per request'
         return f'{label}: {route["provider"]} is not an allowed provider'
-    name = _cost_name(route['cost_class'])
-    if name is None:
-        return 'Price not reviewed: set its billing class in Agents → Billing & rates'
+    # A route whose price was never reviewed may cost money, so it counts as paid API when a run is admitted (as the dispatch gate already
+    # treats it). Planning and plan checks pass `unknown_ok`: there an unreviewed price is a warning, and admission decides.
+    if route['cost_class'] is None and unknown_ok:
+        return None
+    name = _cost_name(route['cost_class']) or 'paid'
     if not getattr(f.cost, name):
-        return f'{label}: ' + {'free': 'free models are off', 'membership': 'membership routes are off', 'paid': 'paid API is off'}[name]
+        unreviewed = ' (price not reviewed, so it counts as paid)' if route['cost_class'] is None else ''
+        return f'{label}: ' + {'free': 'free models are off', 'membership': 'membership routes are off', 'paid': 'paid API is off'}[name] + unreviewed
     return None
 
 
@@ -127,13 +139,13 @@ def layers(managed, app, project, feature):
     return out
 
 
-def reason(route, managed, app, project, feature):
-    """The first reason a route is not allowed for this feature, or None when every scope allows it."""
-    only = FEATURE_RUNTIMES.get(feature)
-    if only and route['runtime'] not in only:
-        return 'Only Hermes coordinates in this version'
+def reason(route, managed, app, project, feature, coordinator=None, unknown_ok=False):
+    """The first reason a route is not allowed for this feature, or None when every scope allows it. `coordinator` is the runtime that holds
+    the Coordinator role (Settings → Agent roles, Hermes by default); only it can run Coordinator work."""
+    if feature == 'coordinator' and coordinator and route['runtime'] != coordinator:
+        return f'The Coordinator is {coordinator} (Settings → Agent roles)'
     for scope, f in layers(managed, app, project, feature):
-        why = check(route, f, scope)
+        why = check(route, f, scope, unknown_ok)
         if why:
             return why
     return None
@@ -142,12 +154,25 @@ def reason(route, managed, app, project, feature):
 # --------------------------------------------------------------------------- storage
 
 def default_app(s, settings):
-    """The app policy before the operator saves one: the cost classes today's settings already allow, every provider and runtime."""
-    import billing
-    limits = billing.limits(s, settings)
-    free_only = getattr(settings, 'dispatch_free_only', True)
-    return Policy(cost=Cost(free=True, membership=not free_only or limits.get('allow_subscription_in_free_only', False),
-                            paid=not free_only or limits.get('allow_paid_in_free_only', False)))
+    """The first app policy, written once at startup when none is saved (ensure_saved). It keeps what this host already allowed:
+    memberships stay on unless the operator had switched them off under free-only, and paid API stays as the retired free-only setting left it
+    (off on RCD, which defaulted to free-only; on with per-plan approval on MCD). After this the old setting and switches are never read."""
+    from models import BillingConfig
+    row = s.get(BillingConfig, 1)
+    saved = ((json.loads(row.payload) if row else {}).get('limits') or {})
+    free_only = bool(getattr(settings, 'dispatch_free_only', True))
+    return Policy(cost=Cost(free=True,
+                            membership=not free_only or saved.get('allow_subscription_in_free_only', True) is not False,
+                            paid=not free_only or saved.get('allow_paid_in_free_only', False) is True))
+
+
+def ensure_saved(s, settings):
+    """Persist the first app policy so later reads never fall back to the retired free-only setting. Returns True when it wrote one."""
+    _, saved = load_app(s, settings)
+    if saved:
+        return False
+    save_app(s, default_app(s, settings))
+    return True
 
 
 def load_app(s, settings):
@@ -165,9 +190,12 @@ def load_app(s, settings):
 
 def save_app(s, policy: Policy):
     from models import BillingConfig
+    # The retired free-only switches are dropped with the first save, so nothing can read them again.
     row = s.get(BillingConfig, 1)
     old = json.loads(row.payload) if row else {}
     old['route_policy'] = policy.model_dump(mode='json')
+    for key in ('allow_subscription_in_free_only', 'allow_paid_in_free_only'):
+        (old.get('limits') or {}).pop(key, None)
     if row:
         row.payload = json.dumps(old)
     else:
@@ -199,3 +227,117 @@ def load_project(document):
         return Policy.model_validate(raw)
     except ValidationError:
         return Policy(runtimes=[])  # Invalid saved data never widens: this project allows nothing until it is saved again.
+
+
+# --------------------------------------------------------------------------- enforcement
+
+def route_of(s, settings, runtime, model, target=''):
+    """One route as the policy sees it: provider and reviewed cost class (None when the price was never reviewed)."""
+    from types import SimpleNamespace
+    from dispatch_gate import reviewed_route_class
+    model = model or _default_model(settings, runtime)
+    cost_class = reviewed_route_class(s, settings, SimpleNamespace(agent=runtime, agent_target=target or ''), model)
+    return {'runtime': runtime, 'model': model, 'target': target or '', 'provider': provider_of(runtime, model),
+            'cost_class': cost_class if cost_class in COST_CLASSES else None}
+
+
+def _default_model(settings, runtime):
+    from agents import REGISTRY
+    if runtime in {'hermes', 'openclaw'}:
+        import native_routes
+        return native_routes.read(settings).get(runtime, {}).get('default') or ''
+    spec = REGISTRY.get(runtime)
+    return (spec.default_model() or (spec.suggested_models[0] if spec.suggested_models else '')) if spec else ''
+
+
+def coordinator_runtime(settings):
+    try:
+        from role_pack import RoleStore
+        return RoleStore(settings).delegator()
+    except Exception:  # noqa: BLE001 - an unreadable role store leaves the Coordinator unassigned, which planning already refuses
+        return None
+
+
+def allowed(s, settings, runtime, model, feature, project=None, target='', unknown_ok=False):
+    """Why this route may not be used for the feature (and project), or None when it may."""
+    import projects
+    managed, error = load_managed(settings)
+    app, _ = load_app(s, settings)
+    project_policy = load_project(projects.document(project)) if project is not None else None
+    if error:
+        return error
+    return reason(route_of(s, settings, runtime, model, target), managed, app, project_policy, feature,
+                  coordinator_runtime(settings) if feature == 'coordinator' else None, unknown_ok)
+
+
+def cost_allowed(s, settings, cost_class):
+    """Whether the installation and app policies allow a cost class at all (any feature). An unreviewed price counts as paid."""
+    managed, error = load_managed(settings)
+    if error:
+        return False
+    app, _ = load_app(s, settings)
+    name = _cost_name(cost_class) or 'paid'
+    return all(getattr(p.cost, name) or any(getattr(f.cost, name) for f in p.features.values()) for p in (managed, app) if p is not None)
+
+
+def feature_of(s, source):
+    """(feature, project) for a board card or chat thread about to run."""
+    from models import ChatThread, Project
+    import projects
+    if isinstance(source, ChatThread):
+        return 'chat', None
+    link = projects.binding(s, source.id) if getattr(source, 'id', None) else None
+    if not link:
+        return 'tasks', None
+    project = s.get(Project, link.project_id)
+    if link.role == 'story':
+        return 'stories', project
+    if link.role in COORDINATOR_ROLES or (link.role == 'return plan' and source.agent == coordinator_runtime_for(project)):
+        return 'coordinator', project
+    return 'planner', project
+
+
+def coordinator_runtime_for(project):
+    pipeline = json.loads(project.pipeline or '{}') if project is not None else {}
+    return (pipeline.get('delegator') or {}).get('agent')
+
+
+def run_reason(s, settings, source, model):
+    """Why a claimed run may not start under the current route policy, or None."""
+    feature, project = feature_of(s, source)
+    return allowed(s, settings, source.agent, model, feature, project, getattr(source, 'agent_target', None) or '')
+
+
+def story_findings(s, settings, document, project=None):
+    """Plan-check findings for story routes the project's policy does not allow. A primary route outside policy blocks submission; a backup
+    outside policy is only a warning, because the dispatch gate refuses it when it is reached."""
+    managed, error = load_managed(settings)
+    app, _ = load_app(s, settings)
+    project_policy = load_project(document)
+    blocked, backups, unreviewed = {}, {}, []
+    for n in document.get('nodes', ()):
+        if n.get('kind', 'story') != 'story' or n.get('assignee') in (None, 'human'):
+            continue
+        primary = route_of(s, settings, n['assignee'], n.get('model', ''), n.get('agent_target', ''))
+        why = error or reason(primary, managed, app, project_policy, 'stories', unknown_ok=True)
+        if why:
+            blocked.setdefault(why, []).append(n['key'])
+        elif reason(primary, managed, app, project_policy, 'stories'):
+            unreviewed.append(n['key'])
+        for r in n.get('routes', ()):
+            if error or reason(route_of(s, settings, r['agent'], r['model']), managed, app, project_policy, 'stories', unknown_ok=True):
+                backups.setdefault(n['key'], []).append(f"{r['agent']} · {r['model']}")
+    out = []
+    for why, keys in blocked.items():
+        out.append({'id': 'route-policy', 'severity': 'block', 'stories': keys,
+                    'message': f'{len(keys)} stor{"y uses a route" if len(keys) == 1 else "ies use routes"} the route policy does not allow ({why}). '
+                               'Choose an allowed route for them, or use Route all stories… with the policy\'s story default.'})
+    if unreviewed:
+        out.append({'id': 'route-policy-unreviewed', 'severity': 'warn', 'stories': unreviewed,
+                    'message': 'These stories use a route whose price was never reviewed. It counts as paid API when it starts, so it will be refused '
+                               'while paid API is off. Review its billing class in Agents → Billing & rates or choose another route.'})
+    if backups:
+        out.append({'id': 'route-policy-backups', 'severity': 'warn', 'stories': list(backups),
+                    'message': 'Some backup routes are outside the route policy and will be skipped if reached: '
+                               + '; '.join(f'{k}: {", ".join(v)}' for k, v in list(backups.items())[:6])})
+    return out

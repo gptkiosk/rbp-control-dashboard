@@ -22,7 +22,7 @@ def app(make_client, monkeypatch, tmp_path):
     settings.hermes_config_path = cfg
     settings.dispatch_free_only = False
     (settings.data_dir / 'models').mkdir(parents=True, exist_ok=True)
-    (settings.data_dir / 'models/openrouter.json').write_text(json.dumps({'models': [
+    (settings.data_dir / 'models/openrouter.json').write_text(json.dumps({'fetched_at': 1792000000, 'models': [
         {'id': 'x-ai/grok-4.6', 'free': False, 'prompt_per_m': 3.0, 'completion_per_m': 15.0},
         {'id': 'google/gemma-4-31b-it:free', 'free': True, 'prompt_per_m': 0.0, 'completion_per_m': 0.0},
         {'id': 'anthropic/claude-sonnet-5-5', 'free': False, 'prompt_per_m': 3.0, 'completion_per_m': 15.0}]}))
@@ -68,6 +68,35 @@ def test_each_scope_only_narrows_and_says_why():
     assert rp.reason(route('codex', 'gpt-6.1-sol'), None, rp.Policy(models=rp.Models(block=['gpt-6.1-sol'])), None, 'chat') == 'App policy: this model is blocked'
 
 
+def test_unreviewed_price_counts_as_paid_except_while_planning():
+    unknown = route('hermes', 'x-ai/grok-4.6', None)
+    assert rp.reason(unknown, None, rp.Policy(), None, 'chat') == 'App policy: paid API is off (price not reviewed, so it counts as paid)'
+    assert rp.reason(unknown, None, rp.Policy(cost=rp.Cost(paid=True)), None, 'chat') is None
+    assert rp.reason(unknown, None, rp.Policy(), None, 'planner', unknown_ok=True) is None
+    assert rp.reason(unknown, None, rp.Policy(providers=['anthropic']), None, 'planner', unknown_ok=True) == 'App policy: xai is not an allowed provider'
+    assert rp.reason(route('grok', 'grok-4.6'), None, rp.Policy(), None, 'coordinator', 'hermes') == 'The Coordinator is hermes (Settings → Agent roles)'
+    assert rp.reason(route('codex', 'gpt-6.1-sol'), None, rp.Policy(), None, 'coordinator', 'codex') is None
+
+
+def test_membership_comes_before_free_and_paid_api_is_the_last_resort():
+    assert sorted(['paid', None, 'free', 'subscription'], key=rp.cost_rank) == ['subscription', 'free', 'paid', None]
+
+
+def test_the_first_policy_keeps_what_the_host_allowed_and_retires_the_switches(sessions, monkeypatch):
+    from types import SimpleNamespace
+    from models import BillingConfig
+    with sessions() as s:
+        assert rp.default_app(s, SimpleNamespace(dispatch_free_only=True)).cost == rp.Cost(free=True, membership=True, paid=False)
+        assert rp.default_app(s, SimpleNamespace(dispatch_free_only=False)).cost == rp.Cost(free=True, membership=True, paid=True)
+        s.add(BillingConfig(id=1, payload=json.dumps({'limits': {'allow_subscription_in_free_only': False, 'allow_paid_in_free_only': True, 'per_run_cap_usd': 2}})))
+        s.flush()
+        assert rp.default_app(s, SimpleNamespace(dispatch_free_only=True)).cost == rp.Cost(free=True, membership=False, paid=True)
+        assert rp.ensure_saved(s, SimpleNamespace(dispatch_free_only=True)) is True
+        assert rp.ensure_saved(s, SimpleNamespace(dispatch_free_only=False)) is False      # written once; the retired setting is not read again
+        payload = json.loads(s.get(BillingConfig, 1).payload)
+        assert payload['limits'] == {'per_run_cap_usd': 2} and payload['route_policy']['cost'] == {'free': True, 'membership': False, 'paid': True}
+
+
 def test_free_models_from_any_provider_never_include_router_aliases():
     xai_free = rp.Policy(providers=['xai'], any_free=True)
     assert rp.reason(route('hermes', 'google/gemma-4-31b-it:free', 'free'), None, xai_free, None, 'chat') is None
@@ -77,33 +106,14 @@ def test_free_models_from_any_provider_never_include_router_aliases():
     assert rp.reason(route('hermes', 'google/gemma-4-31b-it:free', 'free'), None, rp.Policy(cost=rp.Cost(free=False)), None, 'chat') == 'App policy: free models are off'
 
 
-def test_unreviewed_price_is_never_offered_and_only_hermes_coordinates():
-    assert rp.reason(route('hermes', 'x-ai/grok-4.6', None), None, rp.Policy(), None, 'chat').startswith('Price not reviewed')
-    assert rp.reason(route('grok', 'grok-4.6'), None, rp.Policy(), None, 'coordinator') == 'Only Hermes coordinates in this version'
-
-
-def test_default_policy_keeps_todays_cost_classes(app):
-    c, sessions, settings, _ = app
-    settings.dispatch_free_only = True
-    with sessions() as s:
-        policy, saved = rp.load_app(s, settings)
-        assert not saved and policy.cost == rp.Cost(free=True, membership=False, paid=False)
-    assert c.patch('/api/billing', json={'limits': {'allow_subscription_in_free_only': True}}).status_code == 200
-    with sessions() as s:
-        assert rp.load_app(s, settings)[0].cost == rp.Cost(free=True, membership=True, paid=False)
-    settings.dispatch_free_only = False
-    with sessions() as s:
-        assert rp.load_app(s, settings)[0].cost == rp.Cost(free=True, membership=True, paid=True)
-
-
 def test_routes_api_lists_allowed_and_hidden_routes_with_reasons(app):
     c, _, settings, _ = app
     planner = c.get('/api/routes', params={'feature': 'planner'}).json()
     allowed = keys(planner['allowed'])
     assert {('claude', 'claude-opus-5-5'), ('codex', 'gpt-6.1-sol'), ('grok', 'grok-build-0.1'), ('hermes', 'openrouter/free')} <= allowed
     hidden = {(r['runtime'], r['model']): r['hidden_because'] for r in planner['hidden']}
-    assert hidden[('hermes', 'x-ai/grok-4.5')].startswith('Price not reviewed')
-    assert planner['scope'] == {'managed': False, 'managed_error': None, 'app_saved': False, 'project': None}
+    assert hidden[('hermes', 'x-ai/grok-4.5')] == 'App policy: paid API is off (price not reviewed, so it counts as paid)'
+    assert planner['scope'] == {'managed': False, 'managed_error': None, 'app_saved': True, 'project': None}   # written once at startup
     row = next(r for r in planner['allowed'] if r['model'] == 'grok-build-0.1')
     assert row['provider'] == 'xai' and row['cost_class'] == 'subscription' and row['reliability']['attempts'] == 0
     assert c.get('/api/routes', params={'feature': 'everything'}).status_code == 422
@@ -124,13 +134,15 @@ def test_grok_policy_leaves_one_clear_path_for_every_feature(app):
         assert {r['runtime'] for r in body['allowed']} == {'grok'}, feature
     assert c.get('/api/routes', params={'feature': 'planner'}).json()['default'] == {'runtime': 'grok', 'model': 'grok-build-0.1'}
     coordinator = c.get('/api/routes', params={'feature': 'coordinator'}).json()
-    assert keys(coordinator['allowed']) == {('hermes', 'x-ai/grok-4.5')}
-    assert coordinator['default'] is None or coordinator['default'] == {'runtime': 'hermes', 'model': 'x-ai/grok-4.5'}
+    # x-ai/grok-4.5 is reviewed as paid; x-ai/grok-4.6 (added from the cached OpenRouter list once a policy names xAI) is unreviewed, which
+    # counts as paid. The reviewed one comes first.
+    assert [(r['runtime'], r['model']) for r in coordinator['allowed']] == [('hermes', 'x-ai/grok-4.5'), ('hermes', 'x-ai/grok-4.6')]
+    assert coordinator['default'] == {'runtime': 'hermes', 'model': 'x-ai/grok-4.5'}
     assert 'openrouter/free' in coordinator['default_note'] and 'provider varies' in coordinator['default_note']
     hidden = {(r['runtime'], r['model']): r['hidden_because'] for r in coordinator['hidden']}
-    assert hidden[('grok', 'grok-4.6')] == 'Only Hermes coordinates in this version'
-    # The cached OpenRouter list adds xAI models for Hermes and OpenClaw once a policy names xAI; their price is still unreviewed.
-    assert hidden[('hermes', 'x-ai/grok-4.6')].startswith('Price not reviewed')
+    assert hidden[('grok', 'grok-4.6')] == 'The Coordinator is hermes (Settings → Agent roles)'
+    planner_hidden = {(r['runtime'], r['model']): r['hidden_because'] for r in c.get('/api/routes', params={'feature': 'planner'}).json()['hidden']}
+    assert planner_hidden[('hermes', 'x-ai/grok-4.6')] == 'App policy: paid API is off (price not reviewed, so it counts as paid)'
 
 
 def test_nothing_allowed_says_why(app):
@@ -208,3 +220,58 @@ def test_former_model_lists_come_from_the_runtime_tables(app):
         assert {(r['agent'], r['model']) for r in route_reliability.options(s, settings)} <= found
     for row in projects.execution_catalog(settings):
         assert {(row['agent'], m) for m in row['models']} <= found | {(row['agent'], m) for m in REGISTRY[row['agent']].suggested_models}
+
+
+def test_xai_lockdown_end_to_end(app):
+    """Managed xAI policy: Hermes coordinates on an xAI model (paid API, approved per plan), Grok Build plans, runs stories and chats, and
+    nothing else is offered, planned, submitted or admitted."""
+    c, sessions, settings, tmp_path = app
+    from models import Card, ChatThread, Project
+    from project_schemas import Action
+    settings.dispatch_route_classes = {'hermes||x-ai/grok-4.5': 'paid'}
+    managed = tmp_path / 'managed.json'
+    managed.write_text(json.dumps({'providers': ['xai'], 'cost': {'free': False, 'membership': True, 'paid': False},
+                                   'features': {'coordinator': {'providers': ['xai'], 'cost': {'free': False, 'membership': False, 'paid': True}}}}))
+    settings.managed_route_policy = managed
+    workspace = tmp_path / 'ws/proj'
+    workspace.mkdir(parents=True, exist_ok=True)
+    settings.workdir_roots = (tmp_path / 'ws',)
+    # The app policy cannot widen the managed one, even with every cost class switched on.
+    assert c.patch('/api/routes/policy/cost', json={'free': True, 'membership': True, 'paid': True}).status_code == 200
+    for feature in ('planner', 'stories', 'chat', 'tasks'):
+        assert {r['runtime'] for r in c.get('/api/routes', params={'feature': feature}).json()['allowed']} == {'grok'}, feature
+    created = c.post('/api/projects', json={'title': 'Lockdown', 'brief': 'Inspect one file.', 'working_dir': str(workspace)})
+    assert created.status_code == 201, created.text
+    pid = created.json()['id']
+    plan = {'revision': 1, 'approve_coordination': True}
+    refused = c.post(f'/api/projects/{pid}/plan', json=plan)
+    assert refused.status_code == 422 and 'x-ai/grok-4.5 uses API billing' in refused.json()['detail']
+    planned = c.post(f'/api/projects/{pid}/plan', json={**plan, 'approve_api_planning': True})
+    assert planned.status_code == 200, planned.text
+    with sessions() as s:
+        p = s.get(Project, pid)
+        pipeline = json.loads(p.pipeline)
+        assert pipeline['delegator'] == {'agent': 'hermes', 'model': 'x-ai/grok-4.5'}
+        assert pipeline['choices'] and {r['agent'] for r in pipeline['choices']} == {'grok'}
+        assert {row['agent'] for row in pipeline['execution_catalog']} == {'grok'}
+        coordinate = s.get(Card, pipeline['card_id'])
+        assert (coordinate.agent, coordinate.model) == ('hermes', 'x-ai/grok-4.5')
+        assert rp.run_reason(s, settings, coordinate, coordinate.model) is None
+        # A story on another provider is refused at admission; a Grok Build story is admitted.
+        outsider = Card(agent='claude', model='claude-opus-5-5', title='x', body='x', mode='read', working_dir=str(workspace), column='queued',
+                        position=1, timeout_s=30, created_by='test', created_at=1, updated_at=1)
+        s.add(outsider); s.flush()
+        assert rp.run_reason(s, settings, outsider, 'claude-opus-5-5') == 'Managed by this installation: anthropic is not an allowed provider'
+        outsider.agent, outsider.model = 'grok', 'grok-build-0.1'
+        assert rp.run_reason(s, settings, outsider, 'grok-build-0.1') is None
+        chat = ChatThread(agent='grok', model='grok-4.6', title='x', mode='read', working_dir=str(workspace), created_at=1, last_activity_at=1)
+        s.add(chat); s.flush()
+        assert rp.run_reason(s, settings, chat, 'grok-4.6') is None
+        chat.agent, chat.model = 'hermes', 'openrouter/free'
+        assert rp.run_reason(s, settings, chat, 'openrouter/free') == 'Managed by this installation: provider varies per request'
+        # Plan checks block a story outside the policy and pass a Grok Build one.
+        doc = {'nodes': [{'key': 'a', 'kind': 'story', 'assignee': 'codex', 'model': 'gpt-6.1-sol'},
+                         {'key': 'b', 'kind': 'story', 'assignee': 'grok', 'model': 'grok-build-0.1', 'routes': [{'agent': 'claude', 'model': 'claude-haiku-5-5'}]}]}
+        found = {f['id']: f for f in rp.story_findings(s, settings, doc, p)}
+        assert found['route-policy']['severity'] == 'block' and found['route-policy']['stories'] == ['a']
+        assert found['route-policy-backups']['severity'] == 'warn' and found['route-policy-backups']['stories'] == ['b']

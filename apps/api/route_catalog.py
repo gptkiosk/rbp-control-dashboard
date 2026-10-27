@@ -114,10 +114,13 @@ def for_feature(s, settings, feature, project=None):
     if feature not in rp.FEATURES:
         raise rp.PolicyError('Unknown feature.')
     managed, error, app, saved, project_policy = policies(s, settings, project)
+    coordinator = rp.coordinator_runtime(settings) if feature == 'coordinator' else None
     allowed, hidden = [], []
     for route in catalog(s, settings, _named_providers(managed, app, project_policy)):
-        why = 'Not installed: install it in Agent tools' if not route['ready'] else rp.reason(route, managed, app, project_policy, feature)
+        why = error or ('Not installed: install it in Agent tools' if not route['ready'] else
+                        rp.reason(route, managed, app, project_policy, feature, coordinator))
         (hidden if why else allowed).append({**route, **({'hidden_because': why} if why else {})})
+    allowed.sort(key=lambda r: rp.cost_rank(r['cost_class']))   # stable: membership, free, then paid API last
     default, default_note = None, None
     for scope_policy in (project_policy, app, managed):
         choice = scope_policy.defaults.get(feature) if scope_policy is not None else None

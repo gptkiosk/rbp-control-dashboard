@@ -76,6 +76,10 @@ def create_app() -> FastAPI:
     engine = make_engine(settings.db_path)
     upgrade_to_head(engine)
     sessions = make_session_factory(engine)
+    with sessions() as s:
+        import route_policy   # write the first app route policy once, replacing the retired free-only setting (route_policy.default_app)
+        if route_policy.ensure_saved(s, settings):
+            s.commit()
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):

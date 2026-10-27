@@ -14,6 +14,14 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 - Route policy, groundwork: one policy decides which providers, runtimes, models and cost classes (free, membership, paid API) may be used, app-wide or for one project, with an optional managed policy for locked-down installs (`MAC_CONTROL_MANAGED_ROUTE_POLICY`). Each scope can only narrow the one above it, and a project starts as "Same as app". `GET /api/routes?feature=…` lists the allowed routes for the Coordinator, planner, stories, chat or tasks with the default, and every hidden route with the reason it is hidden. Model lists now come from each runtime's table in the agent registry. Not yet enforced or shown in the app.
 
+### Changed
+
+- The route policy is now enforced. Planning uses the Coordinator model and planner routes it allows (the automatic planner also considers allowed memberships such as Grok Build), the planner only sees allowed story routes, submission is blocked by a story route outside the policy (a backup outside it is a warning), Route all stories refuses one, chat refuses one up front, and every run is checked against the current policy just before it starts (`ROUTE_POLICY`). Membership routes are always preferred, then free models; paid API (including a route whose price was never reviewed) is the last resort and still needs approval per plan or task. A Coordinator model that bills API usage now needs paid-planning approval.
+
+### Removed
+
+- The free-only setting (`MAC_CONTROL_DISPATCH_FREE_ONLY`) and the two "Allow … in free only" switches. They are read once, when no route policy is saved yet, to write the first app policy with the same cost classes; the Model recovery switches now change the policy.
+
 ## [0.6.75] - 2026-10-26
 
 ### Fixed
