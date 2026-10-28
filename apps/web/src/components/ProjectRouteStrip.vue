@@ -31,12 +31,17 @@ const plannerChoice = computed<Choice | null>(() => props.plannerAgent !== 'auto
 const scope = computed(() => (strip.value.coordinator?.scope.managed ? 'Managed · ' : '') + (props.routePolicy ? 'Narrowed for this project' : 'App policy') + (props.dirty ? ' · not saved' : ''))
 function problems(p: Preview) { return FEATURES.map(f => p[f]?.empty_reason).filter((x): x is string => !!x) }
 
+// The page polls the project every few seconds and replaces its draft with an equal copy each time, so the preview is keyed by content: it is
+// requested again only when the project or its policy really changes, and a reply for an older key is dropped.
+const stripKey = computed(() => `${props.projectId}|${JSON.stringify(props.routePolicy ?? null)}`)
+let wanted = ''
 async function loadStrip() {
-  stripError.value = ''
-  try { strip.value = await previewRoutes(FEATURES, props.projectId, props.routePolicy ?? null) }
-  catch (e) { stripError.value = e instanceof Error ? e.message : String(e) }
+  const key = stripKey.value
+  wanted = key; stripError.value = ''
+  try { const r = await previewRoutes(FEATURES, props.projectId, props.routePolicy ?? null); if (wanted === key) strip.value = r }
+  catch (e) { if (wanted === key) stripError.value = e instanceof Error ? e.message : String(e) }
 }
-watch(() => [props.projectId, JSON.stringify(props.routePolicy ?? null)], () => { void loadStrip() }, { immediate: true })
+watch(stripKey, () => { void loadStrip() }, { immediate: true })
 
 // The dialog's own preview follows every change, a quarter second after the last one.
 const effective = computed<Policy | null>(() => narrow.value ? withCoordinatorPaid(draft.value, coordinatorPaid.value) : null)

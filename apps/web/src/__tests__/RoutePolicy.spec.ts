@@ -192,6 +192,16 @@ describe('ProjectRouteStrip', () => {
     expect(w.get('[data-testid="route-strip"]').text()).toContain('Coordinator none allowed')
     expect(w.text()).toContain(coordinatorEmpty)
   })
+  it('does not ask again when the page polls and hands it an equal copy of the policy', async () => {
+    const { previews } = stub()
+    const policy = { ...emptyPolicy(), providers: ['xai'] }
+    const w = mount(ProjectRouteStrip, { props: { projectId: 3, plannerAgent: 'auto', plannerModel: '', routePolicy: policy }, global: { stubs } })
+    await flushPromises()
+    for (let i = 0; i < 5; i++) { await w.setProps({ routePolicy: JSON.parse(JSON.stringify(policy)) }); await flushPromises() }
+    expect(previews).toHaveLength(1)
+    await w.setProps({ routePolicy: { ...policy, providers: ['anthropic'] } }); await flushPromises()
+    expect(previews).toHaveLength(2)
+  })
   it('shows the Coordinator in Change…, warns when a narrowing leaves it nothing, and offers the two ways out', async () => {
     vi.useFakeTimers()
     stub({ app: { ...emptyPolicy(), cost: { free: true, membership: true, paid: true } } })

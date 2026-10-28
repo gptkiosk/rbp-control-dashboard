@@ -137,8 +137,7 @@ def reviewed_route_class(s, settings, source, model: str | None) -> str | None:
         # Use the same effective account configuration shown by Billing & rates
         # and used by project planning. An unchanged dialog save must not be a
         # hidden prerequisite for dispatch.
-        account = billing.config(s)["accounts"].get(agent, {})
-        if agent in SUBSCRIPTION_AGENTS and account.get("mode") == "subscription":
+        if agent in SUBSCRIPTION_AGENTS and billing.account_mode(s, agent) == "subscription":
             return "subscription"
     except (ValueError, TypeError, AttributeError):
         return None

@@ -47,10 +47,27 @@ DEFAULT_ACCOUNTS = {
 DEFAULT_LIMITS = {"require_reviewed_pricing": False, "per_run_cap_usd": None, "paid_needs_runtime_limit": False}
 
 
+def _saved(s):
+    """The saved billing row, parsed once per session until the row changes. Read-only: callers copy what they return."""
+    row = s.get(BillingConfig, 1)
+    if row is None:
+        return {}
+    memo = s.info.get("billing_saved")
+    if memo is None or memo[0] is not row.payload:
+        memo = (row.payload, json.loads(row.payload))
+        s.info["billing_saved"] = memo
+    return memo[1]
+
+
+def account_mode(s, agent):
+    """The billing mode saved for one agent (subscription, api, ...), as config() reports it."""
+    account = {**DEFAULT_ACCOUNTS, **(_saved(s).get("accounts") or {})}.get(agent) or {}
+    return account.get("mode") if isinstance(account, dict) else None
+
+
 def limits(s, settings=None):
     """The effective spending limits. Defaults are all off. A saved value wins; an older explicit MAC_CONTROL_DISPATCH_MAX_BUDGET_USD is used as the per-run cap until one is saved."""
-    row = s.get(BillingConfig, 1)
-    saved = (json.loads(row.payload) if row else {}).get("limits") or {}
+    saved = _saved(s).get("limits") or {}
     out = dict(DEFAULT_LIMITS)
     if settings is not None and "dispatch_max_budget_usd" in getattr(settings, "model_fields_set", set()) and (settings.dispatch_max_budget_usd or 0) > 0:
         out["per_run_cap_usd"] = float(settings.dispatch_max_budget_usd)
@@ -81,8 +98,7 @@ REVIEWABLE_CLASSES = ("free", "paid")
 
 
 def route_prices(s):
-    row = s.get(BillingConfig, 1)
-    saved = (json.loads(row.payload) if row else {}).get("route_prices") or {}
+    saved = _saved(s).get("route_prices") or {}
     return {k: v for k, v in saved.items() if isinstance(k, str) and v in REVIEWABLE_CLASSES} if isinstance(saved, dict) else {}
 
 
