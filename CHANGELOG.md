@@ -10,6 +10,18 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.6.81] - 2026-10-28
+
+### Changed
+
+- Plans with generated artwork no longer hold back build work until the art is published. The planner is told that only integration and final verification wait for published media. The plan check warns (`media-wait`) when an agent build story depends directly on a publish step but does not use the art, so pages and code proceed while you decide the artwork. Seen in the pilot: the site shell waited for all six scene illustrations.
+- After **Start planning**, the page scrolls the planning progress to right under the project header and focuses it, so the click shows a response at once. While the request is sent, the button reads "Starting planning…" (or "Submitting…" when submitting a revision). Before, the progress appeared below Project settings, off screen on smaller windows.
+
+### Fixed
+
+- The planning progress said the Coordinator checks the plan, but with the planner on Automatic the planner the Coordinator picked does that review. "Check the plan" now says who reviews it, and each step names the route it ran on (for example Hermes · google/gemini-2.5-flash, then Codex · gpt-6.1-sol).
+- The Planner row in Project settings was missing the space after "Planner".
+
 ## [0.6.80] - 2026-10-27
 
 ### Fixed
@@ -1145,7 +1157,7 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 
 [0.3.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.0
 [0.6.72]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.70...v0.6.72
-[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.80...HEAD
+[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.81...HEAD
 [0.6.67]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.66...v0.6.67
 [0.6.66]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.65...v0.6.66
 [0.6.65]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.64...v0.6.65
@@ -1258,6 +1270,7 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 [0.6.71]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.70...v0.6.71
 [0.6.70]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.69...v0.6.70
 
+[0.6.81]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.80...v0.6.81
 [0.6.80]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.79...v0.6.80
 [0.6.79]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.78...v0.6.79
 [0.6.78]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.77...v0.6.78

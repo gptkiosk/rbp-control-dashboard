@@ -6,6 +6,7 @@ RULES = ('Saved scope and explicit story-model choices outrank template examples
          'Never add a contact form, account, backend, tracking, container, cloud deployment or CI requirement unless the saved brief or selected delivery type needs it. '
          'If final media generation is requested, use distinct media_stage stories: inventory (agent writes slots), generate (human triggers dashboard fal.ai after spend acknowledgement), '
          'publish (human selects/publishes candidates), integrate (agent uses published files). Order each after the previous stage, and verification after integration. '
+         'Only integration and final verification wait for published media: build pages, code and docs after the design story so they proceed while the human makes art decisions. '
          'A selection/publish task is not a generation task. Existing-assets-only briefs need integration/verification but no paid generation. '
          'Asset prompts, purpose and sizing can be edited in Media Studio before any take is made; changing names/count/placements requires a reviewed inventory amendment. '
          'Inspect coordinator readiness and correct plan prerequisites using save/replan; use only linked approved setup controls for host changes. '
@@ -128,6 +129,12 @@ def findings(document):
             first = {n['key'] for n in groups[previous]}
             bad = [n['key'] for n in groups[following] if not first.intersection(_ancestors(by_key, n['key']))]
             if bad: add('media-order-' + following, f'Media {following} must depend on {previous}; keep the paid generation and candidate decision in the correct order.', bad)
+        # Build work that only waits on published art idles while the human makes art decisions; only integration and verification need it.
+        published = {n['key'] for n in groups['publish']}
+        idle = [n['key'] for n in stories if not media_stage(n) and n.get('assignee') not in (None, 'human') and n.get('mode') == 'edit'
+                and not n.get('host_action') and not static_verification(n) and published.intersection(n.get('depends_on') or ())]
+        if idle: add('media-wait', 'These build stories wait for published artwork but do not use it. Make them depend on the design or inventory story instead, '
+                     'so they run while art is decided; keep only integration and final verification after publication.', idle, 'warn')
         first = {n['key'] for n in groups['integrate']}
         bad = [n['key'] for n in stories if (n.get('host_action') in {'preview-verify', 'preview-review'} or
                static_verification(n))

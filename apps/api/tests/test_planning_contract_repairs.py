@@ -267,3 +267,20 @@ def test_sequence_words_without_a_character_reference_do_not_trigger_reference_f
                  'Generate illustrations with fal.ai, then publish them. No characters.',
                  'Use only existing assets; the heroine reference is already approved, then integrate the scenes.'):
         assert not contract.reference_first({'brief': text}), text
+
+
+def test_build_work_that_only_waits_for_published_art_is_flagged_but_integration_is_not():
+    """Pilot 2026-10-28: the site shell depended on the six published scenes, so no code ran while the operator decided art."""
+    human = dict(assignee='human', model='', mode='read')
+    nodes = [dict(key='design', title='Define the narrative and design system', assignee='codex', model='gpt-6.1-sol', mode='edit', work_kind='design', depends_on=[]),
+             dict(key='inv', title='Author the media inventory', assignee='codex', model='gpt-6.1-sol', mode='edit', media_stage='inventory', depends_on=['design']),
+             dict(key='gen', title='Generate scene candidates', media_stage='generate', media_batch='scenes', depends_on=['inv'], **human),
+             dict(key='pub', title='Select and publish the six final scene illustrations', media_stage='publish', media_batch='scenes', depends_on=['gen'], **human),
+             dict(key='shell', title='Build the responsive static site shell', assignee='codex', model='gpt-6.1-sol', mode='edit', work_kind='implement', depends_on=['pub']),
+             dict(key='integ', title='Integrate published final artwork', assignee='codex', model='gpt-6.1-sol', mode='edit', media_stage='integrate', depends_on=['shell', 'pub'])]
+    doc = {'brief': 'Generate illustrations with fal.ai for a local website', 'nodes': nodes}
+    found = {f['id']: f for f in contract.findings(doc)}
+    assert found['media-wait']['stories'] == ['shell'] and found['media-wait']['severity'] == 'warn'
+    nodes[4]['depends_on'] = ['design']
+    assert 'media-wait' not in {f['id'] for f in contract.findings(doc)}
+    assert 'Only integration and final verification wait for published media' in contract.RULES

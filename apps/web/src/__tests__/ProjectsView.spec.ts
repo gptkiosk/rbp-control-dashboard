@@ -479,3 +479,18 @@ it('builds in parallel only when the person turns it on when creating the projec
  const created=f.mock.calls.find(([url,init])=>url==='/api/projects'&&init?.method==='POST')!
  expect(JSON.parse(String(created[1]?.body)).dispatch_mode).toBe('parallel');w.unmount()
 })
+it('shows planning under the project header and brings it into view as soon as Start planning is accepted',async()=>{
+ const scrolled:string[]=[]
+ Element.prototype.scrollIntoView=function(this:Element){scrolled.push((this as HTMLElement).dataset.testid??this.className)}
+ const {w}=await setup()
+ await w.findAll('button').find(b=>b.text().startsWith('Plan ('))!.trigger('click');await flushPromises()
+ const {DOMWrapper}=await import('@vue/test-utils');const dialog=new DOMWrapper(document.querySelector('[role=dialog]')!)
+ await dialog.findAll('input[type=checkbox]').find(c=>c.element.parentElement?.textContent?.includes('approve this Coordinator'))!.setValue(true)
+ await dialog.findAll('button').find(b=>b.text()==='Start planning')!.trigger('click');await flushPromises()
+ const pane=document.querySelector('[data-testid="planning-progress"]')!, settings=document.querySelector('[data-testid="route-strip"]')!
+ expect(pane).not.toBeNull()
+ expect(pane.compareDocumentPosition(settings)&Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()   // progress comes before Project settings
+ expect(scrolled).toContain('planning-progress')
+ expect(document.activeElement).toBe(pane)
+ w.unmount()
+})
