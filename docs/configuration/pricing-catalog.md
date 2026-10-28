@@ -23,7 +23,7 @@ was last checked. Models that left the pricing page stay as `legacy` so old usag
 Free OpenRouter models are listed under `free_models` and cost 0. Any model whose name ends in `:free`
 is priced at 0 even without a catalog entry and even when a run reports no token counts.
 
-Your own rates (Agents → Billing & rates → Model rates) override the catalog for the model you enter.
+Your own rates (Settings → AI & models → Accounts → Model rates) override the catalog for the model you enter.
 A cost the agent itself reports always wins.
 
 ## Keeping it current

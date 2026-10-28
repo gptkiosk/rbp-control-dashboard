@@ -149,7 +149,7 @@ describe('Prices to review', () => {
     expect(grok.text()).toContain('listed $3/M in, $15/M out')
     expect((grok.get('[data-action="free"]').element as HTMLButtonElement).disabled).toBe(true)
     expect((w.get('[data-route="hermes|google/gemma-4-31b-it:free"] [data-action="free"]').element as HTMLButtonElement).disabled).toBe(false)
-    expect(w.get('[data-route="grok|grok-build-0.1"] [data-action="membership"]').attributes('href')).toBe('/agents?action=billing')
+    expect(w.get('[data-route="grok|grok-build-0.1"] [data-action="membership"]').attributes('href')).toBe('/profile?action=billing#accounts')
     expect(w.find('[data-route="grok|grok-build-0.1"] [data-action="free"]').exists()).toBe(false)
     await grok.get('[data-action="paid"]').trigger('click'); await flushPromises()
     expect(puts[0]).toEqual({ runtime: 'hermes', target: '', model: 'x-ai/grok-4.6', cost_class: 'paid' })
@@ -192,6 +192,16 @@ describe('ProjectRouteStrip', () => {
     expect(w.get('[data-testid="route-strip"]').text()).toContain('Coordinator none allowed')
     expect(w.text()).toContain(coordinatorEmpty)
   })
+  it('does not ask again when the page polls and hands it an equal copy of the policy', async () => {
+    const { previews } = stub()
+    const policy = { ...emptyPolicy(), providers: ['xai'] }
+    const w = mount(ProjectRouteStrip, { props: { projectId: 3, plannerAgent: 'auto', plannerModel: '', routePolicy: policy }, global: { stubs } })
+    await flushPromises()
+    for (let i = 0; i < 5; i++) { await w.setProps({ routePolicy: JSON.parse(JSON.stringify(policy)) }); await flushPromises() }
+    expect(previews).toHaveLength(1)
+    await w.setProps({ routePolicy: { ...policy, providers: ['anthropic'] } }); await flushPromises()
+    expect(previews).toHaveLength(2)
+  })
   it('shows the Coordinator in Change…, warns when a narrowing leaves it nothing, and offers the two ways out', async () => {
     vi.useFakeTimers()
     stub({ app: { ...emptyPolicy(), cost: { free: true, membership: true, paid: true } } })
@@ -230,4 +240,43 @@ it('Model recovery no longer has its own cost switches', async () => {
   const w = mount(RouteRecoveryPanel, { global: { stubs } })
   await flushPromises()
   expect(w.get('[data-testid="cost-classes"]').text()).toContain('membership allowed, paid API off')
+})
+
+describe('Review planning request', () => {
+  it('shows the Coordinator and refuses to start when it or the planner is not allowed', async () => {
+    const { default: ProjectReviewDialog } = await import('@/components/ProjectReviewDialog.vue')
+    stubFetch(url => {
+      if (url.startsWith('/api/routes?feature=coordinator')) return { body: routes('coordinator', { allowed: [], default: null,
+        default_note: 'The default hermes · google/gemma-4-31b-it:free is not allowed: App policy: free models are off',
+        empty_reason: 'No Coordinator route is allowed. Nearest: Hermes · google/gemini-2.5-flash: App policy: paid API is off.' }) }
+      if (url.startsWith('/api/routes?feature=planner')) return { body: routes('planner', {
+        hidden: [row('hermes', 'openrouter/free', 'free', { hidden_because: 'App policy: provider varies per request' })] }) }
+    })
+    const w = mount(ProjectReviewDialog, { props: { mode: 'plan', projectId: 2, revision: 3, title: 'Pilot', workingDir: '/w', planningBias: 70,
+      plannerAgent: 'hermes', plannerModel: 'openrouter/free', dispatchMode: 'sequential', delegator: 'hermes', stories: [], titles: {},
+      needsPaidWork: false, error: '', busy: false, coordination: true, paidPlanner: false, paidWork: false, fresh: true },
+      global: { stubs: { ...stubs, ModalShell: { template: '<div><slot /></div>' } } } })
+    await flushPromises()
+    expect(w.get('[data-testid="review-coordinator"]').text()).toContain('none allowed')
+    expect(w.get('[data-testid="review-coordinator"]').text()).toContain('Nearest: Hermes · google/gemini-2.5-flash')
+    expect(w.get('[data-testid="review-planner"]').text()).toContain('This planner is not allowed: App policy: provider varies per request')
+    const start = w.findAll('button').find(b => b.text() === 'Start planning')!
+    expect(start.attributes('disabled')).toBeDefined()
+  })
+  it('names an allowed paid Coordinator and lets planning start', async () => {
+    const { default: ProjectReviewDialog } = await import('@/components/ProjectReviewDialog.vue')
+    stubFetch(url => {
+      if (url.startsWith('/api/routes?feature=coordinator')) return { body: routes('coordinator', { default: { runtime: 'hermes', model: 'google/gemini-2.5-flash' },
+        allowed: [row('hermes', 'google/gemini-2.5-flash', null, { provider: 'google' })] }) }
+      if (url.startsWith('/api/routes?feature=planner')) return { body: routes('planner', { allowed: [row('codex', 'gpt-6.1-sol', 'subscription')] }) }
+    })
+    const w = mount(ProjectReviewDialog, { props: { mode: 'plan', projectId: 2, revision: 3, title: 'Pilot', workingDir: '/w', planningBias: 70,
+      plannerAgent: 'codex', plannerModel: 'gpt-6.1-sol', dispatchMode: 'sequential', delegator: 'hermes', stories: [], titles: {},
+      needsPaidWork: false, error: '', busy: false, coordination: true, paidPlanner: true, paidWork: false, fresh: true },
+      global: { stubs: { ...stubs, ModalShell: { template: '<div><slot /></div>' } } } })
+    await flushPromises()
+    expect(w.get('[data-testid="review-coordinator"]').text()).toContain('Hermes · google/gemini-2.5-flash · price not reviewed (counts as paid)')
+    expect(w.find('[data-testid="review-planner"] .notice-warn').exists()).toBe(false)
+    expect(w.findAll('button').find(b => b.text() === 'Start planning')!.attributes('disabled')).toBeUndefined()
+  })
 })

@@ -141,9 +141,9 @@ def layers(managed, app, project, feature):
 
 def reason(route, managed, app, project, feature, coordinator=None, unknown_ok=False):
     """The first reason a route is not allowed for this feature, or None when every scope allows it. `coordinator` is the runtime that holds
-    the Coordinator role (Settings → Agent roles, Hermes by default); only it can run Coordinator work."""
+    the Coordinator role (Settings → AI & models → Coordinator, Hermes by default); only it can run Coordinator work."""
     if feature == 'coordinator' and coordinator and route['runtime'] != coordinator:
-        return f'The Coordinator is {coordinator} (Settings → Agent roles)'
+        return f'The Coordinator is {coordinator} (Settings → AI & models → Coordinator)'
     for scope, f in layers(managed, app, project, feature):
         why = check(route, f, scope, unknown_ok)
         if why:
@@ -193,6 +193,44 @@ def ensure_saved(s, settings):
     if saved:
         return False
     save_app(s, default_app(s, settings))
+    return True
+
+
+STOCK_DEFAULT_AI = ('hermes', 'openrouter/free')
+
+
+def adopt_default_ai(s, settings):
+    """Once: the retired Settings → Default AI (per profile) becomes the app policy's Chat and Tasks defaults, which New chat, New task and the
+    project consultant now start from. Only a choice someone changed from the stock Hermes · openrouter/free is carried over, and only into a
+    default the policy does not set yet. Returns True when it saved anything."""
+    from models import BillingConfig, UserProfile
+    row = s.get(BillingConfig, 1)
+    payload = json.loads(row.payload) if row else {}
+    if payload.get('default_ai_adopted'):
+        return False
+    choice = None
+    for profile in s.query(UserProfile).order_by(UserProfile.owner):
+        try:
+            prefs = json.loads(profile.preferences or '{}')
+        except ValueError:
+            continue
+        agent, model = prefs.get('ai_agent'), prefs.get('ai_model')
+        if agent in RUNTIMES and isinstance(model, str) and model and (agent, model) != STOCK_DEFAULT_AI:
+            try:
+                choice = Choice(runtime=agent, model=model)
+            except ValidationError:
+                continue
+            break
+    policy, _ = load_app(s, settings)
+    if choice is not None:
+        for feature in ('chat', 'tasks'):
+            policy.defaults.setdefault(feature, choice)
+    save_app(s, policy)
+    row = s.get(BillingConfig, 1)
+    payload = json.loads(row.payload)
+    payload['default_ai_adopted'] = True
+    row.payload = json.dumps(payload)
+    s.flush()
     return True
 
 
@@ -251,7 +289,7 @@ def load_project(document):
 
 
 def review_price(s, settings, runtime, target, model, cost_class):
-    """Record the price class the operator reviewed for one route (Models & providers → Prices to review), or clear it with None.
+    """Record the price class the operator reviewed for one route (AI & models → Prices to review), or clear it with None.
     "paid" can be recorded for any route. "free" only for Hermes or OpenClaw and a model that is a free variant or listed at no cost in the
     cached OpenRouter list, so a review can never turn a billed route into a free one. A membership comes from Billing & rates, not here."""
     import billing
@@ -373,7 +411,7 @@ def story_findings(s, settings, document, project=None):
     if unreviewed:
         out.append({'id': 'route-policy-unreviewed', 'severity': 'warn', 'stories': unreviewed,
                     'message': 'These stories use a route whose price was never reviewed. It counts as paid API when it starts, so it will be refused '
-                               'while paid API is off. Review its billing class in Agents → Billing & rates or choose another route.'})
+                               'while paid API is off. Review its billing class in Settings → AI & models → Accounts or choose another route.'})
     if backups:
         out.append({'id': 'route-policy-backups', 'severity': 'warn', 'stories': list(backups),
                     'message': 'Some backup routes are outside the route policy and will be skipped if reached: '

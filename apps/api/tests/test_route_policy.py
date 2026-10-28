@@ -74,7 +74,7 @@ def test_unreviewed_price_counts_as_paid_except_while_planning():
     assert rp.reason(unknown, None, rp.Policy(cost=rp.Cost(paid=True)), None, 'chat') is None
     assert rp.reason(unknown, None, rp.Policy(), None, 'planner', unknown_ok=True) is None
     assert rp.reason(unknown, None, rp.Policy(providers=['anthropic']), None, 'planner', unknown_ok=True) == 'App policy: xai is not an allowed provider'
-    assert rp.reason(route('grok', 'grok-4.6'), None, rp.Policy(), None, 'coordinator', 'hermes') == 'The Coordinator is hermes (Settings → Agent roles)'
+    assert rp.reason(route('grok', 'grok-4.6'), None, rp.Policy(), None, 'coordinator', 'hermes') == 'The Coordinator is hermes (Settings → AI & models → Coordinator)'
     assert rp.reason(route('codex', 'gpt-6.1-sol'), None, rp.Policy(), None, 'coordinator', 'codex') is None
 
 
@@ -141,7 +141,7 @@ def test_grok_policy_leaves_one_clear_path_for_every_feature(app):
     assert coordinator['default'] == {'runtime': 'hermes', 'model': 'x-ai/grok-4.5'}
     assert 'openrouter/free' in coordinator['default_note'] and 'provider varies' in coordinator['default_note']
     hidden = {(r['runtime'], r['model']): r['hidden_because'] for r in coordinator['hidden']}
-    assert hidden[('grok', 'grok-4.6')] == 'The Coordinator is hermes (Settings → Agent roles)'
+    assert hidden[('grok', 'grok-4.6')] == 'The Coordinator is hermes (Settings → AI & models → Coordinator)'
     planner_hidden = {(r['runtime'], r['model']): r['hidden_because'] for r in c.get('/api/routes', params={'feature': 'planner'}).json()['hidden']}
     assert planner_hidden[('hermes', 'x-ai/grok-4.6')] == 'App policy: paid API is off (price not reviewed, so it counts as paid)'
 
@@ -377,3 +377,29 @@ def test_paid_coordinator_models_can_be_chosen_with_every_provider_open(app):
     planned = c.post(f'/api/projects/{pid}/plan', json={**plan, 'approve_api_planning': True})
     assert planned.status_code == 200, planned.text
     assert planned.json()['pipeline']['delegator'] == {'agent': 'hermes', 'model': 'anthropic/claude-sonnet-5-5'}
+
+
+def test_a_changed_default_ai_becomes_the_chat_and_tasks_default_once(sessions):
+    from models import UserProfile
+    settings = get_settings()
+    with sessions() as s:
+        s.add(UserProfile(owner='stock@example.invalid', preferences=json.dumps({'ai_agent': 'hermes', 'ai_model': 'openrouter/free'})))
+        s.add(UserProfile(owner='zz@example.invalid', preferences=json.dumps({'ai_agent': 'hermes', 'ai_model': 'google/gemini-2.5-flash'})))
+        s.flush()
+        assert rp.adopt_default_ai(s, settings) is True
+        policy, _ = rp.load_app(s, settings)
+        assert policy.defaults['chat'] == policy.defaults['tasks'] == rp.Choice(runtime='hermes', model='google/gemini-2.5-flash')
+        # Once only: clearing the defaults afterwards is not undone by the next start.
+        rp.save_app(s, policy.model_copy(update={'defaults': {}}))
+        assert rp.adopt_default_ai(s, settings) is False
+        assert rp.load_app(s, settings)[0].defaults == {}
+
+
+def test_a_stock_default_ai_sets_nothing(sessions):
+    from models import UserProfile
+    settings = get_settings()
+    with sessions() as s:
+        s.add(UserProfile(owner='stock@example.invalid', preferences=json.dumps({'ai_agent': 'hermes', 'ai_model': 'openrouter/free'})))
+        s.flush()
+        rp.adopt_default_ai(s, settings)
+        assert rp.load_app(s, settings)[0].defaults == {}

@@ -1,4 +1,5 @@
 """Fresh, credential-free route catalog from the native agents' configuration."""
+import copy
 import json
 import re
 import subprocess
@@ -101,6 +102,10 @@ def _cli_agents(settings, wait=False):
 def _model(value):
     return value if isinstance(value, str) and re.fullmatch(r'[A-Za-z0-9_.:/-]{1,120}', value) else ''
 
+# agent -> ((path, mtime_ns, size), parsed entry): the last parsed version of each configuration file.
+_parsed = {}
+
+
 def read(settings, wait=False):
     result = {a: {'models': [], 'targets': [], 'default': None} for a in ('hermes', 'openclaw')}
     for agent, suffix in (('hermes', '.hermes/config.yaml'), ('openclaw', '.openclaw/openclaw.json')):
@@ -108,7 +113,13 @@ def read(settings, wait=False):
         if getattr(settings, 'environment', 'test') == 'test' and not configured: continue
         path = Path(configured) if configured else Path.home() / suffix
         try:
-            if path.stat().st_size > 2_000_000: continue
+            info = path.stat()
+            if info.st_size > 2_000_000: continue
+            # Parsed once per file version: route lists check hundreds of routes and each asks for this.
+            stamp = (str(path), info.st_mtime_ns, info.st_size)
+            if _parsed.get(agent, (None,))[0] == stamp:
+                result[agent] = copy.deepcopy(_parsed[agent][1])
+                continue
             raw = path.read_text()
             cfg = yaml.safe_load(raw) if agent == 'hermes' else json.loads(raw)
             models, targets = [], []
@@ -139,6 +150,7 @@ def read(settings, wait=False):
                     models.append(model)
                     targets.append({'id': target, 'name': str(row.get('name') or target)[:200], 'model': model, 'default': bool(row.get('default'))})
             result[agent] = {'models': list(dict.fromkeys(m for m in models if m)), 'targets': targets, 'default': default or None}
+            _parsed[agent] = (stamp, copy.deepcopy(result[agent]))
         except (OSError, ValueError, TypeError, AttributeError, yaml.YAMLError):
             pass  # Never return raw configuration or parser diagnostics containing credentials.
     known = {t['id'] for t in result['openclaw']['targets']}

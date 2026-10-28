@@ -130,7 +130,7 @@ async function save() {
       </p></NoteFold>
       <p v-if="!settings && !error" role="status">Loading billing settings…</p>
       <div v-if="settings" class="accounts">
-        <p v-if="managed.hidden.value.length" class="muted small" data-testid="managed-hidden">Hidden by this installation's route policy: {{ managed.hidden.value.map(agentLabel).join(', ') }}. <RouterLink to="/profile#models-providers">Models &amp; providers</RouterLink></p>
+        <p v-if="managed.hidden.value.length" class="muted small" data-testid="managed-hidden">Hidden by this installation's route policy: {{ managed.hidden.value.map(agentLabel).join(', ') }}. <RouterLink to="/profile#models-providers">AI &amp; models</RouterLink></p>
         <div v-for="a in shownAgents" :key="a.id" class="account">
           <strong>{{ a.name }}</strong>
           <label

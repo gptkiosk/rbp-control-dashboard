@@ -122,7 +122,7 @@ function saved() {
           <option value="month">This month</option>
           <option value="24h">Last 24 hours</option>
           <option value="7d">Last 7 days</option></AppSelect
-        ><button class="btn" @click="billingFocus = null; billingOpen = true"><AppIcon name="cost" />Billing & rates</button
+        ><RouterLink class="btn" to="/profile?action=billing#accounts" data-testid="billing-link"><AppIcon name="cost" />Billing & rates</RouterLink
         ><button class="btn" data-testid="media-button" @click="billingFocus = 'media'; billingOpen = true"><AppIcon name="cost" />Media prices</button>
       </div>
     </PageHead>

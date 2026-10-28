@@ -344,6 +344,7 @@ describe('New chat dialog', () => {
     const f = stubFetch((u, init) => {
       if (u === '/api/agents') return { body: { agents: AGENTS } }
       if (u === '/api/workdirs') return { body: { workdirs: WORKDIRS } }
+      if (u.startsWith('/api/routes?feature=chat')) return { body: { feature: 'chat', label: 'Chat', default: { runtime: 'hermes', model: 'openrouter/free' }, default_note: null, allowed: [{ runtime: 'hermes', target: '', model: 'openrouter/free', provider: 'router', cost_class: 'free', ready: true, listed_price: null, reliability: { attempts: 0, failures: 0, recent_failures: 0, persistent: false } }], hidden: [], empty_reason: null, scope: { managed: false, managed_error: null, app_saved: true, project: null } } }
       if (u === '/api/chat/threads' && init?.method === 'POST') return { status: 201, body: thread({ id: 12 }) }
       return undefined
     })

@@ -1,10 +1,10 @@
 # Model recovery and bootstrap
 
-Settings → Coordinator setup → **Model recovery** (`/profile#route-recovery`) contains the operator’s ordered fallback list. Changes apply to future planning requests and editable story maps. Existing approved story routes are retained. The default is manual recovery; select routes and explicitly enable automatic recovery. Up to six configured routes can be selected. Availability means the executable/configuration was found, not that live credentials or a provider response have been verified.
+Settings → AI & models → Advanced → **Model recovery** (`/profile#route-recovery`) contains the operator’s ordered fallback list. Changes apply to future planning requests and editable story maps. Existing approved story routes are retained. The default is manual recovery; select routes and explicitly enable automatic recovery. Up to six configured routes can be selected. Availability means the executable/configuration was found, not that live credentials or a provider response have been verified.
 
 ## Billing and permissions
 
-Configured Claude/Codex membership routes consume the account’s quota; optional provider overage still applies. Which cost classes may run is set in **Settings → Models & providers** ([route policy](route-policy.md)); Model recovery shows them and links there. Paid API routes remain refused unless the policy allows paid API and the operator approves the specific planning/task use. A membership does not include provider API charges. Paid planning alternatives need separate API approval on the planning request or manual retry; a saved fallback list alone cannot authorize them. Price checks, budget caps, model locks, execution scopes and human approval gates remain effective.
+Configured Claude/Codex membership routes consume the account’s quota; optional provider overage still applies. Which cost classes may run is set in **Settings → AI & models** ([route policy](route-policy.md)); Model recovery shows them and links there. Paid API routes remain refused unless the policy allows paid API and the operator approves the specific planning/task use. A membership does not include provider API charges. Paid planning alternatives need separate API approval on the planning request or manual retry; a saved fallback list alone cannot authorize them. Price checks, budget caps, model locks, execution scopes and human approval gates remain effective.
 
 ## Bounded recovery
 

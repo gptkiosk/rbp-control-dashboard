@@ -10,6 +10,27 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.6.79] - 2026-10-27
+
+### Changed
+
+- Settings has four tabs: **General** (appearance, workspace, Discord, credentials), **AI & models**, **Installs & updates** and **Maintenance**. AI & models, formerly Models & providers, holds everything about models on one page:
+  - **Start from** and **Cost classes**.
+  - **Coordinator**, with the paid switch, the model, Agent roles and Coordinator setup. Setup is folded away once it is done.
+  - **Defaults**, including the story preference for new projects.
+  - **Accounts**. **Billing & rates** opens here instead of on the Agents page, which now links to it.
+  - A collapsed **Advanced** section with providers, runtimes, prices to review and Model recovery. It opens by itself when something in it is in use.
+
+  Old links (`#agent-roles`, `#route-recovery`, `#coordinator-bootstrap`, `/agents?action=billing` and so on) still land in the right place, and no saved setting moved.
+- Each project has a **Project settings** panel: routes (Coordinator, planner, stories, with Change…), the story preference, Build in parallel, and Model lock while stories run. Narrowing the app policy for one project is under Advanced in Change…, closed unless the project already narrows it. The brief keeps only what describes the work.
+- **Default AI** moved from Settings → Preferences into Models & providers. New chat and the project consultant start on its **Chat** default, and New task on its **Tasks** default. On the first start of this version, a Default AI someone changed from the stock Hermes · openrouter/free becomes both defaults, once. Settings now points to Models & providers instead.
+
+### Fixed
+
+- On a Raspberry Pi, the project route strip kept showing "Coordinator …" and the dashboard's CPU stayed at 100%. The project page polls every three seconds and hands the strip an equal copy of the policy each time, and the strip asked for a new route preview on every copy. Each preview took longer than three seconds on a Pi, so requests piled up. The strip now asks again only when the project or its policy really changes, and it ignores replies for older choices.
+- **Review planning request** now shows the Coordinator model next to the planner. It names what stops either one when the policy does not allow it, and **Start planning** stays off until that is fixed. Before, the Coordinator was not shown, and a refused route only appeared after the request was sent.
+- Route lists are about 30 times cheaper to build. The Hermes and OpenClaw configurations are parsed once per file version instead of once per route. The billing settings are read once per request. The catalog is built once per request for all the features a page asks about. With a 444-model OpenRouter list, the Coordinator, planner and story lists took 0.62 s on a Mac and now take 0.02 s.
+
 ## [0.6.78] - 2026-10-27
 
 ### Added
@@ -1117,7 +1138,7 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 
 [0.3.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.0
 [0.6.72]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.70...v0.6.72
-[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.78...HEAD
+[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.79...HEAD
 [0.6.67]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.66...v0.6.67
 [0.6.66]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.65...v0.6.66
 [0.6.65]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.64...v0.6.65
@@ -1230,6 +1251,7 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 [0.6.71]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.70...v0.6.71
 [0.6.70]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.69...v0.6.70
 
+[0.6.79]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.78...v0.6.79
 [0.6.78]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.77...v0.6.78
 [0.6.77]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.76...v0.6.77
 [0.6.76]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.75...v0.6.76

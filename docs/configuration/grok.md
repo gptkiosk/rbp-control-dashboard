@@ -10,7 +10,7 @@ Code or Codex: as a task or chat agent, as a project story agent, and as an appr
    The vendor's manual installer is available separately at https://docs.x.ai/build/overview.
 2. Sign in on the host: `grok login`, or `grok login --device-code` on a machine without a browser. RCD never
    sees the sign-in. `XAI_API_KEY` is an alternative, but see Billing below.
-3. Agents, then Billing & rates: set Grok Build to **Subscription** and save. Until then RCD refuses to start
+3. Settings → AI & models → Accounts → Billing & rates: set Grok Build to **Subscription** and save. Until then RCD refuses to start
    it. Setting the path is only needed when `grok` is not in `~/.grok/bin`: `MAC_CONTROL_GROK_PATH`.
 
 ## Billing: subscription only

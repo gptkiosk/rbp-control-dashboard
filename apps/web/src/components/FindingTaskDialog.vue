@@ -31,7 +31,7 @@ const dir = computed(() => workdirs.value.find(w => w.path === workingDir.value)
 const modelOptions = computed(() => {
   const a = agent.value
   if (!a) return []
-  // Only what Models & providers allows for this feature (memberships first); the agent's own list until the catalog loads.
+  // Only what AI & models allows for this feature (memberships first); the agent's own list until the catalog loads.
   return allowedModels(routes.data.value, a.id, [...new Set([...(a.default_model ? [a.default_model] : []), ...a.suggested_models])])
 })
 const routes = useRoutes('tasks')
@@ -111,11 +111,11 @@ async function submit(): Promise<void> {
         <div class="field">
           <label for="ft-agent">Agent</label>
           <AppSelect id="ft-agent" v-model="agentId" class="input" required>
-            <option v-for="a in agents" :key="a.id" :value="a.id" :disabled="!a.available || !runtimeAllowed(routes.data.value, a.id)" :data-label="a.name" :data-description="!a.available ? 'Not installed' : !runtimeAllowed(routes.data.value, a.id) ? 'Not allowed by Models & providers' : (a.role === 'manager' ? 'Coordinator' : 'Worker')">
+            <option v-for="a in agents" :key="a.id" :value="a.id" :disabled="!a.available || !runtimeAllowed(routes.data.value, a.id)" :data-label="a.name" :data-description="!a.available ? 'Not installed' : !runtimeAllowed(routes.data.value, a.id) ? 'Not allowed by AI & models' : (a.role === 'manager' ? 'Coordinator' : 'Worker')">
               {{ a.name }}{{ a.available ? '' : ' (not installed)' }}
             </option>
           </AppSelect>
-          <p v-if="routes.data.value?.empty_reason" class="notice-warn small" role="alert">{{ routes.data.value.empty_reason }} <RouterLink to="/profile#models-providers">Models &amp; providers</RouterLink></p>
+          <p v-if="routes.data.value?.empty_reason" class="notice-warn small" role="alert">{{ routes.data.value.empty_reason }} <RouterLink to="/profile#models-providers">AI &amp; models</RouterLink></p>
         </div>
         <div class="field">
           <label for="ft-model">Model</label>

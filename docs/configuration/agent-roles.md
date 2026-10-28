@@ -1,6 +1,6 @@
 # Agent roles and Coordinator starter pack
 
-Hermes is the fixed project Coordinator in RCD. Settings → Agent roles shows Hermes with a Coordinator badge and does not let you assign Coordinator or Delegator to another platform. The other agents can be labelled Worker, Reviewer or Security. Those labels guide assignments; they do not configure native agent access or create automatic review jobs. Hermes must be installed and its starter guidance applied for consultant planning.
+Hermes is the fixed project Coordinator in RCD. Settings → AI & models → Coordinator shows Hermes with a Coordinator badge and does not let you assign Coordinator or Delegator to another platform. The other agents can be labelled Worker, Reviewer or Security. Those labels guide assignments; they do not configure native agent access or create automatic review jobs. Hermes must be installed and its starter guidance applied for consultant planning.
 
 ## Configure another agent platform (optional)
 
@@ -10,7 +10,7 @@ The Hermes starter guidance includes RCD-specific context for OpenClaw: how the 
 
 ## Coordinator setup
 
-In Settings → Coordinator setup, the dashboard sets up the agent platforms itself; no model is involved, so every run behaves the same.
+In Settings → AI & models → Coordinator setup, the dashboard sets up the agent platforms itself; no model is involved, so every run behaves the same.
 
 1. **Choose a setup mode.** *Stable start* (recommended) creates what is missing from tested templates: the OpenClaw role agents `rcd-oc-developer`, `rcd-oc-security` and, if ticked, `rcd-oc-reviewer` (each with its own workspace, `SOUL.md` and `AGENTS.md` from `packs/agents/`, registered with `openclaw agents add` on OpenClaw's configured default model), plus the shared-memory notes and project folders. *I'll configure the platforms myself* changes nothing and only checks what you set up.
 2. **Pick the platforms.** Each selected platform is checked: installed, starts (`--version`), and has a route the dashboard may use (OpenClaw: a default model; Claude Code, Codex and Grok Build: billing saved as Subscription). Anything not ready shows the fix and a link.

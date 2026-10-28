@@ -8,6 +8,7 @@ import RouteAdvice from '@/components/RouteAdvice.vue'
 import NoteFold from '@/components/NoteFold.vue'
 import { agentLabel } from '@/lib/cards'
 import { planningBiasLabel, type ProjectNode } from '@/lib/projects'
+import { costLabel, routeLabel, type FeatureRoutes } from '@/lib/routes'
 
 // The confirmation step before planning or submitting a project: what will happen, what the standards check says, and the approvals it needs.
 interface Check { source?: string | null; property?: string | null; problems: string[]; areas: string[]; fixable?: number }
@@ -27,7 +28,29 @@ const fresh = defineModel<boolean>('fresh', { required: true })
 const emit = defineEmits<{ close: []; confirm: []; fix: [] }>()
 
 const recovery = ref<RecoveryInfo|null>(null)
-onMounted(async () => { if (props.mode === 'plan') { try { recovery.value = await getJson('/api/profile/route-reliability') } catch { recovery.value = null } } })
+// Planning: the routes the saved project and policies give the Coordinator and the planner, so a refused route shows here, not after Start.
+const coordinatorRoutes = ref<FeatureRoutes | null>(null), plannerRoutes = ref<FeatureRoutes | null>(null)
+onMounted(async () => {
+  if (props.mode !== 'plan') return
+  try { recovery.value = await getJson('/api/profile/route-reliability') } catch { recovery.value = null }
+  try {
+    ;[coordinatorRoutes.value, plannerRoutes.value] = await Promise.all(['coordinator', 'planner'].map(f => getJson<FeatureRoutes>(`/api/routes?feature=${f}&project_id=${props.projectId}`)))
+  } catch { coordinatorRoutes.value = plannerRoutes.value = null }
+})
+const coordinatorText = computed(() => {
+  const r = coordinatorRoutes.value
+  if (!r) return '…'
+  const row = r.default ? r.allowed.find(x => x.runtime === r.default!.runtime && x.model === r.default!.model) : null
+  return r.default ? `${routeLabel(r.default)}${row ? ` · ${costLabel(row.cost_class)}` : ''}` : 'none allowed'
+})
+const plannerProblem = computed(() => {
+  const r = plannerRoutes.value
+  if (!r || props.plannerAgent === 'auto') return ''
+  if (r.allowed.some(x => x.runtime === props.plannerAgent && x.model === props.plannerModel)) return ''
+  const hidden = r.hidden.find(x => x.runtime === props.plannerAgent && x.model === props.plannerModel)
+  return `This planner is not allowed: ${hidden?.hidden_because ?? 'it is not available on this host'}. Choose another with Change… on the project's Routes strip and save the revision.`
+})
+const routeBlocked = computed(() => props.mode === 'plan' && (!!coordinatorRoutes.value?.empty_reason || !!plannerProblem.value))
 const heading = computed(() => (props.mode === 'plan' ? 'Review planning request' : 'Review project submission'))
 const delegatorName = computed(() => props.delegator || 'Hermes (Coordinator)')
 const planner = computed(() => (props.plannerAgent === 'auto' ? 'Installed subscription planner, or a reviewed free Hermes route' : `${agentLabel(props.plannerAgent)} · ${props.plannerModel || 'Agent default'}`))
@@ -53,7 +76,11 @@ const unknownArea = computed(() => problems.value.some(p => p.includes("this rep
       <dl class="facts">
         <div><dt>Working directory</dt><dd class="mono">{{ workingDir }}</dd></div>
         <div><dt>Story preference</dt><dd>{{ planningBiasLabel(planningBias) }}</dd></div>
-        <div v-if="mode === 'plan'"><dt>Planner</dt><dd>{{ planner }}</dd></div>
+        <div v-if="mode === 'plan'" data-testid="review-coordinator"><dt>Coordinator</dt><dd>{{ coordinatorText }}
+          <span v-if="coordinatorRoutes?.empty_reason" class="notice-warn small route-problem" role="alert">{{ coordinatorRoutes.empty_reason }} <RouterLink to="/profile#models-providers">AI &amp; models</RouterLink></span>
+          <span v-else-if="coordinatorRoutes?.default_note" class="muted small route-problem">{{ coordinatorRoutes.default_note }}. <RouterLink to="/profile#models-providers">AI &amp; models</RouterLink></span></dd></div>
+        <div v-if="mode === 'plan'" data-testid="review-planner"><dt>Planner</dt><dd>{{ planner }}
+          <span v-if="plannerProblem" class="notice-warn small route-problem" role="alert">{{ plannerProblem }}</span></dd></div>
         <div v-else><dt>Build</dt><dd>{{ dispatchMode === 'parallel' ? 'In parallel, in separate branches' : 'One story at a time, in dependency order' }}</dd></div>
         <div v-if="repository && !repository.repo" data-testid="repo-step"><dt>Step 1</dt><dd>The dashboard creates the private repository <strong>{{ repository.name }}</strong> with this host's gh sign-in, clones it into the working directory and gives agents its setup branch{{ mode === 'submit' ? ', before any story runs' : ' when you submit' }}.</dd></div>
         <div v-else-if="repository?.repo"><dt>Repository</dt><dd class="mono">{{ repository.repo }} · {{ repository.folder }}/ · {{ repository.branch }}</dd></div>
@@ -98,7 +125,7 @@ const unknownArea = computed(() => problems.value.some(p => p.includes("this rep
         <RouteAdvice :project-id="projectId" :revision="revision" />
       </template>
 
-      <NoteFold label="Spending and billing"><p class="small">The Coordinator uses its reviewed route; the Planner above is a separate choice. Failed planning steps try the next approved model/provider route. Free-only policy keeps retries on reviewed-free routes; it never approves paid work. If all routes fail, the project stays available to revise and retry. Membership access and provider API billing are separate. Free models can hit limits, and a Google BYOK fallback can incur Google charges. Hermes and OpenClaw routing shares a $20 per month OpenRouter key cap that includes tracked BYOK usage; this does not cover your whole Google invoice or calls outside this key.</p><RouterLink to="/help?topic=project-models">Model routes and billing</RouterLink></NoteFold>
+      <NoteFold label="Spending and billing"><p class="small">The Coordinator uses its reviewed route; the Planner above is a separate choice. Failed planning steps try the next approved model/provider route. Retries stay within AI &amp; models, with paid API last; they never approve paid work. If all routes fail, the project stays available to revise and retry. Membership access and provider API billing are separate. Free models can hit limits, and a Google BYOK fallback can incur Google charges. Hermes and OpenClaw routing shares a $20 per month OpenRouter key cap that includes tracked BYOK usage; this does not cover your whole Google invoice or calls outside this key.</p><RouterLink to="/help?topic=project-models">Model routes and billing</RouterLink></NoteFold>
 
       <div class="approvals">
         <label class="check"><input v-model="coordination" type="checkbox" /><span>I approve this Coordinator coordination request and its configured routing.</span></label>
@@ -110,7 +137,7 @@ const unknownArea = computed(() => problems.value.some(p => p.includes("this rep
 
       <div class="actions">
         <button type="button" class="btn" @click="emit('close')">Back to map</button>
-        <button type="button" class="btn primary" :disabled="busy || !coordination || blocked" @click="emit('confirm')">{{ mode === 'plan' ? 'Start planning' : 'Submit approved revision' }}</button>
+        <button type="button" class="btn primary" :disabled="busy || !coordination || blocked || routeBlocked" @click="emit('confirm')">{{ mode === 'plan' ? 'Start planning' : 'Submit approved revision' }}</button>
       </div>
     </div>
   </ModalShell>
@@ -157,4 +184,5 @@ p { margin: 0; line-height: var(--line-height); }
   .actions .btn { flex: 1 1 100%; }
 }
 .fix-row { display:flex; gap:var(--gap-sm); margin:var(--gap-xs) 0; }
+.route-problem{display:block;margin-top:var(--gap-xs)}
 </style>

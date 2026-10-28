@@ -69,7 +69,7 @@ configured capped Google BYOK fallback. Subscription fees stay fixed; choosing O
 can conserve subscription quota, but does not inherently lower those fees. Existing API
 and execution review requirements still apply.
 
-After mapping, edit the slider under **Project brief & planner**, save, then request a new
+After mapping, edit the slider under **Project settings**, save, then request a new
 plan if you want revised recommendations. Moving it alone preserves all existing agent,
 model and dependency edits. New manual stories start with OpenClaw below the midpoint
 (using the configured developer target when available), otherwise Codex; their model stays
@@ -212,7 +212,7 @@ API routes (`go-free`, `low-cost-retry`, `pay-retry`) because RCD's task panel d
 - **Use Claude Haiku or Codex Luna** (your subscription, no per-token charge): the cost-aware Balanced models. For a read-only task you can also tick
   **edit mode**, which switches that one task to workspace execution on the project branch and needs a separate acknowledgement.
 - **Pay for this task** (API billing, this task only): a configured OpenRouter model that is not free, on a configured OpenClaw agent. It needs an
-  acknowledgement, no Google BYOK route is added, and any limits you turned on in Agents, Billing & rates, Spending & limits, and the route policy still apply when it starts, so it can stop
+  acknowledgement, no Google BYOK route is added, and any limits you turned on in Settings → AI & models → Accounts → Spending & limits, and the route policy still apply when it starts, so it can stop
   there with the reason.
 
 Each choice keeps the story's scope, workspace, dependencies and acceptance, supersedes any pending output continuation, and records an operator decision in

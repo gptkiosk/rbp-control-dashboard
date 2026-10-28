@@ -44,7 +44,7 @@ def test_addresses_hosts_emails_paths_and_ids_are_removed_and_text_is_bounded():
     ("PRICE_UNKNOWN: route has no reviewed pricing class", "failed", "price_gate"),
     ("ROUTE_UNPINNED: command does not pin the admitted model", "failed", "price_gate"),
     ("FREE_ONLY: only reviewed free routes may start", "failed", "price_gate"),
-    ("ROUTE_POLICY: App policy: paid API is off. Change the route or the policy in Models & providers.", "failed", "price_gate"),
+    ("ROUTE_POLICY: App policy: paid API is off. Change the route or the policy in AI & models.", "failed", "price_gate"),
     ("You've hit your session limit · resets 4pm (America/Los_Angeles)", "failed", "subscription_limit"),
     ('{"message": "You’ve hit your usage limit. Upgrade to Pro. try again at 8:08 AM."}', "failed", "subscription_limit"),
     ("pre-push: only refs/heads/project-5/x may be pushed", "failed", "hook_rejection"),

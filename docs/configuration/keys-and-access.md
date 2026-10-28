@@ -14,7 +14,7 @@ Saved keys are encrypted, write-only and never given to agents. Set a credit lim
 
 ## The fal key and its model list
 
-At fal, create the key with the **API** preset, add its allowed models and set a credit limit. fal fixes a key's model list when the key is created and cannot change it afterwards (the edit screen shows it read-only), so a model added later needs a new key: create it, paste it over the saved one in Profile, and delete the old key at fal. Add `minimax/h3-max*` (the default clips), `fal-ai/nano-banana-2*` and `fal-ai/nano-banana-pro*` (images), and `fal-ai/veo3.1*` only if you want the premium Veo tier. If a wildcard is refused, add the exact endpoint ids shown in Agents, Billing & rates, Media models.
+At fal, create the key with the **API** preset, add its allowed models and set a credit limit. fal fixes a key's model list when the key is created and cannot change it afterwards (the edit screen shows it read-only), so a model added later needs a new key: create it, paste it over the saved one in Profile, and delete the old key at fal. Add `minimax/h3-max*` (the default clips), `fal-ai/nano-banana-2*` and `fal-ai/nano-banana-pro*` (images), and `fal-ai/veo3.1*` only if you want the premium Veo tier. If a wildcard is refused, add the exact endpoint ids shown in Settings → AI & models → Accounts, Media models.
 
 ## The key check before a project is created
 

@@ -104,8 +104,8 @@ class Settings(BaseSettings):
     default_timeout_s: int = Field(default=1800, ge=30, le=6 * 3600)
     run_quiet_after_s: int = Field(default=600, ge=30, le=6 * 3600,
                                    description="A live runner silent this long is shown as quiet, not as working.")
-    default_budget_usd: float = Field(default=0.0, ge=0.0, le=50.0, description="Dollar cap passed to an API-billed Claude run that has no cap of its own. 0 (the default) means none; set limits in Agents, Billing & rates, Spending & limits.")
-    dispatch_free_only: bool = Field(default=True, description="Retired. Read once, when no route policy is saved yet, to seed the first app route policy; Models & providers controls cost classes after that.")
+    default_budget_usd: float = Field(default=0.0, ge=0.0, le=50.0, description="Dollar cap passed to an API-billed Claude run that has no cap of its own. 0 (the default) means none; set limits in Settings → AI & models → Accounts → Spending & limits.")
+    dispatch_free_only: bool = Field(default=True, description="Retired. Read once, when no route policy is saved yet, to seed the first app route policy; AI & models controls cost classes after that.")
     housekeeping_auto: str = Field(default="", description="Comma-separated housekeeping finding kinds cleaned up automatically after hours (stale_approval_wait, old_update_backup). Empty: nothing is automatic.")
     housekeeping_window_start_hour: int = Field(default=1, ge=0, le=23)
     housekeeping_window_end_hour: int = Field(default=5, ge=0, le=23)

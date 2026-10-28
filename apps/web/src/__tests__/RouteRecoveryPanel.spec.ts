@@ -31,7 +31,7 @@ it('explains persistent failures and cost, and saves only the explicitly enabled
   expect(calls[0]?.body).toEqual({enabled:true,apply_to_stories:false,routes:[{agent:'hermes',model:'openrouter/free'}]})
   expect(w.emitted('saved')).toHaveLength(1)
 })
-it('shows the cost classes and sends changes to Models & providers instead of a second switch',async()=>{
+it('shows the cost classes and sends changes to AI & models instead of a second switch',async()=>{
   stubFetch(url=>{ if(url==='/api/profile/route-reliability')return {body:info()} })
   const w=mount(RouteRecoveryPanel,{global:{stubs:{RouterLink:{props:['to'],template:'<a :href="to"><slot /></a>'}}}});await flushPromises()
   const line=w.get('[data-testid="cost-classes"]')

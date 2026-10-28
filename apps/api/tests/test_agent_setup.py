@@ -59,7 +59,7 @@ def test_checks_are_deterministic_and_name_the_fix(setup_app):
     rows = {r['id']: r for r in body['checks']}
     assert rows['openclaw']['state'] == 'ready' and rows['openclaw']['model'] == 'openrouter/free'
     assert rows['grok']['state'] == 'missing' and rows['grok']['link'] == '/profile#agent-tools'
-    assert rows['claude']['state'] == 'needs_action' and rows['claude']['link'] == '/agents?action=billing'
+    assert rows['claude']['state'] == 'needs_action' and rows['claude']['link'] == '/profile?action=billing#accounts'
     assert rows['codex']['state'] == 'ready'
     assert not any(argv[1:3] == ['agents', 'add'] for argv in calls)  # checking never registers anything
     assert body['digest'] == c.get('/api/profile/coordinator-bootstrap/setup').json()['digest']
