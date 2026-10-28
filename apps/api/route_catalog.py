@@ -11,6 +11,10 @@ FEATURE_LABELS = {'coordinator': 'Coordinator', 'planner': 'Planner', 'stories':
 # Free models from the OpenRouter list are many; offer a bounded number.
 MAX_LISTED_FREE = 40
 MAX_LISTED_PER_PROVIDER = 40
+# When a policy allows paid API with every provider open, the paid models of these common providers are listed too (fewer each), so a paid
+# Coordinator or story model can be chosen without first limiting providers.
+COMMON_PROVIDERS = ('anthropic', 'openai', 'xai', 'google', 'meta', 'mistral', 'deepseek', 'qwen')
+MAX_LISTED_OPEN = 12
 
 
 def _listed(settings):
@@ -21,7 +25,9 @@ def _listed(settings):
 
 
 def candidates(settings, providers=()):
-    """(runtime, target, model) for every route this host could name, in a stable order: memberships, then native configurations."""
+    """(runtime, target, model) for every route this host could name, in a stable order: memberships, then native configurations.
+    `providers` names the providers whose listed models to add: a list (up to MAX_LISTED_PER_PROVIDER each) or {provider: cap}."""
+    caps = providers if isinstance(providers, dict) else {name: MAX_LISTED_PER_PROVIDER for name in providers}
     from agents import REGISTRY
     import native_routes
     native = native_routes.read(settings)
@@ -37,12 +43,12 @@ def candidates(settings, providers=()):
         rows += [(runtime, '', m) for m in (config.get('default') or '', *config.get('models', ()), *REGISTRY[runtime].free_models)]
         rows += [(runtime, t['id'], t.get('model') or '') for t in config.get('targets', ()) if isinstance(t.get('id'), str)]
         free = [m for m, v in listed.items() if v.get('free')][:MAX_LISTED_FREE]
-        named = [m for m in listed if rp.provider_of('hermes', m) in providers]
+        named = [m for m in listed if rp.provider_of('hermes', m) in caps]
         by_provider = {}
         for m in named:
             by_provider.setdefault(rp.provider_of('hermes', m), []).append(m)
         rows += [(runtime, '', prefix + m) for m in free]
-        rows += [(runtime, '', prefix + m) for group in by_provider.values() for m in group[:MAX_LISTED_PER_PROVIDER]]
+        rows += [(runtime, '', prefix + m) for name, group in by_provider.items() for m in group[:caps[name]]]
     seen, out = set(), []
     for row in rows:
         if row[2] and row not in seen:
@@ -92,12 +98,18 @@ def _document(project):
 
 
 def _named_providers(*policies):
-    names = set()
+    """{provider: cap} for the listed models to add: every provider a policy names, and the common providers (fewer each) when a rule allows
+    paid API with every provider open."""
+    names = {}
     for policy in policies:
         if policy is None:
             continue
         for f in (policy, *policy.features.values()):
-            names.update(f.providers or ())
+            for name in f.providers or ():
+                names[name] = MAX_LISTED_PER_PROVIDER
+            if f.providers is None and f.cost.paid:
+                for name in COMMON_PROVIDERS:
+                    names.setdefault(name, MAX_LISTED_OPEN)
     return names
 
 

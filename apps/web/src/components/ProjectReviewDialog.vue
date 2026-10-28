@@ -102,7 +102,7 @@ const unknownArea = computed(() => problems.value.some(p => p.includes("this rep
 
       <div class="approvals">
         <label class="check"><input v-model="coordination" type="checkbox" /><span>I approve this Coordinator coordination request and its configured routing.</span></label>
-        <label v-if="mode === 'plan'" class="check"><input v-model="paidPlanner" type="checkbox" /><span>I separately approve provider API planning charges for the selected planner and enabled recovery routes.</span></label>
+        <label v-if="mode === 'plan'" class="check"><input v-model="paidPlanner" type="checkbox" /><span>I separately approve provider API planning charges for the Coordinator model, the selected planner and enabled recovery routes.</span></label>
         <label v-if="mode === 'submit' && needsPaidWork" class="check"><input v-model="paidWork" type="checkbox" /><span>I approve the API / BYOK routes assigned to these stories.</span></label>
       </div>
 

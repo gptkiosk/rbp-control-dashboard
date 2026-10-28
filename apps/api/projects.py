@@ -1099,8 +1099,11 @@ def plan(s,p,action,settings,actor,subagents=None):
     choices = [{**c, 'model': resolve_free_alias(s, settings, c['agent'], None, c['model'])} for c in choices]    # the generic free default becomes the agent's own free model
     import route_policy
     coordinator_class=route_policy.route_of(s,settings,delegate['agent'],delegate['model'])['cost_class']
-    if coordinator_class=='paid' and not action.approve_api_planning:
-        fail(f"The Coordinator route {delegate['agent']} · {delegate['model']} uses API billing. Separate paid-planning approval is required.",422)
+    # A named Coordinator model whose price was never reviewed counts as paid API when its run starts (route_policy), so it needs the same
+    # approval. With no model at all the run is refused at admission (PRICE_UNKNOWN) anyway.
+    if (coordinator_class=='paid' or (coordinator_class is None and delegate['model'])) and not action.approve_api_planning:
+        billing_note='uses API billing' if coordinator_class=='paid' else 'has no reviewed price, so it counts as paid API'
+        fail(f"The Coordinator route {delegate['agent']} · {delegate['model']} {billing_note}. Separate paid-planning approval is required.",422)
     if agent!='auto' and choices and (why:=route_policy.allowed(s,settings,choices[0]['agent'],choices[0]['model'],'planner',p,unknown_ok=True)):
         fail(f"The project's planner {choices[0]['agent']} · {choices[0]['model']} is not allowed: {why}. Choose another planner for this project or change the policy in Models & providers.",422)
     if retrying:

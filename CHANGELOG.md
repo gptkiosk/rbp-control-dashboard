@@ -10,6 +10,20 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.6.78] - 2026-10-27
+
+### Added
+
+- Models & providers has a **Coordinator** section. **Allow paid API for the Coordinator** lets Hermes use paid models without allowing paid API for anything else, and **Coordinator model** picks the one to use. With every provider open, the paid models of the common providers are listed. It warns when only one Coordinator model is allowed. The Single provider preset turns the switch on, and the switch no longer changes which preset the page shows.
+
+### Changed
+
+- Planning asks for paid-planning approval when the Coordinator model's price was never reviewed, since that model counts as paid API when its run starts. Before, only a model reviewed as paid needed it.
+
+### Fixed
+
+- Route menus show the full route (for example "Hermes · anthropic/claude-sonnet-5-5"). Before, every Hermes or OpenClaw row read just "Hermes", so models could not be told apart. Each route's provider, cost and reliability now appear once, in the menu, instead of again on a line below it.
+
 ## [0.6.77] - 2026-10-27
 
 ### Fixed
@@ -1103,7 +1117,7 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 
 [0.3.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.0
 [0.6.72]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.70...v0.6.72
-[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.77...HEAD
+[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.78...HEAD
 [0.6.67]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.66...v0.6.67
 [0.6.66]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.65...v0.6.66
 [0.6.65]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.64...v0.6.65
@@ -1216,6 +1230,7 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 [0.6.71]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.70...v0.6.71
 [0.6.70]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.69...v0.6.70
 
+[0.6.78]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.77...v0.6.78
 [0.6.77]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.76...v0.6.77
 [0.6.76]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.75...v0.6.76
 [0.6.75]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.74...v0.6.75

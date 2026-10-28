@@ -132,15 +132,17 @@ def test_new_membership_retry_keeps_project_and_completed_steps(app):
 def test_free_alias_cannot_create_an_endless_automatic_retry(app):
     c,sessions,settings,workspace=app
     settings.hermes_config_path.write_text('model:\n  default: vendor/small:free\n')
+    # The fixture's Coordinator stays on openrouter/free, which this config no longer lists, so its price is unreviewed and planning needs
+    # paid-planning approval. The test is about the planner's free alias, not the Coordinator.
     p=project(c,workspace)
-    c.post(f"/api/projects/{p['id']}/plan",json={'revision':1,'approve_coordination':True})
+    c.post(f"/api/projects/{p['id']}/plan",json={'revision':1,'approve_coordination':True,'approve_api_planning':True})
     with sessions() as s:
         row=s.get(Project,p['id']);card=s.get(Card,json.loads(row.pipeline)['card_id'])
         run(s,card,stage='failed',error='provider unavailable')
         projects.advance(s,settings);s.commit()
         assert row.state=='planning_failed'
         cid=card.id
-    result=c.post(f"/api/projects/{p['id']}/plan",json={'revision':1,'approve_coordination':True})
+    result=c.post(f"/api/projects/{p['id']}/plan",json={'revision':1,'approve_coordination':True,'approve_api_planning':True})
     assert result.status_code==200,result.text
     assert result.json()['pipeline']['card_id']==cid and len(result.json()['tasks'])==1
 
