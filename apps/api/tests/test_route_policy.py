@@ -356,6 +356,7 @@ def test_paid_coordinator_models_can_be_chosen_with_every_provider_open(app):
     """Paid API for the Coordinator only, with no provider limit: the common providers' paid models are offered to the Coordinator, a chosen
     one is used for planning, and it needs paid-planning approval even when its price was never reviewed."""
     c, _, settings, tmp_path = app
+    assert c.patch('/api/routes/policy/cost', json={'paid': False}).status_code == 200   # MCD's first policy allows paid API; RCD's does not
     assert 'anthropic/claude-sonnet-5-5' not in {r['model'] for r in c.get('/api/routes', params={'feature': 'coordinator'}).json()['allowed']}
     policy = rp.Policy(cost=rp.Cost(free=True, membership=True, paid=False),
                        features={'coordinator': rp.Filter(cost=rp.Cost(free=True, membership=False, paid=True))},
