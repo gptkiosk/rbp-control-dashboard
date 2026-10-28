@@ -15,6 +15,7 @@ export interface CatalogRoute {
 export interface Choice { runtime: Runtime; model: string }
 export interface FeatureRoutes {
   feature: Feature; label: string; default: Choice | null; default_note: string | null
+  default_source?: 'project' | 'app' | 'managed' | 'configured' | 'first_allowed' | null
   allowed: CatalogRoute[]; hidden: CatalogRoute[]; empty_reason: string | null
   scope: { managed: boolean; managed_error: string | null; app_saved: boolean; project: 'narrowed' | 'same_as_app' | null }
 }

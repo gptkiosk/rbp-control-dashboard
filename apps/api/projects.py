@@ -1096,6 +1096,9 @@ def plan(s,p,action,settings,actor,subagents=None):
         allowed_planners=[{'agent':r['runtime'],'model':r['model']} for r in route_catalog.for_feature(s,settings,'planner',p)['allowed']
                           if r['cost_class']=='subscription' and subscription(s,r['runtime'])]
         choices=list({(c['agent'],c['model']):c for c in choices+allowed_planners[:4]}.values())
+        # The Planner default in AI & models (project, app or installation policy) goes first when the policy allows it.
+        default=policy_planner_default(s,settings,p)
+        if default: choices=[default]+[c for c in choices if (c['agent'],c['model'])!=(default['agent'],default['model'])]
     choices = [{**c, 'model': resolve_free_alias(s, settings, c['agent'], None, c['model'])} for c in choices]    # the generic free default becomes the agent's own free model
     import route_policy
     coordinator_class=route_policy.route_of(s,settings,delegate['agent'],delegate['model'])['cost_class']
@@ -2262,6 +2265,17 @@ def _paid_last(s,settings,routes):
     """Stable order with paid API routes (or unreviewed prices) after every membership and free route."""
     import route_policy
     return sorted(routes,key=lambda r: route_policy.cost_rank(route_policy.route_of(s,settings,r['agent'],r['model'])['cost_class']))
+
+
+def policy_planner_default(s,settings,p):
+    """The Planner default chosen in AI & models (a project's own policy first, then the app, then the installation), when the route policy
+    allows it and its runtime is installed; None otherwise. Used when the project's planner is Automatic."""
+    import route_policy
+    managed,_=route_policy.load_managed(settings);app,_=route_policy.load_app(s,settings);project=route_policy.load_project(document(p))
+    chosen=next((x.defaults['planner'] for x in (project,app,managed) if x is not None and x.defaults.get('planner')),None)
+    if not chosen or chosen.runtime not in REGISTRY or not REGISTRY[chosen.runtime].available(settings): return None
+    if route_policy.allowed(s,settings,chosen.runtime,chosen.model,'planner',p,unknown_ok=True): return None
+    return {'agent':chosen.runtime,'model':chosen.model}
 
 
 def policy_coordinator(s,settings,p,delegate):

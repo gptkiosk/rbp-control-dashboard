@@ -155,22 +155,26 @@ def for_feature(s, settings, feature, project=None, draft=_SAVED):
             None if route['ready'] else 'Not installed: install it in Agent tools')
         (hidden if why else allowed).append({**route, **({'hidden_because': why} if why else {})})
     allowed.sort(key=lambda r: rp.cost_rank(r['cost_class']))   # stable: membership, free, then paid API last
-    default, default_note = None, None
-    for scope_policy in (project_policy, app, managed):
+    default, default_note, source = None, None, None
+    for name, scope_policy in (('project', project_policy), ('app', app), ('managed', managed)):
         choice = scope_policy.defaults.get(feature) if scope_policy is not None else None
         if choice:
-            default = {'runtime': choice.runtime, 'model': choice.model}
+            default, source = {'runtime': choice.runtime, 'model': choice.model}, name
             break
     if default is None:
         default = _fallback_default(s, settings, feature, project)
+        source = 'configured' if default else None
     keys = {(r['runtime'], r['model']) for r in allowed}
     if default and (default['runtime'], default['model']) not in keys:
         match = next((r for r in hidden if (r['runtime'], r['model']) == (default['runtime'], default['model'])), None)
         default_note = f"The default {default['runtime']} · {default['model']} is not allowed: " + (match['hidden_because'] if match else 'it is not available on this host')
         default = None
     if default is None and allowed:
-        default = {'runtime': allowed[0]['runtime'], 'model': allowed[0]['model']}
+        default, source = {'runtime': allowed[0]['runtime'], 'model': allowed[0]['model']}, 'first_allowed'
+    # default_source: where the default came from: a policy's Defaults ('project', 'app', 'managed'), the project's or runtime's own setting
+    # ('configured'), or the first allowed route ('first_allowed').
     return {'feature': feature, 'label': FEATURE_LABELS[feature], 'default': default, 'default_note': default_note,
+            'default_source': source if default else None,
             'allowed': allowed, 'hidden': hidden,
             'scope': {'managed': managed is not None, 'managed_error': error, 'app_saved': saved,
                       'project': 'narrowed' if project_policy is not None else ('same_as_app' if project is not None else None)},

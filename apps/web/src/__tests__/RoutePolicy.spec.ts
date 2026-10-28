@@ -184,13 +184,27 @@ describe('ProjectRouteStrip', () => {
     const text = w.get('[data-testid="route-strip"]').text()
     expect(text).toContain('ROUTES · APP POLICY')
     expect(text).toContain('Coordinator Grok Build · grok-build-0.1 (membership)')
-    expect(text).toContain('Planner Automatic (membership planners first)')
+    expect(w.get('[data-testid="strip-planner"]').text()).toContain('Automatic (membership planners first)')
     const narrowed = { ...emptyPolicy(), providers: ['anthropic', 'openai'], cost: { free: false, membership: true, paid: false } }
     await w.setProps({ routePolicy: narrowed, dirty: true }); await flushPromises()
     expect(previews.at(-1)).toMatchObject({ project_id: 3, policy: { providers: ['anthropic', 'openai'] } })
     expect(w.get('[data-testid="route-strip"]').text()).toContain('ROUTES · NARROWED FOR THIS PROJECT · NOT SAVED')
     expect(w.get('[data-testid="route-strip"]').text()).toContain('Coordinator none allowed')
     expect(w.text()).toContain(coordinatorEmpty)
+  })
+  it("says when the project's own planner overrides the app default, and switches back with Use app default", async () => {
+    stubFetch(url => url === '/api/routes/preview' ? { body: {
+      coordinator: routes('coordinator'), stories: routes('stories'),
+      planner: routes('planner', { default: { runtime: 'codex', model: 'gpt-6-luna' }, default_source: 'app',
+        allowed: [row('codex', 'gpt-6-luna', 'subscription')], hidden: [row('hermes', 'openrouter/free', 'free', { hidden_because: 'App policy: free models are off' })] }) } } : undefined)
+    const w = mount(ProjectRouteStrip, { props: { projectId: 2, plannerAgent: 'hermes', plannerModel: 'openrouter/free', routePolicy: null }, global: { stubs } })
+    await flushPromises()
+    expect(w.get('[data-testid="strip-planner"]').text()).toContain('Hermes · openrouter/free (not allowed) · set for this project')
+    await w.get('[data-testid="use-app-planner"]').trigger('click')
+    expect(w.emitted('planner')?.[0]).toEqual([{ agent: 'auto', model: '' }])
+    await w.setProps({ plannerAgent: 'auto', plannerModel: '' })
+    expect(w.get('[data-testid="strip-planner"]').text()).toContain('Codex · gpt-6-luna (membership) · app default')
+    expect(w.find('[data-testid="use-app-planner"]').exists()).toBe(false)
   })
   it('does not ask again when the page polls and hands it an equal copy of the policy', async () => {
     const { previews } = stub()
