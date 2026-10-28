@@ -12,6 +12,7 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ### Changed
 
+- Plans with generated artwork no longer hold back build work until the art is published. The planner is told that only integration and final verification wait for published media. The plan check warns (`media-wait`) when an agent build story depends directly on a publish step but does not use the art, so pages and code proceed while you decide the artwork. Seen in the pilot: the site shell waited for all six scene illustrations.
 - After **Start planning**, the page scrolls the planning progress to right under the project header and focuses it, so the click shows a response at once. While the request is sent, the button reads "Starting planning…" (or "Submitting…" when submitting a revision). Before, the progress appeared below Project settings, off screen on smaller windows.
 
 ### Fixed
