@@ -43,7 +43,7 @@ With providers limited, **Also offer free models from any provider** adds specif
 
 ## Defaults
 
-**Defaults** on AI & models set where each choice starts: the Coordinator (in its own section), the planner, stories, **Chat** (New chat and the project consultant) and **Tasks** (New task). A default the policy does not allow is skipped, with the reason, and the first allowed route is used instead. You can still change the route in each dialog. The former Settings → Default AI was folded into the Chat and Tasks defaults.
+**Defaults** on AI & models set where each choice starts: the Coordinator (in its own section), the planner, stories, **Chat** (New chat and the project consultant) and **Tasks** (New task). A default the policy does not allow is skipped, with the reason, and the first allowed route is used instead. You can still change the route in each dialog. A project's planner set to **Automatic** uses the Planner default; a planner chosen for the project in **Project settings → Change…** overrides it, and **Use app default** switches back. The former Settings → Default AI was folded into the Chat and Tasks defaults.
 
 ## Prices to review
 

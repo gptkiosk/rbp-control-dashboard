@@ -53,7 +53,7 @@ const plannerProblem = computed(() => {
 const routeBlocked = computed(() => props.mode === 'plan' && (!!coordinatorRoutes.value?.empty_reason || !!plannerProblem.value))
 const heading = computed(() => (props.mode === 'plan' ? 'Review planning request' : 'Review project submission'))
 const delegatorName = computed(() => props.delegator || 'Hermes (Coordinator)')
-const planner = computed(() => (props.plannerAgent === 'auto' ? 'Installed subscription planner, or a reviewed free Hermes route' : `${agentLabel(props.plannerAgent)} · ${props.plannerModel || 'Agent default'}`))
+const planner = computed(() => (props.plannerAgent === 'auto' ? (plannerRoutes.value?.default && ['app', 'managed', 'project'].includes(plannerRoutes.value.default_source ?? '') ? `${routeLabel(plannerRoutes.value.default)} (app default)` : 'Installed subscription planner, or a reviewed free Hermes route') : `${agentLabel(props.plannerAgent)} · ${props.plannerModel || 'Agent default'}`))
 const problems = computed(() => (props.mode === 'submit' ? props.standardsCheck?.problems ?? [] : []))
 const blocked = computed(() => problems.value.length > 0)
 const unknownArea = computed(() => problems.value.some(p => p.includes("this repository's areas")))

@@ -403,3 +403,21 @@ def test_a_stock_default_ai_sets_nothing(sessions):
         s.flush()
         rp.adopt_default_ai(s, settings)
         assert rp.load_app(s, settings)[0].defaults == {}
+
+
+def test_an_automatic_project_planner_uses_the_app_planner_default_first(app):
+    c, _, settings, tmp_path = app
+    policy = rp.Policy(defaults={'planner': rp.Choice(runtime='claude', model='claude-sonnet-5-5')})
+    assert c.put('/api/routes/policy', json={'policy': policy.model_dump(), 'confirm': True}).status_code == 200
+    workspace = tmp_path / 'ws/auto'
+    workspace.mkdir(parents=True, exist_ok=True)
+    settings.workdir_roots = (tmp_path / 'ws',)
+    pid = c.post('/api/projects', json={'title': 'Auto planner', 'brief': 'Inspect one file.', 'working_dir': str(workspace)}).json()['id']
+    planned = c.post(f'/api/projects/{pid}/plan', json={'revision': 1, 'approve_coordination': True, 'approve_api_planning': True})
+    assert planned.status_code == 200, planned.text
+    assert planned.json()['pipeline']['choices'][0] == {'agent': 'claude', 'model': 'claude-sonnet-5-5'}
+    # A project that names its own planner keeps it.
+    explicit = c.post('/api/projects', json={'title': 'Own planner', 'brief': 'Inspect one file.', 'working_dir': str(workspace),
+                                             'planner_agent': 'codex', 'planner_model': 'gpt-6.1-sol'}).json()['id']
+    planned = c.post(f'/api/projects/{explicit}/plan', json={'revision': 1, 'approve_coordination': True, 'approve_api_planning': True})
+    assert planned.json()['pipeline']['choices'] == [{'agent': 'codex', 'model': 'gpt-6.1-sol'}]

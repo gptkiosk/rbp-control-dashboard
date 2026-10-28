@@ -27,6 +27,8 @@ function describe(r: FeatureRoutes | undefined, c: Choice | null) {
   const row = find(r, c)
   return routeLabel(c) + (row ? ` (${costLabel(row.cost_class)})` : ' (not allowed)')
 }
+// The planner a project uses: its own when one is set, else the Planner default from AI & models (what planning picks first on Automatic).
+const appPlanner = computed(() => { const r = strip.value.planner; return r?.default && ['app', 'managed', 'project'].includes(r.default_source ?? '') ? r.default : null })
 const plannerChoice = computed<Choice | null>(() => props.plannerAgent !== 'auto' && props.plannerModel ? { runtime: props.plannerAgent as Runtime, model: props.plannerModel } : null)
 const scope = computed(() => (strip.value.coordinator?.scope.managed ? 'Managed · ' : '') + (props.routePolicy ? 'Narrowed for this project' : 'App policy') + (props.dirty ? ' · not saved' : ''))
 function problems(p: Preview) { return FEATURES.map(f => p[f]?.empty_reason).filter((x): x is string => !!x) }
@@ -97,7 +99,11 @@ defineExpose({ reload: loadStrip })
     <span class="eyebrow">ROUTES · {{ scope.toUpperCase() }}</span>
     <ul>
       <li><span class="muted">Coordinator</span> {{ describe(strip.coordinator, strip.coordinator?.default ?? null) }}</li>
-      <li><span class="muted">Planner</span> {{ plannerChoice ? describe(strip.planner, plannerChoice) : 'Automatic (membership planners first)' }}</li>
+      <li data-testid="strip-planner"><span class="muted">Planner</span>
+        <template v-if="plannerChoice">{{ describe(strip.planner, plannerChoice) }} <span class="muted small">· set for this project</span>
+          <button v-if="!locked && strip.planner && !find(strip.planner, plannerChoice)" type="button" class="btn small-btn" data-testid="use-app-planner" @click="emit('planner', { agent: 'auto', model: '' })">Use app default</button></template>
+        <template v-else-if="appPlanner">{{ describe(strip.planner, appPlanner) }} <span class="muted small">· app default</span></template>
+        <template v-else>Automatic (membership planners first)</template></li>
       <li><span class="muted">Stories</span> {{ describe(strip.stories, strip.stories?.default ?? null) }}</li>
     </ul>
     <button type="button" class="btn" :disabled="locked" data-testid="change-routes" @click="change">Change…</button>
@@ -119,7 +125,8 @@ defineExpose({ reload: loadStrip })
         </p>
         <p v-else-if="coordinatorRow?.cost_class === 'paid' || (coordinatorRow && coordinatorRow.cost_class === null)" class="muted small">Each plan asks for paid-planning approval before the Coordinator runs.</p>
       </section>
-      <RoutePicker v-model="choice" feature="planner" :project-id="projectId" :routes="dialog.planner ?? null" label="Planner" automatic="A task-matched membership planner; an invalid plan may retry on another allowed route" />
+      <RoutePicker v-model="choice" feature="planner" :project-id="projectId" :routes="dialog.planner ?? null" label="Planner"
+        :automatic="appPlanner ? `App default: ${routeLabel(appPlanner)} (AI & models → Defaults)` : 'A task-matched membership planner; an invalid plan may retry on another allowed route'" />
       <details class="advanced" data-testid="project-advanced" :open="narrow">
       <summary>Advanced: narrow the app policy for this project</summary>
       <fieldset>

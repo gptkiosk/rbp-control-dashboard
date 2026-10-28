@@ -427,7 +427,7 @@ async function updateHandoffPolicy(mode: 'manual' | 'batch' | 'automatic') { awa
 const selectedTask = computed(() => node.value ? nodeTasks.value.find(t => t.node_key === node.value!.key) : undefined)
 function human(task: ProjectTask) { return draft.value.nodes.find(n => n.key === task.node_key)?.assignee === 'human' }
 // The Plan button names the planner, not the Coordinator: Hermes coordinates every plan, the planner (project route strip) builds the map.
-function planLabel() { return draft.value.planner_agent && draft.value.planner_agent !== 'auto' ? `Plan (${agentLabel(draft.value.planner_agent)} planner)` : 'Plan (automatic planner)' }
+function planLabel() { return draft.value.planner_agent && draft.value.planner_agent !== 'auto' ? `Plan (${agentLabel(draft.value.planner_agent)} planner)` : 'Plan (app default planner)' }
 </script>
 
 <template>

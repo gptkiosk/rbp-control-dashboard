@@ -10,6 +10,11 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+### Fixed
+
+- A project whose planner is **Automatic** now plans with the **Planner** default from AI & models → Defaults first, when the policy allows it. Before, Automatic ignored that default and picked from a built-in membership list.
+- **Project settings** says where the planner comes from: "· set for this project" or "· app default". A project's own planner that the policy does not allow gets a **Use app default** button, and the Plan button reads "Plan (app default planner)" on Automatic. Before, a planner saved in an older revision (such as Hermes · openrouter/free) silently overrode the app default.
+
 ## [0.6.79] - 2026-10-27
 
 ### Changed
