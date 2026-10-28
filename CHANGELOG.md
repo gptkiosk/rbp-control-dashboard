@@ -10,6 +10,8 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.6.80] - 2026-10-27
+
 ### Fixed
 
 - A project whose planner is **Automatic** now plans with the **Planner** default from AI & models → Defaults first, when the policy allows it. Before, Automatic ignored that default and picked from a built-in membership list.
@@ -1143,7 +1145,7 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 
 [0.3.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.0
 [0.6.72]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.70...v0.6.72
-[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.79...HEAD
+[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.80...HEAD
 [0.6.67]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.66...v0.6.67
 [0.6.66]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.65...v0.6.66
 [0.6.65]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.64...v0.6.65
@@ -1256,6 +1258,7 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 [0.6.71]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.70...v0.6.71
 [0.6.70]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.69...v0.6.70
 
+[0.6.80]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.79...v0.6.80
 [0.6.79]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.78...v0.6.79
 [0.6.78]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.77...v0.6.78
 [0.6.77]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.76...v0.6.77
