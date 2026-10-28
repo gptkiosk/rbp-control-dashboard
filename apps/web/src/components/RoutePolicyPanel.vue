@@ -16,7 +16,9 @@ const busy = ref(false), error = ref(''), saved = ref(false), provider = ref('xa
 const preset = computed(() => policy.value ? presetOf(policy.value) : 'custom')
 const providers = computed(() => [...new Set([...COMMON_PROVIDERS, ...(view.value?.providers ?? [])])])
 const FEATURES: Feature[] = ['coordinator', 'planner', 'stories', 'chat', 'tasks']
-const DEFAULTS: Feature[] = ['planner', 'stories']
+const DEFAULTS: Feature[] = ['planner', 'stories', 'chat', 'tasks']
+// Chat's default is also where New chat and the project consultant start; Tasks' is where New task starts.
+const DEFAULT_LABELS: Partial<Record<Feature, string>> = { chat: 'Chat and project consultant', tasks: 'New tasks' }
 
 async function refresh() {
   const v = await getJson<PolicyView>('/api/routes/policy')
@@ -133,9 +135,9 @@ async function save() {
       </fieldset>
 
       <fieldset><legend>Defaults</legend>
-        <p class="muted small">Pre-selected routes, from what the saved policy allows. Save changes above first to see their effect here.</p>
+        <p class="muted small">Pre-selected routes, from what the saved policy allows. Save changes above first to see their effect here. New chat, New task and the project consultant start from the Chat and Tasks defaults; you can still change the route in each.</p>
         <div class="defaults">
-          <RoutePicker v-for="f in DEFAULTS" :key="f + generation" :feature="f" :label="FEATURE_LABELS[f]" :model-value="policy.defaults[f] ?? null" automatic="Use the app's usual choice" @update:model-value="c => setDefault(f, c)" />
+          <RoutePicker v-for="f in DEFAULTS" :key="f + generation" :feature="f" :label="DEFAULT_LABELS[f] ?? FEATURE_LABELS[f]" :model-value="policy.defaults[f] ?? null" automatic="Use the app's usual choice" @update:model-value="c => setDefault(f, c)" />
         </div>
       </fieldset>
 

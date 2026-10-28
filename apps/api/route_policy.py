@@ -196,6 +196,44 @@ def ensure_saved(s, settings):
     return True
 
 
+STOCK_DEFAULT_AI = ('hermes', 'openrouter/free')
+
+
+def adopt_default_ai(s, settings):
+    """Once: the retired Settings → Default AI (per profile) becomes the app policy's Chat and Tasks defaults, which New chat, New task and the
+    project consultant now start from. Only a choice someone changed from the stock Hermes · openrouter/free is carried over, and only into a
+    default the policy does not set yet. Returns True when it saved anything."""
+    from models import BillingConfig, UserProfile
+    row = s.get(BillingConfig, 1)
+    payload = json.loads(row.payload) if row else {}
+    if payload.get('default_ai_adopted'):
+        return False
+    choice = None
+    for profile in s.query(UserProfile).order_by(UserProfile.owner):
+        try:
+            prefs = json.loads(profile.preferences or '{}')
+        except ValueError:
+            continue
+        agent, model = prefs.get('ai_agent'), prefs.get('ai_model')
+        if agent in RUNTIMES and isinstance(model, str) and model and (agent, model) != STOCK_DEFAULT_AI:
+            try:
+                choice = Choice(runtime=agent, model=model)
+            except ValidationError:
+                continue
+            break
+    policy, _ = load_app(s, settings)
+    if choice is not None:
+        for feature in ('chat', 'tasks'):
+            policy.defaults.setdefault(feature, choice)
+    save_app(s, policy)
+    row = s.get(BillingConfig, 1)
+    payload = json.loads(row.payload)
+    payload['default_ai_adopted'] = True
+    row.payload = json.dumps(payload)
+    s.flush()
+    return True
+
+
 def load_app(s, settings):
     from models import BillingConfig
     row = s.get(BillingConfig, 1)

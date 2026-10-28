@@ -144,11 +144,8 @@ async function importPreferences(event: Event) { await action(async () => {
           <div class="seg" role="radiogroup" aria-labelledby="appearance-label"><button v-for="t in THEMES" :key="t.id" type="button" role="radio" class="seg-btn" :class="{ on: preferences.theme === t.id }" :aria-checked="preferences.theme === t.id" @click="preferences.theme = t.id">{{ t.label }}</button></div>
         </div>
         <label class="row"><span class="name">Workspace</span><AppSelect v-model="preferences.working_dir" aria-label="Default working directory"><option value="">First allowed workspace</option><option v-for="w in workdirs" :key="w.path" :value="w.path" :data-description="directoryDetail(w.path,w.branch)">{{ directoryName(w.path) }}</option></AppSelect></label>
-        <section id="ai-settings" class="row stack"><span class="name">Default AI <RouterLink to="/help?topic=project-consultant" class="small">How-to</RouterLink></span>
-          <div class="pair">
-            <AppSelect v-model="preferences.ai_agent" aria-label="Default AI agent"><option value="hermes">Hermes · OpenRouter</option><option value="openclaw">OpenClaw · OpenRouter</option><option value="claude">Claude Code · membership</option><option value="codex">Codex · membership</option><option value="grok">Grok Build · membership</option></AppSelect>
-            <input v-model="preferences.ai_model" class="input" maxlength="200" required placeholder="openrouter/free" aria-label="Default AI model" />
-          </div>
+        <section id="ai-settings" class="row stack" data-testid="default-models"><span class="name">Default models</span>
+          <p class="muted small">New chat, New task and the project consultant start from the Chat and Tasks defaults in <RouterLink to="/profile#models-providers">Models &amp; providers</RouterLink>, with the Coordinator, planner and story defaults.</p>
         </section>
         <PlanningBiasSlider v-model="preferences.planning_bias" compact />
         <div class="actions"><button class="btn primary" :disabled="busy">Save preferences</button><button type="button" class="btn" @click="exportPreferences">Export</button><label class="btn import">Import<input type="file" accept="application/json" aria-label="Import preferences" @change="importPreferences" /></label></div>

@@ -78,7 +78,9 @@ def create_app() -> FastAPI:
     sessions = make_session_factory(engine)
     with sessions() as s:
         import route_policy   # write the first app route policy once, replacing the retired free-only setting (route_policy.default_app)
-        if route_policy.ensure_saved(s, settings):
+        saved = route_policy.ensure_saved(s, settings)
+        # Settings → Default AI moved into Models & providers: carry a changed choice over once (route_policy.adopt_default_ai).
+        if route_policy.adopt_default_ai(s, settings) or saved:
             s.commit()
 
     @asynccontextmanager

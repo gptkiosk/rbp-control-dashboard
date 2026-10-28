@@ -41,6 +41,10 @@ A route whose price nobody reviewed counts as **paid API** when a run starts. Wh
 
 With providers limited, **Also offer free models from any provider** adds specific free models (never a router alias) as a no-cost fallback.
 
+## Defaults
+
+**Defaults** on Models & providers set where each choice starts: the Coordinator (in its own section), the planner, stories, **Chat** (New chat and the project consultant) and **Tasks** (New task). A default the policy does not allow is skipped, with the reason, and the first allowed route is used instead. You can still change the route in each dialog. The former Settings → Default AI was folded into the Chat and Tasks defaults.
+
 ## Prices to review
 
 Models & providers lists the routes that the policy would allow, except that their price was never reviewed. Check the provider's price, then record it:

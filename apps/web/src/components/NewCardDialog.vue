@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import type { Profile } from '@/lib/profile'
 import { nextTick } from 'vue'
 import AppSelect from '@/components/AppSelect.vue'
 import { directoryName, directoryDetail } from '@/lib/selectLabels'
@@ -84,10 +83,12 @@ onMounted(async () => {
     ])
     agents.value = a.agents
     workdirs.value = w.workdirs
-    const defaults = await getJson<Profile>('/api/profile').catch(() => null)
-    agentId.value = defaults?.preferences.ai_agent || 'hermes'
+    // Start from the Tasks default in Models & providers (the policy's own default, else its first allowed route).
+    await routes.load()
+    const start = routes.data.value?.default
+    agentId.value = start?.runtime || 'hermes'
     await nextTick()
-    model.value = defaults?.preferences.ai_model || 'openrouter/free'
+    model.value = start?.model || ''
     workingDir.value = w.workdirs[0]?.path ?? ''
   } catch (e) {
     loadError.value = e instanceof Error ? e.message : String(e)
@@ -169,7 +170,7 @@ async function submit(): Promise<void> {
         <button type="button" class="btn" aria-label="Close" @click="emit('close')">×</button>
       </header>
 
-      <p class="muted small">New AI work uses your profile defaults (OpenRouter free by default). <RouterLink to="/profile#ai-settings">Configure AI defaults</RouterLink>. Membership CLI sign-in and model approvals still apply. <RouterLink to="/help?topic=project-consultant">Model settings help</RouterLink></p>
+      <p class="muted small">Starts on the Tasks default. <RouterLink to="/profile#models-providers">Models &amp; providers</RouterLink>. Membership CLI sign-in and model approvals still apply. <RouterLink to="/help?topic=project-consultant">Model settings help</RouterLink></p>
       <p v-if="loading" class="muted" role="status">Loading agents…</p>
       <p v-if="loadError" class="error-text" role="alert">
         Could not load agents or working directories: {{ loadError }}

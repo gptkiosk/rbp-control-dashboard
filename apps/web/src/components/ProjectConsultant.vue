@@ -6,14 +6,18 @@ import NoteFold from '@/components/NoteFold.vue'
 import ProjectTypePicker from '@/components/ProjectTypePicker.vue'
 import { getJson, postJson, type ChatThread, type ChatThreadDetail } from '@/lib/api'
 import type { Preferences } from '@/lib/profile'
-const props = defineProps<{ preferences?: Preferences; workdirs: {path:string;branch:string|null}[]; scratchRoot?: string | null; available: boolean; resumeId?: number }>()
+import { useRoutes } from '@/lib/routes'
+const props = defineProps<{ preferences?: Preferences; workdirs: {path:string;branch:string|null}[]; scratchRoot?: string | null; available?: boolean; resumeId?: number }>()
 const emit = defineEmits<{ review: [draft:{title:string;brief:string;working_dir:string;project_type?:string|null}]; started:[id:number] }>()
 const typeKey=(id:number)=>`mcd-consultant-type-${id}`
 // The type is remembered per conversation so a resumed consultant still hands it to the plan. Browser storage is only a convenience here.
 const savedType=(id:number)=>{try{return localStorage.getItem(typeKey(id))||null}catch{return null}}
 const open=ref(false), threadId=ref(props.resumeId || 0), projectType=ref<string|null>(props.resumeId?savedType(props.resumeId):null), typeCount=ref(0), title=ref(''), goal=ref(''), workingDir=ref(''), busy=ref(false), error=ref('')
-const agent=computed(()=>props.preferences?.ai_agent || 'hermes')
-const model=computed(()=>props.preferences?.ai_model || 'openrouter/free')
+// The consultant is a read-only chat: it starts on the Chat default in Models & providers.
+const chatRoutes=useRoutes('chat')
+const agent=computed(()=>chatRoutes.data.value?.default?.runtime || 'hermes')
+const model=computed(()=>chatRoutes.data.value?.default?.model || '')
+const available=computed(()=>props.available !== false && (!chatRoutes.data.value || !!chatRoutes.data.value.default))
 const guidance='Help the owner shape a project through a read-only conversation. Use the shared intake questions for the selected template from installation context; do not mix other templates into it. Answer their question first, then ask only the missing facts that would change the outcome, two or three at a time. Reuse facts already given and accept Help me decide. Suggest sensible defaults, clearly marked as assumptions. Do not require a prewritten brief, technical commands, credentials or a story list from the person. Ask about visual direction and real media for a website; distinguish reference art from final assets. Media/cloud spending preferences do not grant approval. Keep routine tools/access readiness in the eventual plan. When asked to write up, return a compact summary of the goal, confirmed template answers, exclusions, proposed assumptions and genuine unresolved decisions. The dashboard planner will create the stories, prerequisites and verification gates later. No operational actions or provider calls are authorized by this conversation.'
 const draftAsk=()=>`That is enough. Please write the project intake summary now from what we discussed. Project type: ${projectType.value||savedType(threadId.value)||'not chosen'}. Include confirmed template answers and clearly labelled assumptions. Do not repeat answered questions or generate the story plan. Keep it under 8000 characters.`
 const draftBackground='Reply with the Markdown intake summary only. Preserve user requirements, required final media, theme states and delivery target. State undecided matters as assumptions or decisions; never invent access, completed work or spending approval. This summary opens for operator review before planning.'
@@ -70,9 +74,10 @@ async function review() {
     <section v-if="open" class="consultant-glass" aria-labelledby="consultant-title">
       <h3 id="consultant-title">Project consultant</h3>
       <p>Shape the brief together, then review it before anything reaches planning. <RouterLink to="/help?topic=project-consultant">How-to</RouterLink></p>
-      <p class="muted small">New chats: {{agent}} · {{model}} · <RouterLink to="/profile#ai-settings">AI defaults</RouterLink></p>
+      <p class="muted small">New chats: {{agent}} · {{model || 'its default model'}} · <RouterLink to="/profile#models-providers">Chat default</RouterLink></p>
       <NoteFold label="Route and billing"><p class="small">Free routes can throttle or time out. Membership routes use your native CLI account; API routes can incur charges. <RouterLink to="/help?topic=project-models">Model routes and billing</RouterLink>.</p></NoteFold>
-      <p v-if="!available && !threadId" role="status">The configured consultant runtime is unavailable. <RouterLink to="/profile#agent-tools">Install an agent runtime</RouterLink> or change AI defaults.</p>
+      <p v-if="!available && !threadId" role="status">No chat route is available for the consultant. {{ chatRoutes.data.value?.empty_reason }} <RouterLink to="/profile#models-providers">Models &amp; providers</RouterLink> · <RouterLink to="/profile#agent-tools">Agent tools</RouterLink></p>
+      <p v-else-if="!threadId" class="muted small">Uses {{ agent }} · {{ model || 'its default model' }} (the Chat default in <RouterLink to="/profile#models-providers">Models &amp; providers</RouterLink>).</p>
       <p v-if="error" role="alert">{{error}}</p>
       <p v-if="busy && threadId" role="status" class="muted">Sending your goal to the consultant…</p>
       <form v-if="!threadId" @submit.prevent="start">

@@ -377,3 +377,29 @@ def test_paid_coordinator_models_can_be_chosen_with_every_provider_open(app):
     planned = c.post(f'/api/projects/{pid}/plan', json={**plan, 'approve_api_planning': True})
     assert planned.status_code == 200, planned.text
     assert planned.json()['pipeline']['delegator'] == {'agent': 'hermes', 'model': 'anthropic/claude-sonnet-5-5'}
+
+
+def test_a_changed_default_ai_becomes_the_chat_and_tasks_default_once(sessions):
+    from models import UserProfile
+    settings = get_settings()
+    with sessions() as s:
+        s.add(UserProfile(owner='stock@example.invalid', preferences=json.dumps({'ai_agent': 'hermes', 'ai_model': 'openrouter/free'})))
+        s.add(UserProfile(owner='zz@example.invalid', preferences=json.dumps({'ai_agent': 'hermes', 'ai_model': 'google/gemini-2.5-flash'})))
+        s.flush()
+        assert rp.adopt_default_ai(s, settings) is True
+        policy, _ = rp.load_app(s, settings)
+        assert policy.defaults['chat'] == policy.defaults['tasks'] == rp.Choice(runtime='hermes', model='google/gemini-2.5-flash')
+        # Once only: clearing the defaults afterwards is not undone by the next start.
+        rp.save_app(s, policy.model_copy(update={'defaults': {}}))
+        assert rp.adopt_default_ai(s, settings) is False
+        assert rp.load_app(s, settings)[0].defaults == {}
+
+
+def test_a_stock_default_ai_sets_nothing(sessions):
+    from models import UserProfile
+    settings = get_settings()
+    with sessions() as s:
+        s.add(UserProfile(owner='stock@example.invalid', preferences=json.dumps({'ai_agent': 'hermes', 'ai_model': 'openrouter/free'})))
+        s.flush()
+        rp.adopt_default_ai(s, settings)
+        assert rp.load_app(s, settings)[0].defaults == {}

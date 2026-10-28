@@ -10,6 +10,10 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+### Changed
+
+- **Default AI** moved from Settings → Preferences into Models & providers. New chat and the project consultant start on its **Chat** default, and New task on its **Tasks** default. On the first start of this version, a Default AI someone changed from the stock Hermes · openrouter/free becomes both defaults, once. Settings now points to Models & providers instead.
+
 ### Fixed
 
 - On a Raspberry Pi, the project route strip kept showing "Coordinator …" and the dashboard's CPU stayed at 100%. The project page polls every three seconds and hands the strip an equal copy of the policy each time, and the strip asked for a new route preview on every copy. Each preview took longer than three seconds on a Pi, so requests piled up. The strip now asks again only when the project or its policy really changes, and it ignores replies for older choices.
