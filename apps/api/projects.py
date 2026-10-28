@@ -1830,6 +1830,15 @@ def context_payload(s,p,story=None,workspace=None):
     if story:
         current=by_key[story]
         payload['current_story']={k:current.get(k) for k in ('key','title','depends_on','assignee','model','agent_target')}
+        if current.get('mode')=='read':
+            payload['current_story']['mode']='read'
+            payload['current_story']['deliverable']=('This story runs read-only. Your final report is the deliverable; the operator saves it as a Markdown file on approval. '
+                'Do not report the story incomplete because you could not write files.')
+        # The dashboard's own setup facts, so a story never reports them as unverifiable.
+        setup=project_readiness.report(s,p,get_settings())['checks']
+        payload['host_setup']={'checks':[f"{r['id']}={r['status']}" for r in setup],
+            'not_story_checks':'Membership quota is checked by the dashboard at dispatch (a usage limit reroutes the run) and is not readable from a story. '
+                'Preview and screenshot evidence come from the dashboard\'s fixed Verify/Start/Stop preview actions, not a host browser. Do not list either as a blocker.'}
         if (cost:=manifest.get('cost_retries',{}).get(story)):
             payload['current_story'].update(assignee=cost['route']['agent'],model=cost['route']['model'],agent_target=None)
             for summary in nodes:
@@ -1875,7 +1884,7 @@ def context_payload(s,p,story=None,workspace=None):
     # Stable keys first (identical across the stories of a revision, so a prompt cache can reuse
     # them), what varies per story after, and the story's own location and identity last.
     order=['project_id','revision','title','brief','brief_amendments','constraints','project_type','guidance','reference_art','repository','project_packet','stories','accepted_artifacts','accepted_outputs','reported_external_work',
-        'memory_compaction','accepted_memory','upstream_outputs','execution_workspace','current_story','free_retry']
+        'memory_compaction','accepted_memory','upstream_outputs','execution_workspace','host_setup','current_story','free_retry']
     payload={k:payload[k] for k in order if k in payload}
     payload['memory_compaction']['entries_included']=len(payload['accepted_memory'])
     payload['memory_compaction']['entries_omitted']=max(0,len(rows)-len(payload['accepted_memory']))

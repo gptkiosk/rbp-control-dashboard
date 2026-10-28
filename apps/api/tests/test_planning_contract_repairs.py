@@ -284,3 +284,18 @@ def test_build_work_that_only_waits_for_published_art_is_flagged_but_integration
     nodes[4]['depends_on'] = ['design']
     assert 'media-wait' not in {f['id'] for f in contract.findings(doc)}
     assert 'Only integration and final verification wait for published media' in contract.RULES
+
+
+def test_read_story_acceptance_that_asks_for_records_is_flagged():
+    """Pilot 2026-10-28: a read-only readiness story's acceptance said facts were 'recorded', so the agent reported it unfinished."""
+    nodes = [dict(key='readiness', title='Confirm execution prerequisites', assignee='codex', model='gpt-6.1-sol', mode='read', depends_on=[],
+                  acceptance='Any missing capability has its existing dashboard setup control recorded as a prerequisite.'),
+             dict(key='notes', title='Summarise the brief', assignee='codex', model='gpt-6.1-sol', mode='read', depends_on=[],
+                  acceptance='The report lists the excluded features and the delivery type.'),
+             dict(key='docs', title='Write the handoff notes', assignee='codex', model='gpt-6.1-sol', mode='edit', depends_on=[],
+                  acceptance='docs/project/handoff.md is written.')]
+    found = {f['id']: f for f in contract.findings({'brief': 'A local website', 'nodes': nodes})}
+    assert found['read-story-writes']['stories'] == ['readiness'] and found['read-story-writes']['severity'] == 'warn'
+    nodes[0]['acceptance'] = 'The report names each missing capability and its existing dashboard setup control.'
+    assert 'read-story-writes' not in {f['id'] for f in contract.findings({'brief': 'A local website', 'nodes': nodes})}
+    assert 'A read story cannot write files' in contract.RULES and 'membership quota' in contract.RULES

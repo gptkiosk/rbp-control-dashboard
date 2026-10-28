@@ -10,6 +10,13 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+### Fixed
+
+- A read-only story could not see the setup facts the dashboard already knows, so a readiness story reported membership quota and browser capture as "unverified" and asked to stop. Each story now gets the dashboard's setup check results. It is also told that quota is checked when a run starts and that preview evidence comes from the dashboard's own preview actions, so neither is a blocker.
+- A read-only story is now told that its final report is the deliverable, saved as a Markdown file when you approve it. Before, the pilot's readiness story tried to write a notes file and reported itself incomplete.
+- The plan check warns (`read-story-writes`) when a read-only story's acceptance asks for files or records it cannot write. The planner is told to word such acceptance as what the report states.
+- The output-approval messages on RCD named the other product.
+
 ## [0.6.81] - 2026-10-28
 
 ### Changed
