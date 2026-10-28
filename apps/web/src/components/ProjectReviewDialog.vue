@@ -137,7 +137,7 @@ const unknownArea = computed(() => problems.value.some(p => p.includes("this rep
 
       <div class="actions">
         <button type="button" class="btn" @click="emit('close')">Back to map</button>
-        <button type="button" class="btn primary" :disabled="busy || !coordination || blocked || routeBlocked" @click="emit('confirm')">{{ mode === 'plan' ? 'Start planning' : 'Submit approved revision' }}</button>
+        <button type="button" class="btn primary" :disabled="busy || !coordination || blocked || routeBlocked" @click="emit('confirm')">{{ mode === 'plan' ? (busy ? 'Starting planning…' : 'Start planning') : (busy ? 'Submitting…' : 'Submit approved revision') }}</button>
       </div>
     </div>
   </ModalShell>

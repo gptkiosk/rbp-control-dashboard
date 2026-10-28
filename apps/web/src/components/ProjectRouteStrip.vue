@@ -99,7 +99,7 @@ defineExpose({ reload: loadStrip })
     <span class="eyebrow">ROUTES · {{ scope.toUpperCase() }}</span>
     <ul>
       <li><span class="muted">Coordinator</span> {{ describe(strip.coordinator, strip.coordinator?.default ?? null) }}</li>
-      <li data-testid="strip-planner"><span class="muted">Planner</span>
+      <li data-testid="strip-planner"><span class="muted">Planner</span>{{ ' ' }}
         <template v-if="plannerChoice">{{ describe(strip.planner, plannerChoice) }} <span class="muted small">· set for this project</span>
           <button v-if="!locked && strip.planner && !find(strip.planner, plannerChoice)" type="button" class="btn small-btn" data-testid="use-app-planner" @click="emit('planner', { agent: 'auto', model: '' })">Use app default</button></template>
         <template v-else-if="appPlanner">{{ describe(strip.planner, appPlanner) }} <span class="muted small">· app default</span></template>

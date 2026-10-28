@@ -33,7 +33,7 @@ const route = computed(() => task.value?.agent ? `${agentLabel(task.value.agent)
 </script>
 
 <template>
-  <section class="card planning-progress" :class="{ ready, failed }" aria-labelledby="planning-progress-title">
+  <section class="card planning-progress" :class="{ ready, failed }" aria-labelledby="planning-progress-title" tabindex="-1" data-testid="planning-progress">
     <div class="progress-heading" role="status" aria-live="polite" aria-atomic="true">
       <span v-if="working" class="spinner" aria-hidden="true" />
       <span v-else class="state-mark" aria-hidden="true">{{ ready ? '✓' : '!' }}</span>

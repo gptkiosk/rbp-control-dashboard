@@ -10,6 +10,14 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+### Changed
+
+- After **Start planning**, the page scrolls the planning progress to right under the project header and focuses it, so the click shows a response at once. While the request is sent, the button reads "Starting planning…" (or "Submitting…" when submitting a revision). Before, the progress appeared below Project settings, off screen on smaller windows.
+
+### Fixed
+
+- The Planner row in Project settings was missing the space after "Planner".
+
 ## [0.6.80] - 2026-10-27
 
 ### Fixed
