@@ -13,6 +13,7 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 ### Fixed
 
 - On a Raspberry Pi, the project route strip kept showing "Coordinator …" and the dashboard's CPU stayed at 100%. The project page polls every three seconds and hands the strip an equal copy of the policy each time, and the strip asked for a new route preview on every copy. Each preview took longer than three seconds on a Pi, so requests piled up. The strip now asks again only when the project or its policy really changes, and it ignores replies for older choices.
+- **Review planning request** now shows the Coordinator model next to the planner. It names what stops either one when the policy does not allow it, and **Start planning** stays off until that is fixed. Before, the Coordinator was not shown, and a refused route only appeared after the request was sent.
 - Route lists are about 30 times cheaper to build. The Hermes and OpenClaw configurations are parsed once per file version instead of once per route. The billing settings are read once per request. The catalog is built once per request for all the features a page asks about. With a 444-model OpenRouter list, the Coordinator, planner and story lists took 0.62 s on a Mac and now take 0.02 s.
 
 ## [0.6.78] - 2026-10-27
