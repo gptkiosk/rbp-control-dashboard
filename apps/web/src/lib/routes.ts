@@ -53,7 +53,7 @@ export function routeLabel(r: { runtime: string; model: string }) { return `${ag
 export interface Preset { id: 'free' | 'memberships' | 'provider' | 'custom'; label: string; note: string }
 export const PRESETS: Preset[] = [
   { id: 'memberships', label: 'Memberships (recommended)', note: 'Claude, Codex or Grok Build accounts you are signed in to, with free models as a fallback. No API charges.' },
-  { id: 'provider', label: 'Single provider…', note: 'Only one provider\'s models, for example xAI. The Coordinator (Hermes) reaches them through an API, so you can allow paid API for the Coordinator only.' },
+  { id: 'provider', label: 'Single provider…', note: 'Only one provider\'s models, for example xAI. The Coordinator (Hermes) reaches them through an API, so this turns on paid API for the Coordinator; change it under Coordinator.' },
   { id: 'free', label: 'Free only', note: 'For trying the app. Expect frequent timeouts and incomplete output.' },
   { id: 'custom', label: 'Custom', note: 'Choose providers, runtimes and cost classes yourself.' },
 ]
@@ -71,7 +71,8 @@ export function applyPreset(policy: Policy, id: Preset['id'], provider = 'xai', 
 }
 export function presetOf(p: Policy): Preset['id'] {
   const { free, membership, paid } = p.cost
-  if (!p.providers && !p.runtimes && !p.models.allow.length && !p.models.block.length && !Object.keys(p.features).length) {
+  // The Coordinator's own paid-API rule (Models & providers → Coordinator) does not change which preset the rest of the policy matches.
+  if (!p.providers && !p.runtimes && !p.models.allow.length && !p.models.block.length && !Object.keys(p.features).filter(f => f !== 'coordinator').length) {
     if (free && !membership && !paid) return 'free'
     if (free && membership && !paid) return 'memberships'
   }
@@ -119,6 +120,16 @@ export function resetManagedRuntimes() { managedLoad = null }
 export async function previewRoutes(features: Feature[], projectId: number | null | undefined, policy: Policy | null) {
   return postJson<Partial<Record<Feature, FeatureRoutes>>>('/api/routes/preview', { features, project_id: projectId ?? null, policy })
 }
+/** The app policy's Coordinator rule: the general rule with paid API switched on or off for the Coordinator alone. It follows the general
+ *  rule's providers, models and free setting; memberships never apply to Hermes. Removed when it would match the general rule. */
+export function setCoordinatorPaid(policy: Policy, on: boolean): Policy {
+  const next: Policy = JSON.parse(JSON.stringify(policy))
+  if (on === next.cost.paid) delete next.features.coordinator
+  else next.features.coordinator = { ...emptyFilter(), providers: next.providers, runtimes: null, models: next.models, any_free: next.any_free, cost: { free: next.cost.free, membership: false, paid: on } }
+  return next
+}
+export function coordinatorPaid(policy: Policy) { return (policy.features.coordinator ?? policy).cost.paid }
+
 /** The Coordinator is Hermes (Settings → Agent roles), which reaches models only through free or paid API, never a membership. A project's
  *  "paid API for the Coordinator only" exception is a Coordinator rule that follows the project's providers and models. */
 export function withCoordinatorPaid(policy: Policy, on: boolean): Policy {

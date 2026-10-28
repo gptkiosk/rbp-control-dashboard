@@ -23,12 +23,11 @@ function pick(value: string | number) { emit('update:modelValue', value === '' ?
     <label>{{ label || data?.label || feature }}
       <AppSelect :model-value="selected" :disabled="disabled || !data" :aria-label="(label || feature) + ' route'" :placeholder="data?.empty_reason ? 'No allowed route' : 'Choose a route…'" @update:model-value="pick">
         <option v-if="automatic" value="" :data-description="automatic">Automatic</option>
-        <option v-for="r in data?.allowed ?? []" :key="routeKey(r)" :value="routeKey(r)"
+        <option v-for="r in data?.allowed ?? []" :key="routeKey(r)" :value="routeKey(r)" :data-label="routeLabel(r)"
                 :data-description="`${providerLabel(r.provider)} · ${costLabel(r.cost_class)} · ${reliabilityLabel(r.reliability)}`">{{ routeLabel(r) }}</option>
-        <option v-if="outside" :value="selected" disabled>{{ routeLabel(outside) }} (not allowed)</option>
+        <option v-if="outside" :value="selected" :data-label="routeLabel(outside) + ' (not allowed)'" disabled>{{ routeLabel(outside) }} (not allowed)</option>
       </AppSelect>
     </label>
-    <p v-if="current" class="muted small route-facts" data-testid="route-facts">{{ providerLabel(current.provider) }} · {{ costLabel(current.cost_class) }} · {{ reliabilityLabel(current.reliability) }}</p>
     <p v-if="outside" class="notice-warn small" role="alert">{{ routeLabel(outside) }} is not allowed: {{ outside.hidden_because }}.</p>
     <p v-if="data?.empty_reason" class="notice-warn small" role="alert">{{ data.empty_reason }} <RouterLink to="/profile#models-providers">Models &amp; providers</RouterLink></p>
     <p v-else-if="data?.default_note" class="muted small">{{ data.default_note }}.</p>

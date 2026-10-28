@@ -4,7 +4,7 @@ import RoutePicker from '@/components/RoutePicker.vue'
 import RoutePolicyPanel from '@/components/RoutePolicyPanel.vue'
 import ProjectRouteStrip from '@/components/ProjectRouteStrip.vue'
 import RouteRecoveryPanel from '@/components/RouteRecoveryPanel.vue'
-import { applyPreset, emptyPolicy, presetOf, reliabilityLabel, type CatalogRoute, type FeatureRoutes, type Feature, type Policy, type PolicyView, type Prices } from '@/lib/routes'
+import { applyPreset, emptyPolicy, presetOf, setCoordinatorPaid, reliabilityLabel, type CatalogRoute, type FeatureRoutes, type Feature, type Policy, type PolicyView, type Prices } from '@/lib/routes'
 import { calls, stubFetch } from './helpers'
 
 afterEach(() => vi.unstubAllGlobals())
@@ -29,6 +29,9 @@ describe('route policy helpers', () => {
     expect(grok.providers).toEqual(['xai'])
     expect(grok.cost).toEqual({ free: false, membership: true, paid: false })
     expect(grok.features.coordinator?.cost).toEqual({ free: false, membership: false, paid: true })
+    expect(setCoordinatorPaid(emptyPolicy(), true).features.coordinator?.cost).toEqual({ free: true, membership: false, paid: true })
+    expect(setCoordinatorPaid(setCoordinatorPaid(emptyPolicy(), true), false).features.coordinator).toBeUndefined()
+    expect(presetOf(setCoordinatorPaid(emptyPolicy(), true))).toBe('memberships')
     expect(applyPreset(grok, 'provider', 'xai', false).features.coordinator).toBeUndefined()
     expect(presetOf(grok)).toBe('provider')
     expect(presetOf({ ...grok, providers: ['xai', 'anthropic'] })).toBe('custom')
@@ -47,7 +50,11 @@ describe('RoutePicker', () => {
     expect(String(calls(fetch, 'GET', '/api/routes?')[0]![0])).toBe('/api/routes?feature=planner&project_id=4')
     const options = w.findAll('option').map(o => o.text())
     expect(options).toEqual(['Grok Build · grok-build-0.1', 'Hermes · x-ai/grok-4.5'])
-    expect(w.get('[data-testid="route-facts"]').text()).toBe('xAI (Grok) · membership · 12 runs in 7 days, 2 failed or timed out')
+    // The menu row carries the full route (AppSelect would otherwise keep only the text before the first " · ") and the facts, shown once.
+    const option = w.findAll('option').find(o => o.text() === 'Grok Build · grok-build-0.1')!
+    expect(option.attributes('data-label')).toBe('Grok Build · grok-build-0.1')
+    expect(option.attributes('data-description')).toBe('xAI (Grok) · membership · 12 runs in 7 days, 2 failed or timed out')
+    expect(w.find('[data-testid="route-facts"]').exists()).toBe(false)
     expect(w.text()).toContain('Show hidden (1)')
     expect(w.text()).toContain('App policy: anthropic is not an allowed provider')
   })
@@ -78,6 +85,34 @@ describe('RoutePolicyPanel', () => {
     expect(saved).toMatchObject({ confirm: true, policy: { providers: ['xai'], cost: { free: false, membership: true, paid: false },
       features: { coordinator: { providers: ['xai'], cost: { free: false, membership: false, paid: true } } } } })
     expect(w.text()).toContain('Saved.')
+  })
+  it('allows paid API for the Coordinator alone without changing the preset, and saves the rule with the general providers', async () => {
+    let saved: { policy: { features: { coordinator?: { cost: unknown; providers: unknown } } } } | null = null
+    stubFetch((url, init) => {
+      if (url === '/api/routes/policy' && init?.method === 'PUT') { saved = JSON.parse(String(init.body)); return { body: view() } }
+      if (url === '/api/routes/policy') return { body: view() }
+      if (url.startsWith('/api/routes?')) { const f = new URLSearchParams(url.split('?')[1]).get('feature') as Feature
+        return { body: f === 'coordinator' ? routes(f, { allowed: [row('hermes', 'google/gemma-4-31b-it:free', 'free')] }) : routes(f) } }
+    })
+    const w = mount(RoutePolicyPanel, { global: { stubs } })
+    await flushPromises()
+    expect(w.get('[data-testid="coordinator-single"]').text()).toContain('Only one Coordinator model is allowed')
+    expect((w.get('[data-testid="preset-memberships"]').element as HTMLInputElement).checked).toBe(true)
+    await w.get('[data-testid="coordinator-paid"]').setValue(true)
+    expect((w.get('[data-testid="preset-memberships"]').element as HTMLInputElement).checked).toBe(true)
+    await w.get('[data-testid="provider-meta"]').setValue(false)
+    await w.get('[data-testid="save-route-policy"]').trigger('click'); await flushPromises()
+    const rule = saved!.policy.features.coordinator!
+    expect(rule.cost).toEqual({ free: true, membership: false, paid: true })
+    expect(rule.providers).toEqual((saved!.policy as unknown as { providers: string[] }).providers)
+    expect(rule.providers).not.toContain('meta')
+  })
+  it('keeps paid API for the Coordinator off when the managed policy does not allow it', async () => {
+    stubFetch(url => url === '/api/routes/policy' ? { body: view({ managed: emptyPolicy() }) } : url.startsWith('/api/routes?') ? { body: routes('chat') } : undefined)
+    const w = mount(RoutePolicyPanel, { global: { stubs } })
+    await flushPromises()
+    expect((w.get('[data-testid="coordinator-paid"]').element as HTMLInputElement).disabled).toBe(true)
+    expect(w.get('[data-testid="coordinator-section"]').text()).toContain('managed policy does not allow paid API for the Coordinator')
   })
   it('shows a managed policy and greys what it removes', async () => {
     const managed = { ...emptyPolicy(), providers: ['xai'], runtimes: ['grok', 'hermes'] as PolicyView['runtimes'] }

@@ -72,7 +72,7 @@ Tasks needing human interaction, decisions or required answers stay manual, incl
 One policy for the Coordinator, planner, stories, chat and tasks: every route menu lists only what it allows.
 
 1. Open Settings → Models & providers. Start from a preset: Memberships (recommended), Single provider (for example only xAI, with paid API for the Coordinator only if you want Hermes to reach those models), Free only (expect timeouts) or Custom. Save Models & providers.
-2. Turn cost classes on or off: membership, free, paid API. Membership routes are tried first, then free; paid API is the last resort and still needs approval per plan or task.
+2. Turn cost classes on or off: membership, free, paid API. Membership routes are tried first, then free; paid API is the last resort and still needs approval per plan or task. Under Coordinator, Allow paid API for the Coordinator lets Hermes use paid models without allowing them elsewhere; save, then choose the Coordinator model.
 3. Untick providers or runtimes you do not want. Routes whose provider varies per request (openrouter/free) are hidden whenever providers are limited; Also offer free models from any provider adds specific free models back.
 4. Read What each feature can use now. When a feature has nothing allowed, it names the nearest route and what stops it.
 5. Under Prices to review, record the price of routes nobody has reviewed. They count as paid API until you do. Free is offered only for a model listed at no cost; memberships are set in Billing & rates.

@@ -18,6 +18,8 @@ Inside one scope, a feature's own rule replaces that scope's general rule for th
 
 Every plan has three steps. The **Coordinator** reviews the brief, the **planner** builds the map, and the Coordinator checks it. The Coordinator is Hermes (Settings → Agent roles), and Hermes reaches models only through free or paid API, never a membership. A policy that allows memberships only therefore leaves the Coordinator nothing, even when the planner is a membership such as Codex.
 
+To use paid models for the Coordinator, turn on **Allow paid API for the Coordinator** in the Coordinator section of Models & providers and save. Paid models of the allowed providers then appear in **Coordinator model** (with every provider open, the common providers' paid models are listed). Other features keep the general cost classes. Each plan asks for paid-planning approval before the Coordinator runs, including for a model whose price was never reviewed, which counts as paid. The page warns when only one Coordinator model is allowed, since planning then stops whenever that model is unavailable.
+
 The project route strip and **Change…** show what the current choices allow before you save, including the Coordinator, and warn when it has no allowed model. Two choices fix it while providers are limited: **Also offer free models from any provider**, or **Paid API for the Coordinator only**. The second is offered only when the app policy allows paid API for the Coordinator.
 
 ## Cost classes

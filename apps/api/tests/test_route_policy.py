@@ -350,3 +350,29 @@ def test_preview_shows_an_unsaved_project_policy_and_saves_nothing(app):
     assert client.post('/api/routes/preview', json={'features': ['coordinator'], 'policy': None}).json()['coordinator']['allowed']
     assert client.post('/api/routes/preview', json={'features': [], 'policy': None}).status_code == 422
     assert client.get('/api/routes/policy').json()['app']['providers'] is None
+
+
+def test_paid_coordinator_models_can_be_chosen_with_every_provider_open(app):
+    """Paid API for the Coordinator only, with no provider limit: the common providers' paid models are offered to the Coordinator, a chosen
+    one is used for planning, and it needs paid-planning approval even when its price was never reviewed."""
+    c, _, settings, tmp_path = app
+    assert 'anthropic/claude-sonnet-5-5' not in {r['model'] for r in c.get('/api/routes', params={'feature': 'coordinator'}).json()['allowed']}
+    policy = rp.Policy(cost=rp.Cost(free=True, membership=True, paid=False),
+                       features={'coordinator': rp.Filter(cost=rp.Cost(free=True, membership=False, paid=True))},
+                       defaults={'coordinator': rp.Choice(runtime='hermes', model='anthropic/claude-sonnet-5-5')})
+    assert c.put('/api/routes/policy', json={'policy': policy.model_dump(), 'confirm': True}).status_code == 200
+    coordinator = c.get('/api/routes', params={'feature': 'coordinator'}).json()
+    sonnet = next(r for r in coordinator['allowed'] if r['model'] == 'anthropic/claude-sonnet-5-5')
+    assert sonnet['cost_class'] is None and coordinator['default'] == {'runtime': 'hermes', 'model': 'anthropic/claude-sonnet-5-5'}
+    # Only the Coordinator gains paid models; stories stay without them.
+    assert 'anthropic/claude-sonnet-5-5' not in {r['model'] for r in c.get('/api/routes', params={'feature': 'stories'}).json()['allowed']}
+    workspace = tmp_path / 'ws/paid'
+    workspace.mkdir(parents=True, exist_ok=True)
+    settings.workdir_roots = (tmp_path / 'ws',)
+    pid = c.post('/api/projects', json={'title': 'Paid Coordinator', 'brief': 'Inspect one file.', 'working_dir': str(workspace)}).json()['id']
+    plan = {'revision': 1, 'approve_coordination': True}
+    refused = c.post(f'/api/projects/{pid}/plan', json=plan)
+    assert refused.status_code == 422 and 'anthropic/claude-sonnet-5-5 has no reviewed price, so it counts as paid API' in refused.json()['detail']
+    planned = c.post(f'/api/projects/{pid}/plan', json={**plan, 'approve_api_planning': True})
+    assert planned.status_code == 200, planned.text
+    assert planned.json()['pipeline']['delegator'] == {'agent': 'hermes', 'model': 'anthropic/claude-sonnet-5-5'}

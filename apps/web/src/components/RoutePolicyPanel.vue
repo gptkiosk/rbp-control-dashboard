@@ -8,15 +8,15 @@ import PanelHead from './PanelHead.vue'
 import ToggleSwitch from './ToggleSwitch.vue'
 import AppSelect from './AppSelect.vue'
 import RoutePicker from './RoutePicker.vue'
-import { COMMON_PROVIDERS, FEATURE_LABELS, PRESETS, RUNTIMES, applyPreset, presetOf, providerLabel, routeLabel,
+import { COMMON_PROVIDERS, FEATURE_LABELS, PRESETS, RUNTIMES, applyPreset, coordinatorPaid, presetOf, providerLabel, routeLabel, setCoordinatorPaid,
   type Choice, type Feature, type FeatureRoutes, type Policy, type PolicyView, type Preset, type PriceRow, type Prices, type Runtime } from '@/lib/routes'
 
 const view = ref<PolicyView | null>(null), policy = ref<Policy | null>(null), summary = ref<FeatureRoutes[]>([])
-const busy = ref(false), error = ref(''), saved = ref(false), provider = ref('xai'), coordinatorPaid = ref(true), generation = ref(0)
+const busy = ref(false), error = ref(''), saved = ref(false), provider = ref('xai'), generation = ref(0)
 const preset = computed(() => policy.value ? presetOf(policy.value) : 'custom')
 const providers = computed(() => [...new Set([...COMMON_PROVIDERS, ...(view.value?.providers ?? [])])])
 const FEATURES: Feature[] = ['coordinator', 'planner', 'stories', 'chat', 'tasks']
-const DEFAULTS: Feature[] = ['coordinator', 'planner', 'stories']
+const DEFAULTS: Feature[] = ['planner', 'stories']
 
 async function refresh() {
   const v = await getJson<PolicyView>('/api/routes/policy')
@@ -46,7 +46,9 @@ async function review(r: { runtime: Runtime; target: string; model: string }, co
 }
 onMounted(async () => { try { await refresh() } catch (e) { error.value = 'Models & providers could not be loaded. Refresh to try again.' } })
 
-function choosePreset(id: Preset['id']) { if (policy.value) { policy.value = applyPreset(policy.value, id, provider.value, coordinatorPaid.value); saved.value = false } }
+// A single-provider preset allows paid API for the Coordinator by default (Hermes reaches that provider through an API); the Coordinator
+// section below changes it.
+function choosePreset(id: Preset['id']) { if (policy.value) { policy.value = applyPreset(policy.value, id, provider.value, id === 'provider' ? true : coordinatorPaid(policy.value)); saved.value = false } }
 function toggle<T extends string>(list: T[] | null, all: readonly T[], item: T, on: boolean): T[] | null {
   const base = list ?? [...all]
   const next = on ? [...new Set([...base, item])] : base.filter(x => x !== item)
@@ -59,10 +61,16 @@ function setDefault(feature: Feature, choice: Choice | null) {
   if (choice) policy.value.defaults[feature] = choice; else delete policy.value.defaults[feature]
   saved.value = false
 }
+function setPaidCoordinator(on: boolean) { if (policy.value) { policy.value = setCoordinatorPaid(policy.value, on); saved.value = false } }
+// Paid API for the Coordinator, as an installation-managed policy allows it.
+const managedCoordinatorPaid = computed(() => { const m = view.value?.managed; return !m || (m.features.coordinator ?? m).cost.paid })
+const coordinatorSummary = computed(() => summary.value.find(r => r.feature === 'coordinator') ?? null)
 function managedAllows(kind: 'providers' | 'runtimes', id: string) { const m = view.value?.managed; return !m || m[kind] === null || (m[kind] as string[]).includes(id) }
 async function save() {
   if (!policy.value) return
   busy.value = true; error.value = ''; saved.value = false
+  // The Coordinator rule follows the general providers, models and free setting chosen above.
+  if (policy.value.features.coordinator) policy.value = setCoordinatorPaid(policy.value, coordinatorPaid(policy.value))
   try { await putJson('/api/routes/policy', { policy: policy.value, confirm: true }); await refresh(); saved.value = true }
   catch (e) { error.value = e instanceof Error ? e.message : String(e) } finally { busy.value = false }
 }
@@ -88,7 +96,6 @@ async function save() {
         </label>
         <div v-if="preset === 'provider'" class="provider-row">
           <label>Provider<AppSelect v-model="provider" aria-label="Single provider" @update:model-value="choosePreset('provider')"><option v-for="id in providers" :key="id" :value="id">{{ providerLabel(id) }}</option></AppSelect></label>
-          <ToggleSwitch v-model="coordinatorPaid" label="Allow paid API for the Coordinator only" hint="Hermes reaches this provider's models through an API. Each plan still asks for paid-planning approval." @update:model-value="choosePreset('provider')" />
         </div>
       </fieldset>
 
@@ -96,6 +103,15 @@ async function save() {
         <ToggleSwitch v-model="policy.cost.membership" label="Membership routes" hint="Claude, Codex or Grok Build accounts you are signed in to. Uses account quota; provider overage settings still apply." @update:model-value="saved = false" />
         <ToggleSwitch v-model="policy.cost.free" label="Free models" hint="Free endpoints are often slow, limited or unavailable." @update:model-value="saved = false" />
         <ToggleSwitch v-model="policy.cost.paid" label="Paid API (last resort)" hint="Bills your provider account per token. Each plan or task still needs paid-route approval; budget checks remain active." @update:model-value="saved = false" />
+      </fieldset>
+
+      <fieldset data-testid="coordinator-section"><legend>Coordinator</legend>
+        <p class="muted small">Hermes (Settings → Agent roles) reviews each brief and checks each plan. It reaches models through free or paid API, never a membership, so a membership-only policy leaves it nothing.</p>
+        <ToggleSwitch :model-value="coordinatorPaid(policy)" :disabled="!managedCoordinatorPaid" label="Allow paid API for the Coordinator" data-testid="coordinator-paid" @update:model-value="setPaidCoordinator" />
+        <p class="muted small switch-note">{{ managedCoordinatorPaid ? 'Paid models of the allowed providers become Coordinator choices. Each plan still asks for paid-planning approval, and a model whose price was never reviewed counts as paid. Other features keep the cost classes above.' : 'This installation\'s managed policy does not allow paid API for the Coordinator.' }}</p>
+        <RoutePicker :key="'coordinator' + generation" feature="coordinator" label="Coordinator model" :model-value="policy.defaults.coordinator ?? null" automatic="Hermes's own configured model when allowed, else the first allowed" @update:model-value="c => setDefault('coordinator', c)" />
+        <p v-if="coordinatorSummary && coordinatorSummary.allowed.length === 1" class="notice-warn small" data-testid="coordinator-single">Only one Coordinator model is allowed, so planning stops if it is unavailable. Allow another free provider, or paid API for the Coordinator, to give it a fallback.</p>
+        <p class="muted small">The model list comes from the saved policy: save after changing the switch to see paid models here.</p>
       </fieldset>
 
       <fieldset><legend>Providers <span class="muted small">{{ policy.providers ? policy.providers.length + ' allowed' : 'all allowed' }}</span></legend>
@@ -170,7 +186,7 @@ legend{font-weight:600;padding:0 var(--gap-xs)}.small{font-size:var(--font-size-
 .provider-row{display:grid;gap:var(--gap-sm);padding-left:1.6em}.checks{display:flex;flex-wrap:wrap;gap:var(--gap-xs) var(--gap)}
 .check{display:flex;gap:var(--gap-xs);align-items:center}.check.off{opacity:.55}.defaults{display:grid;gap:var(--gap);grid-template-columns:repeat(auto-fit,minmax(16rem,1fr))}
 .actions{display:flex;gap:var(--gap-sm);align-items:center}.effect ul{margin:0;padding-left:1.2em}.effect h3{font-size:var(--font-size-sm);margin:var(--gap) 0 var(--gap-xs)}
-.managed{padding:var(--gap-sm);border-left:3px solid var(--accent)}.warn-text{color:var(--warn, inherit)}
+.switch-note{margin:calc(-1 * var(--gap-xs)) 0 0 2.8rem}.managed{padding:var(--gap-sm);border-left:3px solid var(--accent)}.warn-text{color:var(--warn, inherit)}
 .prices h3{font-size:var(--font-size-sm);margin:var(--gap) 0 var(--gap-xs)}.prices h4{font-size:var(--font-size-xs);margin:var(--gap-sm) 0 var(--gap-xs)}
 .price-rows{list-style:none;margin:0;padding:0;display:grid;gap:var(--gap-xs)}.price-rows li{display:flex;flex-wrap:wrap;gap:var(--gap-xs) var(--gap-sm);align-items:center;justify-content:space-between;overflow-wrap:anywhere}
 .price-actions{display:flex;gap:var(--gap-xs)}

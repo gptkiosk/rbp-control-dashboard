@@ -10,6 +10,18 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+### Added
+
+- Models & providers has a **Coordinator** section. **Allow paid API for the Coordinator** lets Hermes use paid models without allowing paid API for anything else, and **Coordinator model** picks the one to use. With every provider open, the paid models of the common providers are listed. It warns when only one Coordinator model is allowed. The Single provider preset turns the switch on, and the switch no longer changes which preset the page shows.
+
+### Changed
+
+- Planning asks for paid-planning approval when the Coordinator model's price was never reviewed, since that model counts as paid API when its run starts. Before, only a model reviewed as paid needed it.
+
+### Fixed
+
+- Route menus show the full route (for example "Hermes · anthropic/claude-sonnet-5-5"). Before, every Hermes or OpenClaw row read just "Hermes", so models could not be told apart. Each route's provider, cost and reliability now appear once, in the menu, instead of again on a line below it.
+
 ## [0.6.77] - 2026-10-27
 
 ### Fixed
