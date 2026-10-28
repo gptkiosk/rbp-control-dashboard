@@ -1,6 +1,6 @@
 // Route policy and route catalog (apps/api/route_policy.py, route_catalog.py): which providers, runtimes, models and cost classes may be used.
 import { computed, ref, watch, type Ref } from 'vue'
-import { getJson } from '@/lib/api'
+import { getJson, postJson } from '@/lib/api'
 import { agentLabel } from '@/lib/cards'
 
 export type Runtime = 'claude' | 'codex' | 'grok' | 'hermes' | 'openclaw'
@@ -114,3 +114,16 @@ export function useManagedRuntimes() {
 }
 /** Tests only: forget the cached managed policy. */
 export function resetManagedRuntimes() { managedLoad = null }
+
+/** What each feature would allow with an unsaved project policy (null: Same as app). Saves nothing. */
+export async function previewRoutes(features: Feature[], projectId: number | null | undefined, policy: Policy | null) {
+  return postJson<Partial<Record<Feature, FeatureRoutes>>>('/api/routes/preview', { features, project_id: projectId ?? null, policy })
+}
+/** The Coordinator is Hermes (Settings → Agent roles), which reaches models only through free or paid API, never a membership. A project's
+ *  "paid API for the Coordinator only" exception is a Coordinator rule that follows the project's providers and models. */
+export function withCoordinatorPaid(policy: Policy, on: boolean): Policy {
+  const next: Policy = JSON.parse(JSON.stringify(policy))
+  if (on) next.features.coordinator = { ...emptyFilter(), providers: next.providers, models: next.models, any_free: next.any_free, cost: { free: next.cost.free, membership: false, paid: true } }
+  else delete next.features.coordinator
+  return next
+}

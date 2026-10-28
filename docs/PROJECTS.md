@@ -9,7 +9,7 @@ uses no model tokens. Live work starts only from a reviewed planning/submission 
    constraints and exclusions. Set **Story assignment preference** from Economy / OpenClaw
    first through Balanced to Capability / Claude & Codex first. The initial default is centered
    at Balanced (50/100). Save changes as a new revision.
-2. **Plan with Hermes** reviews the coordinator request. Hermes chooses an approved
+2. **Plan** (the button names your planner, for example *Plan (Codex planner)*) reviews the coordinator request. Hermes chooses an approved
    subscription candidate (Claude Opus or the configured Codex model), MCD invokes that
    CLI, and Hermes reviews its returned JSON plan. Explicit Hermes API planning needs its
    own approval. Planner output must satisfy the bounded node schema; malformed or

@@ -329,3 +329,24 @@ def test_managed_policy_names_the_runtimes_it_leaves(app):
         assert client.get('/api/routes/policy').json()['managed_runtimes'] == []
     finally:
         settings.managed_route_policy = None
+
+
+def test_preview_shows_an_unsaved_project_policy_and_saves_nothing(app):
+    client = app[0]
+    body = {'features': ['coordinator', 'planner'], 'project_id': None,
+            'policy': rp.Policy(providers=['anthropic', 'openai'], runtimes=['claude', 'codex', 'hermes'], cost=rp.Cost(free=False, membership=True, paid=False)).model_dump()}
+    out = client.post('/api/routes/preview', json=body).json()
+    # Hermes reaches Anthropic and OpenAI models only through paid API, and openrouter/free is a router: the Coordinator has nothing.
+    assert out['coordinator']['allowed'] == [] and out['coordinator']['scope']['project'] == 'narrowed'
+    assert 'No Coordinator route is allowed' in out['coordinator']['empty_reason']
+    assert ('codex', 'gpt-6.1-sol') in keys(out['planner']['allowed'])
+    # Paid API for the Coordinator only, as the project dialog writes it, gives it a route when the app allows paid API.
+    assert client.patch('/api/routes/policy/cost', json={'paid': True}).status_code == 200
+    narrowed = rp.Policy(providers=['xai'], cost=rp.Cost(free=False, membership=True, paid=False),
+                         features={'coordinator': rp.Filter(providers=['xai'], cost=rp.Cost(free=False, membership=False, paid=True))})
+    out = client.post('/api/routes/preview', json={'features': ['coordinator'], 'policy': narrowed.model_dump()}).json()
+    assert ('hermes', 'x-ai/grok-4.5') in keys(out['coordinator']['allowed'])
+    # null previews Same as app; nothing was saved.
+    assert client.post('/api/routes/preview', json={'features': ['coordinator'], 'policy': None}).json()['coordinator']['allowed']
+    assert client.post('/api/routes/preview', json={'features': [], 'policy': None}).status_code == 422
+    assert client.get('/api/routes/policy').json()['app']['providers'] is None

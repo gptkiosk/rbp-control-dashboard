@@ -3,12 +3,15 @@
 // paid API last), with provider, cost class and recent reliability, and can show the hidden routes with the reason each is hidden.
 import { computed, toRef } from 'vue'
 import AppSelect from './AppSelect.vue'
-import { costLabel, parseKey, providerLabel, reliabilityLabel, routeKey, routeLabel, useRoutes, type Choice, type Feature } from '@/lib/routes'
+import { costLabel, parseKey, providerLabel, reliabilityLabel, routeKey, routeLabel, useRoutes, type Choice, type Feature, type FeatureRoutes } from '@/lib/routes'
 
-const props = withDefaults(defineProps<{ feature: Feature; projectId?: number | null; modelValue?: Choice | null; label?: string; disabled?: boolean; automatic?: string }>(), { projectId: null, modelValue: null, label: '', automatic: '' })
+// `routes` supplies the list from the caller (for example a preview of unsaved project choices) instead of fetching it.
+const props = withDefaults(defineProps<{ feature: Feature; projectId?: number | null; modelValue?: Choice | null; label?: string; disabled?: boolean; automatic?: string; routes?: FeatureRoutes | null }>(), { projectId: null, modelValue: null, label: '', automatic: '', routes: undefined })
 const emit = defineEmits<{ 'update:modelValue': [value: Choice | null] }>()
-const { data, error, load } = useRoutes(props.feature, toRef(props, 'projectId'))
-defineExpose({ load })
+const own = props.routes === undefined ? useRoutes(props.feature, toRef(props, 'projectId')) : null
+const data = computed(() => props.routes !== undefined ? props.routes : own!.data.value)
+const error = computed(() => own?.error.value ?? '')
+defineExpose({ load: () => own?.load() })
 const selected = computed(() => props.modelValue ? routeKey(props.modelValue) : '')
 const current = computed(() => data.value?.allowed.find(r => routeKey(r) === selected.value) ?? null)
 const outside = computed(() => props.modelValue && data.value && !current.value ? data.value.hidden.find(r => routeKey(r) === selected.value) ?? null : null)

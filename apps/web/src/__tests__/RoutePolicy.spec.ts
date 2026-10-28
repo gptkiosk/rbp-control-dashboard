@@ -4,7 +4,7 @@ import RoutePicker from '@/components/RoutePicker.vue'
 import RoutePolicyPanel from '@/components/RoutePolicyPanel.vue'
 import ProjectRouteStrip from '@/components/ProjectRouteStrip.vue'
 import RouteRecoveryPanel from '@/components/RouteRecoveryPanel.vue'
-import { applyPreset, emptyPolicy, presetOf, reliabilityLabel, type CatalogRoute, type FeatureRoutes, type Feature, type PolicyView, type Prices } from '@/lib/routes'
+import { applyPreset, emptyPolicy, presetOf, reliabilityLabel, type CatalogRoute, type FeatureRoutes, type Feature, type Policy, type PolicyView, type Prices } from '@/lib/routes'
 import { calls, stubFetch } from './helpers'
 
 afterEach(() => vi.unstubAllGlobals())
@@ -126,22 +126,67 @@ describe('Prices to review', () => {
 })
 
 describe('ProjectRouteStrip', () => {
-  it('shows the routes in force and narrows only within the app policy', async () => {
-    stubFetch(url => url === '/api/routes/policy' ? { body: view({ app: { ...emptyPolicy(), providers: ['xai'] } }) }
-      : url.startsWith('/api/routes?') ? { body: routes(new URLSearchParams(url.split('?')[1]).get('feature') as Feature, { scope: { managed: false, managed_error: null, app_saved: true, project: 'same_as_app' } }) } : undefined)
+  const coordinatorEmpty = 'No Coordinator route is allowed. Nearest: Hermes · anthropic/claude-sonnet-5-5: Project policy: paid API is off.'
+  function stub(app: Partial<PolicyView> = {}) {
+    const previews: unknown[] = []
+    const fetch = stubFetch((url, init) => {
+      if (url === '/api/routes/policy') return { body: view(app) }
+      if (url === '/api/routes/preview') {
+        const body = JSON.parse(String(init?.body)); previews.push(body)
+        const narrowed = !!body.policy
+        const coordinatorOk = !narrowed || body.policy.any_free || body.policy.features?.coordinator?.cost.paid
+        return { body: Object.fromEntries(body.features.map((f: Feature) => [f, f === 'coordinator' && !coordinatorOk
+          ? routes(f, { allowed: [], default: null, empty_reason: coordinatorEmpty, scope: { managed: false, managed_error: null, app_saved: true, project: 'narrowed' } })
+          : routes(f, { scope: { managed: false, managed_error: null, app_saved: true, project: narrowed ? 'narrowed' : 'same_as_app' } })])) }
+      }
+    })
+    return { fetch, previews }
+  }
+  it('previews the routes the current, unsaved choices allow and says when they are not saved', async () => {
+    const { previews } = stub()
     const w = mount(ProjectRouteStrip, { props: { projectId: 3, plannerAgent: 'auto', plannerModel: '', routePolicy: null }, global: { stubs } })
     await flushPromises()
     const text = w.get('[data-testid="route-strip"]').text()
     expect(text).toContain('ROUTES · APP POLICY')
     expect(text).toContain('Coordinator Grok Build · grok-build-0.1 (membership)')
     expect(text).toContain('Planner Automatic (membership planners first)')
+    const narrowed = { ...emptyPolicy(), providers: ['anthropic', 'openai'], cost: { free: false, membership: true, paid: false } }
+    await w.setProps({ routePolicy: narrowed, dirty: true }); await flushPromises()
+    expect(previews.at(-1)).toMatchObject({ project_id: 3, policy: { providers: ['anthropic', 'openai'] } })
+    expect(w.get('[data-testid="route-strip"]').text()).toContain('ROUTES · NARROWED FOR THIS PROJECT · NOT SAVED')
+    expect(w.get('[data-testid="route-strip"]').text()).toContain('Coordinator none allowed')
+    expect(w.text()).toContain(coordinatorEmpty)
+  })
+  it('shows the Coordinator in Change…, warns when a narrowing leaves it nothing, and offers the two ways out', async () => {
+    vi.useFakeTimers()
+    stub({ app: { ...emptyPolicy(), cost: { free: true, membership: true, paid: true } } })
+    const w = mount(ProjectRouteStrip, { props: { projectId: 3, plannerAgent: 'codex', plannerModel: 'gpt-6.1-sol', routePolicy: null }, global: { stubs } })
+    await vi.runAllTimersAsync(); await flushPromises()
+    await w.get('[data-testid="change-routes"]').trigger('click'); await flushPromises()
+    expect(w.get('[data-testid="dialog-coordinator"]').text()).toContain('reaches models through free or paid API, never a membership')
+    await w.get('[data-testid="narrow"]').setValue(true)
+    await w.get('[data-testid="project-provider-xai"]').setValue(false)
+    await vi.advanceTimersByTimeAsync(300); await flushPromises()
+    expect(w.get('[data-testid="coordinator-warning"]').text()).toContain('planning cannot start')
+    await w.get('[data-testid="project-coordinator-paid"]').setValue(true)
+    await vi.advanceTimersByTimeAsync(300); await flushPromises()
+    expect(w.find('[data-testid="coordinator-warning"]').exists()).toBe(false)
+    await w.get('[data-testid="apply-routes"]').trigger('submit')
+    expect(w.emitted('planner')?.[0]).toEqual([{ agent: 'codex', model: 'gpt-6.1-sol' }])
+    const policy = w.emitted('policy')?.[0]?.[0] as Policy
+    expect(policy.providers).not.toContain('xai')
+    expect(policy.features.coordinator?.cost).toEqual({ free: true, membership: false, paid: true })
+    expect(policy.features.coordinator?.providers).toEqual(policy.providers)
+    vi.useRealTimers()
+  })
+  it('only offers paid API for the Coordinator when the app policy allows it', async () => {
+    stub()
+    const w = mount(ProjectRouteStrip, { props: { projectId: 3, plannerAgent: 'auto', plannerModel: '', routePolicy: null }, global: { stubs } })
+    await flushPromises()
     await w.get('[data-testid="change-routes"]').trigger('click'); await flushPromises()
     await w.get('[data-testid="narrow"]').setValue(true)
-    expect((w.get('[data-testid="project-provider-anthropic"]').element as HTMLInputElement).disabled).toBe(true)
-    expect((w.get('[data-testid="project-provider-xai"]').element as HTMLInputElement).disabled).toBe(false)
-    await w.get('[data-testid="apply-routes"]').trigger('submit')
-    expect(w.emitted('planner')?.[0]).toEqual([{ agent: 'auto', model: '' }])
-    expect((w.emitted('policy')?.[0]?.[0] as { cost: unknown }).cost).toEqual({ free: true, membership: true, paid: false })
+    expect((w.get('[data-testid="project-coordinator-paid"]').element as HTMLInputElement).disabled).toBe(true)
+    expect(w.text()).toContain('Paid API is off for the Coordinator in the app policy')
   })
 })
 
