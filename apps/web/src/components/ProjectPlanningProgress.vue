@@ -4,15 +4,22 @@ import type { Project } from '@/lib/projects'
 import { agentLabel } from '@/lib/cards'
 
 const props = defineProps<{ project: Project; coordinator: string }>()
-const stages = [
-  { key: 'coordinate', title: 'Review the brief', detail: 'Coordinator selects the planning route.' },
-  { key: 'plan', title: 'Build the map', detail: 'Planner defines stories, tools and prerequisites.' },
-  { key: 'return', title: 'Check the plan', detail: 'Coordinator reviews the map before returning it.' },
-]
+// With the planner on Automatic, the planner the Coordinator picked also checks the map (projects.py, step 'return'); a planner chosen for the
+// project hands the check back to the Coordinator. Each step names the route that ran it once its task exists.
+const automatic = computed(() => (props.project.document?.planner_agent ?? 'auto') === 'auto')
+const stages = computed(() => [
+  { key: 'coordinate', role: 'coordinate', title: 'Review the brief', detail: 'The Coordinator reads the brief and picks the planner.' },
+  { key: 'plan', role: 'plan', title: 'Build the map', detail: 'The planner defines stories, tools and prerequisites.' },
+  { key: 'return', role: 'return plan', title: 'Check the plan', detail: automatic.value ? 'The planner the Coordinator picked reviews the map before returning it.' : 'The Coordinator reviews the map before returning it.' },
+])
+function ranOn(role: string) {
+  const task = props.project.tasks.filter(t => t.role === role && t.agent).sort((a, b) => b.card_id - a.card_id)[0]
+  return task ? `${agentLabel(task.agent!)}${task.model ? ' · ' + task.model : ''}` : ''
+}
 const dispatching = computed(() => props.project.state === 'dispatching')
 const ready = computed(() => props.project.state === 'review')
 const failed = computed(() => props.project.state === 'planning_failed')
-const current = computed(() => stages.findIndex(stage => stage.key === props.project.pipeline?.step))
+const current = computed(() => stages.value.findIndex(stage => stage.key === props.project.pipeline?.step))
 const task = computed(() => props.project.tasks.find(task => task.card_id === props.project.pipeline?.card_id))
 // Queued retries can still have a prior failed run attached. The current card state wins.
 const activity = computed(() => {
@@ -28,7 +35,7 @@ const working = computed(() => !ready.value && !failed.value && !['Waiting for a
 const title = computed(() => failed.value ? 'Planning needs attention' : ready.value
   ? (props.project.can_cancel_replan ? 'Replacement plan ready to review' : 'Your plan is ready to review')
   : dispatching.value ? 'Preparing story tasks' : 'Planning your project')
-const stepTitle = computed(() => dispatching.value ? 'Create tasks from the approved map' : stages[current.value]?.title || 'Waiting for coordinator status')
+const stepTitle = computed(() => dispatching.value ? 'Create tasks from the approved map' : stages.value[current.value]?.title || 'Waiting for coordinator status')
 const route = computed(() => task.value?.agent ? `${agentLabel(task.value.agent)}${task.value.model ? ' · ' + task.value.model : ''}` : '')
 </script>
 
@@ -43,7 +50,7 @@ const route = computed(() => task.value?.agent ? `${agentLabel(task.value.agent)
     <ol class="stages" aria-label="Planning steps">
       <li v-for="(stage, i) in stages" :key="stage.key" :class="{ current: !ready && !dispatching && current === i, finished: ready || dispatching || current > i }" :aria-current="!ready && !dispatching && current === i ? 'step' : undefined">
         <span class="step-number" aria-hidden="true">{{ ready || dispatching || current > i ? '✓' : i + 1 }}</span>
-        <div><strong>{{ stage.title }}</strong><small>{{ stage.detail }}</small><small class="step-state">{{ ready || dispatching || current > i ? 'Complete' : current === i ? activity : 'Pending' }}</small></div>
+        <div><strong>{{ stage.title }}</strong><small>{{ stage.detail }}</small><small v-if="ranOn(stage.role)" class="ran-on" :data-ran-on="stage.key">{{ ranOn(stage.role) }}</small><small class="step-state">{{ ready || dispatching || current > i ? 'Complete' : current === i ? activity : 'Pending' }}</small></div>
       </li>
     </ol>
     <div class="activity-detail">
@@ -67,6 +74,7 @@ progress { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-p
 .current-step { color: var(--accent); }
 .stages { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--gap-sm); list-style: none; padding: 0; margin: var(--gap) 0; }
 .stages li { display: flex; align-items: flex-start; gap: var(--gap-sm); padding: var(--gap); border: 1px solid var(--surface-border); border-radius: var(--radius); color: var(--text-muted); min-width: 0; }
+.ran-on { color: var(--text); }
 .stages .current { border-color: var(--accent); background: var(--accent-soft); color: var(--text); }
 .step-number { display: grid; place-items: center; flex: 0 0 1.5rem; height: 1.5rem; border: 1px solid currentColor; border-radius: 50%; font-size: var(--font-size-xs); }
 .stages strong, .stages small { display: block; }

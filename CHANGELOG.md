@@ -16,6 +16,7 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ### Fixed
 
+- The planning progress said the Coordinator checks the plan, but with the planner on Automatic the planner the Coordinator picked does that review. "Check the plan" now says who reviews it, and each step names the route it ran on (for example Hermes · google/gemini-2.5-flash, then Codex · gpt-6.1-sol).
 - The Planner row in Project settings was missing the space after "Planner".
 
 ## [0.6.80] - 2026-10-27
