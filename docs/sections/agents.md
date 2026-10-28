@@ -14,7 +14,7 @@ Pending capture: `agents-list.png` (agent explorer), `agents-subagent-select.png
 2. Choose a named subagent or session in **Sub-agent / session**, or leave **All sub-agents & sessions** selected. OpenClaw's configured names appear alongside observed sessions.
 3. Select 24 hours, 7 days or the current month. Inspect input/output tokens, cache usage, sessions, model rows and source coverage for the selected scope.
 4. Inspect the observed process details and last activity. A process can remain alive while no model turn is active; recent telemetry is not proof of an active inference request.
-5. Open **Billing & rates** to configure each agent's billing mode, monthly subscription amount and model rates, then save. This changes MCD's accounting preferences; it does not purchase a subscription or reconfigure provider billing.
+5. Open **Billing & rates** (Settings → AI & models → Accounts) to configure each agent's billing mode, monthly subscription amount and model rates, then save. This changes MCD's accounting preferences; it does not purchase a subscription or reconfigure provider billing.
 
 The default accounting uses a $20 monthly subscription for Claude Code and Codex, and API billing for Hermes/OpenClaw. Each subscription fee is counted once per agent, not per subagent. Subscription savings compare the captured calendar-month API equivalent with the full monthly fee. Negative savings mean the captured equivalent is below that fee. Missing prices or source coverage make the result partial.
 

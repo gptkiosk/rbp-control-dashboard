@@ -43,7 +43,7 @@ DEFAULT_ACCOUNTS = {
 }
 
 
-# Spending limits are off unless the operator turns them on, in one place: Agents, Billing & rates, Spending & limits. Without a limit MCD only discloses that a route can cost money.
+# Spending limits are off unless the operator turns them on, in one place: Settings → AI & models → Accounts → Spending & limits. Without a limit MCD only discloses that a route can cost money.
 DEFAULT_LIMITS = {"require_reviewed_pricing": False, "per_run_cap_usd": None, "paid_needs_runtime_limit": False}
 
 
@@ -92,7 +92,7 @@ def config(s):
     }
 
 
-# Price classes the operator reviewed in Models & providers, "runtime|target|model" -> "free" | "paid". A route nobody reviewed counts as paid
+# Price classes the operator reviewed in AI & models, "runtime|target|model" -> "free" | "paid". A route nobody reviewed counts as paid
 # when a run is admitted; a review only records what the operator saw, and "free" is accepted only for a listed free model (route_policy.review_price).
 REVIEWABLE_CLASSES = ("free", "paid")
 

@@ -64,7 +64,7 @@ def admit(settings, run, argv, *, current_price_class=_UNSET, limits=None, route
     if not reviewed and limits["require_reviewed_pricing"]:
         raise DispatchDenied("PRICE_UNKNOWN: route has no reviewed pricing class")
     if route_policy_reason:
-        raise DispatchDenied(f"ROUTE_POLICY: {route_policy_reason}. Change the route or the policy in Models & providers.")
+        raise DispatchDenied(f"ROUTE_POLICY: {route_policy_reason}. Change the route or the policy in AI & models.")
     cap = amount(policy.get("budget_usd"))
     run_cap = amount(limits["per_run_cap_usd"])
     if run_cap and (cap is None or cap > run_cap):     # a per-run cap the operator chose in Spending & limits: the run's budget must be valid and fit under it
@@ -94,9 +94,9 @@ def admit(settings, run, argv, *, current_price_class=_UNSET, limits=None, route
             raise DispatchDenied("BUDGET_UNENFORCED: runtime cap exceeds admitted budget")
     if price_class == "paid" and not (enforced and cap):
         disclaimer = ("This route is paid and MCD does not limit its spending: it bills your provider account or key. "
-                      "Set a credit limit with your provider (for OpenRouter, on the key). MCD limits are off unless you turn them on in Agents, Billing & rates, Spending & limits.")
+                      "Set a credit limit with your provider (for OpenRouter, on the key). MCD limits are off unless you turn them on in Settings → AI & models → Accounts → Spending & limits.")
     elif not reviewed:
-        disclaimer = ("This route's price has not been reviewed, so it may cost money. MCD does not limit spending unless you turn a limit on in Agents, Billing & rates, Spending & limits.")
+        disclaimer = ("This route's price has not been reviewed, so it may cost money. MCD does not limit spending unless you turn a limit on in Settings → AI & models → Accounts → Spending & limits.")
     return {"route": key, "price_class": price_class, "budget_usd": cap,
             "route_policy": "allowed", **({"disclaimer": disclaimer} if disclaimer else {})}
 
@@ -119,7 +119,7 @@ def reviewed_route_class(s, settings, source, model: str | None) -> str | None:
     configured = getattr(settings, "dispatch_route_classes", {}).get(key)
     if key in getattr(settings, "dispatch_route_classes", {}):
         return configured
-    # A price the operator reviewed in Models & providers (billing.route_prices). The installation's configured classes above win.
+    # A price the operator reviewed in AI & models (billing.route_prices). The installation's configured classes above win.
     try:
         reviewed = billing.route_prices(s).get(key)
     except (ValueError, TypeError, AttributeError):

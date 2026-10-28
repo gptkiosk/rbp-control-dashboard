@@ -44,7 +44,7 @@ Keep the database and vault.key together in a private backup to recover encrypte
 Turn a brief into reviewed stories, model assignments and shared handoffs.
 
 1. Choose New project. Write the brief and select an allowed working directory. Set Story assignment preference: Economy favors OpenClaw free-first tasks; Capability favors Claude/Codex subscriptions; Balanced splits routine and difficult work. Save changes before requesting a plan.
-2. Plan (the button names your planner) starts a reviewed workflow: the Coordinator (Hermes) reviews the brief, the planner builds the map, and the Coordinator checks it. The slider guides suggestions rather than guaranteeing cost or quality. Change it under Project brief & planner and save/replan to revise recommendations; existing assignments stay untouched until you replan or edit them. The returned map is a proposal: select nodes to edit instructions, scope, definition of done, agents, models and prerequisites. Drag nodes or use Arrange.
+2. Plan (the button names your planner) starts a reviewed workflow: the Coordinator (Hermes) reviews the brief, the planner builds the map, and the Coordinator checks it. The slider guides suggestions rather than guaranteeing cost or quality. Change it under Project settings and save/replan to revise recommendations; existing assignments stay untouched until you replan or edit them. The returned map is a proposal: select nodes to edit instructions, scope, definition of done, agents, models and prerequisites. Drag nodes or use Arrange.
 3. Choose sequential execution or parallel isolated Git stories. Parallel mode requires a clean repository root; RCD creates story worktrees and local branches from its reviewed commit.
 4. Review & submit freezes the saved revision and its approved model routes. Hermes orders the stories; RCD creates them once. Pause dispatch stops new stories while running ones can finish.
 5. In Stories & runs, verify artifacts and checks, then accept the handoff. Dependent stories wait for acceptance and receive approved context. Review tracked diffs and explicitly select changed files to create a local handoff snapshot (or commit them yourself); prerequisite conflicts stop for review. Source branches are never merged automatically.
@@ -71,23 +71,23 @@ Tasks needing human interaction, decisions or required answers stay manual, incl
 
 One policy for the Coordinator, planner, stories, chat and tasks: every route menu lists only what it allows.
 
-1. Open Settings → Models & providers. Start from a preset: Memberships (recommended), Single provider (for example only xAI, with paid API for the Coordinator only if you want Hermes to reach those models), Free only (expect timeouts) or Custom. Save Models & providers.
+1. Open Settings → AI & models. Start from a preset: Memberships (recommended), Single provider (for example only xAI, with paid API for the Coordinator only if you want Hermes to reach those models), Free only (expect timeouts) or Custom. Save AI & models.
 2. Turn cost classes on or off: membership, free, paid API. Membership routes are tried first, then free; paid API is the last resort and still needs approval per plan or task. Under Coordinator, Allow paid API for the Coordinator lets Hermes use paid models without allowing them elsewhere; save, then choose the Coordinator model.
 3. Untick providers or runtimes you do not want. Routes whose provider varies per request (openrouter/free) are hidden whenever providers are limited; Also offer free models from any provider adds specific free models back.
 4. Read What each feature can use now. When a feature has nothing allowed, it names the nearest route and what stops it.
 5. Under Prices to review, record the price of routes nobody has reviewed. They count as paid API until you do. Free is offered only for a model listed at no cost; memberships are set in Billing & rates.
 6. To narrow one project, open it and choose Change… on the Routes strip, then Narrow for this project. A project can only narrow the app policy, never widen it, and the default is Same as app.
 
-An installation can set a managed policy (MAC_CONTROL_MANAGED_ROUTE_POLICY) that the app cannot widen. Its removed runtimes are also hidden in Agent tools, Setup and Billing & rates. A run outside the policy stops with ROUTE_POLICY before it starts. The old free-only setting is retired; the first policy was written from it. Details: [Models & providers](configuration/route-policy.md).
+An installation can set a managed policy (MAC_CONTROL_MANAGED_ROUTE_POLICY) that the app cannot widen. Its removed runtimes are also hidden in Agent tools, Setup and Billing & rates. A run outside the policy stops with ROUTE_POLICY before it starts. The old free-only setting is retired; the first policy was written from it. Details: [AI & models](configuration/route-policy.md).
 
-[Open Models & providers](http://127.0.0.1:8800/profile#models-providers) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=models-providers)
+[Open AI & models](http://127.0.0.1:8800/profile#models-providers) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=models-providers)
 
 ## Choose models and recover failed work
 
 Configure ordered alternatives and retry the same task without rebuilding the project.
 
-1. Open Settings → Coordinator setup → Model recovery. Enable automatic route recovery and select up to six configured alternatives in the order you want. A route can use a different runtime/model. Hermes retains the Coordinator guidance; planning helpers only return proposals.
-2. Which cost classes may run (membership, free, paid API) is set in Settings → Models & providers; Model recovery shows them and links there. Membership consumes shared account quota and any enabled account overage still applies. Paid API also needs planning/task approval.
+1. Open Settings → AI & models → Advanced → Model recovery. Enable automatic route recovery and select up to six configured alternatives in the order you want. A route can use a different runtime/model. Hermes retains the Coordinator guidance; planning helpers only return proposals.
+2. Which cost classes may run (membership, free, paid API) is set in Settings → AI & models; Model recovery shows them and links there. Membership consumes shared account quota and any enabled account overage still applies. Paid API also needs planning/task approval.
 3. Planning permits one output repair on its approved route, followed by untried approved alternatives. Validation applies to every route. After all alternatives fail, the saved project and task remain available for a manual route choice; no project stories start before plan approval.
 4. Open the failed planning task to choose another configured model. A paid route requires a separate API-charge acknowledgment. Membership access does not cover provider API billing. Global spending settings and host restrictions remain in force.
 5. Enable Include alternatives in future project plans to put eligible free and membership alternatives on the editable story map. Review them before submitting. Provider/rate-limit failures may hand off to an approved untried route; model lock disables automatic story switching, and editing timeouts require review of partial work.
@@ -274,7 +274,7 @@ Read/Edit restrictions depend on the agent. Check the explanatory note in New ch
 
 Compare captured API-equivalent usage against each agent’s full monthly subscription.
 
-1. RCD starts with no membership account configured. If this installation deliberately provides a native Claude Code or Codex subscription route, open Agents → Billing & rates and explicitly save that account as Subscription.
+1. RCD starts with no membership account configured. If this installation deliberately provides a native Claude Code or Codex subscription route, open Settings → AI & models → Accounts and explicitly save that account as Subscription.
 2. Select This month in Agents and read the agent’s subscription and savings summary.
 3. Savings compare captured API-equivalent usage for this calendar month against the full monthly subscription, counted once across that agent’s sub-agents.
 
@@ -293,20 +293,20 @@ Dispatch refuses any route that has no reviewed pricing class. The run fails in 
 
 This is the pre-dispatch spending guard, not a fault. A :free model name, a billing estimate or a past successful run does not classify a route. Paid OpenClaw and Hermes routes are always refused.
 
-[Open Billing & rates](http://127.0.0.1:8800/agents?action=billing) · [Open Tasks](http://127.0.0.1:8800/tasks) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=price-unknown)
+[Open Billing & rates](http://127.0.0.1:8800/profile?action=billing#accounts) · [Open Tasks](http://127.0.0.1:8800/tasks) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=price-unknown)
 
 ## Use Grok Build as an agent
 
 Grok Build is xAI’s terminal coding agent. RCD can run it on a SuperGrok subscription, next to or instead of any other agent.
 
 1. Install the CLI on the Pi and sign in with grok login (or grok login --device-code on a machine without a browser). RCD never sees the sign-in.
-2. Open Agents, then Billing & rates, set Grok Build to Subscription and save. Until you do, RCD refuses to start it, because the CLI has no dollar cap and an API-billed route cannot be bounded.
+2. Open Settings → AI & models → Accounts → Billing & rates, set Grok Build to Subscription and save. Until you do, RCD refuses to start it, because the CLI has no dollar cap and an API-billed route cannot be bounded.
 3. Create a task or choose Grok Build as a project story agent or fallback. Pick a model such as grok-4.6, grok-4.5 or grok-build-0.1, or leave it blank for the CLI default.
 4. Read the data notice first: Grok sends the task and the files it reads to xAI. RCD runs it with telemetry and trace upload off, inside a filesystem sandbox (read-only for a read task, the working directory for an edit task), with git push and merge blocked.
 
 RCD works with any mix of agents installed, including only Grok Build. Usage for Grok comes from the runs RCD dispatches; it does not read the CLI’s own session history. Grok is not used as a project planner, and subscription limit notices cover Claude Code and Codex only.
 
-[Open Billing & rates](http://127.0.0.1:8800/agents?action=billing) · [Open Agents](http://127.0.0.1:8800/agents) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=grok-build)
+[Open Billing & rates](http://127.0.0.1:8800/profile?action=billing#accounts) · [Open Agents](http://127.0.0.1:8800/agents) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=grok-build)
 
 ## A Claude or Codex limit was reached
 
@@ -331,7 +331,7 @@ Add explicit token rates when a model’s usage is captured but its API equivale
 
 Use rates from the model provider. Models ending in :free cost 0. Other missing rates remain unpriced; tools, taxes and other surcharges are outside token estimates.
 
-[Open model rate settings](http://127.0.0.1:8800/agents?action=billing) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=model-rates)
+[Open model rate settings](http://127.0.0.1:8800/profile?action=billing#accounts) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=model-rates)
 
 ## Track actual OpenRouter spending
 
@@ -450,7 +450,7 @@ Open the Media studio from the project (or from a human media story), see what i
 
 A clip starts from a published, approved still. A draft still is too small to publish; make stills at standard or premium. Agents never receive the fal key and cannot generate media.
 
-[Open Projects](http://127.0.0.1:8800/projects) · [Media prices (what it costs)](http://127.0.0.1:8800/agents?action=billing) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=project-media)
+[Open Projects](http://127.0.0.1:8800/projects) · [Media prices (what it costs)](http://127.0.0.1:8800/profile?action=billing#accounts) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=project-media)
 
 ## Check media spend and avoid paying twice
 
@@ -464,20 +464,20 @@ Estimates are an upper bound; fal’s usage page is the truth. Repeats and unpri
 
 In the first real website run fal billed $16.88 while MCD showed about $2, because Veo clips had no price and repeat generations were not flagged. Both are fixed.
 
-[Media models and prices](http://127.0.0.1:8800/agents?action=billing) · [Open Projects](http://127.0.0.1:8800/projects) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=media-spend)
+[Media models and prices](http://127.0.0.1:8800/profile?action=billing#accounts) · [Open Projects](http://127.0.0.1:8800/projects) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=media-spend)
 
 ## Create or replace the fal key
 
 fal fixes a key’s allowed models when the key is created, so a model added later needs a new key.
 
 1. At fal.ai/dashboard/keys create a key with the API preset, add its allowed models, and set a credit limit. fal cannot change a key’s model list afterwards.
-2. Add these patterns: minimax/h3-max* (the default video models), fal-ai/nano-banana-2* and fal-ai/nano-banana-pro* (images), and fal-ai/veo3.1* only if you want the premium Veo tier. If a wildcard is refused, add the exact endpoint ids listed in Agents, Billing & rates, Media models.
+2. Add these patterns: minimax/h3-max* (the default video models), fal-ai/nano-banana-2* and fal-ai/nano-banana-pro* (images), and fal-ai/veo3.1* only if you want the premium Veo tier. If a wildcard is refused, add the exact endpoint ids listed in Settings → AI & models → Accounts, Media models.
 3. Copy the secret once and paste it into Profile, Private credentials, fal.ai key. It is encrypted, write-only and never shown again, and agents never receive it.
 4. Run one cheap generation to confirm. If a model is refused, the key’s list does not include it: make a new key, replace the saved one and delete the old key at fal.
 
 The edit screen for an existing fal key shows the model list read-only; that is why adding a model there does nothing.
 
-[Save the key](http://127.0.0.1:8800/profile#credentials-profile) · [Media models and prices](http://127.0.0.1:8800/agents?action=billing) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=fal-key)
+[Save the key](http://127.0.0.1:8800/profile#credentials-profile) · [Media models and prices](http://127.0.0.1:8800/profile?action=billing#accounts) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=fal-key)
 
 ## Accept a story whose agent reported unfinished work
 
@@ -518,11 +518,11 @@ The dashboard checks the platforms you pick, creates the missing OpenClaw role a
 
 Role agents use OpenClaw’s configured default model. Applying twice creates nothing new; switching to Stable start later only adds what is missing.
 
-[Open Coordinator setup](http://127.0.0.1:8800/profile#coordinator-bootstrap) · [Agent tools](http://127.0.0.1:8800/profile#agent-tools) · [Billing & rates](http://127.0.0.1:8800/agents?action=billing) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=coordinator-setup)
+[Open Coordinator setup](http://127.0.0.1:8800/profile#coordinator-bootstrap) · [Agent tools](http://127.0.0.1:8800/profile#agent-tools) · [Billing & rates](http://127.0.0.1:8800/profile?action=billing#accounts) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=coordinator-setup)
 
 ## Keep the dashboard tidy: housekeeping, bug reports, roles and GitHub
 
-Settings, Maintenance & access holds the cleanup scan, bug-report intake, agent roles, report folders and the GitHub settings and actions.
+Settings, Maintenance holds the cleanup scan, bug-report intake, agent roles, report folders and the GitHub settings and actions.
 
 1. Housekeeping scans for leftovers by fixed rules, with no model involved. Press Scan now, read the findings and approve only what you want removed. Hermes may propose a cleanup but can never change anything itself. After hours cleanup is off unless the host enables it (the Notes line says how).
 2. Bug reports shows whether intake is on and when GitHub was last checked. A maintainer labels an issue bug-report and accepted to make it a Backlog task. Press Check GitHub now to look immediately.
@@ -532,13 +532,13 @@ Settings, Maintenance & access holds the cleanup scan, bug-report intake, agent 
 
 Nothing here changes anything until you approve it. Agents can draft, never approve.
 
-[Open Maintenance & access](http://127.0.0.1:8800/profile#housekeeping) · [Ops reports](http://127.0.0.1:8800/reports) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=maintenance)
+[Open Maintenance](http://127.0.0.1:8800/profile#housekeeping) · [Ops reports](http://127.0.0.1:8800/reports) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=maintenance)
 
 ## Install or upgrade the agent tools
 
-Settings, Updates & installs: one card per agent CLI with its version, an Install or Upgrade button, a progress bar, the install log and a health check.
+Settings, Installs & updates: one card per agent CLI with its version, an Install or Upgrade button, a progress bar, the install log and a health check.
 
-1. Open Settings, then Updates & installs. Each agent tool is a card showing the version installed and the version this release has verified.
+1. Open Settings, then Installs & updates. Each agent tool is a card showing the version installed and the version this release has verified.
 2. Press Install or Upgrade. A confirmation lists the versions, downloads, commands and what stays unchanged. Tick it to run. Nothing needs sudo and nothing signs in.
 3. Watch the progress bar and open the log if you want the detail. Only one install runs at a time.
 4. When it finishes the health check runs by itself: it asks the tool for its version, checks that a new terminal reaches the managed copy, and lists next steps. Press Check health to run it again.
@@ -548,13 +548,13 @@ Settings, Updates & installs: one card per agent CLI with its version, an Instal
 
 Roll back switches to the version kept on this host. Remove deletes the program but keeps your tool data, for example ~/.hermes.
 
-[Open Updates & installs](http://127.0.0.1:8800/profile#agent-tools) · [Check the machine in the setup wizard](http://127.0.0.1:8800/setup) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=agent-tools)
+[Open Installs & updates](http://127.0.0.1:8800/profile#agent-tools) · [Check the machine in the setup wizard](http://127.0.0.1:8800/setup) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=agent-tools)
 
 ## Install or upgrade the optional system tools
 
 Install (All) and Upgrade (All) for Docker, ffmpeg, Python and gh, with a log and a health check. Homebrew on a Mac; a command to copy on Linux.
 
-1. Open Settings, then Updates & installs, then Optional system tools. Each tool shows its installed version; Check for updates asks Homebrew which are outdated and shows the newer version beside those. Managed Agent tools use their verified catalog version.
+1. Open Settings, then Installs & updates, then Optional system tools. Each tool shows its installed version; Check for updates asks Homebrew which are outdated and shows the newer version beside those. Managed Agent tools use their verified catalog version.
 2. On a Mac, Homebrew comes first. If it is missing the card shows the one command to run yourself in Terminal (it asks for your password; the dashboard never runs it). Press Check again afterwards.
 3. Install (All) runs one brew install for everything missing. Upgrade (All) runs brew update and then upgrades only these tools. The log shows every command.
 4. Docker needs its engine: Colima provides it on a Mac. If the health check says the engine is stopped, press Start Colima.

@@ -149,7 +149,7 @@ describe('Prices to review', () => {
     expect(grok.text()).toContain('listed $3/M in, $15/M out')
     expect((grok.get('[data-action="free"]').element as HTMLButtonElement).disabled).toBe(true)
     expect((w.get('[data-route="hermes|google/gemma-4-31b-it:free"] [data-action="free"]').element as HTMLButtonElement).disabled).toBe(false)
-    expect(w.get('[data-route="grok|grok-build-0.1"] [data-action="membership"]').attributes('href')).toBe('/agents?action=billing')
+    expect(w.get('[data-route="grok|grok-build-0.1"] [data-action="membership"]').attributes('href')).toBe('/profile?action=billing#accounts')
     expect(w.find('[data-route="grok|grok-build-0.1"] [data-action="free"]').exists()).toBe(false)
     await grok.get('[data-action="paid"]').trigger('click'); await flushPromises()
     expect(puts[0]).toEqual({ runtime: 'hermes', target: '', model: 'x-ai/grok-4.6', cost_class: 'paid' })

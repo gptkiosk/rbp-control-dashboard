@@ -189,7 +189,7 @@ async function remove(): Promise<void> {
     </p>
     <p v-else-if="!loaded" class="muted pad" role="status">Loading…</p>
 
-    <template v-if="data"><p v-if="!embedded" class="muted small pad">New chats start on the Chat default. <RouterLink to="/profile#models-providers">Models &amp; providers</RouterLink> · <RouterLink to="/help?topic=project-consultant">Model settings help</RouterLink>. This conversation keeps its selected route.</p>
+    <template v-if="data"><p v-if="!embedded" class="muted small pad">New chats start on the Chat default. <RouterLink to="/profile#models-providers">AI &amp; models</RouterLink> · <RouterLink to="/help?topic=project-consultant">Model settings help</RouterLink>. This conversation keeps its selected route.</p>
       <header class="head">
         <button type="button" class="btn back" @click="emit('back')">
           <AppIcon name="back" />

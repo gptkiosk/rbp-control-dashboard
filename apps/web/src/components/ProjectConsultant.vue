@@ -13,7 +13,7 @@ const typeKey=(id:number)=>`mcd-consultant-type-${id}`
 // The type is remembered per conversation so a resumed consultant still hands it to the plan. Browser storage is only a convenience here.
 const savedType=(id:number)=>{try{return localStorage.getItem(typeKey(id))||null}catch{return null}}
 const open=ref(false), threadId=ref(props.resumeId || 0), projectType=ref<string|null>(props.resumeId?savedType(props.resumeId):null), typeCount=ref(0), title=ref(''), goal=ref(''), workingDir=ref(''), busy=ref(false), error=ref('')
-// The consultant is a read-only chat: it starts on the Chat default in Models & providers.
+// The consultant is a read-only chat: it starts on the Chat default in AI & models.
 const chatRoutes=useRoutes('chat')
 const agent=computed(()=>chatRoutes.data.value?.default?.runtime || 'hermes')
 const model=computed(()=>chatRoutes.data.value?.default?.model || '')
@@ -76,8 +76,8 @@ async function review() {
       <p>Shape the brief together, then review it before anything reaches planning. <RouterLink to="/help?topic=project-consultant">How-to</RouterLink></p>
       <p class="muted small">New chats: {{agent}} · {{model || 'its default model'}} · <RouterLink to="/profile#models-providers">Chat default</RouterLink></p>
       <NoteFold label="Route and billing"><p class="small">Free routes can throttle or time out. Membership routes use your native CLI account; API routes can incur charges. <RouterLink to="/help?topic=project-models">Model routes and billing</RouterLink>.</p></NoteFold>
-      <p v-if="!available && !threadId" role="status">No chat route is available for the consultant. {{ chatRoutes.data.value?.empty_reason }} <RouterLink to="/profile#models-providers">Models &amp; providers</RouterLink> · <RouterLink to="/profile#agent-tools">Agent tools</RouterLink></p>
-      <p v-else-if="!threadId" class="muted small">Uses {{ agent }} · {{ model || 'its default model' }} (the Chat default in <RouterLink to="/profile#models-providers">Models &amp; providers</RouterLink>).</p>
+      <p v-if="!available && !threadId" role="status">No chat route is available for the consultant. {{ chatRoutes.data.value?.empty_reason }} <RouterLink to="/profile#models-providers">AI &amp; models</RouterLink> · <RouterLink to="/profile#agent-tools">Agent tools</RouterLink></p>
+      <p v-else-if="!threadId" class="muted small">Uses {{ agent }} · {{ model || 'its default model' }} (the Chat default in <RouterLink to="/profile#models-providers">AI &amp; models</RouterLink>).</p>
       <p v-if="error" role="alert">{{error}}</p>
       <p v-if="busy && threadId" role="status" class="muted">Sending your goal to the consultant…</p>
       <form v-if="!threadId" @submit.prevent="start">

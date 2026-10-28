@@ -29,7 +29,7 @@ function pick(value: string | number) { emit('update:modelValue', value === '' ?
       </AppSelect>
     </label>
     <p v-if="outside" class="notice-warn small" role="alert">{{ routeLabel(outside) }} is not allowed: {{ outside.hidden_because }}.</p>
-    <p v-if="data?.empty_reason" class="notice-warn small" role="alert">{{ data.empty_reason }} <RouterLink to="/profile#models-providers">Models &amp; providers</RouterLink></p>
+    <p v-if="data?.empty_reason" class="notice-warn small" role="alert">{{ data.empty_reason }} <RouterLink to="/profile#models-providers">AI &amp; models</RouterLink></p>
     <p v-else-if="data?.default_note" class="muted small">{{ data.default_note }}.</p>
     <p v-if="error" class="notice-warn small" role="alert">{{ error }}</p>
     <details v-if="data?.hidden.length" class="hidden-routes"><summary class="small">Show hidden ({{ data.hidden.length }})</summary>

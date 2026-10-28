@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// The header of a panel on the Settings page: title, an optional status pill, and a How-to link. The same look as the cards on Updates & installs.
+// The header of a panel on the Settings page: title, an optional status pill, and a How-to link. The same look as the cards on Installs & updates.
 defineProps<{ id: string; title: string; status?: string; tone?: 'ok' | 'warn' | 'muted'; help?: string }>()
 </script>
 <template>

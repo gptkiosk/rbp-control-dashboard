@@ -18,7 +18,9 @@ import AppSelect from '@/components/AppSelect.vue'
 import PlanningBiasSlider from '@/components/PlanningBiasSlider.vue'
 import CoordinatorSetupPanel from '@/components/CoordinatorSetupPanel.vue'
 import ToggleSwitch from '@/components/ToggleSwitch.vue'
-import { getJson, putJson, postJson, deleteJson } from '@/lib/api'
+import { getJson, putJson, postJson, deleteJson, type Agent } from '@/lib/api'
+import AgentBillingDialog from '@/components/AgentBillingDialog.vue'
+import { useGuideAction } from '@/composables/useGuideAction'
 import type { Profile, Preferences, CoordinatorBootstrapPreferences } from '@/lib/profile'
 import { directoryName, directoryDetail } from '@/lib/selectLabels'
 import { useThemeStore } from '@/stores/theme'
@@ -28,13 +30,19 @@ const error = ref(''), notice = ref(''), busy = ref(false), pairing = ref('')
 const guide = ref<InstanceType<typeof CredentialsPanel> | null>(null)
 const secrets = ref<Record<string,string>>({ openrouter: '', discord: '', fal: '' })
 const spending = ref<Record<string, number | string | boolean | null> | null>(null)
+// AI & models → Accounts: membership or API per agent, model rates and spending limits (Billing & rates, formerly on the Agents page).
+const billingOpen = ref(false), billingAgents = ref<Agent[]>([])
+async function openBilling() { await action(async () => { billingAgents.value = (await getJson<{ agents: Agent[] }>('/api/agents')).agents; billingOpen.value = true }) }
 const theme = useThemeStore()
 const router = useRouter()
+if (router) useGuideAction('billing', () => { tab.value = 'ai'; void openBilling() })   // ?action=billing opens Accounts, rates & limits
 const bootstrapReadiness = ref<{ ready: boolean; checks: {id:string;label:string;ready:boolean;link:string}[] } | null>(null)
 // Keep coordinator bootstrap choices in their own profile section; old hash links still open the right group.
-const TABS = [{ id: 'settings', label: 'Settings' }, { id: 'models', label: 'Models & providers' }, { id: 'coordinator', label: 'Coordinator setup' }, { id: 'updates', label: 'Updates & installs' }, { id: 'maintenance', label: 'Maintenance & access' }] as const
+// Four tabs: personal settings, everything about models (one page, top to bottom), installs, and maintenance. Older hash links still open the
+// right tab (HOME).
+const TABS = [{ id: 'settings', label: 'General' }, { id: 'ai', label: 'AI & models' }, { id: 'updates', label: 'Installs & updates' }, { id: 'maintenance', label: 'Maintenance' }] as const
 type Tab = typeof TABS[number]['id']
-const HOME: Record<string, Tab> = { 'models-providers': 'models', 'coordinator-bootstrap': 'coordinator', 'route-recovery': 'coordinator', updates: 'updates', 'agent-tools': 'updates', 'system-tools': 'updates', 'agent-roles': 'maintenance', housekeeping: 'maintenance', 'github-settings': 'maintenance', 'github-actions': 'maintenance', 'bug-intake': 'maintenance', 'issue-tasks': 'maintenance', roles: 'maintenance', reports: 'maintenance' }
+const HOME: Record<string, Tab> = { 'models-providers': 'ai', 'ai-settings': 'ai', accounts: 'ai', 'coordinator-bootstrap': 'ai', 'route-recovery': 'ai', 'agent-roles': 'ai', roles: 'ai', updates: 'updates', 'agent-tools': 'updates', 'system-tools': 'updates', housekeeping: 'maintenance', 'github-settings': 'maintenance', 'github-actions': 'maintenance', 'bug-intake': 'maintenance', 'issue-tasks': 'maintenance', reports: 'maintenance' }
 const THEMES = [{ id: 'system', label: 'Device' }, { id: 'light', label: 'Light' }, { id: 'dark', label: 'Dark' }] as const
 const tab = ref<Tab>('settings')
 function fromHash() {
@@ -63,7 +71,7 @@ onMounted(() => { void action(async () => {
 }) })
 async function save() { await action(async () => {
   apply(await putJson<Profile>('/api/profile', preferences.value)); theme.choose(profile.value!.preferences.theme)
-  notice.value = tab.value === 'coordinator' ? 'Coordinator bootstrap preferences saved.' : 'Profile saved. New projects use these defaults.'
+  notice.value = tab.value === 'ai' ? 'Saved. New projects use these defaults.' : 'Settings saved.'
 }) }
 // Saves the current choices; the setup check reads them from the profile.
 async function persistPreferences() { apply(await putJson<Profile>('/api/profile', preferences.value)) }
@@ -132,7 +140,6 @@ async function importPreferences(event: Event) { await action(async () => {
       <HousekeepingPanel />
       <ReportStoragePanel />
       <BugIntakePanel />
-      <RolesPanel />
       <GithubSettingsPanel id="github-settings" />
       <GithubActionsPanel />
     </div>
@@ -144,10 +151,7 @@ async function importPreferences(event: Event) { await action(async () => {
           <div class="seg" role="radiogroup" aria-labelledby="appearance-label"><button v-for="t in THEMES" :key="t.id" type="button" role="radio" class="seg-btn" :class="{ on: preferences.theme === t.id }" :aria-checked="preferences.theme === t.id" @click="preferences.theme = t.id">{{ t.label }}</button></div>
         </div>
         <label class="row"><span class="name">Workspace</span><AppSelect v-model="preferences.working_dir" aria-label="Default working directory"><option value="">First allowed workspace</option><option v-for="w in workdirs" :key="w.path" :value="w.path" :data-description="directoryDetail(w.path,w.branch)">{{ directoryName(w.path) }}</option></AppSelect></label>
-        <section id="ai-settings" class="row stack" data-testid="default-models"><span class="name">Default models</span>
-          <p class="muted small">New chat, New task and the project consultant start from the Chat and Tasks defaults in <RouterLink to="/profile#models-providers">Models &amp; providers</RouterLink>, with the Coordinator, planner and story defaults.</p>
-        </section>
-        <PlanningBiasSlider v-model="preferences.planning_bias" compact />
+        <p class="muted small" data-testid="models-link">Models, the Coordinator, accounts and defaults for new projects are in <a href="#models-providers" @click.prevent="pick('ai')">AI &amp; models</a>.</p>
         <div class="actions"><button class="btn primary" :disabled="busy">Save preferences</button><button type="button" class="btn" @click="exportPreferences">Export</button><label class="btn import">Import<input type="file" accept="application/json" aria-label="Import preferences" @change="importPreferences" /></label></div>
       </form>
       <div class="profile-stack">
@@ -176,36 +180,61 @@ async function importPreferences(event: Event) { await action(async () => {
       </div>
     </div>
 
-    <div v-show="tab === 'models'" class="group" role="tabpanel" aria-label="Models and providers"><RoutePolicyPanel /></div>
-    <RouteRecoveryPanel v-show="tab === 'coordinator'" @saved="p => { if (preferences) preferences.route_recovery = p; if (profile) profile.preferences.route_recovery = p }" />
-    <form v-if="profile && preferences" v-show="tab === 'coordinator'" id="coordinator-bootstrap" class="card bootstrap-card" role="tabpanel" aria-labelledby="bootstrap-title" @submit.prevent="save">
-      <header class="card-head"><div><h2 id="bootstrap-title">Coordinator setup</h2><p class="muted small">The dashboard checks the platforms you pick and sets up what is missing. No model runs until you start the validation project.</p></div><RouterLink to="/help?topic=maintenance" class="small">How-to</RouterLink></header>
-      <fieldset class="choice-group mode-group"><legend>Setup mode</legend>
-        <label class="mode"><input v-model="preferences.coordinator_bootstrap.mode" type="radio" value="stable" /><span><strong>Stable start (recommended)</strong><span class="small muted">Creates the missing OpenClaw role agents and project folders from tested templates. Never changes what is already there.</span></span></label>
-        <label class="mode"><input v-model="preferences.coordinator_bootstrap.mode" type="radio" value="custom" /><span><strong>I’ll configure the platforms myself</strong><span class="small muted">Changes nothing. Checks what you set up and lists any gaps with links.</span></span></label>
-      </fieldset>
-      <fieldset class="choice-group"><legend>Platforms</legend><p class="small muted">Each one is checked: installed, starts, and has a route the dashboard may use. Unready ones show the fix.</p>
-        <label v-for="item in [{id:'openclaw',name:'OpenClaw'},{id:'claude',name:'Claude Code'},{id:'codex',name:'Codex'},{id:'grok',name:'Grok Build'}]" :key="item.id" class="choice"><input v-model="preferences.coordinator_bootstrap.platforms" type="checkbox" :value="item.id" /><span>{{ item.name }}</span></label>
-      </fieldset>
-      <template v-if="preferences.coordinator_bootstrap.mode === 'stable'">
-        <fieldset class="choice-group"><legend>OpenClaw role agents</legend><p class="small muted">Missing ones are created on OpenClaw’s configured default model. Existing agents are kept.</p>
-          <label v-for="item in [{id:'developer',name:'Developer'},{id:'security',name:'Security reviewer'},{id:'reviewer',name:'Acceptance reviewer'}]" :key="item.id" class="choice"><input v-model="preferences.coordinator_bootstrap.roles" type="checkbox" :value="item.id" /><span>{{ item.name }}</span></label>
-        </fieldset>
-        <div class="switches" role="group" aria-label="Workspace and memory setup">
-          <ToggleSwitch v-model="preferences.coordinator_bootstrap.shared_project_memory" label="Shared project memory" hint="A notes folder every project may read." />
-          <ToggleSwitch v-model="preferences.coordinator_bootstrap.project_workspaces" label="Project workspaces" hint="Projects get their own folders in the managed project area." />
-        </div>
-      </template>
-      <label class="row bootstrap-model"><span class="name">Security review</span><AppSelect v-model="preferences.coordinator_bootstrap.security_review" aria-label="Security review policy"><option value="risk_based">Include for security-sensitive or high-risk work</option><option value="every_project">Include in every project</option><option value="by_request">Include when I request it</option></AppSelect></label>
-      <h3 class="sub">Hermes, the Coordinator</h3>
-      <ul v-if="bootstrapReadiness" class="readiness-list" aria-label="Hermes readiness">
-        <li v-for="check in bootstrapReadiness.checks" :key="check.id" :class="check.ready ? 'ready' : 'missing'">
-          <span aria-hidden="true">{{ check.ready ? '✓' : '!' }}</span><span>{{ check.label }}</span><RouterLink v-if="!check.ready" :to="check.link">{{ check.id === 'guidance' ? 'Open Agent roles' : 'Fix' }}</RouterLink>
-        </li>
-      </ul>
-      <CoordinatorSetupPanel :hermes-ready="!!bootstrapReadiness?.ready" :persist="persistPreferences" />
-      <div class="actions"><button class="btn" :disabled="busy">Save coordinator setup</button><button class="btn" type="button" :disabled="busy" @click="refreshCoordinatorReadiness">Recheck Hermes</button><RouterLink to="/agents" class="btn">Review installed agents</RouterLink></div>
-    </form>
+    <div v-show="tab === 'ai'" class="group" role="tabpanel" aria-label="AI and models">
+      <RoutePolicyPanel>
+        <template #coordinator>
+          <RolesPanel />
+          <details v-if="profile && preferences" id="coordinator-bootstrap" class="setup-fold" :open="!bootstrapReadiness?.ready">
+            <summary><span id="bootstrap-title">Coordinator setup</span> <span class="muted small">{{ bootstrapReadiness?.ready ? 'done' : 'not finished' }}</span></summary>
+            <form class="bootstrap-card" aria-labelledby="bootstrap-title" @submit.prevent="save">
+              <header class="card-head"><div><p class="muted small">The dashboard checks the platforms you pick and sets up what is missing. No model runs until you start the validation project.</p></div><RouterLink to="/help?topic=maintenance" class="small">How-to</RouterLink></header>
+              <fieldset class="choice-group mode-group"><legend>Setup mode</legend>
+                <label class="mode"><input v-model="preferences.coordinator_bootstrap.mode" type="radio" value="stable" /><span><strong>Stable start (recommended)</strong><span class="small muted">Creates the missing OpenClaw role agents and project folders from tested templates. Never changes what is already there.</span></span></label>
+                <label class="mode"><input v-model="preferences.coordinator_bootstrap.mode" type="radio" value="custom" /><span><strong>I’ll configure the platforms myself</strong><span class="small muted">Changes nothing. Checks what you set up and lists any gaps with links.</span></span></label>
+              </fieldset>
+              <fieldset class="choice-group"><legend>Platforms</legend><p class="small muted">Each one is checked: installed, starts, and has a route the dashboard may use. Unready ones show the fix.</p>
+                <label v-for="item in [{id:'openclaw',name:'OpenClaw'},{id:'claude',name:'Claude Code'},{id:'codex',name:'Codex'},{id:'grok',name:'Grok Build'}]" :key="item.id" class="choice"><input v-model="preferences.coordinator_bootstrap.platforms" type="checkbox" :value="item.id" /><span>{{ item.name }}</span></label>
+              </fieldset>
+              <template v-if="preferences.coordinator_bootstrap.mode === 'stable'">
+                <fieldset class="choice-group"><legend>OpenClaw role agents</legend><p class="small muted">Missing ones are created on OpenClaw’s configured default model. Existing agents are kept.</p>
+                  <label v-for="item in [{id:'developer',name:'Developer'},{id:'security',name:'Security reviewer'},{id:'reviewer',name:'Acceptance reviewer'}]" :key="item.id" class="choice"><input v-model="preferences.coordinator_bootstrap.roles" type="checkbox" :value="item.id" /><span>{{ item.name }}</span></label>
+                </fieldset>
+                <div class="switches" role="group" aria-label="Workspace and memory setup">
+                  <ToggleSwitch v-model="preferences.coordinator_bootstrap.shared_project_memory" label="Shared project memory" hint="A notes folder every project may read." />
+                  <ToggleSwitch v-model="preferences.coordinator_bootstrap.project_workspaces" label="Project workspaces" hint="Projects get their own folders in the managed project area." />
+                </div>
+              </template>
+              <label class="row bootstrap-model"><span class="name">Security review</span><AppSelect v-model="preferences.coordinator_bootstrap.security_review" aria-label="Security review policy"><option value="risk_based">Include for security-sensitive or high-risk work</option><option value="every_project">Include in every project</option><option value="by_request">Include when I request it</option></AppSelect></label>
+              <h3 class="sub">Hermes, the Coordinator</h3>
+              <ul v-if="bootstrapReadiness" class="readiness-list" aria-label="Hermes readiness">
+                <li v-for="check in bootstrapReadiness.checks" :key="check.id" :class="check.ready ? 'ready' : 'missing'">
+                  <span aria-hidden="true">{{ check.ready ? '✓' : '!' }}</span><span>{{ check.label }}</span><RouterLink v-if="!check.ready" :to="check.link">{{ check.id === 'guidance' ? 'Open Agent roles' : 'Fix' }}</RouterLink>
+                </li>
+              </ul>
+              <CoordinatorSetupPanel :hermes-ready="!!bootstrapReadiness?.ready" :persist="persistPreferences" />
+              <div class="actions"><button class="btn" :disabled="busy">Save coordinator setup</button><button class="btn" type="button" :disabled="busy" @click="refreshCoordinatorReadiness">Recheck Hermes</button><RouterLink to="/agents" class="btn">Review installed agents</RouterLink></div>
+            </form>
+          </details>
+        </template>
+        <template #defaults>
+          <form v-if="preferences" class="story-default" @submit.prevent="save">
+            <PlanningBiasSlider v-model="preferences.planning_bias" compact />
+            <p class="muted small">Where new projects start on the story slider; each project can change it in its Project settings.</p>
+            <button class="btn" :disabled="busy">Save story preference</button>
+          </form>
+        </template>
+        <template #accounts>
+          <fieldset id="accounts" data-testid="accounts"><legend>Accounts</legend>
+            <p class="muted small">Whether each agent uses a membership you are signed in to or bills an API key, its monthly price, model rates and spending limits.</p>
+            <div class="actions"><button type="button" class="btn" :disabled="busy" data-testid="open-billing" @click="openBilling">Billing &amp; rates…</button></div>
+          </fieldset>
+        </template>
+        <template #advanced>
+          <RouteRecoveryPanel @saved="p => { if (preferences) preferences.route_recovery = p; if (profile) profile.preferences.route_recovery = p }" />
+        </template>
+      </RoutePolicyPanel>
+      <AgentBillingDialog v-if="billingOpen" :agents="billingAgents" :models="[]" @close="billingOpen = false" @saved="billingOpen = false" />
+    </div>
   </section>
 </template>
 
@@ -217,7 +246,9 @@ async function importPreferences(event: Event) { await action(async () => {
 .group { display:grid; gap:var(--gap-lg); margin-top:var(--gap); } .group > :deep(.card), .group > :deep(section) { margin:0; }
 .profile-grid { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.2fr); gap:var(--gap-lg); align-items:start; margin-top:var(--gap-lg); }
 .profile-stack { display:grid; gap:var(--gap-lg); min-width:0; } .card { background:var(--agent-glass); min-width:0; display:grid; gap:var(--gap); align-content:start; }
-.bootstrap-card { max-width:70rem; margin:var(--gap-lg) auto 0; }
+.bootstrap-card { margin:var(--gap-sm) 0 0; }
+.setup-fold > summary { cursor:pointer; font-weight:600; }
+.story-default { display:grid; gap:var(--gap-sm); justify-items:start; margin-top:var(--gap); }
 .bootstrap-card .card-head { justify-content:space-between; }
 .bootstrap-card .card-head p { margin:var(--gap-xs) 0 0; }
 .choice-group { display:flex; flex-wrap:wrap; gap:var(--gap-sm) var(--gap); border:1px solid var(--surface-border); border-radius:var(--radius); padding:var(--gap); margin:0; }

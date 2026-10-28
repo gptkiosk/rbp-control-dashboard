@@ -77,8 +77,8 @@ const unknownArea = computed(() => problems.value.some(p => p.includes("this rep
         <div><dt>Working directory</dt><dd class="mono">{{ workingDir }}</dd></div>
         <div><dt>Story preference</dt><dd>{{ planningBiasLabel(planningBias) }}</dd></div>
         <div v-if="mode === 'plan'" data-testid="review-coordinator"><dt>Coordinator</dt><dd>{{ coordinatorText }}
-          <span v-if="coordinatorRoutes?.empty_reason" class="notice-warn small route-problem" role="alert">{{ coordinatorRoutes.empty_reason }} <RouterLink to="/profile#models-providers">Models &amp; providers</RouterLink></span>
-          <span v-else-if="coordinatorRoutes?.default_note" class="muted small route-problem">{{ coordinatorRoutes.default_note }}. <RouterLink to="/profile#models-providers">Models &amp; providers</RouterLink></span></dd></div>
+          <span v-if="coordinatorRoutes?.empty_reason" class="notice-warn small route-problem" role="alert">{{ coordinatorRoutes.empty_reason }} <RouterLink to="/profile#models-providers">AI &amp; models</RouterLink></span>
+          <span v-else-if="coordinatorRoutes?.default_note" class="muted small route-problem">{{ coordinatorRoutes.default_note }}. <RouterLink to="/profile#models-providers">AI &amp; models</RouterLink></span></dd></div>
         <div v-if="mode === 'plan'" data-testid="review-planner"><dt>Planner</dt><dd>{{ planner }}
           <span v-if="plannerProblem" class="notice-warn small route-problem" role="alert">{{ plannerProblem }}</span></dd></div>
         <div v-else><dt>Build</dt><dd>{{ dispatchMode === 'parallel' ? 'In parallel, in separate branches' : 'One story at a time, in dependency order' }}</dd></div>
@@ -125,7 +125,7 @@ const unknownArea = computed(() => problems.value.some(p => p.includes("this rep
         <RouteAdvice :project-id="projectId" :revision="revision" />
       </template>
 
-      <NoteFold label="Spending and billing"><p class="small">The Coordinator uses its reviewed route; the Planner above is a separate choice. Failed planning steps try the next approved model/provider route. Retries stay within Models &amp; providers, with paid API last; they never approve paid work. If all routes fail, the project stays available to revise and retry. Membership access and provider API billing are separate. Free models can hit limits, and a Google BYOK fallback can incur Google charges. Hermes and OpenClaw routing shares a $20 per month OpenRouter key cap that includes tracked BYOK usage; this does not cover your whole Google invoice or calls outside this key.</p><RouterLink to="/help?topic=project-models">Model routes and billing</RouterLink></NoteFold>
+      <NoteFold label="Spending and billing"><p class="small">The Coordinator uses its reviewed route; the Planner above is a separate choice. Failed planning steps try the next approved model/provider route. Retries stay within AI &amp; models, with paid API last; they never approve paid work. If all routes fail, the project stays available to revise and retry. Membership access and provider API billing are separate. Free models can hit limits, and a Google BYOK fallback can incur Google charges. Hermes and OpenClaw routing shares a $20 per month OpenRouter key cap that includes tracked BYOK usage; this does not cover your whole Google invoice or calls outside this key.</p><RouterLink to="/help?topic=project-models">Model routes and billing</RouterLink></NoteFold>
 
       <div class="approvals">
         <label class="check"><input v-model="coordination" type="checkbox" /><span>I approve this Coordinator coordination request and its configured routing.</span></label>

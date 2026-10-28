@@ -59,7 +59,7 @@ def candidates(settings, providers=()):
 
 def catalog(s, settings, providers=()):
     """Each candidate with its provider, reviewed cost class, listed price, readiness and recent reliability. Built once per request (session)
-    for the same providers and billing settings: a preview or the Models & providers page asks for several features at once."""
+    for the same providers and billing settings: a preview or the AI & models page asks for several features at once."""
     from models import BillingConfig
     row = s.get(BillingConfig, 1)
     key = (tuple(sorted(providers.items())) if isinstance(providers, dict) else tuple(sorted(providers)), row.payload if row else None)
@@ -220,7 +220,7 @@ def prices(s, settings):
 
 
 def policy_view(s, settings):
-    """The app and managed policies as the Models & providers page shows them."""
+    """The app and managed policies as the AI & models page shows them."""
     managed, error, app, saved, _ = policies(s, settings)
     return {'app': app.model_dump(mode='json'), 'app_saved': saved,
             'managed': managed.model_dump(mode='json') if managed is not None else None, 'managed_error': error,

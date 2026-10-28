@@ -20,7 +20,7 @@ PLATFORMS = ('openclaw', 'claude', 'codex', 'grok')
 NAMES = {'openclaw': 'OpenClaw', 'claude': 'Claude Code', 'codex': 'Codex', 'grok': 'Grok Build', 'hermes': 'Hermes'}
 TEMPLATES = REPO_ROOT / 'packs/agents'
 AGENT_TOOLS = '/profile#agent-tools'
-BILLING = '/agents?action=billing'
+BILLING = '/profile?action=billing#accounts'
 _LOCK = threading.Lock()
 _JOB = None      # the running or last apply: items with their state, and a log the page shows while it works
 _THREAD = None
@@ -101,7 +101,7 @@ def check_platform(settings, s, platform):
             return {**row, 'state': 'needs_action', 'detail': 'OpenClaw has no default model. Set one in its own configuration (openclaw configure), then check again.', 'link': AGENT_TOOLS}
         return {**row, 'model': model, 'detail': f'Default model {model}.'}
     if not projects.subscription(s, platform):
-        return {**row, 'state': 'needs_action', 'detail': 'Save its billing account as Subscription in Agents, Billing & rates, after signing in on this host. Until then the dashboard will not start it.', 'link': BILLING}
+        return {**row, 'state': 'needs_action', 'detail': 'Save its billing account as Subscription in Settings → AI & models → Accounts, after signing in on this host. Until then the dashboard will not start it.', 'link': BILLING}
     return {**row, 'detail': 'Billing saved as Subscription. Its sign-in is proven by the validation project.'}
 
 

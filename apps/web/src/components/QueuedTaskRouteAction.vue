@@ -45,7 +45,7 @@ async function change(){
    <label class="approval"><input v-model="acknowledged" type="checkbox" :disabled="busy||!selected" />I approve this route for this task.</label>
    <button class="btn primary" :disabled="busy||!selected||!acknowledged" @click="change">{{busy?'Switching route…':'Switch task route'}}</button>
   </template>
-  <p v-else-if="!error" class="muted small">No other configured subscription route is available. <RouterLink to="/agents?action=billing">Review Billing &amp; rates</RouterLink> and <RouterLink to="/profile#route-recovery">Model recovery</RouterLink>.</p>
+  <p v-else-if="!error" class="muted small">No other configured subscription route is available. <RouterLink to="/profile?action=billing#accounts">Review Billing &amp; rates</RouterLink> and <RouterLink to="/profile#route-recovery">Model recovery</RouterLink>.</p>
   <p v-if="error" role="alert" class="error">{{error}}</p><p v-if="notice" role="status">{{notice}}</p>
  </section>
 </template>

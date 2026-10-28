@@ -807,7 +807,7 @@ def installation_text(s, settings):
     import route_policy
     cost=route_policy.load_app(s,settings)[0].cost
     lines.append('Route policy cost classes: ' + ', '.join(n for n,on in (('membership',cost.membership),('free',cost.free),('paid API (last resort, approved per plan or task)',cost.paid)) if on)
-                 + ('; per-run cap $' + format(cap['per_run_cap_usd'], 'g') if cap['per_run_cap_usd'] else '; no per-run dollar cap (set limits in Agents, Billing & rates)')
+                 + ('; per-run cap $' + format(cap['per_run_cap_usd'], 'g') if cap['per_run_cap_usd'] else '; no per-run dollar cap (set limits in Settings → AI & models → Accounts)')
                  + ('; a reviewed price is required before a run starts' if cap['require_reviewed_pricing'] else '') + '.')
     try:
         import host_readiness
@@ -859,7 +859,7 @@ def delegator_route(settings, action=None):
     try:
         agent = store.delegator()
         if not agent:
-            fail('No project Coordinator is configured. Install Hermes and apply its guidance in Settings → Agent roles.', 422)
+            fail('No project Coordinator is configured. Install Hermes and apply its guidance in Settings → AI & models → Coordinator.', 422)
         if action is not None and store.state.exists() and action.delegator_revision != store.status()['revision']:
             fail('The project Coordinator assignment changed. Review the current setting before approving this request.', 409)
     except RoleError as exc:
@@ -1105,7 +1105,7 @@ def plan(s,p,action,settings,actor,subagents=None):
         billing_note='uses API billing' if coordinator_class=='paid' else 'has no reviewed price, so it counts as paid API'
         fail(f"The Coordinator route {delegate['agent']} · {delegate['model']} {billing_note}. Separate paid-planning approval is required.",422)
     if agent!='auto' and choices and (why:=route_policy.allowed(s,settings,choices[0]['agent'],choices[0]['model'],'planner',p,unknown_ok=True)):
-        fail(f"The project's planner {choices[0]['agent']} · {choices[0]['model']} is not allowed: {why}. Choose another planner for this project or change the policy in Models & providers.",422)
+        fail(f"The project's planner {choices[0]['agent']} · {choices[0]['model']} is not allowed: {why}. Choose another planner for this project or change the policy in AI & models.",422)
     if retrying:
         attempted={(v.agent,v.model_requested or '') for v in s.scalars(select(Run).join(ProjectTask,ProjectTask.card_id==Run.card_id).where(
             ProjectTask.project_id==p.id,ProjectTask.role=='plan',ProjectTask.revision==p.revision))}
@@ -1118,7 +1118,7 @@ def plan(s,p,action,settings,actor,subagents=None):
         choices = [delegate.copy()]
     if not choices:
         import route_catalog
-        fail((route_catalog.for_feature(s,settings,'planner',p)['empty_reason'] or 'No planner route is allowed.')+' Change the project planner or the policy in Models & providers; this project remains saved for retry.',422)
+        fail((route_catalog.for_feature(s,settings,'planner',p)['empty_reason'] or 'No planner route is allowed.')+' Change the project planner or the policy in AI & models; this project remains saved for retry.',422)
     if any(not subscription(s,c['agent']) and not reviewed_free_planner(s, settings, c) for c in choices) and not action.approve_api_planning:
         fail('This planner uses API billing. Separate paid-planning approval is required.',422)
     prompt = role_prompt('coordinate', candidates=json.dumps(choices), project=_brief(p)) + '\n'+model_profiles.guidance_text(s,settings.data_dir,[{'agent':r['agent'],'models':[r['model']]} for r in choices]) + _replan_prompt(getattr(p,'_replan_context',None))
@@ -2279,7 +2279,7 @@ def policy_coordinator(s,settings,p,delegate):
     view=route_catalog.for_feature(s,settings,'coordinator',p)
     if view['allowed']:
         return {'agent':view['allowed'][0]['runtime'],'model':view['allowed'][0]['model']}
-    fail(f"The Coordinator route {delegate['agent']} · {delegate['model']} is not allowed: {why}. Choose an allowed Coordinator model or change the policy in Models & providers.",422)
+    fail(f"The Coordinator route {delegate['agent']} · {delegate['model']} is not allowed: {why}. Choose an allowed Coordinator model or change the policy in AI & models.",422)
 
 
 

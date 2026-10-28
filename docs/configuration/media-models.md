@@ -1,6 +1,6 @@
 # Media models (fal.ai)
 
-Agents, then **Billing & rates**, then **Media models** lists the image and video models used to make site art and motion media, with what each costs and which quality tier it serves. It is a catalog: it records facts and your own prices and does not start any generation or limit any spending.
+Settings → AI & models → Accounts → **Billing & rates**, then **Media models** lists the image and video models used to make site art and motion media, with what each costs and which quality tier it serves. It is a catalog: it records facts and your own prices and does not start any generation or limit any spending.
 
 ## What is listed
 

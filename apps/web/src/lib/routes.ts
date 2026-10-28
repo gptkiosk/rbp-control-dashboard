@@ -71,7 +71,7 @@ export function applyPreset(policy: Policy, id: Preset['id'], provider = 'xai', 
 }
 export function presetOf(p: Policy): Preset['id'] {
   const { free, membership, paid } = p.cost
-  // The Coordinator's own paid-API rule (Models & providers → Coordinator) does not change which preset the rest of the policy matches.
+  // The Coordinator's own paid-API rule (AI & models → Coordinator) does not change which preset the rest of the policy matches.
   if (!p.providers && !p.runtimes && !p.models.allow.length && !p.models.block.length && !Object.keys(p.features).filter(f => f !== 'coordinator').length) {
     if (free && !membership && !paid) return 'free'
     if (free && membership && !paid) return 'memberships'
@@ -130,7 +130,7 @@ export function setCoordinatorPaid(policy: Policy, on: boolean): Policy {
 }
 export function coordinatorPaid(policy: Policy) { return (policy.features.coordinator ?? policy).cost.paid }
 
-/** The Coordinator is Hermes (Settings → Agent roles), which reaches models only through free or paid API, never a membership. A project's
+/** The Coordinator is Hermes (Settings → AI & models → Coordinator), which reaches models only through free or paid API, never a membership. A project's
  *  "paid API for the Coordinator only" exception is a Coordinator rule that follows the project's providers and models. */
 export function withCoordinatorPaid(policy: Policy, on: boolean): Policy {
   const next: Policy = JSON.parse(JSON.stringify(policy))

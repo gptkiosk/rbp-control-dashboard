@@ -92,7 +92,8 @@ defineExpose({ reload: loadStrip })
 </script>
 
 <template>
-  <section class="card route-strip" aria-label="Project routes" data-testid="route-strip">
+  <section class="card route-strip" aria-label="Project settings" data-testid="route-strip">
+    <h2 class="settings-title">Project settings</h2>
     <span class="eyebrow">ROUTES · {{ scope.toUpperCase() }}</span>
     <ul>
       <li><span class="muted">Coordinator</span> {{ describe(strip.coordinator, strip.coordinator?.default ?? null) }}</li>
@@ -101,8 +102,9 @@ defineExpose({ reload: loadStrip })
     </ul>
     <button type="button" class="btn" :disabled="locked" data-testid="change-routes" @click="change">Change…</button>
     <p v-if="dirty" class="muted small">Unsaved route changes: Save revision to apply them.</p>
-    <p v-for="p in problems(strip)" :key="p" class="notice-warn small" role="alert">{{ p }} <RouterLink to="/profile#models-providers">Models &amp; providers</RouterLink></p>
+    <p v-for="p in problems(strip)" :key="p" class="notice-warn small" role="alert">{{ p }} <RouterLink to="/profile#models-providers">AI &amp; models</RouterLink></p>
     <p v-if="stripError" class="notice-warn small" role="alert">{{ stripError }}</p>
+    <div class="project-controls"><slot /></div>
   </section>
   <ModalShell v-if="open" class="project-dialog" labelledby="routes-title" @close="open = false">
     <form @submit.prevent="apply">
@@ -110,7 +112,7 @@ defineExpose({ reload: loadStrip })
       <section class="coordinator" data-testid="dialog-coordinator" aria-label="Coordinator">
         <strong>Coordinator</strong>
         <span>{{ describe(dialog.coordinator, dialog.coordinator?.default ?? null) }}</span>
-        <p class="muted small">Hermes (Settings → Agent roles) reviews the brief and checks the plan. It reaches models through free or paid API, never a membership.</p>
+        <p class="muted small">Hermes (Settings → AI & models → Coordinator) reviews the brief and checks the plan. It reaches models through free or paid API, never a membership.</p>
         <p v-if="dialog.coordinator?.empty_reason" class="notice-warn small" role="alert" data-testid="coordinator-warning">
           With these choices the Coordinator has no allowed model, so planning cannot start. {{ dialog.coordinator.empty_reason.replace(/^No Coordinator route is allowed\. /, '') }}
           Turn on free models (with a provider that offers them, or "Also offer free models from any provider"), allow paid API for the Coordinator only, or keep Same as app.
@@ -118,11 +120,13 @@ defineExpose({ reload: loadStrip })
         <p v-else-if="coordinatorRow?.cost_class === 'paid' || (coordinatorRow && coordinatorRow.cost_class === null)" class="muted small">Each plan asks for paid-planning approval before the Coordinator runs.</p>
       </section>
       <RoutePicker v-model="choice" feature="planner" :project-id="projectId" :routes="dialog.planner ?? null" label="Planner" automatic="A task-matched membership planner; an invalid plan may retry on another allowed route" />
+      <details class="advanced" data-testid="project-advanced" :open="narrow">
+      <summary>Advanced: narrow the app policy for this project</summary>
       <fieldset>
         <legend>Policy for this project</legend>
-        <label class="check"><input v-model="narrow" type="radio" :value="false" name="project-policy" /> Same as app <span class="muted small">(Settings → Models &amp; providers)</span></label>
+        <label class="check"><input v-model="narrow" type="radio" :value="false" name="project-policy" /> Same as app <span class="muted small">(Settings → AI &amp; models)</span></label>
         <label class="check"><input v-model="narrow" type="radio" :value="true" name="project-policy" data-testid="narrow" /> Narrow for this project</label>
-        <p class="muted small">A project can only narrow the app policy, never widen it. Items the app policy removes are greyed; change them in <RouterLink to="/profile#models-providers">Models &amp; providers</RouterLink>.</p>
+        <p class="muted small">A project can only narrow the app policy, never widen it. Items the app policy removes are greyed; change them in <RouterLink to="/profile#models-providers">AI &amp; models</RouterLink>.</p>
         <template v-if="narrow">
           <div class="checks" aria-label="Providers"><strong class="small">Providers</strong>
             <label v-for="p in providers" :key="p" class="check" :class="{ off: !appAllows('providers', p) }"><input type="checkbox" :disabled="!appAllows('providers', p)"
@@ -140,9 +144,10 @@ defineExpose({ reload: loadStrip })
           <ToggleSwitch v-model="coordinatorPaid" :disabled="!appCoordinatorPaid" label="Paid API for the Coordinator only"
             data-testid="project-coordinator-paid" />
           <p class="muted small switch-note">{{ appCoordinatorPaid ? 'Hermes reaches these providers\' models through an API. Each plan still asks for paid-planning approval.' : 'Paid API is off for the Coordinator in the app policy.' }}
-            <RouterLink v-if="!appCoordinatorPaid" to="/profile#models-providers">Models &amp; providers</RouterLink></p>
+            <RouterLink v-if="!appCoordinatorPaid" to="/profile#models-providers">AI &amp; models</RouterLink></p>
         </template>
       </fieldset>
+      </details>
       <div class="dialog-actions"><button type="button" class="btn" @click="open = false">Cancel</button><button class="btn primary" data-testid="apply-routes">Apply to this revision</button></div>
     </form>
   </ModalShell>
@@ -151,7 +156,7 @@ defineExpose({ reload: loadStrip })
 <style scoped>
 .route-strip{display:grid;gap:var(--gap-sm);justify-items:start;text-align:left}.route-strip ul{display:flex;flex-wrap:wrap;gap:var(--gap-xs) var(--gap-lg, 1.5rem);margin:0;padding:0;list-style:none}
 .route-strip li{overflow-wrap:anywhere}.route-strip p{margin:0}
-.switch-note{margin:calc(-1 * var(--gap-xs)) 0 0 2.8rem}.coordinator{display:grid;gap:var(--gap-xs);overflow-wrap:anywhere}.coordinator p{margin:0}
+.switch-note{margin:calc(-1 * var(--gap-xs)) 0 0 2.8rem}.settings-title{font-size:var(--font-size-lg);margin:0}.project-controls{display:grid;gap:var(--gap-sm);width:100%}.advanced>summary{cursor:pointer;font-weight:600}.coordinator{display:grid;gap:var(--gap-xs);overflow-wrap:anywhere}.coordinator p{margin:0}
 fieldset{border:1px solid var(--surface-border);border-radius:var(--radius);padding:var(--gap-sm) var(--gap);margin:var(--gap) 0;display:grid;gap:var(--gap-sm)}
 .check{display:flex;gap:var(--gap-xs);align-items:center}.check.off{opacity:.55}.checks{display:flex;flex-wrap:wrap;gap:var(--gap-xs) var(--gap);align-items:center}.small{font-size:var(--font-size-xs)}
 .project-dialog :deep(.modal-panel){padding:var(--gap-lg)}.project-dialog h2{font-size:var(--font-size-xl)}.project-dialog form{display:grid;gap:var(--gap)}

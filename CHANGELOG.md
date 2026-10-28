@@ -12,6 +12,15 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ### Changed
 
+- Settings has four tabs: **General** (appearance, workspace, Discord, credentials), **AI & models**, **Installs & updates** and **Maintenance**. AI & models, formerly Models & providers, holds everything about models on one page:
+  - **Start from** and **Cost classes**.
+  - **Coordinator**, with the paid switch, the model, Agent roles and Coordinator setup. Setup is folded away once it is done.
+  - **Defaults**, including the story preference for new projects.
+  - **Accounts**. **Billing & rates** opens here instead of on the Agents page, which now links to it.
+  - A collapsed **Advanced** section with providers, runtimes, prices to review and Model recovery. It opens by itself when something in it is in use.
+
+  Old links (`#agent-roles`, `#route-recovery`, `#coordinator-bootstrap`, `/agents?action=billing` and so on) still land in the right place, and no saved setting moved.
+- Each project has a **Project settings** panel: routes (Coordinator, planner, stories, with Change…), the story preference, Build in parallel, and Model lock while stories run. Narrowing the app policy for one project is under Advanced in Change…, closed unless the project already narrows it. The brief keeps only what describes the work.
 - **Default AI** moved from Settings → Preferences into Models & providers. New chat and the project consultant start on its **Chat** default, and New task on its **Tasks** default. On the first start of this version, a Default AI someone changed from the stock Hermes · openrouter/free becomes both defaults, once. Settings now points to Models & providers instead.
 
 ### Fixed

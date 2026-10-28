@@ -1,30 +1,30 @@
-# Models & providers (route policy)
+# AI & models (route policy)
 
 One policy decides which providers, runtimes, models and cost classes the app may use. It covers five features: the Coordinator, the planner, stories, chat and tasks. Every route menu lists only what the policy allows. Planning refuses a planner outside it. The dispatch gate checks it again immediately before a run starts, with `ROUTE_POLICY`, so narrowing the policy after a task was claimed stops that task.
 
-Open it in **Settings → Models & providers**.
+Open it in **Settings → AI & models**.
 
 ## Scopes: each one only narrows
 
 | Scope | Where it is set | What it can do |
 | --- | --- | --- |
 | Installation (managed) | A JSON file named by `MAC_CONTROL_MANAGED_ROUTE_POLICY` | The outer limit. Nothing in the app can widen it. |
-| App | Settings → Models & providers | Narrows the managed policy for the whole app. |
+| App | Settings → AI & models | Narrows the managed policy for the whole app. |
 | Project | Project page → Routes → Change… → Narrow for this project | Narrows the app policy for one project. The default is **Same as app**. |
 
 Inside one scope, a feature's own rule replaces that scope's general rule for that feature. For example, an app policy can allow paid API for the Coordinator only. Across scopes, every rule applies, so a project can never allow what the app removes, and the app can never allow what the installation removes.
 
 ## The Coordinator always needs a free or paid API model
 
-Every plan has three steps. The **Coordinator** reviews the brief, the **planner** builds the map, and the Coordinator checks it. The Coordinator is Hermes (Settings → Agent roles), and Hermes reaches models only through free or paid API, never a membership. A policy that allows memberships only therefore leaves the Coordinator nothing, even when the planner is a membership such as Codex.
+Every plan has three steps. The **Coordinator** reviews the brief, the **planner** builds the map, and the Coordinator checks it. The Coordinator is Hermes (Settings → AI & models → Coordinator), and Hermes reaches models only through free or paid API, never a membership. A policy that allows memberships only therefore leaves the Coordinator nothing, even when the planner is a membership such as Codex.
 
-To use paid models for the Coordinator, turn on **Allow paid API for the Coordinator** in the Coordinator section of Models & providers and save. Paid models of the allowed providers then appear in **Coordinator model** (with every provider open, the common providers' paid models are listed). Other features keep the general cost classes. Each plan asks for paid-planning approval before the Coordinator runs, including for a model whose price was never reviewed, which counts as paid. The page warns when only one Coordinator model is allowed, since planning then stops whenever that model is unavailable.
+To use paid models for the Coordinator, turn on **Allow paid API for the Coordinator** in the Coordinator section of AI & models and save. Paid models of the allowed providers then appear in **Coordinator model** (with every provider open, the common providers' paid models are listed). Other features keep the general cost classes. Each plan asks for paid-planning approval before the Coordinator runs, including for a model whose price was never reviewed, which counts as paid. The page warns when only one Coordinator model is allowed, since planning then stops whenever that model is unavailable.
 
 The project route strip and **Change…** show what the current choices allow before you save, including the Coordinator, and warn when it has no allowed model. Two choices fix it while providers are limited: **Also offer free models from any provider**, or **Paid API for the Coordinator only**. The second is offered only when the app policy allows paid API for the Coordinator.
 
 ## Cost classes
 
-- **Membership**: a Claude, Codex or Grok Build account you are signed in to, set as Subscription in Agents → Billing & rates. It uses account quota, and any overage you enabled with the provider still applies.
+- **Membership**: a Claude, Codex or Grok Build account you are signed in to, set as Subscription in Settings → AI & models → Accounts. It uses account quota, and any overage you enabled with the provider still applies.
 - **Free**: a model the reviewed price class lists as free. Free endpoints are often slow, limited or unavailable.
 - **Paid API**: bills your provider account per token. It is always the last resort. Each plan or task still needs paid-route approval, and the limits you turned on in Spending & limits still apply.
 
@@ -43,11 +43,11 @@ With providers limited, **Also offer free models from any provider** adds specif
 
 ## Defaults
 
-**Defaults** on Models & providers set where each choice starts: the Coordinator (in its own section), the planner, stories, **Chat** (New chat and the project consultant) and **Tasks** (New task). A default the policy does not allow is skipped, with the reason, and the first allowed route is used instead. You can still change the route in each dialog. The former Settings → Default AI was folded into the Chat and Tasks defaults.
+**Defaults** on AI & models set where each choice starts: the Coordinator (in its own section), the planner, stories, **Chat** (New chat and the project consultant) and **Tasks** (New task). A default the policy does not allow is skipped, with the reason, and the first allowed route is used instead. You can still change the route in each dialog. The former Settings → Default AI was folded into the Chat and Tasks defaults.
 
 ## Prices to review
 
-Models & providers lists the routes that the policy would allow, except that their price was never reviewed. Check the provider's price, then record it:
+AI & models lists the routes that the policy would allow, except that their price was never reviewed. Check the provider's price, then record it:
 
 - **Paid API** can be recorded for any route.
 - **Free** is offered only for a Hermes or OpenClaw model that is a free variant or that the cached OpenRouter list shows at no cost. A review cannot turn a billed route into a free one.
@@ -73,9 +73,9 @@ A business installation can lock the whole app, for example to Grok Build only. 
 
 With a managed policy in force:
 
-- Models & providers shows a banner, and the choices it removes are greyed.
-- Agent tools, the Setup wizard and Agents → Billing & rates leave out the runtimes it removes, and they say which runtimes are hidden. Saved accounts and installed tools are kept.
-- A file that is set but missing or invalid allows nothing (it fails closed). Models & providers names the problem.
+- AI & models shows a banner, and the choices it removes are greyed.
+- Agent tools, the Setup wizard and Settings → AI & models → Accounts leave out the runtimes it removes, and they say which runtimes are hidden. Saved accounts and installed tools are kept.
+- A file that is set but missing or invalid allows nothing (it fails closed). AI & models names the problem.
 
 ## What happened to free-only
 
@@ -88,4 +88,4 @@ After that, the old setting is not read again. Model recovery shows the current 
 
 ## When nothing is allowed
 
-The route menus, the project route strip and the per-feature summary on Models & providers never leave a choice empty without a reason. They name the nearest route and what stops it, for example: "Nearest: Hermes · x-ai/grok-4.6: paid API is off (price not reviewed…)". The fix is usually a cost class or a price review on Models & providers.
+The route menus, the project route strip and the per-feature summary on AI & models never leave a choice empty without a reason. They name the nearest route and what stops it, for example: "Nearest: Hermes · x-ai/grok-4.6: paid API is off (price not reviewed…)". The fix is usually a cost class or a price review on AI & models.

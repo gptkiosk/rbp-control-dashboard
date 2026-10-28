@@ -100,7 +100,7 @@ def route_problem(s: Session, request: Request, agent: str, agent_target: str | 
     import route_policy
     why = route_policy.allowed(s, settings, agent, chosen, "chat", target=agent_target or "")
     if why:
-        return f"{spec.name} cannot run {chosen} here: {why}. Choose an allowed model in Profile, AI defaults, or change the policy in Models & providers."
+        return f"{spec.name} cannot run {chosen} here: {why}. Choose an allowed model in Profile, AI defaults, or change the policy in AI & models."
     return None
 
 

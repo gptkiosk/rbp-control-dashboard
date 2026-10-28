@@ -18,9 +18,9 @@ Before a project can be built and delivered from this machine, the machine needs
 
 The summary line says whether the machine is **ready to build** (workspace, git, identity and a builder) and **ready to deliver to GitHub** (and a GitHub key).
 
-## Later: Settings, Updates & installs
+## Later: Settings, Installs & updates
 
-After the wizard, the same cards live in **Settings, Updates & installs**: the dashboard, each agent tool and the optional system tools, each with its version, an Install or Upgrade button, a progress bar, the log and a health check. **Optional system tools** adds **Install (All)** and **Upgrade (All)** (Homebrew on a Mac, with the Homebrew install command shown first when it is missing; one `apt` command to copy on Linux), **Check for updates**, **Start Colima** and a health check.
+After the wizard, the same cards live in **Settings, Installs & updates**: the dashboard, each agent tool and the optional system tools, each with its version, an Install or Upgrade button, a progress bar, the log and a health check. **Optional system tools** adds **Install (All)** and **Upgrade (All)** (Homebrew on a Mac, with the Homebrew install command shown first when it is missing; one `apt` command to copy on Linux), **Check for updates**, **Start Colima** and a health check.
 
 ## The GitHub key
 

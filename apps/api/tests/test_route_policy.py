@@ -74,7 +74,7 @@ def test_unreviewed_price_counts_as_paid_except_while_planning():
     assert rp.reason(unknown, None, rp.Policy(cost=rp.Cost(paid=True)), None, 'chat') is None
     assert rp.reason(unknown, None, rp.Policy(), None, 'planner', unknown_ok=True) is None
     assert rp.reason(unknown, None, rp.Policy(providers=['anthropic']), None, 'planner', unknown_ok=True) == 'App policy: xai is not an allowed provider'
-    assert rp.reason(route('grok', 'grok-4.6'), None, rp.Policy(), None, 'coordinator', 'hermes') == 'The Coordinator is hermes (Settings → Agent roles)'
+    assert rp.reason(route('grok', 'grok-4.6'), None, rp.Policy(), None, 'coordinator', 'hermes') == 'The Coordinator is hermes (Settings → AI & models → Coordinator)'
     assert rp.reason(route('codex', 'gpt-6.1-sol'), None, rp.Policy(), None, 'coordinator', 'codex') is None
 
 
@@ -141,7 +141,7 @@ def test_grok_policy_leaves_one_clear_path_for_every_feature(app):
     assert coordinator['default'] == {'runtime': 'hermes', 'model': 'x-ai/grok-4.5'}
     assert 'openrouter/free' in coordinator['default_note'] and 'provider varies' in coordinator['default_note']
     hidden = {(r['runtime'], r['model']): r['hidden_because'] for r in coordinator['hidden']}
-    assert hidden[('grok', 'grok-4.6')] == 'The Coordinator is hermes (Settings → Agent roles)'
+    assert hidden[('grok', 'grok-4.6')] == 'The Coordinator is hermes (Settings → AI & models → Coordinator)'
     planner_hidden = {(r['runtime'], r['model']): r['hidden_because'] for r in c.get('/api/routes', params={'feature': 'planner'}).json()['hidden']}
     assert planner_hidden[('hermes', 'x-ai/grok-4.6')] == 'App policy: paid API is off (price not reviewed, so it counts as paid)'
 

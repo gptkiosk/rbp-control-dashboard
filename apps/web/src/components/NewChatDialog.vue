@@ -43,7 +43,7 @@ const dir = computed(() => workdirs.value.find((w) => w.path === workingDir.valu
 const modelOptions = computed(() => {
   const a = agent.value
   if (!a) return []
-  // Only what Models & providers allows for this feature (memberships first); the agent's own list until the catalog loads.
+  // Only what AI & models allows for this feature (memberships first); the agent's own list until the catalog loads.
   return allowedModels(routes.data.value, a.id, [...new Set([...(a.default_model ? [a.default_model] : []), ...a.suggested_models])])
 })
 const routes = useRoutes('chat')
@@ -67,7 +67,7 @@ onMounted(async () => {
     ])
     agents.value = a.agents
     workdirs.value = w.workdirs
-    // Start from the Chat default in Models & providers (the policy's own default, else its first allowed route).
+    // Start from the Chat default in AI & models (the policy's own default, else its first allowed route).
     await routes.load()
     const start = routes.data.value?.default
     agentId.value = start?.runtime || 'hermes'
@@ -118,7 +118,7 @@ async function submit(): Promise<void> {
         <button type="button" class="btn close" aria-label="Close" @click="emit('close')"><AppIcon name="close" /></button>
       </header>
 
-      <p class="muted small">Starts on the Chat default. <RouterLink to="/profile#models-providers">Models &amp; providers</RouterLink>. Membership CLI sign-in and model approvals still apply. <RouterLink to="/help?topic=agent-chat">Chat and agent setup help</RouterLink></p>
+      <p class="muted small">Starts on the Chat default. <RouterLink to="/profile#models-providers">AI &amp; models</RouterLink>. Membership CLI sign-in and model approvals still apply. <RouterLink to="/help?topic=agent-chat">Chat and agent setup help</RouterLink></p>
       <p v-if="loading" class="muted" role="status">Loading agents…</p>
       <p v-if="loadError" class="error-text" role="alert">
         Could not load agents or working directories: {{ loadError }}
@@ -128,12 +128,12 @@ async function submit(): Promise<void> {
         <div class="field">
           <label for="nchat-agent">Agent</label>
           <AppSelect id="nchat-agent" v-model="agentId" class="input" required data-autofocus>
-            <option v-for="a in agents" :key="a.id" :value="a.id" :disabled="!a.available || !runtimeAllowed(routes.data.value, a.id)" :data-label="a.name" :data-description="!a.available ? 'Not installed' : !runtimeAllowed(routes.data.value, a.id) ? 'Not allowed by Models & providers' : (a.role === 'manager' ? 'Coordinator' : 'Worker')">
+            <option v-for="a in agents" :key="a.id" :value="a.id" :disabled="!a.available || !runtimeAllowed(routes.data.value, a.id)" :data-label="a.name" :data-description="!a.available ? 'Not installed' : !runtimeAllowed(routes.data.value, a.id) ? 'Not allowed by AI & models' : (a.role === 'manager' ? 'Coordinator' : 'Worker')">
               {{ a.name }}{{ isCoordinatorAgent(a.id) ? ' (coordinator)' : ''
               }}{{ a.available ? '' : ' (not installed)' }}
             </option>
           </AppSelect>
-          <p v-if="routes.data.value?.empty_reason" class="notice-warn small" role="alert">{{ routes.data.value.empty_reason }} <RouterLink to="/profile#models-providers">Models &amp; providers</RouterLink></p>
+          <p v-if="routes.data.value?.empty_reason" class="notice-warn small" role="alert">{{ routes.data.value.empty_reason }} <RouterLink to="/profile#models-providers">AI &amp; models</RouterLink></p>
         </div>
 
         <div class="field">

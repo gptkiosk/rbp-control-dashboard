@@ -17,7 +17,7 @@ The public RCD repository currently contains documentation, license and communit
 | Standing rules agents must not undo (parity, bounded prompts, setup, models and failover) | [Engineering rules](development/engineering-rules.md) |
 | How a release reaches users (changelog, tag, signed package, verification, publishing, updates) | [Release and update pipeline](development/distribution.md) |
 | What an update keeps, replaces and never touches | [What survives an update](configuration/upgrades-and-your-data.md) |
-| Which providers, models and cost classes may run | [Models & providers](configuration/route-policy.md) |
+| Which providers, models and cost classes may run | [AI & models](configuration/route-policy.md) |
 | Model profiles: facts, observed numbers and notes | [Model profiles](configuration/model-profiles.md) |
 | How well the coordinator plans: scores, edits and outcomes | [Coordinator scorecard](configuration/coordinator-scorecard.md) |
 | Why a service is flagged, and run, restart or stop it | [Service actions](configuration/service-actions.md) |

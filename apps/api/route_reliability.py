@@ -122,7 +122,7 @@ def options(s, settings):
 
 
 def allowed_class(s, settings, price):
-    """Whether the route policy (Models & providers) allows this cost class at all. An unreviewed price counts as paid."""
+    """Whether the route policy (AI & models) allows this cost class at all. An unreviewed price counts as paid."""
     import route_policy
     return route_policy.cost_allowed(s, settings, price)
 
