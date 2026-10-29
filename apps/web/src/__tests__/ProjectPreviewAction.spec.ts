@@ -22,3 +22,14 @@ it('says plainly when the last verifier run failed and that the story waits for 
   expect(w.get('[data-testid=verify-result]').text()).toContain('passed')
   w.unmount()
 })
+
+it('disables the action and says why when the server would refuse it, though the board shows nothing blocking', async () => {
+  // Pilot 2026-10-29: the server refused every press because of an earlier story, and the panel showed only the old result.
+  stubFetch(() => ({ body: { available: true, kind: 'preview-verify', actions: ['verify'], running: false, state: null, last_verify: null,
+    blocked_by: ['#17 Author the media inventory: latest run has not succeeded.'] } }))
+  const w = mount(ProjectPreviewAction, { props: { card } })
+  await flushPromises()
+  expect(w.get('[data-testid=preview-blocked]').text()).toContain('#17 Author the media inventory')
+  expect(w.get('button').attributes('disabled')).toBeDefined()
+  w.unmount()
+})

@@ -1808,3 +1808,33 @@ def test_a_failed_host_verifier_cannot_be_accepted_as_if_it_passed(app):
         projects.memory(db,db.get(projects.Project,1),'checkpoint',projects.HOST_VERIFY+'passed.\n\n{"status": "passed"}','operator',cid)
     r=c.post(f'/api/projects/1/stories/{cid}/accept',json={'summary':'Verifier passed on the host.'})
     assert r.status_code==200 and r.json()['state']=='complete',r.text
+
+
+def test_an_accepted_handoff_is_not_taken_back_when_a_later_release_reads_its_report_more_strictly(app):
+    """Pilot 2026-10-29: story #17 was accepted with a report that began "Story incomplete:". 0.6.84 started reading that as unfinished,
+    and every story after it was silently refused by the server while the board showed nothing blocking."""
+    p=active(app,[node('a'),node('b',depends_on=['a'])]);c,s,wd,settings=app
+    ids={t['node_key']:t['card_id'] for t in p['tasks'] if t['role']=='story'}
+    rid=finish(app,ids['a'],'Created the inventory and checked it.')
+    assert c.post(f'/api/projects/1/stories/{ids["a"]}/accept',json={'run_id':rid,'summary':'Accepted.'}).status_code==200
+    with s.begin() as db:
+        db.get(Run,rid).result_text='Story incomplete: estimates remain unverified.'     # the accepted report, as a stricter reader now sees it
+    with s() as db:
+        assert projects.dependency_blocks(db,ids['b'])==[]
+        db.get(Run,rid)                                                                       # an unaccepted run with that report still blocks
+    with s.begin() as db:
+        db.query(projects.ProjectMemory).filter_by(card_id=ids['a'],kind='handoff').delete()
+    with s() as db:
+        assert projects.dependency_blocks(db,ids['b'])[0]['card_id']==ids['a']
+
+
+def test_the_host_preview_panel_is_told_why_the_server_would_refuse_the_action(app):
+    p=active(app,[node('a'),dict(node('verify',host_action='preview-verify',depends_on=['a']),assignee='human',model='',mode='read')]);c,s,wd,settings=app
+    ids={t['node_key']:t['card_id'] for t in p['tasks'] if t['role']=='story'}
+    (wd/'tools').mkdir(parents=True,exist_ok=True);(wd/'tools/verify-preview.sh').write_text('#!/usr/bin/env bash\necho ok\n')
+    body=c.get(f'/api/projects/1/stories/{ids["verify"]}/host-preview').json()
+    assert body['available'] and len(body['blocked_by'])==1 and f'#{ids["a"]}' in body['blocked_by'][0]
+    assert c.post(f'/api/projects/1/stories/{ids["verify"]}/host-preview',json={'action':'verify'}).status_code==409
+    rid=finish(app,ids['a'],'Done and checked.')
+    c.post(f'/api/projects/1/stories/{ids["a"]}/accept',json={'run_id':rid,'summary':'Accepted.'})
+    assert c.get(f'/api/projects/1/stories/{ids["verify"]}/host-preview').json()['blocked_by']==[]
