@@ -468,6 +468,7 @@ def test_story_context_carries_setup_facts_and_the_read_story_deliverable(app):
     keys = list(read)
     assert keys.index('host_setup') < keys.index('current_story')
     assert 'media_slots_format' not in read['host_setup']          # only projects that generate media
+    assert 'preview_script_contract' not in read['host_setup']     # only plans with dashboard preview actions
 
 
 def test_a_media_project_story_is_told_the_slots_format(app, monkeypatch):
@@ -482,3 +483,16 @@ def test_a_media_project_story_is_told_the_slots_format(app, monkeypatch):
         story = json.loads(projects.context(s, s.get(Project, p['id']), 'a').rsplit('\n', 1)[1])
     assert story['host_setup']['media_slots_format'] == media_generate.SLOTS_FORMAT
     assert '## Format' in project_packet._media_doc([], [], None) and media_generate.SLOTS_FORMAT in project_packet._media_doc([], [], None)
+
+
+def test_a_preview_plan_story_is_told_the_preview_script_contract(app, monkeypatch):
+    """Pilot 2026-10-29: the preview script ran verify for every action and wrote its own state format, so Start left nothing to open."""
+    from tests.test_projects import active, node
+    import project_preview
+    c, sessions, wd, settings = app
+    repo(wd)
+    p = active(app, [node('a', mode='edit')])
+    monkeypatch.setattr(project_preview, '_kind', lambda n: 'preview-review')
+    with sessions() as s:
+        story = json.loads(projects.context(s, s.get(Project, p['id']), 'a').rsplit('\n', 1)[1])
+    assert story['host_setup']['preview_script_contract'] == project_preview.SCRIPT_CONTRACT

@@ -1,4 +1,5 @@
 import json
+import os
 import tempfile
 import unittest
 import unittest.mock
@@ -35,7 +36,6 @@ class PreviewActionsTest(unittest.TestCase):
             (nested / 'tools' / 'verify-preview.sh').write_text('#!/usr/bin/env bash\nprintf "action=%s cwd=%s\\n" "$1" "$PWD"\n', encoding='utf-8')
             card = SimpleNamespace(working_dir=str(nested))
             result = project_preview.run(project(root, 'Start dashboard-managed persistent preview for remote review'), card, SimpleNamespace(node_key='preview'), 'serve', proxy_base='/api/preview')
-            self.assertTrue(result['ok'])
             self.assertIn(f'action=serve cwd={nested.resolve()}', result['output'])
 
     def test_human_preview_finds_a_direct_child_checkout(self):
@@ -44,7 +44,6 @@ class PreviewActionsTest(unittest.TestCase):
             nested = root / 'site'; (nested / 'tools').mkdir(parents=True)
             (nested / 'tools' / 'verify-preview.sh').write_text('#!/usr/bin/env bash\nprintf "action=%s cwd=%s\\n" "$1" "$PWD"\n', encoding='utf-8')
             result = project_preview.run(project(root, 'Start dashboard-managed persistent preview for remote review'), SimpleNamespace(), SimpleNamespace(node_key='preview'), 'serve', proxy_base='/api/preview')
-            self.assertTrue(result['ok'])
             self.assertIn(f'action=serve cwd={nested.resolve()}', result['output'])
 
     def test_preview_story_does_not_accept_arbitrary_host_actions(self):
@@ -80,3 +79,88 @@ class PreviewHostPathTest(unittest.TestCase):
             result = project_preview.run(project(root), SimpleNamespace(), SimpleNamespace(node_key='preview'), 'verify', proxy_base='/api/preview')
             self.assertFalse(result['ok'])
             self.assertIn('node is not installed where this host action can run it. Install Node.js from Agent tools', result['output'])
+
+
+SERVE_SCRIPT = r"""#!/usr/bin/env bash
+set -eu
+mkdir -p .preview
+case "$1" in
+  verify) echo verified ;;
+  serve)
+    nohup python3 -m http.server 41390 --bind 127.0.0.1 > .preview/server.log 2>&1 < /dev/null &
+    pid=$!
+    for _ in $(seq 50); do python3 -c "import socket;socket.create_connection(('127.0.0.1',41390),1)" 2>/dev/null && break; sleep 0.1; done
+    printf '{"pid": %s, "port": 41390, "source_sha": "%s", "status": "running"}' "$pid" "$(printf x | shasum -a 256 | cut -c1-64)" > .preview/preview.state ;;
+  stop)
+    kill "$(python3 -c "import json;print(json.load(open('.preview/preview.state'))['pid'])")"
+    rm -f .preview/preview.state ;;
+esac
+"""
+
+
+def review_project(root: Path):
+    return SimpleNamespace(approved_manifest=json.dumps({'document': {'working_dir': str(root), 'nodes': [
+        {'key': 'verify', 'host_action': 'preview-verify', 'title': 'Verify'},
+        {'key': 'review', 'host_action': 'preview-review', 'title': 'Review'}]}}))
+
+
+class PreviewServeContractTest(unittest.TestCase):
+    """Pilot 2026-10-29: Start ran the verifier (which stops its server) and the script wrote JSON state, so Open remote preview never appeared."""
+
+    def test_a_json_state_file_with_a_sha256_is_read(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary); (root / '.preview').mkdir()
+            (root / '.preview' / 'preview.state').write_text(json.dumps({'pid': os.getpid(), 'port': 41352, 'source_sha': 'a' * 64, 'status': 'running'}))
+            self.assertEqual(project_preview._state(root)['sha'], 'a' * 64)
+            (root / '.preview' / 'preview.state').write_text(json.dumps({'pid': os.getpid(), 'port': 41352, 'source_sha': 'a' * 64, 'status': 'stopped'}))
+            self.assertIsNone(project_preview._state(root))
+            (root / '.preview' / 'preview.state').write_text(f'pid={os.getpid()}\nport=41352\nsha={"b" * 40}\n')
+            self.assertEqual(project_preview._state(root)['port'], 41352)
+
+    def test_serve_that_leaves_nothing_running_fails_and_names_the_contract(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary); (root / 'tools').mkdir()
+            (root / 'tools' / 'verify-preview.sh').write_text('#!/usr/bin/env bash\necho "ran verify whatever was asked"\n')
+            result = project_preview.run(review_project(root), SimpleNamespace(), SimpleNamespace(node_key='review'), 'serve', proxy_base='/p')
+            self.assertFalse(result['ok'])
+            self.assertIsNone(result['proxy_url'])
+            self.assertIn('nothing to open', result['output'])
+            self.assertIn('stop: stop only the PID', result['output'])
+
+    def test_verify_fails_when_the_plan_has_a_review_and_serve_does_not_work(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary); (root / 'tools').mkdir()
+            (root / 'tools' / 'verify-preview.sh').write_text('#!/usr/bin/env bash\necho "verify only"\n')
+            result = project_preview.run(review_project(root), SimpleNamespace(), SimpleNamespace(node_key='verify'), 'verify', proxy_base='/p')
+            self.assertFalse(result['ok'])
+            self.assertEqual(result['exit_code'], 0)
+            self.assertIn('Start/Stop check failed', result['output'])
+
+    def test_a_contract_script_passes_verify_and_serves_through_the_proxy(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary); (root / 'tools').mkdir()
+            (root / 'tools' / 'verify-preview.sh').write_text(SERVE_SCRIPT)
+            (root / 'index.html').write_text('<h1>hi</h1>')
+            result = project_preview.run(review_project(root), SimpleNamespace(), SimpleNamespace(node_key='verify'), 'verify', proxy_base='/p')
+            self.assertTrue(result['ok'], result['output'])
+            self.assertIn('Start/Stop check passed', result['output'])
+            self.assertIsNone(project_preview._state(root))
+            started = project_preview.run(review_project(root), SimpleNamespace(), SimpleNamespace(node_key='review'), 'serve', proxy_base='/p')
+            try:
+                self.assertTrue(started['ok'], started['output'])
+                self.assertEqual(started['proxy_url'], '/p/index.html')
+                status, body, _ = project_preview.proxy(root, 'index.html')
+                self.assertEqual((status, body), (200, b'<h1>hi</h1>'))
+            finally:
+                stopped = project_preview.run(review_project(root), SimpleNamespace(), SimpleNamespace(node_key='review'), 'stop', proxy_base='/p')
+            self.assertTrue(stopped['ok'], stopped['output'])
+            self.assertIsNone(stopped['proxy_url'])
+
+    def test_a_serve_that_never_returns_is_stopped_at_the_check_timeout(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary); (root / 'tools').mkdir()
+            (root / 'tools' / 'verify-preview.sh').write_text('#!/usr/bin/env bash\n[ "$1" = serve ] && exec sleep 60\necho ok\n')
+            with unittest.mock.patch.object(project_preview, 'SMOKE_TIMEOUT', 1):
+                result = project_preview.run(review_project(root), SimpleNamespace(), SimpleNamespace(node_key='verify'), 'verify', proxy_base='/p')
+            self.assertFalse(result['ok'])
+            self.assertIn('did not return within 1 seconds', result['output'])
