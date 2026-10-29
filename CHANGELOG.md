@@ -10,6 +10,8 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.6.83] - 2026-10-28
+
 ### Fixed
 
 - A story accepted with **Accept anyway…** still held back the stories that depend on it. It showed as done, but the prerequisite check still required a clean successful run, so the next story stayed queued and never started. The check now honors an Accept anyway handoff for the run it names. Seen on the pilot, where the design story waited behind the accepted readiness story.
@@ -1173,7 +1175,7 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 
 [0.3.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.0
 [0.6.72]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.70...v0.6.72
-[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.82...HEAD
+[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.83...HEAD
 [0.6.67]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.66...v0.6.67
 [0.6.66]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.65...v0.6.66
 [0.6.65]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.64...v0.6.65
@@ -1286,6 +1288,7 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 [0.6.71]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.70...v0.6.71
 [0.6.70]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.69...v0.6.70
 
+[0.6.83]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.82...v0.6.83
 [0.6.82]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.81...v0.6.82
 [0.6.81]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.80...v0.6.81
 [0.6.80]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.79...v0.6.80
