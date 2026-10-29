@@ -108,9 +108,9 @@ function onBlur(): void {
           <div class="cell" role="columnheader">Name</div>
           <div class="cell" role="columnheader">Assignee</div>
           <div class="cell" role="columnheader">Model</div>
-          <div class="cell" role="columnheader">Due date</div>
-          <div class="cell" role="columnheader">Estimate</div>
-          <div class="cell" role="columnheader">Priority</div>
+          <div class="cell" role="columnheader" data-col="due">Due date</div>
+          <div class="cell" role="columnheader" data-col="estimate">Estimate</div>
+          <div class="cell" role="columnheader" data-col="priority">Priority</div>
           <div class="cell" role="columnheader">Depends on</div>
           <div class="cell" role="columnheader">Last run</div>
         </div>
@@ -272,6 +272,7 @@ function onBlur(): void {
 }
 
 .group-body {
+  container: tasks / inline-size;
   overflow-x: auto;
   min-width: 0;
   display: flex;
@@ -338,6 +339,31 @@ function onBlur(): void {
 
 .add-form p {
   margin: 0;
+}
+@media (min-width: 768px) {
+  @container tasks (max-width: 81.99rem) {
+    .table {
+      min-width: var(--task-list-medium-min-width);
+    }
+    .head-row {
+      grid-template-columns: var(--task-grid-medium);
+    }
+    .head-row [data-col='due'] {
+      display: none;
+    }
+  }
+  @container tasks (max-width: 67.99rem) {
+    .table {
+      min-width: var(--task-list-compact-min-width);
+    }
+    .head-row {
+      grid-template-columns: var(--task-grid-compact);
+    }
+    .head-row [data-col='estimate'],
+    .head-row [data-col='priority'] {
+      display: none;
+    }
+  }
 }
 @media (max-width: 767.98px) {
   .table {

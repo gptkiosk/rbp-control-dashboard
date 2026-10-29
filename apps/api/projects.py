@@ -384,7 +384,10 @@ def prerequisite_reason(s, card_id):
     # Accept anyway takes a finished run that reported unfinished work, so the clean-success test below cannot apply to it.
     if r and handoff and handoff.run_id==r.id and r.stage in {'failed','succeeded'} and handoff.text.startswith(ACCEPTED_DESPITE):
         return None
-    if not r or r.stage!='succeeded' or r.error or project_outputs.incomplete_error(r):
+    # An accepted handoff of this exact run stands: a later release that reads its report more strictly must not take back an acceptance
+    # (pilot 2026-10-29: 0.6.84 began reading "Story incomplete:" as unfinished and silently re-blocked every story after an accepted one).
+    accepted=bool(handoff and r and handoff.run_id==r.id)
+    if not r or r.stage!='succeeded' or r.error or (not accepted and project_outputs.incomplete_error(r)):
         return f'#{c.id} {c.title}: latest run has not succeeded.'
     if not handoff or handoff.run_id!=r.id:
         return f'#{c.id} {c.title}: latest successful run has no accepted handoff.'
@@ -820,13 +823,16 @@ def installation_text(s, settings):
         tools = {row['id']: row['installed'] for row in host_readiness.check_tools(settings).get('tools', [])}
         health = {row['id']: row['ok'] for row in host_readiness.system_tools_health(settings).get('checks', [])}
         facts = []
-        for name in ('node', 'docker', 'gh'):
+        for name in ('node', 'docker', 'gh', 'playwright'):
             if name not in tools:
                 continue
             state = 'available' if tools[name] else 'missing'
             if name == 'docker' and tools[name]:
                 state = 'engine accessible' if health.get(name) else 'engine unavailable to RCD'
             facts.append(f'{name}: {state}')
+        if tools.get('playwright'):
+            facts.append('Playwright browser checks: `playwright screenshot --viewport-size=390,844 URL shot.png` from a shell, or '
+                         "createRequire(import.meta.url)('playwright') in a script (a bare ES import of 'playwright' cannot see the dashboard copy)")
         if facts:
             lines.append('Host tool readiness: ' + '; '.join(facts) + '. Resolve missing tools through supported setup controls before dependent work; use declared dashboard host actions or CI for host-only verification, not repeated manual command stories.')
     except Exception:

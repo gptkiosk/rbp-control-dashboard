@@ -11,7 +11,7 @@ interface Body {
   can_install_all: boolean; can_upgrade_all: boolean; apt_command?: string | null; note?: string
 }
 const BREW_ONE = ['ffmpeg', 'python3', 'docker', 'colima']                      // tools the server can install one at a time
-const FROM_AGENT_TOOLS = ['gh', 'node', 'gitleaks', 'csstree-validator']          // pinned, checksum-verified installs managed in Agent tools on every platform
+const FROM_AGENT_TOOLS = ['gh', 'node', 'gitleaks', 'csstree-validator', 'playwright']          // pinned, checksum-verified installs managed in Agent tools on every platform
 const body = ref<Body | null>(null), error = ref(''), notice = ref(''), busy = ref(false), loading = ref(true), copied = ref('')
 const job = ref<Job | null>(null)
 const health = ref<Record<string, Health>>({}), healthBusy = ref(false), healthRan = ref(false)

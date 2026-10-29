@@ -75,6 +75,8 @@ CHECK_COMMANDS = DEFAULT_COMMANDS + (
     "Bash(diff:*)", "Bash(sort:*)", "Bash(test:*)", "Bash(true)", "Bash(node --version)", "Bash(python3 --version)",
     # The managed verification tools (Agent tools): read-only scanners. The planner tells stories to call them by name, so a story must be allowed to.
     "Bash(gitleaks git:*)", "Bash(gitleaks dir:*)", "Bash(gitleaks version)", "Bash(csstree-validator:*)",
+    # Playwright's screenshot and PDF commands open a page and write one image; install and install-deps are left out on purpose.
+    "Bash(playwright screenshot:*)", "Bash(playwright pdf:*)", "Bash(playwright --version)",
 )
 INSTALL_COMMANDS = ("Bash(npm ci:*)", "Bash(npm install:*)", "Bash(python3 -I -m pip install:*)")
 DOMAIN_RE = re.compile(r"^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$")

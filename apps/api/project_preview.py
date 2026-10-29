@@ -129,8 +129,9 @@ def run(project, card, link, action: str, *, proxy_base: str) -> dict:
     started = time.time()
     try:
         # The same tool folders agents get, so a script that calls the managed Node.js from Agent tools finds it.
-        from settings import tool_search_dirs
-        env = {'PATH': os.pathsep.join(tool_search_dirs()) or '/usr/bin:/bin', 'HOME': os.environ.get('HOME', ''), 'LANG': 'C.UTF-8'}
+        from settings import managed_playwright_env, tool_search_dirs
+        env = {'PATH': os.pathsep.join(tool_search_dirs()) or '/usr/bin:/bin', 'HOME': os.environ.get('HOME', ''), 'LANG': 'C.UTF-8',
+               **managed_playwright_env()}
         done = subprocess.run(['bash', str(root / 'tools' / 'verify-preview.sh'), action], cwd=root, stdin=subprocess.DEVNULL,
                               capture_output=True, text=True, timeout=180, env=env)
         output = ((done.stdout or '') + (('\n' if done.stdout and done.stderr else '') + done.stderr if done.stderr else ''))[-MAX_OUTPUT:]

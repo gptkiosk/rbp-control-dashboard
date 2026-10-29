@@ -455,6 +455,54 @@
         "recommended": []
       },
       "note": "csstree-validator (MIT), locked by the dashboard with install scripts off. Checks CSS syntax, unknown properties and invalid values, so a verification story can say a stylesheet parses without installing a parser into the project. It takes one file or folder per call: check a project with git ls-files '*.css' | xargs -n1 csstree-validator (a bare project folder also scans node_modules). Exit code 1 means a problem was found. Reads files only. No sign-in."
+    },
+    "playwright": {
+      "name": "Playwright browser checks",
+      "installer": "npm-lock",
+      "version": "1.64.1",
+      "package": "playwright",
+      "lock_dir": "tool_locks/playwright",
+      "lock": {
+        "package_json_sha256": "0f313bd911a81d542f6c7fd5ec0389cd37e36df087b2f3e16dc8c55fc9ab080b",
+        "package_lock_sha256": "d2dbc10d150c1475a88d9e507cb6503b0a324ab1510805a805438246506dd4d4"
+      },
+      "allow_scripts": [
+        {
+          "package": "playwright",
+          "script": "cli.js",
+          "args": [
+            "install",
+            "chromium"
+          ]
+        }
+      ],
+      "browsers_dir": "browsers",
+      "signin": false,
+      "requires": [
+        "node"
+      ],
+      "bins": [
+        {
+          "name": "playwright",
+          "argv": [
+            "node_modules/.bin/playwright"
+          ]
+        }
+      ],
+      "size_mb": 600,
+      "peak_ram_mb": 700,
+      "check": {
+        "argv": [
+          "playwright",
+          "--version"
+        ],
+        "expect": "1.64.1"
+      },
+      "system_packages": {
+        "required": [],
+        "recommended": []
+      },
+      "note": "Playwright (Apache-2.0) with its pinned Chromium, locked by the dashboard. The package installs with scripts off; the one allowed step is Playwright's own `install chromium`, which downloads the browser build this version pins into the tool's folder (Remove deletes it). Stories use it to open the site in a real browser, take screenshots at phone, tablet and desktop sizes, and compare the result with the project vision: `playwright screenshot --viewport-size=390,844 http://127.0.0.1:PORT/ shot.png`, or from a script `createRequire(import.meta.url)('playwright')` (NODE_PATH points at this copy; a bare ESM `import 'playwright'` does not read NODE_PATH). Chromium needs the desktop system libraries. A Linux host without them needs Playwright's install-deps step, which asks for administrator rights, so you run it yourself; the dashboard never does. No sign-in."
     }
   }
 }

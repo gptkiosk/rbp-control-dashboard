@@ -153,6 +153,11 @@
   /* Task list: one grid shared by the header row and every task row (Name, Assignee, Model, Due, Estimate, Priority, Depends on, Last run) */
   --task-grid: minmax(17rem, 1fr) 9rem 9.5rem 7.5rem 6.5rem 7.5rem 8rem 8rem;
   --task-list-min-width: 82rem;
+  /* Narrower panels drop columns instead of cutting off Last run and its buttons: Due date first, then Estimate and Priority. All stay in the task panel. */
+  --task-grid-medium: minmax(14rem, 1fr) 8rem 9rem 6.5rem 7.5rem 7rem 9rem;
+  --task-list-medium-min-width: 68rem;
+  --task-grid-compact: minmax(14rem, 1fr) 8rem 9rem 7rem 9rem;
+  --task-list-compact-min-width: 53rem;
   --row-min-height: 2.5rem;
   --menu-min-width: 13rem;
   --menu-max-width: 20rem;

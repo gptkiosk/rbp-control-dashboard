@@ -84,7 +84,7 @@ def test_every_pinned_hash_in_the_catalog_has_the_right_shape():
     for comp in raw["runtimes"].values():
         hashes += [a["sha256"] for a in comp["archive"].values()]
     hashes = [h for h in hashes if h]
-    assert len(hashes) == 4 * 2 + 1 + 2 + 2 and all(re.fullmatch(r"[0-9a-f]{64}", h) for h in hashes)
+    assert len(hashes) == 5 * 2 + 1 + 2 + 2 and all(re.fullmatch(r"[0-9a-f]{64}", h) for h in hashes)
 
 
 # --- the checker -------------------------------------------------------------------------------------------------
@@ -93,7 +93,7 @@ def test_every_pinned_hash_in_the_catalog_has_the_right_shape():
 def test_the_checker_reports_nothing_to_do_when_every_pin_is_current(repo, tmp_path, capsys):
     code = check.main([], src=saved(tmp_path, current_answers()))
     out = capsys.readouterr().out
-    assert code == 0 and out.count("current") == 7 and "newer release" not in out
+    assert code == 0 and out.count("current") == 8 and "newer release" not in out
 
 
 def test_the_checker_proposes_bumps_without_changing_anything(repo, tmp_path, capsys):
@@ -181,7 +181,7 @@ def test_the_catalog_and_every_lock_file_are_in_the_release_package():
     patterns = product["include"]
     wanted = ["apps/api/tool_catalog.json", "apps/api/tool_install.py", "apps/api/tool_install_helper.py", "apps/api/routes/tool_installs.py"]
     wanted += [p.relative_to(ROOT).as_posix() for p in (API / "tool_locks").rglob("*") if p.is_file()]
-    assert len(wanted) == 4 + 8
+    assert len(wanted) == 4 + 10
     missing = [rel for rel in wanted if not any(fnmatch.fnmatchcase(rel, pat) for pat in patterns)]
     assert missing == []
     # and the builder's own glob picks them up, not only fnmatch

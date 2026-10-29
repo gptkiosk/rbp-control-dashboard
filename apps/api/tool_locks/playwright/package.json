@@ -1,0 +1,9 @@
+{
+  "name": "rcd-tool-playwright",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Pinned install of Playwright for the dashboard's Agent tools panel. Bumped only by scripts/tools/check.py.",
+  "dependencies": {
+    "playwright": "1.64.1"
+  }
+}
