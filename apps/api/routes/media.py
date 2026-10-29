@@ -1,4 +1,5 @@
 """Operator-run media generation: MCD calls fal with the saved key; the project folder is only data."""
+import json
 import re
 import shutil
 from pathlib import Path
@@ -318,15 +319,27 @@ def publish(body: PublishIn, request: Request, s: Session = Depends(get_session)
         slot = mg.load_slots(root).get(body.slot)
         if slot is None:
             raise mg.MediaError("Unknown slot.")
+        tracked = [str(p.relative_to(root)) for p in published_files(root, slot)] + [str(p.relative_to(root)) for p, _ in mg.derived_copies(root, slot)]
+        before, old_source = mg.file_facts(root, tracked), _source_sha(root, slot)
         files = mg.publish(root, slot)
     except mg.MediaError as exc:
         fail(exc)
     refreshed, stale = mg.refresh_derived(root, slot, root / files[0]["path"]) if slot["kind"] == "image" else ([], [])
+    records = mg.update_hash_records(root, before, mg.file_facts(root, tracked), (old_source, _source_sha(root, slot))) if before else []
     names = ", ".join(f["path"] for f in files)
     media_state.record(root, body.slot, "published", names, identity)
     project_note(s, root, f"Published media slot {body.slot}: {names}." + (f" Re-made the site's copies: {', '.join(refreshed)}." if refreshed else "")
+                 + (f" Updated the hashes in {', '.join(records)}." if records else "")
                  + (f" These copies still show the previous picture and need a story to rebuild them: {', '.join(stale)}." if stale else ""), identity)
-    return {"published": body.slot, "files": files, "refreshed": refreshed, "stale": stale}
+    return {"published": body.slot, "files": files, "refreshed": refreshed, "stale": stale, "records": records}
+
+
+def _source_sha(root, slot):
+    try:
+        entry = json.loads((root / "media" / "provenance.json").read_text()).get(slot["name"])
+    except (OSError, ValueError, AttributeError):
+        return None
+    return entry.get("source_sha256") if isinstance(entry, dict) else None
 
 
 class DecisionIn(BaseModel):

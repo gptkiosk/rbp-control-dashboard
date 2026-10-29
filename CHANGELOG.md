@@ -13,6 +13,9 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 ### Added
 - Project totals on the project page: agent and elapsed time, tokens in, out and cached, and every agent and model used, across all of a project's tasks including planning. Cost is shown as actual (membership and free-model runs at $0, API runs at their reported or derived cost) next to the same work at API rates, and both include the Media studio's fal estimate for the project's images.
 
+### Fixed
+- Republishing a still now also updates the project's own media records: any JSON file in `media/` (other than the dashboard's own) that names the published image or its width-named copies gets their new sha256, size and dimensions, and the old hashes of those files and of the generation source are replaced wherever they appear. The pilot's `media/derivatives.json` kept the old hashes, so its own art check failed after a republish. The publish note names the files updated.
+
 ## [0.6.86] - 2026-10-29
 
 ### Fixed

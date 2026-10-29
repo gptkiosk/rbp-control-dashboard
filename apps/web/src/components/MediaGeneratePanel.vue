@@ -178,10 +178,11 @@ async function accept(s: Slot, candidate: string) {
   note.value[s.name] = { ok: true, text: `Accepting ${candidate}…` }
   try {
     await postJson('/api/media/pick', { working_dir: folder.value, slot: s.name, candidate })
-    const r = await postJson<{ files: { path: string; bytes: number }[]; refreshed?: string[]; stale?: string[] }>('/api/media/publish', { working_dir: folder.value, slot: s.name })
+    const r = await postJson<{ files: { path: string; bytes: number }[]; refreshed?: string[]; stale?: string[]; records?: string[] }>('/api/media/publish', { working_dir: folder.value, slot: s.name })
     const copies = r.refreshed?.length ? ` Re-made the site's copies: ${r.refreshed.join(', ')}.` : ''
+    const records = r.records?.length ? ` Updated the hashes in ${r.records.join(', ')}.` : ''
     const stale = r.stale?.length ? ` These copies still show the previous picture and need a story to rebuild them: ${r.stale.join(', ')}.` : ''
-    note.value[s.name] = { ok: !stale, text: `Published: ${r.files.map(f => `${f.path} (${Math.max(1, Math.round(f.bytes / 1024))} KB)`).join(', ')}.${copies}${stale}` }
+    note.value[s.name] = { ok: !stale, text: `Published: ${r.files.map(f => `${f.path} (${Math.max(1, Math.round(f.bytes / 1024))} KB)`).join(', ')}.${copies}${records}${stale}` }
     await loadSlots(); await loadLedger()
   } catch (e) { note.value[s.name] = { ok: false, text: e instanceof Error ? e.message : String(e) } } finally { working.value[s.name] = false }
 }
