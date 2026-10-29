@@ -3,7 +3,7 @@ import { getJson, type Card } from '@/lib/api'
 
 export interface MediaSummary { published: number; skipped: number; pending: number; total: number; complete: boolean; text: string }
 export interface MediaCost { remaining_usd: number; remaining_items: number; unpriced: number; spent_usd: number; spent_runs: number }
-export interface ProjectMedia { available: boolean; summary?: MediaSummary; cost?: MediaCost }
+export interface ProjectMedia { available: boolean; error?: string | null; summary?: MediaSummary; cost?: MediaCost }
 
 const usd = (v: number) => `about $${v.toFixed(2)}`
 /** The money, in plain words: what is left to make and what has been spent. Estimates only; fal's invoice is the truth. */

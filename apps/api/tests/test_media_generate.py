@@ -457,6 +457,22 @@ def test_a_published_slot_cannot_be_skipped_and_accept_and_publish_are_remembere
     assert "accepted" in history
 
 
+def test_the_slots_format_given_to_stories_describes_what_the_loader_accepts(tmp_path):
+    (tmp_path / "media").mkdir()
+    (tmp_path / "media" / "ref.png").write_bytes(b"x")
+    good = {"slots": [{"name": "heroine-reference", "kind": "image", "prompt": "a heroine", "batch": "reference", "refs": ["media/ref.png"] * 4,
+                       "resolution": "2K", "purpose": "kept but ignored"},
+                      {"name": "hero-clip", "kind": "video", "prompt": "a clip", "batch": "scenes", "from_still": "heroine-reference", "resolution": "480P"}]}
+    (tmp_path / "media" / "slots.json").write_text(json.dumps(good))
+    assert list(mg.load_slots(tmp_path)) == ["heroine-reference", "hero-clip"]
+    for key in ('"name"', '"kind"', '"prompt"', '"refs"', 'at most 4', '"id" or "type" are not read', '1K, 2K or 4K', '480P, 768P or 1080P'):
+        assert key in mg.SLOTS_FORMAT
+    for bad in ({"id": "x", "type": "image", "prompt": "p"}, {"name": "x", "kind": "image", "prompt": "p", "refs": ["media/ref.png"] * 5}):
+        (tmp_path / "media" / "slots.json").write_text(json.dumps({"slots": [bad]}))
+        with pytest.raises(mg.MediaError):
+            mg.load_slots(tmp_path)
+
+
 def test_the_project_route_reports_where_media_stands_and_is_quiet_without_media(env, tmp_path):
     client, folder = env
     pid = make_project(client, folder)
@@ -471,6 +487,10 @@ def test_the_project_route_reports_where_media_stands_and_is_quiet_without_media
     other.mkdir()
     pid2 = make_project(client, other)
     assert client.get(f"/api/media/project/{pid2}").json() == {"available": False}
+    (other / "media").mkdir()                       # pilot story 17 wrote id/type: the studio must say why, not "no slots"
+    (other / "media" / "slots.json").write_text(json.dumps({"slots": [{"id": "hero", "type": "image", "prompt": "p"}]}))
+    rejected = client.get(f"/api/media/project/{pid2}").json()
+    assert rejected["available"] is False and "unique lowercase name" in rejected["error"]
     assert client.get("/api/media/project/9999").status_code == 404
     import profiles
     profiles.bridge_token(get_settings(), True)

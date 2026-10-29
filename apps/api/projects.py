@@ -1845,6 +1845,9 @@ def context_payload(s,p,story=None,workspace=None):
         payload['host_setup']={'checks':[f"{r['id']}={r['status']}" for r in setup],
             'not_story_checks':'Membership quota is checked by the dashboard at dispatch (a usage limit reroutes the run) and is not readable from a story. '
                 'Preview and screenshot evidence come from the dashboard\'s fixed Verify/Start/Stop preview actions, not a host browser. Do not list either as a blocker.'}
+        if project_contract.generated_media(d):
+            import media_generate
+            payload['host_setup']['media_slots_format']=media_generate.SLOTS_FORMAT
         if (cost:=manifest.get('cost_retries',{}).get(story)):
             payload['current_story'].update(assignee=cost['route']['agent'],model=cost['route']['model'],agent_target=None)
             for summary in nodes:

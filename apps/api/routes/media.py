@@ -365,9 +365,13 @@ def project_media(project_id: int, request: Request, s: Session = Depends(get_se
         raise HTTPException(404, "Unknown project.")
     try:
         root = mg.project_root(get_settings(), projects.document(p)["working_dir"])
-        slots_ = mg.load_slots(root)
     except (mg.MediaError, KeyError):
         return {"available": False}
+    try:
+        slots_ = mg.load_slots(root)
+    except mg.MediaError as exc:
+        # A file that exists but is rejected is not "no slots": say why, so the operator is not left guessing.
+        return {"available": False} if mg.inside(root, "media/slots.json") is None else {"available": False, "error": str(exc)}
     rows = [{"name": n, "skipped": media_state.entry(root, n)["skipped"]} for n in slots_]
     summary = media_state.summary(rows, lambda x: mg.is_published(root, slots_[x["name"]]))
     settings = get_settings()

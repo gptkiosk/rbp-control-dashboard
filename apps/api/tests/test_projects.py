@@ -34,6 +34,8 @@ import project_outputs
     '## Handoff: s16_docs_mcd is incomplete\n\nNothing was executed.',
     'The evidence pack is incomplete, so nothing should be marked done.',
     '## Handoff — incomplete verification\n\nChanges were written but require host testing.',
+    'Story incomplete: the inventory is drafted, but dashboard catalog sizing and estimates remain unverified.',   # pilot story 17
+    '**Task unfinished.** The scenes are drafted.',
 ])
 def test_direct_incomplete_handoff_language_is_not_completion(result):
     assert project_outputs.incomplete_error(SimpleNamespace(result_text=result))

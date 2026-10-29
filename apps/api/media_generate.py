@@ -88,6 +88,16 @@ def candidate_file(root, name):
     return path
 
 
+# What load_slots accepts, said once: stories that write media/slots.json are given this text, and the packet repeats it.
+SLOTS_FORMAT = ('media/slots.json is {"slots": [...]} with at most 50 slots. Each slot needs "name" (unique, lowercase letters, digits and '
+                'hyphens, at most 41 characters; the published file is assets/img/<name>.jpg or assets/video/<name>.mp4), "kind" ("image" or '
+                '"video") and "prompt" (1 to 4000 characters). Optional: "batch" ("reference" or "scenes"), "refs" (at most 4 image paths inside '
+                'the folder), "resolution" (1K, 2K or 4K for an image; 480P, 768P or 1080P for a video) and "from_still", "first_still" or '
+                '"last_still" naming another slot. Other keys are kept but ignored. Use exactly these key names: "id" or "type" are not read, '
+                'and the dashboard rejects the whole file if any slot is wrong. Cost estimates and model choice come from the dashboard '
+                'Media studio when the operator approves spending; do not try to read a model catalog or record prices here.')
+
+
 def load_slots(root):
     path = inside(root, "media/slots.json")
     if path is None:

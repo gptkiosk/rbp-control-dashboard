@@ -10,6 +10,12 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+### Fixed
+
+- The Media studio showed "No media slots yet" when a project's `media/slots.json` existed but was rejected, so the slots a story wrote were invisible with no reason given. It now says why the file cannot be used, and it checks again each time you open the tab.
+- No story was told the `media/slots.json` format, so the pilot's media inventory story invented its own keys (`id`, `type`) and listed more than four references, and the studio rejected the whole file. Stories in a project that generates media now get the exact format, and the project packet's media page repeats it. Cost estimates are named as the Media studio's job, not the story's.
+- A report that opened with "Story incomplete:" was taken as finished and its handoff accepted automatically. That wording now counts as unfinished work.
+
 ## [0.6.83] - 2026-10-28
 
 ### Fixed
