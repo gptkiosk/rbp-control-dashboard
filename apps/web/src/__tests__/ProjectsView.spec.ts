@@ -91,7 +91,8 @@ it('does not offer Delete on a live project',async()=>{
 it('offers Accept anyway only on a failed story whose agent reported it unfinished, and records the operator reason',async()=>{
  const task:import('@/lib/projects').ProjectTask={card_id:5,node_key:'s',role:'story',revision:1,title:'Verification',column:'failed',run_id:42,run_stage:'failed',incomplete_reason:'The agent explicitly reported unfinished work.',agent:'codex',model:'m'} as never
  const crash:import('@/lib/projects').ProjectTask={card_id:6,node_key:'t',role:'story',revision:1,title:'Crashed',column:'failed',run_id:43,run_stage:'failed',incomplete_reason:null,agent:'codex',model:'m'} as never
- const {w}=await setup('active',[task,crash])
+ const reviewed:import('@/lib/projects').ProjectTask={card_id:7,node_key:'u',role:'story',revision:1,title:'Readiness',column:'review',run_id:44,run_stage:'succeeded',incomplete_reason:'The agent explicitly reported unfinished work.',agent:'claude',model:'m'} as never   // an approved read-only continuation
+ const {w}=await setup('active',[task,crash,reviewed])
  await flushPromises()
  const inner=globalThis.fetch
  const posted:{url:string,body:unknown}[]=[]
@@ -101,7 +102,7 @@ it('offers Accept anyway only on a failed story whose agent reported it unfinish
  })
  const tab=w.findAll('nav.tabs button').find(b=>b.text()==='Stories & runs')!;await tab.trigger('click');await flushPromises()
  const buttons=w.findAll('[data-testid=accept-anyway]')
- expect(buttons).toHaveLength(1)                                                              // not on the story that crashed
+ expect(buttons).toHaveLength(2)                                                              // not on the story that crashed; also on the reviewed continuation
  const prompt=vi.spyOn(window,'prompt').mockReturnValueOnce('short').mockReturnValueOnce('Rendering is checked in the preview.')
  await buttons[0]!.trigger('click');await flushPromises()
  expect(posted).toEqual([])                                                                   // a short reason sends nothing

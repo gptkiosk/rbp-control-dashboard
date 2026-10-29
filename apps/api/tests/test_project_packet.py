@@ -449,3 +449,21 @@ def test_concurrent_readers_rebuild_the_packet_without_colliding(app):
         stamps = list(pool.map(build, range(16)))
     assert len(set(stamps)) <= 2  # the first build sets the baseline; later ones agree
     assert not list(project_packet.folder(settings, pid).rglob('*.tmp'))
+
+
+def test_story_context_carries_setup_facts_and_the_read_story_deliverable(app):
+    """Pilot 2026-10-28: a read-only readiness story could not see the dashboard's setup facts and tried to write a file."""
+    from tests.test_projects import active, node
+    c, sessions, wd, settings = app
+    repo(wd)
+    p = active(app, [node('a', mode='read'), node('b', depends_on=['a'], mode='edit')])
+    with sessions() as s:
+        project = s.get(Project, p['id'])
+        read = json.loads(projects.context(s, project, 'a').rsplit('\n', 1)[1])
+        edit = json.loads(projects.context(s, project, 'b').rsplit('\n', 1)[1])
+    assert read['current_story']['mode'] == 'read' and 'final report is the deliverable' in read['current_story']['deliverable']
+    assert 'mode' not in edit['current_story'] and 'deliverable' not in edit['current_story']
+    assert any(check.startswith('workspace=') for check in read['host_setup']['checks'])
+    assert 'quota' in read['host_setup']['not_story_checks'] and 'Do not list either as a blocker' in read['host_setup']['not_story_checks']
+    keys = list(read)
+    assert keys.index('host_setup') < keys.index('current_story')

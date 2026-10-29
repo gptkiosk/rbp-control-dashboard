@@ -10,7 +10,9 @@ RULES = ('Saved scope and explicit story-model choices outrank template examples
          'A selection/publish task is not a generation task. Existing-assets-only briefs need integration/verification but no paid generation. '
          'Asset prompts, purpose and sizing can be edited in Media Studio before any take is made; changing names/count/placements requires a reviewed inventory amendment. '
          'Inspect coordinator readiness and correct plan prerequisites using save/replan; use only linked approved setup controls for host changes. '
-         'A missing credential, tool or branch grant is not authorization to create one. Routine setup checks are app-owned; do not invent repeated human command tasks.')
+         'A missing credential, tool or branch grant is not authorization to create one. Routine setup checks are app-owned; do not invent repeated human command tasks. '
+         'A read story cannot write files: its deliverable is its final report, so word its acceptance as what the report states, not as files written or records saved. '
+         'Do not ask a story to verify membership quota or host browser capture: the dashboard checks quota at dispatch and supplies preview evidence through its fixed preview actions.')
 
 
 def saved_text(document):
@@ -117,6 +119,12 @@ def findings(document):
         if exceptions: add('saved-route-exception','Review subscription routes differing from the saved primary preference; retain only justified capability exceptions.',exceptions,'warn')
         declared=[n['key'] for n in stories if 'capability exception' in n.get('route_reason','').lower()]
         if declared: add('declared-route-exception','Review the stated capability exceptions against the saved route and available tools before accepting these assignments.',declared,'warn')
+    # A read story runs read-only, so acceptance asking it to write files or records makes the agent report it unfinished.
+    writes = [n['key'] for n in stories if n.get('mode') == 'read' and n.get('assignee') not in (None, 'human')
+              and not n.get('host_action') and not static_verification(n)
+              and re.search(r'\b(write|writes|written|create[sd]?|save[sd]?|record(s|ed)?)\b|\b[\w./-]+\.(md|json|txt|html)\b', n.get('acceptance') or '', re.I)]
+    if writes: add('read-story-writes', 'These read-only stories have acceptance that asks for files or records. A read story can only return its report; '
+                   'reword the acceptance as what the report states, or make the story an edit story.', writes, 'warn')
     if generated_media(document):
         groups = {stage: [n for n in stories if media_stage(n) == stage] for stage in ('inventory', 'generate', 'publish', 'integrate')}
         for stage, nodes in groups.items():

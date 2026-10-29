@@ -43,8 +43,8 @@ Keep the database and vault.key together in a private backup to recover encrypte
 
 Turn a brief into reviewed stories, model assignments and shared handoffs.
 
-1. Choose New project. Write the brief and select an allowed working directory. Set Story assignment preference: Economy favors OpenClaw free-first tasks; Capability favors Claude/Codex subscriptions; Balanced splits routine and difficult work. Save changes before requesting a plan.
-2. Plan (the button names your planner) starts a reviewed workflow: the Coordinator (Hermes) reviews the brief, the planner builds the map, and the Coordinator checks it. The slider guides suggestions rather than guaranteeing cost or quality. Change it under Project settings and save/replan to revise recommendations; existing assignments stay untouched until you replan or edit them. The returned map is a proposal: select nodes to edit instructions, scope, definition of done, agents, models and prerequisites. Drag nodes or use Arrange.
+1. Choose New project. Write the brief and select an allowed working directory. Set Model matching preference: Economy emphasizes cost and speed; Capability emphasizes stronger reasoning for difficult work. The Coordinator matches each task to capabilities, specialty, evidence and approved cost routes. Save changes before requesting a plan.
+2. Plan (the button names your planner) starts a reviewed workflow: the Coordinator (Hermes) reviews the brief, the planner builds the map, and the Coordinator checks it. Automatic planning and review choose focused/general membership models independently of the story slider; only approved routes may retry. The slider guides suggestions rather than guaranteeing cost or quality. Change it under Project settings and save/replan to revise recommendations; existing assignments stay untouched until you replan or edit them. The returned map is a proposal: select nodes to edit instructions, scope, definition of done, agents, models and prerequisites. Drag nodes or use Arrange.
 3. Choose sequential execution or parallel isolated Git stories. Parallel mode requires a clean repository root; RCD creates story worktrees and local branches from its reviewed commit.
 4. Review & submit freezes the saved revision and its approved model routes. Hermes orders the stories; RCD creates them once. Pause dispatch stops new stories while running ones can finish.
 5. In Stories & runs, verify artifacts and checks, then accept the handoff. Dependent stories wait for acceptance and receive approved context. Review tracked diffs and explicitly select changed files to create a local handoff snapshot (or commit them yourself); prerequisite conflicts stop for review. Source branches are never merged automatically.
@@ -78,16 +78,16 @@ One policy for the Coordinator, planner, stories, chat and tasks: every route me
 5. Under Prices to review, record the price of routes nobody has reviewed. They count as paid API until you do. Free is offered only for a model listed at no cost; memberships are set in Billing & rates.
 6. To narrow one project, open it and choose Change… on the Routes strip, then Narrow for this project. A project can only narrow the app policy, never widen it, and the default is Same as app.
 
-An installation can set a managed policy (MAC_CONTROL_MANAGED_ROUTE_POLICY) that the app cannot widen. Its removed runtimes are also hidden in Agent tools, Setup and Billing & rates. A run outside the policy stops with ROUTE_POLICY before it starts. The old free-only setting is retired; the first policy was written from it. Details: [AI & models](configuration/route-policy.md).
+An installation can set a managed policy (MAC_CONTROL_MANAGED_ROUTE_POLICY) that the app cannot widen. Its removed runtimes are also hidden in Agent tools, Setup and Billing & rates. A run outside the policy stops with ROUTE_POLICY before it starts. The old free-only setting is retired; the first policy was written from it.
 
-[Open AI & models](http://127.0.0.1:8800/profile#models-providers) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=models-providers)
+[Open AI & models](http://127.0.0.1:8800/profile#models-providers) · [Open projects](http://127.0.0.1:8800/projects) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=models-providers)
 
 ## Choose models and recover failed work
 
 Configure ordered alternatives and retry the same task without rebuilding the project.
 
 1. Open Settings → AI & models → Advanced → Model recovery. Enable automatic route recovery and select up to six configured alternatives in the order you want. A route can use a different runtime/model. Hermes retains the Coordinator guidance; planning helpers only return proposals.
-2. Which cost classes may run (membership, free, paid API) is set in Settings → AI & models; Model recovery shows them and links there. Membership consumes shared account quota and any enabled account overage still applies. Paid API also needs planning/task approval.
+2. Model recovery shows the cost classes the route policy allows (Settings → AI & models). Membership routes are preferred, then free models; paid API is always the last resort and still needs planning/task approval. Membership consumes shared account quota and any enabled account overage still applies.
 3. Planning permits one output repair on its approved route, followed by untried approved alternatives. Validation applies to every route. After all alternatives fail, the saved project and task remain available for a manual route choice; no project stories start before plan approval.
 4. Open the failed planning task to choose another configured model. A paid route requires a separate API-charge acknowledgment. Membership access does not cover provider API billing. Global spending settings and host restrictions remain in force.
 5. Enable Include alternatives in future project plans to put eligible free and membership alternatives on the editable story map. Review them before submitting. Provider/rate-limit failures may hand off to an approved untried route; model lock disables automatic story switching, and editing timeouts require review of partial work.
@@ -274,7 +274,7 @@ Read/Edit restrictions depend on the agent. Check the explanatory note in New ch
 
 Compare captured API-equivalent usage against each agent’s full monthly subscription.
 
-1. RCD starts with no membership account configured. If this installation deliberately provides a native Claude Code or Codex subscription route, open Settings → AI & models → Accounts and explicitly save that account as Subscription.
+1. If this installation provides a native Claude Code, Codex or Grok Build subscription route, open Settings → AI & models → Accounts and save that account as Subscription. The route policy prefers memberships over free and paid API routes.
 2. Select This month in Agents and read the agent’s subscription and savings summary.
 3. Savings compare captured API-equivalent usage for this calendar month against the full monthly subscription, counted once across that agent’s sub-agents.
 
@@ -411,26 +411,40 @@ Talk your idea through, say when it is enough, then send the plan to the coordin
 
 1. Open Projects and choose Refine with project consultant below Create project brief.
 2. Choose an allowed workspace, enter a project name and goal, and choose a project type (the closest fit, or Other if nothing fits exactly). The type is required here so it is always part of the plan. The consultant is told the type’s planning guidance and says if your goal does not fit it.
-3. New AI conversations use Hermes with openrouter/free unless you changed Profile → AI defaults. Install and configure the selected native agent first.
+3. The consultant starts on the Chat default in Settings → AI & models. Install and configure that agent first.
 4. The consultant answers, then asks what it needs to know. Keep talking until you are satisfied; you never have to read its instructions.
 5. Choose That’s enough, write up the plan. The brief opens for you to edit. Confirm the working directory and approve coordination; Hermes coordinates the selected planner and returns the project map and stories.
 6. Review the returned project map before separately approving story execution.
 
 Free routes can throttle or fail. Profile → AI defaults also supplies new chat, task and planning forms; existing work keeps its routes. Native membership accounts and API billing are separate. The built-in help chat uses local guides and makes no model calls.
 
-[Configure AI defaults](http://127.0.0.1:8800/profile#ai-settings) · [Open Projects](http://127.0.0.1:8800/projects) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=project-consultant)
+[Choose the Chat default](http://127.0.0.1:8800/profile#models-providers) · [Open Projects](http://127.0.0.1:8800/projects) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=project-consultant)
+
+## Continue a project elsewhere with a project packet
+
+A packet carries a project’s brief, state, decisions, evidence and reference art to another dashboard, host or coding app.
+
+1. Open a project and choose Workspace. The Project packet section shows whether the packet is Current, Stale (the workspace changed with no recorded handoff), Work in progress or Unknown, with the reason.
+2. Choose Download packet (.zip). It holds START-HERE, the brief, a source map, configuration variable names (never values), state, decisions, evidence, media and a redacted ledger, plus docs/project/ and the reference images. Published media is included only when you tick it. Anything left out is listed with where to copy it from.
+3. Source code is not in the packet. It names the repository, branch and commit to continue from.
+4. To continue in a coding app on this host, use Copy handoff or Copy START-HERE. Agents keep docs/project/ (architecture, decisions, operations) current as they change the source; the app never writes into the workspace.
+5. To continue in another dashboard, choose Projects → Import packet…, select the file and review it: source, accepted and remaining work, and anything missing. Choose this host’s working directory and create the draft. Then review the brief and plan it as usual.
+
+Import creates a draft only. Tasks, approvals, model routes, branch access and spending decisions never carry over, and nothing in a packet runs. Imported statuses are history from the source project, not local acceptance.
+
+[Open Projects](http://127.0.0.1:8800/projects) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=project-packets)
 
 ## Pick a project type so the plan follows a template
 
 A type tells the planner how this kind of project is planned and where it has failed before, then checks the plan.
 
-1. Open Projects, choose New project and pick a type: Web app, Packaged app, Website property, or Other when nothing fits exactly (the plan then says which type it resembles and which gates it keeps). When your brief clearly fits one, MCD suggests it and you can accept or ignore the suggestion. A project with no type is planned as before.
+1. Open Projects, choose New project and pick a type: Packaged app, GCP hosted app, Local website, GCP hosted website, or Other when nothing fits exactly (the plan then says which type it resembles and which gates it keeps). When your brief clearly fits one, MCD suggests it and you can accept or ignore the suggestion. A project with no type is planned as before.
 2. The type adds planner text and known failure points to the plan prompt, hands its guides to the planner and agents (for a website: the design guide and the spacing and timing guide), and lists the keys it usually needs.
-3. After a plan is proposed, read Plan checks for this project type. They only warn: for example no README story or no story that makes the Playwright screenshots (a person or the pipeline runs that script; agents cannot run a browser), no delivery story (the project must end in the remote repository, public for an MIT-licensed package others install and private for proprietary work, with the branch pushed, a pull request open and the pipeline result read), no file verification story, a preview that does not follow verification, a container story an agent cannot do, generated media planned for an agent, or no responsive review. Fix the plan or ignore a warning on purpose.
+3. After a plan is proposed, read Plan checks for this project type. Required gates block submission; warnings identify review points, for example no README story or no story that makes the Playwright screenshots (a person or the pipeline runs that script; agents cannot run a browser), no delivery story (the project must end in the remote repository, public for an MIT-licensed package others install and private for proprietary work, with the branch pushed, a pull request open and the pipeline result read), no file verification story, a preview that does not follow verification, a container story an agent cannot do, generated media planned for an agent, or no responsive review. Fix the plan or ignore a warning on purpose.
 4. Look for the human sign-offs the type expects, such as making the media in MCD, approving the look from a live preview and the final local verification. Agents cannot render pages, so you check rendering in the preview.
 5. To change a type, copy packs/project-types/<id>.json into the project-types folder of your data directory and edit it; your copy replaces the shipped one. When a project fails for a reason that could have been planned around, add it to the type’s failure points.
 
-Types guide planning. They never block a plan and never run model output. A Website property also starts its background clips on the cheapest video tier in the media panel.
+Types guide planning. Required gates block incomplete plans; checks never run model output. A Website property also starts its background clips on the cheapest video tier in the media panel.
 
 [Start a project](http://127.0.0.1:8800/projects?action=new) · [Open Projects](http://127.0.0.1:8800/projects) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=project-types)
 
@@ -486,7 +500,7 @@ Accept anyway records the agent’s report and your reason, keeps the run failed
 1. When an agent finishes but its report says work is unfinished or a check could not run, the story fails and blocks what depends on it. Read its report first.
 2. If you are content with the result (for example the missing items are made by a later human step, or a check needs a browser the agent does not have), choose Accept anyway… on the story, in Projects under Stories & runs or in the board’s task panel beside Rerun.
 3. Type a reason of at least ten characters. RCD records the agent’s own report and your reason as the handoff, keeps the run as failed in the history and releases the stories that depend on it.
-4. A crash or timeout leaves no report to accept: use Retry same story instead. A human story is decided, not accepted this way.
+4. An approved read-only continuation can finish but still report unfinished work; it then waits in review, and Accept anyway… is offered there too. A crash or timeout leaves no report to accept: use Retry same story instead. A human story is decided, not accepted this way.
 
 Nobody should later read an accepted story as a clean pass: the handoff begins with the operator’s acceptance and keeps the agent’s list of gaps.
 

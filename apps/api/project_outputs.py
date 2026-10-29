@@ -1,6 +1,6 @@
 """Operator-approved Markdown output from read-only project agents.
 
-Model text never supplies paths or permissions. MCD creates one private file; agents
+Model text never supplies paths or permissions. RCD creates one private file; agents
 remain read-only. Directory descriptors prevent symlink traversal. This is a proposed
 artifact, not an accepted handoff.
 
@@ -20,7 +20,7 @@ from pathlib import Path
 from fastapi import HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 
-APPROVAL_ERROR = 'The agent returned a plan that needs output approval, not a completed artifact. Open Projects → Stories & runs → Approve output & continue. MCD can save one Markdown file while the agent stays read-only.'
+APPROVAL_ERROR = 'The agent returned a plan that needs output approval, not a completed artifact. Open Projects → Stories & runs → Approve output & continue. RCD can save one Markdown file while the agent stays read-only.'
 
 class Output(BaseModel):
     model_config = ConfigDict(extra='forbid')
@@ -38,7 +38,7 @@ def incomplete_error(run):
     if re.fullmatch(r'⚠️\s*🛠️\s*`[^`]+` failed', text):
         return ('The agent returned only a tool-failure warning, without a completed handoff or verification report. '
                 'A normal process exit does not mean the story is complete. Review any saved artifacts, '
-                'then retry this story to return the full report directly to MCD. No handoff was accepted.')
+                'then retry this story to return the full report directly to RCD. No handoff was accepted.')
     # Only a direct admission at the start, not quoted history or a later
     # description of a recovered blocker. Agents commonly put a Markdown handoff
     # heading before a separate Status paragraph, so include one block after a
@@ -106,7 +106,7 @@ def save(settings, project_id, card_id, source_run_id, node_key, markdown, repla
     temp='.'+names[-1]+'.tmp'
     root=settings.data_dir.expanduser().resolve()
     try: fd=os.open(root,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW)
-    except OSError: raise HTTPException(409, 'The private MCD output directory is unavailable.')
+    except OSError: raise HTTPException(409, 'The private RCD output directory is unavailable.')
     try:
         for name in names[:-1]:
             try:
@@ -126,7 +126,7 @@ def save(settings, project_id, card_id, source_run_id, node_key, markdown, repla
             with os.fdopen(existing,'rb') as stream:
                 info=os.fstat(stream.fileno())
                 if not stat.S_ISREG(info.st_mode) or info.st_size>300000:
-                    raise HTTPException(409, 'The approved output path is not a bounded Markdown file. Inspect it; MCD will not overwrite it.')
+                    raise HTTPException(409, 'The approved output path is not a bounded Markdown file. Inspect it; RCD will not overwrite it.')
                 if stream.read()==content:
                     # The same artifact was already written (e.g. before a DB commit was interrupted).
                     os.fsync(stream.fileno())
@@ -134,7 +134,7 @@ def save(settings, project_id, card_id, source_run_id, node_key, markdown, repla
                     os.fsync(fd)
                     return path(settings,project_id,card_id,source_run_id,node_key)
             if not replace_uncommitted:
-                raise HTTPException(409, 'The approved output file already exists with different content. Inspect it; MCD will not overwrite it.')
+                raise HTTPException(409, 'The approved output file already exists with different content. Inspect it; RCD will not overwrite it.')
         with contextlib.suppress(FileNotFoundError): os.unlink(temp,dir_fd=fd)  # left by a crash
         out=os.open(temp,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600,dir_fd=fd)
         try:
@@ -146,7 +146,7 @@ def save(settings, project_id, card_id, source_run_id, node_key, markdown, repla
         os.fsync(fd)
         return path(settings,project_id,card_id,source_run_id,node_key)
     except OSError:
-        raise HTTPException(409, 'MCD could not safely save the approved output. Check the private output folder for permissions or symlinks; no other file was changed.')
+        raise HTTPException(409, 'RCD could not safely save the approved output. Check the private output folder for permissions or symlinks; no other file was changed.')
     finally: os.close(fd)
 
 def read(settings, project_id, card_id, source_run_id, node_key):

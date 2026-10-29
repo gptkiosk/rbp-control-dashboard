@@ -1830,6 +1830,15 @@ def context_payload(s,p,story=None,workspace=None):
     if story:
         current=by_key[story]
         payload['current_story']={k:current.get(k) for k in ('key','title','depends_on','assignee','model','agent_target')}
+        if current.get('mode')=='read':
+            payload['current_story']['mode']='read'
+            payload['current_story']['deliverable']=('This story runs read-only. Your final report is the deliverable; the operator saves it as a Markdown file on approval. '
+                'Do not report the story incomplete because you could not write files.')
+        # The dashboard's own setup facts, so a story never reports them as unverifiable.
+        setup=project_readiness.report(s,p,get_settings())['checks']
+        payload['host_setup']={'checks':[f"{r['id']}={r['status']}" for r in setup],
+            'not_story_checks':'Membership quota is checked by the dashboard at dispatch (a usage limit reroutes the run) and is not readable from a story. '
+                'Preview and screenshot evidence come from the dashboard\'s fixed Verify/Start/Stop preview actions, not a host browser. Do not list either as a blocker.'}
         if (cost:=manifest.get('cost_retries',{}).get(story)):
             payload['current_story'].update(assignee=cost['route']['agent'],model=cost['route']['model'],agent_target=None)
             for summary in nodes:
@@ -1875,7 +1884,7 @@ def context_payload(s,p,story=None,workspace=None):
     # Stable keys first (identical across the stories of a revision, so a prompt cache can reuse
     # them), what varies per story after, and the story's own location and identity last.
     order=['project_id','revision','title','brief','brief_amendments','constraints','project_type','guidance','reference_art','repository','project_packet','stories','accepted_artifacts','accepted_outputs','reported_external_work',
-        'memory_compaction','accepted_memory','upstream_outputs','execution_workspace','current_story','free_retry']
+        'memory_compaction','accepted_memory','upstream_outputs','execution_workspace','host_setup','current_story','free_retry']
     payload={k:payload[k] for k in order if k in payload}
     payload['memory_compaction']['entries_included']=len(payload['accepted_memory'])
     payload['memory_compaction']['entries_omitted']=max(0,len(rows)-len(payload['accepted_memory']))
@@ -2088,7 +2097,7 @@ def accept_story(s,p,card_id,data,actor):
         if c.column!='review' or not r or r.stage!='succeeded' or r.error or r.id!=data.run_id:
             fail('Review the latest successful story run before accepting its handoff.')
         if project_outputs.needs_approval(c,r): fail('This is an unfinished plan. Approve output & continue before reviewing the completed artifact.')
-        if reason:=project_outputs.incomplete_error(r): fail(reason)
+        if reason:=project_outputs.incomplete_error(r): fail(reason+' To accept it as it is, use Accept anyway… and give your reason.')
         output=inspect_output(p,link,r.id)
         if output and data.output_sha256!=output['sha256']:
             fail('Inspect the current Markdown output and acknowledge it before accepting this handoff.')
@@ -2126,10 +2135,12 @@ def accept_despite_report(s,p,card_id,data,actor):
     if p.state not in {'active','paused'}: fail('This project is not active.')
     if c.assignee_type=='human': fail('A human story is decided, not accepted this way.',422)
     if c.column=='done': return
-    if c.column!='failed': fail('Only a failed story can be accepted this way.')
+    # An approved read-only continuation that still reports unfinished work stays in review with a succeeded run.
+    if c.column not in {'failed','review'}: fail('Only a failed or reviewed story can be accepted this way.')
     if any(s.get(Card,dep).column!='done' for dep in cards.dependency_ids(s,c.id)): fail('Finish this story\'s prerequisites first.')
     r=s.scalar(select(Run).where(Run.card_id==c.id).order_by(Run.id.desc()).limit(1))
-    if not r or r.id!=data.run_id or r.stage!='failed': fail('Accept the latest failed run of this story.')
+    if not r or r.id!=data.run_id or (r.stage,c.column) not in {('failed','failed'),('succeeded','review')}: fail('Accept the latest finished run of this story.')
+    if project_outputs.needs_approval(c,r): fail('This is an unfinished plan. Approve output & continue before accepting it.')
     if not project_outputs.incomplete_error(r) or not (r.result_text or '').strip():
         fail('This run did not finish and report unfinished work (it crashed or timed out), so there is no report to accept. Retry it instead.')
     reason=data.reason.strip()

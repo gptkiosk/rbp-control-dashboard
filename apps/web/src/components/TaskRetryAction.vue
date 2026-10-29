@@ -17,7 +17,7 @@ const succeededRerunnable = computed(() => story.value && task.value?.run_stage 
   ((task.value.column === 'review' && project.value?.state === 'active') ||
    (task.value.column === 'done' && ['active', 'complete'].includes(project.value?.state ?? ''))))
 // A run that finished and reported unfinished work can be accepted on the operator's say-so; a crash or timeout cannot (there is no report to accept).
-const acceptable = computed(() => !!task.value?.incomplete_reason && !!task.value.run_id && task.value.run_id === props.card.last_run?.id && ['active', 'paused'].includes(project.value?.state ?? '') && !notice.value)
+const acceptable = computed(() => !!task.value?.incomplete_reason && !!task.value.run_id && task.value.run_id === props.card.last_run?.id && ['failed', 'succeeded'].includes(props.card.last_run?.stage ?? '') && ['failed', 'review'].includes(props.card.column) && ['active', 'paused'].includes(project.value?.state ?? '') && !notice.value)
 const timedOut = computed(() => props.card.last_run?.stage === 'timeout')
 const timeoutAck = ref(false)
 // After a timeout RCD cannot tell what the attempt changed or whether it is still running, so a new attempt needs the operator's word that the partial work was reviewed.
@@ -169,8 +169,8 @@ async function retry(route?: ProjectNode['routes'][number]) {
       <button v-for="r in lowCost" :key="`${r.agent}:${r.model}`" type="button" class="btn" :disabled="busy || !ready" @click="chooseCheap(r)">Use {{ cheapLabel(r) }} (subscription)</button>
       <button v-if="paidRoutes.length" type="button" class="btn" :disabled="busy || !ready" @click="choosePaid">Pay for this task…</button>
       <button v-if="limited && (card.agent === 'claude' || card.agent === 'codex')" type="button" class="btn" :disabled="busy || !ready || !freeRoutes.length" @click="chooseFree">Go Free!</button>
-      <button v-if="acceptable" type="button" class="btn" :disabled="busy" data-testid="accept-anyway" @click="acceptAnyway">Accept anyway…</button>
       </template>
+      <button v-if="acceptable" type="button" class="btn" :disabled="busy" data-testid="accept-anyway" @click="acceptAnyway">Accept anyway…</button>
     </div>
     <div v-if="showFree" class="free-choice" aria-label="Choose free retry">
       <p><strong>Continue this task with OpenClaw</strong></p>
