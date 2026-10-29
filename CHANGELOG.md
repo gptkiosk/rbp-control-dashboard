@@ -13,6 +13,7 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 ### Fixed
 
 - An approved output plan kept blocking updates after its continuation run finished. The plan run still counted as "waiting on a human decision" while the story waited in review, and there was no control to clear it. The update check now ignores a wait that a later finished run of the same story replaced, and Housekeeping offers to mark such a run superseded. Seen on the pilot's readiness story.
+- **Accept anyway…** in a task's panel refused a story in review with "The task changed. Refresh before accepting it." because a last-moment check still allowed only failed stories. It now accepts the same stories the server does. A reason shorter than ten characters now says so instead of doing nothing.
 
 ## [0.6.82] - 2026-10-28
 

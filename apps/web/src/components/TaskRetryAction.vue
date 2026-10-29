@@ -41,13 +41,16 @@ const freeTargets = computed(() => [...new Set(freeRoutes.value.map(r => r.agent
 async function acceptAnyway() {
   if (busy.value || !acceptable.value || !task.value) return
   const reason = window.prompt(`The agent reported "${props.card.title}" unfinished:\n\n${(task.value.incomplete_reason || '').slice(0, 300)}\n\nAccept it anyway? Its report and your reason are recorded as the handoff, the run stays failed in the history, and dependent stories are released. Why is this acceptable?`, '')
-  if (!reason || reason.trim().length < 10) return
+  if (reason === null) return
+  if (reason.trim().length < 10) { error.value = 'Give a reason of at least ten characters, then choose Accept anyway… again.'; return }
   busy.value = true; error.value = ''
   try {
     const base = `/api/projects/${props.card.project!.id}`
     const fresh = await getJson<Project>(base)
     const t = fresh.tasks.find(x => x.card_id === props.card.id && x.role === 'story')
-    if (t?.column !== 'failed' || t.run_id !== props.card.last_run?.id) throw new Error('The task changed. Refresh before accepting it.')
+    // Same states the server accepts: a failed run on a failed story, or a succeeded continuation on a story in review.
+    const eligible = (t?.column === 'failed' && t.run_stage === 'failed') || (t?.column === 'review' && t.run_stage === 'succeeded')
+    if (!t || !eligible || t.run_id !== props.card.last_run?.id) throw new Error('The task changed. Refresh before accepting it.')
     await postJson(`${base}/stories/${props.card.id}/accept-despite-report`, { revision: fresh.revision, run_id: t.run_id, reason: reason.trim() })
     notice.value = 'Accepted. Its report and your reason are recorded as the handoff, and the stories that wait on it are released.'
     emit('changed')
