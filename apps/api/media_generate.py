@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import base64
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -571,6 +572,53 @@ def _fit_image(src, slot, out_dir):
     _run(["ffmpeg", "-y", "-v", "error", "-i", str(src), "-vf", f"scale='min({width},iw)':-2:flags=lanczos", "-frames:v", "1"]
          + ([] if slot.get("transparent") else ["-q:v", "3"]) + [str(target)])
     return [target]
+
+
+DERIVED_SUFFIXES = {".webp": ("WEBP", {"quality": 80}), ".jpg": ("JPEG", {"quality": 85}), ".jpeg": ("JPEG", {"quality": 85}), ".png": ("PNG", {})}
+
+
+def derived_copies(root, slot):
+    """Width-named copies a site made from a published still, such as assets/img/responsive/garden-fantasy-960.webp: `<name>-<width>.<ext>` one folder
+    below assets/img. `garden-fantasy-960.webp` is never a copy of `garden`, because only digits may follow the name."""
+    base = root / "assets" / "img"
+    if slot["kind"] != "image" or not base.is_dir():
+        return []
+    pattern = re.compile(re.escape(slot["name"]) + r"-(\d{2,4})(\.[a-z]+)")
+    found = []
+    for path in sorted(base.glob("*/" + slot["name"] + "-*")):
+        m = pattern.fullmatch(path.name)
+        if m and m.group(2) in DERIVED_SUFFIXES and 16 <= int(m.group(1)) <= 4096 and path.is_file() and not path.is_symlink() and inside(root, str(path.relative_to(root))):
+            found.append((path, int(m.group(1))))
+    return found
+
+
+def refresh_derived(root, slot, source):
+    """Re-make a republished still's width-named copies from the new file, so the site does not keep showing the old picture. Returns (refreshed, stale):
+    a copy that could not be re-made is left as it was and named, never deleted. Pillow, not ffmpeg: not every ffmpeg build can write WebP."""
+    refreshed, stale = [], []
+    copies = derived_copies(root, slot)
+    if not copies:
+        return refreshed, stale
+    try:
+        from PIL import Image
+        with Image.open(source) as opened:
+            picture = opened.convert("RGB")
+    except (ImportError, OSError, ValueError):
+        return refreshed, [str(path.relative_to(root)) for path, _ in copies]
+    for path, width in copies:
+        rel = str(path.relative_to(root))
+        tmp = path.with_name(path.stem + ".refresh" + path.suffix)
+        try:
+            w = min(width, picture.width)
+            fmt, options = DERIVED_SUFFIXES[path.suffix]
+            picture.resize((w, max(1, round(picture.height * w / picture.width))), Image.LANCZOS).save(tmp, fmt, **options)
+            os.replace(tmp, path)
+            refreshed.append(rel)
+        except (OSError, ValueError):
+            stale.append(rel)
+        finally:
+            tmp.unlink(missing_ok=True)
+    return refreshed, stale
 
 
 def _fit_video(src, slot, info, out_dir, fade=0.6):

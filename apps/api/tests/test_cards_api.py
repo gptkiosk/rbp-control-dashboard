@@ -117,3 +117,23 @@ def test_agents_and_workdirs(make_client, tmp_path):
     assert agents["hermes"]["role"] == "manager"
     paths = [w["path"] for w in client.get("/api/workdirs").json()["workdirs"]]
     assert any(p.endswith("/ws/proj") for p in paths)
+
+
+def test_a_run_without_a_reported_model_or_cost_shows_derived_ones_and_a_reported_cost_is_kept(make_client, tmp_path):
+    """Pilot 2026-10-29: Codex reports tokens but no model or price, so its runs read "not reported" beside Claude runs that had both."""
+    from models import Run
+    client = make_client()
+    with client:
+        cid = _new(client, tmp_path, agent="codex").json()["id"]
+        with client.app.state.sessions.begin() as db:
+            common = dict(card_id=cid, working_dir=_workdir(tmp_path), command="[]", log_path="test-only", started_at=1_793_270_000, ended_at=1_793_270_132)
+            db.add(Run(agent="codex", model_requested="gpt-6.1-sol", stage="succeeded", input_tokens=214_963, output_tokens=4_112, cached_input_tokens=200_000, **common))
+            db.add(Run(agent="claude", model_requested="claude-sonnet-5-5", model_reported="claude-sonnet-5-5", stage="succeeded",
+                       input_tokens=275_965, output_tokens=5_403, cost_usd=0.2679, **common))
+            db.add(Run(agent="codex", model_requested="not-in-the-catalog", stage="succeeded", input_tokens=10, output_tokens=10, **common))
+        codex, claude, unknown = sorted(client.get(f"/api/cards/{cid}").json()["runs"], key=lambda r: r["id"])
+        assert codex["cost_usd"] is None and codex["model_reported"] is None                       # what was reported stays as it was
+        assert codex["model_derived"] == "gpt-6.1-sol" and codex["cost_basis"] == "standard API estimate"
+        assert codex["cost_derived_usd"] == round((14_963 * 2.0 + 200_000 * 0.1 + 4_112 * 10.0) / 1e6, 4)
+        assert claude["cost_usd"] == 0.2679 and claude["cost_derived_usd"] is None and claude["model_derived"] is None
+        assert unknown["cost_derived_usd"] is None and unknown["model_derived"] == "not-in-the-catalog"   # no published price: no guess

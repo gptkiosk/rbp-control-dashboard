@@ -11,7 +11,10 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 ## [Unreleased]
 
 ### Fixed
-
+- Codex runs showed "not reported" for the model and cost, because the Codex CLI reports only token counts. A run's detail now fills both in, marked **(derived)**: the model MCD asked for, and the token counts priced at the catalog's API rates for that model (hover for the basis). This works for any agent that reports tokens but no price, when the catalog lists the model. Derived values are display-only; spending caps and the billing receipts still see only what the agent reported.
+- Media stories are no longer asked for again when the media is already done. If every required slot is already made or published in Media studio when a human generate or publish story comes up, MCD records it as done, says so in the handoff, and moves on.
+- A published picture can be changed. Under More, Revise prompt… edits its prompt and Regenerate… actually regenerates; before, Regenerate was refused. New takes wait for your decision and replace the published file only when you accept one, and the site's width-named copies are re-made from it.
+- The host preview verifier finds Node.js from Agent tools. It used to run on the service's bare PATH and fail with `No such file or directory: 'node'`. A failed verifier now says so in the panel, and its story can't be accepted until the verifier passes.
 - The Media studio showed "No media slots yet" when a project's `media/slots.json` existed but was rejected, so the slots a story wrote were invisible with no reason given. It now says why the file cannot be used, and it checks again each time you open the tab.
 - No story was told the `media/slots.json` format, so the pilot's media inventory story invented its own keys (`id`, `type`) and listed more than four references, and the studio rejected the whole file. Stories in a project that generates media now get the exact format, and the project packet's media page repeats it. Cost estimates are named as the Media studio's job, not the story's.
 - A report that opened with "Story incomplete:" was taken as finished and its handoff accepted automatically. That wording now counts as unfinished work.

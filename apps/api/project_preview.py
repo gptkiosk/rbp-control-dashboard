@@ -22,6 +22,8 @@ from fastapi import HTTPException
 PORT_MIN, PORT_MAX = 41350, 41399
 MAX_OUTPUT = 120_000
 MAX_PROXY_BYTES = 20 * 1024 * 1024
+# A script that starts a program the host cannot find fails with this line; name the program instead of leaving a traceback to decode.
+MISSING_TOOL = re.compile(r"No such file or directory: '(node|npm|npx|python3|ffmpeg|git)'")
 _LOCKS: dict[str, threading.Lock] = {}
 _LOCKS_GUARD = threading.Lock()
 
@@ -126,10 +128,17 @@ def run(project, card, link, action: str, *, proxy_base: str) -> dict:
         raise HTTPException(409, 'A preview action is already running for this workspace.')
     started = time.time()
     try:
-        env = {'PATH': os.environ.get('PATH', '/usr/bin:/bin'), 'HOME': os.environ.get('HOME', ''), 'LANG': 'C.UTF-8'}
+        # The same tool folders agents get, so a script that calls the managed Node.js from Agent tools finds it.
+        from settings import tool_search_dirs
+        env = {'PATH': os.pathsep.join(tool_search_dirs()) or '/usr/bin:/bin', 'HOME': os.environ.get('HOME', ''), 'LANG': 'C.UTF-8'}
         done = subprocess.run(['bash', str(root / 'tools' / 'verify-preview.sh'), action], cwd=root, stdin=subprocess.DEVNULL,
                               capture_output=True, text=True, timeout=180, env=env)
         output = ((done.stdout or '') + (('\n' if done.stdout and done.stderr else '') + done.stderr if done.stderr else ''))[-MAX_OUTPUT:]
+        missing = MISSING_TOOL.search(output)
+        if done.returncode and missing:
+            output += (f"\n\n{missing.group(1)} is not installed where this host action can run it. "
+                       + ("Install Node.js from Agent tools in Settings, then run the verifier again." if missing.group(1) in {'node', 'npm', 'npx'}
+                          else "Install it on this host, then run the verifier again."))
         result = {'action': action, 'ok': done.returncode == 0, 'exit_code': done.returncode,
                   'duration_s': round(time.time() - started, 2), 'output': output, 'state': _state(root)}
     except subprocess.TimeoutExpired as exc:

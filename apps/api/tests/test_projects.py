@@ -1768,3 +1768,43 @@ def test_paused_project_replan_replaces_only_unstarted_work_and_can_be_discarded
     assert all(active_cards[card_id]['superseded'] is True for card_id in old_after)
     assert all(c.get(f'/api/cards/{card_id}').json()['superseded'] is True for card_id in old_after)
     assert any(t['node_key'] == 'new-work' and t['revision'] == 2 for t in final['tasks'])
+
+
+def test_media_stories_already_done_in_media_studio_are_recorded_not_asked_again(app):
+    """Pilot 2026-10-29: all seven slots were published at the start, yet each generate/publish story still asked for the same handoff."""
+    human=dict(assignee='human',model='',mode='read')
+    p=active(app,[node('inv'),dict(node('gen',depends_on=['inv'],media_stage='generate'),**human),dict(node('pub',depends_on=['gen'],media_stage='publish'),**human),
+                  node('integ',depends_on=['pub'])])
+    c,s,wd,settings=app
+    ids={t['node_key']:t['card_id'] for t in p['tasks'] if t['role']=='story'}
+    (wd/'media').mkdir(parents=True,exist_ok=True);(wd/'assets/img').mkdir(parents=True,exist_ok=True)
+    (wd/'media/slots.json').write_text(json.dumps({'slots':[{'name':'hero','kind':'image','prompt':'A doorway.'}]}))
+    advance(app)
+    assert next(t for t in c.get('/api/projects/1').json()['tasks'] if t['node_key']=='gen')['column']!='done'      # blocked by inv, and nothing made yet
+    rid=finish(app,ids['inv'],'Wrote the media inventory.')
+    assert c.post(f'/api/projects/1/stories/{ids["inv"]}/accept',json={'run_id':rid,'summary':'Inventory checked.'}).status_code==200
+    advance(app)
+    q=c.get('/api/projects/1').json();states={t['node_key']:t['column'] for t in q['tasks'] if t['role']=='story'}
+    assert states['gen']!='done' and states['pub']!='done'                                                            # unmade art is still the operator's call
+    (wd/'assets/img/hero.jpg').write_bytes(b'\xff\xd8 published')
+    advance(app)
+    q=c.get('/api/projects/1').json();states={t['node_key']:t['column'] for t in q['tasks'] if t['role']=='story'}
+    assert states['gen']=='done' and states['pub']=='done' and states['integ']!='done'
+    recorded=[m['text'] for m in q['memory'] if m['kind']=='handoff' and m['text'].startswith('Recorded by MCD')]
+    assert len(recorded)==2 and all('(hero)' in t and 'nothing new was generated or spent' in t for t in recorded)
+
+
+def test_a_failed_host_verifier_cannot_be_accepted_as_if_it_passed(app):
+    """Pilot 2026-10-29: the verifier failed (exit 1) and the human story still offered acceptance as though it had worked."""
+    p=active(app,[dict(node('verify',host_action='preview-verify'),assignee='human',model='',mode='read')]);c,s,wd,settings=app
+    cid=next(t['card_id'] for t in p['tasks'] if t['role']=='story')
+    r=c.post(f'/api/projects/1/stories/{cid}/accept',json={'summary':'Looks fine.'})
+    assert r.status_code==409 and 'get a pass' in r.text                                                               # never run
+    with s.begin() as db:
+        projects.memory(db,db.get(projects.Project,1),'checkpoint',projects.HOST_VERIFY+'failed (exit 1).\n\n{"status": "failed"}','operator',cid)
+    with s() as db: assert projects.last_host_verify(db,db.get(projects.Project,1),cid)['ok'] is False
+    assert c.post(f'/api/projects/1/stories/{cid}/accept',json={'summary':'Looks fine.'}).status_code==409
+    with s.begin() as db:
+        projects.memory(db,db.get(projects.Project,1),'checkpoint',projects.HOST_VERIFY+'passed.\n\n{"status": "passed"}','operator',cid)
+    r=c.post(f'/api/projects/1/stories/{cid}/accept',json={'summary':'Verifier passed on the host.'})
+    assert r.status_code==200 and r.json()['state']=='complete',r.text

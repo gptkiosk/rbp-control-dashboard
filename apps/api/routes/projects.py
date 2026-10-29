@@ -204,7 +204,7 @@ def host_preview_status(project_id:int,card_id:int,request:Request,s:Session=Dep
     actor(request);p=projects.get(s,project_id);link=projects.binding(s,card_id);c=s.get(Card,card_id)
     if not link or link.project_id!=p.id or link.role!='story' or not c: raise HTTPException(404,'Story not found in this project.')
     base=f'/api/projects/{project_id}/stories/{card_id}/host-preview/content'
-    return project_preview.describe(p,c,link,proxy_base=base)
+    return {**project_preview.describe(p,c,link,proxy_base=base),'last_verify':projects.last_host_verify(s,p,c.id)}
 
 class HostPreviewAction(BaseModel):
     action: str = Field(pattern=r'^(verify|serve|stop)$')
