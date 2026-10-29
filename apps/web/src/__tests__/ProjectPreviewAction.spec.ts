@@ -10,10 +10,11 @@ it('says plainly when the last verifier run failed and that the story waits for 
   // Pilot 2026-10-29: the verifier failed (exit 1) and the story still looked ready to accept.
   let ok = false
   stubFetch(() => ({ body: { available: true, kind: 'preview-verify', actions: ['verify'], running: false, state: null,
-    last_verify: { ok, at: 1, summary: 'x', output: ok ? '{"status": "passed"}' : "No such file or directory: 'node'" } } }))
+    last_verify: { ok, at: 1793277272, summary: 'x', output: ok ? '{"status": "passed"}' : "No such file or directory: 'node'" } } }))
   let w = mount(ProjectPreviewAction, { props: { card } })
   await flushPromises()
   expect(w.get('[data-testid=verify-result]').text()).toContain('cannot be accepted until it passes')
+  expect(w.get('[data-testid=verify-result]').text()).toMatch(/failed \(.*2026.*\)/)                  // when it ran, so an old result is not mistaken for a new one
   expect(w.get('pre').text()).toContain("'node'")
   w.unmount(); ok = true
   w = mount(ProjectPreviewAction, { props: { card } })

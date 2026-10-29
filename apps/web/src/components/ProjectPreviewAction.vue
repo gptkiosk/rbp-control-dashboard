@@ -27,6 +27,8 @@ async function action(value:'verify'|'serve'|'stop'){
   try { const result=await postJson<Result>(base.value,{action:value}); output.value=result.output; await load(); emit('changed') }
   catch(e){error.value=e instanceof Error?e.message:String(e)} finally {busy.value=false}
 }
+// A recorded result can be hours old (from before an update), so say when it ran.
+const when=(at:number)=>new Date(at*1000).toLocaleString([], { dateStyle:'medium', timeStyle:'short' })
 onMounted(load)
 watch(()=>[props.card.id,props.card.project?.id],load)
 </script>
@@ -45,8 +47,8 @@ watch(()=>[props.card.id,props.card.project?.id],load)
       </div>
       <p v-if="preview.state" class="small muted">Running on the host: PID {{preview.state.pid}} · port {{preview.state.port}} · {{preview.state.sha.slice(0,7)}}.</p>
       <template v-if="preview.kind==='preview-verify' && preview.last_verify">
-        <p v-if="preview.last_verify.ok" class="ok-text small" role="status" data-testid="verify-result">Last verifier run passed. You can accept this story.</p>
-        <p v-else class="error-text" role="alert" data-testid="verify-result">Last verifier run failed. This story cannot be accepted until it passes; the end of the output says why.</p>
+        <p v-if="preview.last_verify.ok" class="ok-text small" role="status" data-testid="verify-result">Last verifier run passed ({{ when(preview.last_verify.at) }}). You can accept this story.</p>
+        <p v-else class="error-text" role="alert" data-testid="verify-result">Last verifier run failed ({{ when(preview.last_verify.at) }}). This story cannot be accepted until it passes; the end of the output says why. Run it again after fixing the cause or updating the dashboard.</p>
       </template>
       <pre v-if="output || preview.last_verify?.output" class="log-window" aria-label="Host preview output">{{output || preview.last_verify?.output}}</pre>
     </template>
