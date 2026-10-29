@@ -364,6 +364,9 @@ def approved_story_routes(p, link):
     if paid: choices += [paid['route']]
     return [dict(agent=a, model=m) for a,m in dict.fromkeys((r['agent'],r['model']) for r in choices)]
 
+# The handoff Accept anyway records; prerequisite_reason honors it for the run it names.
+ACCEPTED_DESPITE='ACCEPTED BY THE OPERATOR DESPITE THE AGENT\'S UNFINISHED REPORT.'
+
 def prerequisite_reason(s, card_id):
     """Done is a release gate only when backed by the current accepted success."""
     c=s.get(Card,card_id)
@@ -378,6 +381,9 @@ def prerequisite_reason(s, card_id):
         ProjectMemory.card_id==c.id,ProjectMemory.kind=='handoff').order_by(ProjectMemory.id.desc()).limit(1))
     if c.assignee_type=='human':
         return None if handoff and handoff.run_id is None else f'#{c.id} {c.title}: human decision has not been recorded.'
+    # Accept anyway takes a finished run that reported unfinished work, so the clean-success test below cannot apply to it.
+    if r and handoff and handoff.run_id==r.id and r.stage in {'failed','succeeded'} and handoff.text.startswith(ACCEPTED_DESPITE):
+        return None
     if not r or r.stage!='succeeded' or r.error or project_outputs.incomplete_error(r):
         return f'#{c.id} {c.title}: latest run has not succeeded.'
     if not handoff or handoff.run_id!=r.id:
@@ -2145,7 +2151,7 @@ def accept_despite_report(s,p,card_id,data,actor):
         fail('This run did not finish and report unfinished work (it crashed or timed out), so there is no report to accept. Retry it instead.')
     reason=data.reason.strip()
     report=(r.result_text or '').strip()
-    summary=('ACCEPTED BY THE OPERATOR DESPITE THE AGENT\'S UNFINISHED REPORT. Operator reason: '+reason+'\n\nThe agent\'s own report follows; its listed gaps remain open.\n\n'+report)[:11900]
+    summary=(ACCEPTED_DESPITE+' Operator reason: '+reason+'\n\nThe agent\'s own report follows; its listed gaps remain open.\n\n'+report)[:11900]
     memory(s,p,'decision',f'Operator accepted story #{c.id} despite its unfinished report. Reason: {reason}',actor,c.id,r.id)
     memory(s,p,'handoff',summary,actor,c.id,r.id)
     c.column='done';c.updated_at=now()
