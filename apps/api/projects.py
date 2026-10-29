@@ -601,6 +601,11 @@ def plan_schedule(p):
     except ValueError:
         return None
 
+def _totals(s,p):
+    import project_totals
+    try: return project_totals.totals(s,p,get_settings(),document(p).get('working_dir'))
+    except Exception: return None   # a totals problem must never hide the project
+
 def detail(s, p):
     bindings = []
     approved_routes = json.loads(p.approved_manifest) if p.approved_manifest else {}
@@ -643,7 +648,7 @@ def detail(s, p):
         'pipeline':json.loads(p.pipeline) if p.pipeline else None, 'error':p.error,
         'route_reliability':recovery.payload(s,get_settings(),p.created_by) if p.state in {'planning_failed','dispatch_failed','active','paused'} else None,
         'handoff_approval':handoff_approval(s,p), 'model_lock':model_locked(p),
-        'schedule':plan_schedule(p), 'timing':plan_timing(s,p), 'standards_check':standards_check(p,None,s),'amendments':amendments(s,p),
+        'schedule':plan_schedule(p), 'timing':plan_timing(s,p), 'totals':_totals(s,p), 'standards_check':standards_check(p,None,s),'amendments':amendments(s,p),
         'workspaces':json.loads(p.approved_manifest).get('workspaces',{}) if p.approved_manifest else {},
         'artifacts':json.loads(p.approved_manifest).get('artifacts',{}) if p.approved_manifest else {},
         'created_by':p.created_by, 'created_at':p.created_at, 'updated_at':p.updated_at,
