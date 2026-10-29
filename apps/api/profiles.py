@@ -12,7 +12,7 @@ from sqlalchemy import select
 from models import UserProfile, UserCredential
 from route_reliability import RecoveryPolicy
 
-PROVIDERS = ('openrouter','discord','fal')
+PROVIDERS = ('openrouter','discord','fal','upubhub')
 class SetupProgress(BaseModel):
     model_config = ConfigDict(extra='forbid')
     step: int = Field(default=0, ge=0, le=6, strict=True)

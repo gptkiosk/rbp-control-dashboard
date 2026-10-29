@@ -30,7 +30,7 @@ it('shows every key as one card: whether it is in place, one line on what it is 
 it('still lets a key be saved when the guide cannot be read, and says nothing is saved yet', async () => {
   stubFetch(() => undefined)
   const w = mount(CredentialsPanel, { props: props({ credentials: [] }), ...stubs }); await flushPromises()
-  expect(w.findAll('input[type="password"]').map(i => i.attributes('aria-label'))).toEqual(['openrouter credential', 'fal credential', 'discord credential'])
+  expect(w.findAll('input[type="password"]').map(i => i.attributes('aria-label'))).toEqual(['openrouter credential', 'fal credential', 'upubhub credential', 'discord credential'])
   expect(w.find('[data-key="agent"]').exists()).toBe(false)
   await w.get('[aria-label="fal credential"]').setValue('abc')
   expect(w.emitted('secret')![0]).toEqual(['fal', 'abc'])

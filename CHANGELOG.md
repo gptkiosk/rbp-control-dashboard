@@ -11,6 +11,7 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 ## [Unreleased]
 
 ### Added
+- Pipeline packs in Settings → Installs & updates: optional, data-only project types and format guides for one kind of deliverable, added from a dropdown. Packs come from the signed `gptkiosk/dashboard-pipeline-packs` release (index signed with the dashboard release key, each archive checked against it) and never run code. A pack for a service waits for that service's credential, and a upubhub.com token can now be saved in Private credentials.
 - Project totals on the project page: agent and elapsed time, tokens in, out and cached, and every agent and model used, across all of a project's tasks including planning. Cost is shown as actual (membership and free-model runs at $0, API runs at their reported or derived cost) next to the same work at API rates, and both include the Media studio's fal estimate for the project's images.
 
 ### Fixed

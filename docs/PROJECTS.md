@@ -311,6 +311,10 @@ Open a task to inspect its definition of done and latest result, then use its bl
 
 The full artifact review remains available under Projects → Stories & runs. Failed and dependency-blocked stories do not offer these approval shortcuts.
 
+## Pipeline packs
+
+Optional project types for one kind of deliverable (a upubhub class, for example) can be added from **Settings → Installs & updates → Pipeline packs**. A pack is planner guidance, plan checks and format guides; it never runs code. See [Pipeline packs](configuration/pipeline-packs.md).
+
 ## Project totals
 
 Once any of a project's tasks has run, the project page shows its totals above the tabs ("Totals so far" while it runs, "Project totals" when it is complete). They cover every run of every task, planning included: agent time and elapsed time, tokens in, out and cached, and one row per agent and model with how it was billed.

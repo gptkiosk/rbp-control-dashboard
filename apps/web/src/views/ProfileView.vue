@@ -7,6 +7,7 @@ import ReportStoragePanel from '@/components/ReportStoragePanel.vue'
 import GithubSettingsPanel from '@/components/GithubSettingsPanel.vue'
 import AgentToolsPanel from '@/components/AgentToolsPanel.vue'
 import SystemToolsPanel from '@/components/SystemToolsPanel.vue'
+import PipelinePacksPanel from '@/components/PipelinePacksPanel.vue'
 import UpdatePanel from '@/components/UpdatePanel.vue'
 import HousekeepingPanel from '@/components/HousekeepingPanel.vue'
 import BugIntakePanel from '@/components/BugIntakePanel.vue'
@@ -28,7 +29,7 @@ const profile = ref<Profile | null>(null), preferences = ref<(Preferences & {coo
 const workdirs = ref<{ path: string; branch: string | null }[]>([]), origins = ref<string[]>([])
 const error = ref(''), notice = ref(''), busy = ref(false), pairing = ref('')
 const guide = ref<InstanceType<typeof CredentialsPanel> | null>(null)
-const secrets = ref<Record<string,string>>({ openrouter: '', discord: '', fal: '' })
+const secrets = ref<Record<string,string>>({ openrouter: '', discord: '', fal: '', upubhub: '' })
 const spending = ref<Record<string, number | string | boolean | null> | null>(null)
 // AI & models → Accounts: membership or API per agent, model rates and spending limits (Billing & rates, formerly on the Agents page).
 const billingOpen = ref(false), billingAgents = ref<Agent[]>([])
@@ -42,7 +43,7 @@ const bootstrapReadiness = ref<{ ready: boolean; checks: {id:string;label:string
 // right tab (HOME).
 const TABS = [{ id: 'settings', label: 'General' }, { id: 'ai', label: 'AI & models' }, { id: 'updates', label: 'Installs & updates' }, { id: 'maintenance', label: 'Maintenance' }] as const
 type Tab = typeof TABS[number]['id']
-const HOME: Record<string, Tab> = { 'models-providers': 'ai', 'ai-settings': 'ai', accounts: 'ai', 'coordinator-bootstrap': 'ai', 'route-recovery': 'ai', 'agent-roles': 'ai', roles: 'ai', updates: 'updates', 'agent-tools': 'updates', 'system-tools': 'updates', housekeeping: 'maintenance', 'github-settings': 'maintenance', 'github-actions': 'maintenance', 'bug-intake': 'maintenance', 'issue-tasks': 'maintenance', reports: 'maintenance' }
+const HOME: Record<string, Tab> = { 'models-providers': 'ai', 'ai-settings': 'ai', accounts: 'ai', 'coordinator-bootstrap': 'ai', 'route-recovery': 'ai', 'agent-roles': 'ai', roles: 'ai', updates: 'updates', 'agent-tools': 'updates', 'system-tools': 'updates', 'pipeline-packs': 'updates', housekeeping: 'maintenance', 'github-settings': 'maintenance', 'github-actions': 'maintenance', 'bug-intake': 'maintenance', 'issue-tasks': 'maintenance', reports: 'maintenance' }
 const THEMES = [{ id: 'system', label: 'Device' }, { id: 'light', label: 'Light' }, { id: 'dark', label: 'Dark' }] as const
 const tab = ref<Tab>('settings')
 function fromHash() {
@@ -130,10 +131,11 @@ async function importPreferences(event: Event) { await action(async () => {
     <p v-if="error" class="notice-warn" role="alert">{{ error }}</p><p v-if="notice" class="card" role="status">{{ notice }}</p>
 
     <div v-show="tab === 'updates'" class="group" role="tabpanel" aria-label="Updates and installs">
-      <p class="muted small">Dashboard releases, agent tools and optional system tools. Each shows its version and status, runs with a progress bar and log, and ends with a health check. <RouterLink to="/help?topic=app-updates">How-to</RouterLink></p>
+      <p class="muted small">Dashboard releases, agent tools, optional system tools and pipeline packs. Each shows its version and status, runs with a progress bar and log, and ends with a health check. <RouterLink to="/help?topic=app-updates">How-to</RouterLink></p>
       <UpdatePanel />
       <AgentToolsPanel />
       <SystemToolsPanel />
+      <PipelinePacksPanel />
     </div>
 
     <div v-show="tab === 'maintenance'" class="group" role="tabpanel" aria-label="Maintenance and access">

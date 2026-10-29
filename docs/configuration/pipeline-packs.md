@@ -1,0 +1,54 @@
+# Pipeline packs
+
+Pipeline packs are optional project types for one kind of deliverable, such as a upubhub class. They are offered in **Settings → Installs & updates → Pipeline packs**: choose a pack in **Add a pack** and press **Install**. An installed pack shows its version, offers **Update** when the packs release has a newer one, and can be removed. Removing a pack does not change projects already planned with it; new projects can no longer pick its type.
+
+A pack for a service (for example upubhub.com) needs that service's credential first. Until it is saved in **General → Private credentials**, the pack's **Install** button is disabled and the reason is shown next to it.
+
+## What a pack can and cannot do
+
+A pack is data: JSON and Markdown. It gives the planner a project type (planner text, failure points, sign-offs, plan checks, intake questions) and short format guides. A pack may replace the general software guides (development practice, security) for its own types, so a course plan does not spend its guidance budget on deployment advice; it can only choose among shipped guides for that.
+
+A pack never runs code on this host. Checks and service connectors are part of the dashboard; a pack names the ones it uses. A pack that names one this dashboard does not have is refused with "Update the dashboard".
+
+Your own copy of a project type in `<data>/project-types/` still replaces a pack's.
+
+## Where packs come from
+
+Packs are published as GitHub releases of `gptkiosk/dashboard-pipeline-packs`. The dashboard reads the latest release without a GitHub token, so the list is cached for 15 minutes; **Check for packs** reads it again.
+
+A release holds one index, `pipeline-packs.json`, with its detached signature `pipeline-packs.json.sig`, plus one archive per pack. The index is signed with the same `dashboard-release` key as dashboard releases. The dashboard checks it against that public key, which ships inside the dashboard's own verified code, so MCD (which pins release digests) and RCD (which checks release signatures) verify packs the same way.
+
+An install then checks the archive against the sha256 the signed index gives it, checks the pack's own `pack.json` matches the index entry, and validates every file before anything is written. Installed packs live in `<data>/packs/<id>/<version>/`; `<data>/packs/<id>/active` names the version in use, and the previous version stays on disk.
+
+## Formats
+
+`pack.json`:
+
+```json
+{
+  "format": "dashboard-pipeline-pack", "version": "0.1",
+  "id": "upubhub-class", "pack_version": "0.1.0",
+  "label": "upubhub class (textbook, lesson plans, assessments)",
+  "service": {"id": "upubhub", "label": "upubhub.com", "credential": "upubhub"},
+  "app_min": "0.6.87",
+  "project_types": ["upubhub-class"],
+  "guides": ["upubhub-class-format.md"],
+  "general_guides": ["readme-and-docs.md"],
+  "checks": [], "connectors": []
+}
+```
+
+An archive `<id>-<pack_version>.tar.gz` holds `pack.json`, `project-types/<id>.json` for every listed type and `guides/<name>.md` for every listed guide, optionally under one top folder. Nothing else is allowed: no links, no other files, at most 40 files of 40 KB each. A pack guide may not reuse a shipped guide's name.
+
+`pipeline-packs.json`:
+
+```json
+{
+  "format": "dashboard-pipeline-pack-index", "version": "0.1",
+  "packs": [{"id": "upubhub-class", "pack_version": "0.1.0", "label": "…", "summary": "…",
+             "service": {"id": "upubhub", "label": "upubhub.com", "credential": "upubhub"},
+             "archive": "upubhub-class-0.1.0.tar.gz", "sha256": "<64 hex>", "app_min": "0.6.87"}]
+}
+```
+
+Sign it with `ssh-keygen -Y sign -f <release key> -n dashboard-release pipeline-packs.json`.

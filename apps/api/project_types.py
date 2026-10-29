@@ -20,7 +20,9 @@ LEGACY_TYPES = {'web-app', 'website-property'}
 def _dirs(settings):
     from settings import REPO_ROOT
     mine = Path(settings.data_dir) / "project-types" if settings is not None else None
-    return [d for d in (mine, Path(REPO_ROOT) / "packs" / "project-types") if d is not None]
+    import pipeline_packs
+    installed = pipeline_packs.type_dirs(settings) if settings is not None else []
+    return [d for d in (mine, *installed, Path(REPO_ROOT) / "packs" / "project-types") if d is not None]
 
 
 def _valid(t):
@@ -92,10 +94,14 @@ MEDIA_RULES = ("Generated media is made by the dashboard Media Studio with the o
 
 
 def selected_guides(type_id, settings=None):
-    """General plus exactly one template. Other/unknown types never import all delivery guides."""
+    """General plus exactly one template. Other/unknown types never import all delivery guides. A pipeline pack's type may replace the general
+    (software) guides with its own choice, and may name guides the pack ships."""
+    import pipeline_packs
     from standards import GUIDES
     chosen = load(settings).get(type_id or '', {})
-    return list(dict.fromkeys(name for name in (*GENERAL_GUIDES, *chosen.get('guides', [])) if name in GUIDES))
+    general = pipeline_packs.general_guides_for(type_id or '', settings) if settings is not None and type_id else None
+    usable = lambda name: name in GUIDES or (settings is not None and pipeline_packs.guide_path(name, settings) is not None)
+    return list(dict.fromkeys(name for name in (*(GENERAL_GUIDES if general is None else general), *chosen.get('guides', [])) if usable(name)))
 
 
 def guidance_packet(type_id, settings=None):
