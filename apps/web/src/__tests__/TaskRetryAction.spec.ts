@@ -6,9 +6,9 @@ import { emptyProject, type Project } from '@/lib/projects'
 afterEach(() => { vi.unstubAllGlobals(); document.body.innerHTML = '' })
 const failed = () => card({id:50,column:'failed',agent:'claude',model:'claude-opus-5-5',project:{id:2,node_key:'durable',role:'story'},last_run:run({id:51,card_id:50,stage:'failed',error:"You've hit your session limit"})})
 function project(): Project { return {id:2,state:'active',revision:2,approved_revision:2,document:emptyProject(),pipeline:null,error:null,updated_at:1,tasks:[{card_id:50,node_key:'durable',role:'story',revision:2,column:'failed',title:'Durable',run_id:51,run_stage:'failed',retry_routes:[{agent:'claude',model:'claude-opus-5-5'},{agent:'codex',model:'gpt-6.1-sol'}]}],memory:[],workspaces:{},artifacts:{}} }
-function setup(p=project()) {
+function setup(p=project(),c=failed()) {
   const f=stubFetch((url,init)=>url==='/api/projects/2' || init?.method==='POST' ? {body:p} : undefined)
-  const w=mount(TaskRetryAction,{props:{card:failed()},attachTo:document.body})
+  const w=mount(TaskRetryAction,{props:{card:c},attachTo:document.body})
   return {w,f}
 }
 it('queues the same story once without granting approvals or creating a replacement task',async()=>{
@@ -150,6 +150,12 @@ it('offers Accept anyway on the board for a story whose run reported unfinished 
   expect(writes[0]![0]).toBe('/api/projects/2/stories/50/accept-despite-report')
   expect(JSON.parse(String(writes[0]![1]?.body))).toEqual({revision:2,run_id:51,reason:'The missing files are made by the media step, not this story.'})
   expect(w.text()).toContain('Accepted');expect(w.emitted('changed')).toHaveLength(1);ask.mockRestore();w.unmount()
+})
+it('offers Accept anyway on a reviewed story whose succeeded run still reports unfinished work',async()=>{
+  const p=project();Object.assign(p.tasks[0]!,{column:'review',run_stage:'succeeded',incomplete_reason:'The agent explicitly reported unfinished work.'})
+  const reviewed=card({id:50,column:'review',agent:'claude',model:'claude-haiku-5-5',project:{id:2,node_key:'durable',role:'story'},last_run:run({id:51,card_id:50,stage:'succeeded'})})
+  const {w}=setup(p,reviewed);await flushPromises()
+  expect(w.find('[data-testid=accept-anyway]').exists()).toBe(true);w.unmount()
 })
 it('does not offer Accept anyway for a crash or timeout, which left no report to accept',async()=>{
   const {w}=setup();await flushPromises()

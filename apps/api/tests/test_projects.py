@@ -1612,6 +1612,25 @@ def test_only_a_run_that_finished_and_reported_unfinished_work_can_be_accepted_t
     assert c.post(f'/api/projects/{p["id"]}/stories/999/accept-despite-report',json={'run_id':1,'reason':'No such story here.'}).status_code==404
 
 
+def test_a_reviewed_continuation_that_still_reports_unfinished_work_can_be_accepted_anyway(app):
+    """Pilot 2026-10-28: an approved read-only continuation succeeded but said 'Status: incomplete', so it sat in review.
+    Approve handoff refused the report and Accept anyway only took failed stories, leaving no way forward."""
+    p=active(app,[node('a'),node('b',depends_on=['a'])])
+    c,s,wd,settings=app
+    ids={t['node_key']:t['card_id'] for t in p['tasks'] if t['role']=='story'}
+    rid=finish(app,ids['a'],'Status: not complete, operator acceptance required. Quota and browser capture are unverified.',stage='failed')
+    with s.begin() as db:                                                                                 # what an output-continuation grant leaves behind
+        db.get(Run,rid).stage='succeeded';db.get(Run,rid).error=None;db.get(Card,ids['a']).column='review'
+    refused=c.post(f'/api/projects/{p["id"]}/stories/{ids["a"]}/accept',json={'run_id':rid,'summary':'Looks fine to me.'})
+    assert refused.status_code==409 and 'Accept anyway' in refused.text                                  # the refusal names the way out
+    task=next(t for t in c.get(f'/api/projects/{p["id"]}').json()['tasks'] if t['card_id']==ids['a'])
+    assert task['column']=='review' and task['run_stage']=='succeeded' and task['incomplete_reason']
+    r=c.post(f'/api/projects/{p["id"]}/stories/{ids["a"]}/accept-despite-report',json={'run_id':rid,'reason':'Quota and preview are dashboard-owned; the report is enough.'})
+    assert r.status_code==200,r.text
+    assert c.get(f'/api/cards/{ids["a"]}').json()['column']=='done'
+    with s() as db: assert db.get(Run,rid).stage=='succeeded'
+
+
 @pytest.mark.parametrize('state,column', [('active','queued'),('active','backlog'),('paused','queued')])
 def test_pending_story_can_switch_subscription_without_changing_work(app, pending_subscriptions, state, column):
     app[3].dispatch_free_only=False
