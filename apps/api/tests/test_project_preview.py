@@ -1,6 +1,7 @@
 import json
 import tempfile
 import unittest
+import unittest.mock
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -53,3 +54,29 @@ class PreviewActionsTest(unittest.TestCase):
             (tools / 'verify-preview.sh').write_text('#!/usr/bin/env bash\n', encoding='utf-8')
             with self.assertRaisesRegex(Exception, 'not approved'):
                 project_preview.run(project(root, 'Start the persistent loopback preview for review'), SimpleNamespace(), SimpleNamespace(node_key='preview'), 'verify', proxy_base='/api/preview')
+
+
+class PreviewHostPathTest(unittest.TestCase):
+    """Pilot 2026-10-29: the verifier's `node` call failed on a host that had Node.js from Agent tools, because the action ran on the service's bare PATH."""
+
+    def test_the_verifier_gets_the_tool_folders_agents_get(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            managed = root / 'managed'; (managed / 'tools' / 'node' / 'current' / 'bin').mkdir(parents=True)
+            fake = managed / 'tools' / 'node' / 'current' / 'bin' / 'node'
+            fake.write_text('#!/bin/sh\necho managed-node\n'); fake.chmod(0o755)
+            site = root / 'site'; (site / 'tools').mkdir(parents=True)
+            (site / 'tools' / 'verify-preview.sh').write_text('#!/usr/bin/env bash\nnode\n', encoding='utf-8')
+            with unittest.mock.patch.dict('os.environ', {'MAC_CONTROL_AGENT_TOOLS_ROOT': str(managed), 'PATH': '/usr/bin:/bin'}):
+                result = project_preview.run(project(site), SimpleNamespace(), SimpleNamespace(node_key='preview'), 'verify', proxy_base='/api/preview')
+            self.assertTrue(result['ok'], result['output'])
+            self.assertIn('managed-node', result['output'])
+
+    def test_a_missing_node_is_named_with_where_to_get_it(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary); (root / 'tools').mkdir()
+            (root / 'tools' / 'verify-preview.sh').write_text(
+                "#!/usr/bin/env bash\necho \"FileNotFoundError: [Errno 2] No such file or directory: 'node'\" >&2\nexit 1\n", encoding='utf-8')
+            result = project_preview.run(project(root), SimpleNamespace(), SimpleNamespace(node_key='preview'), 'verify', proxy_base='/api/preview')
+            self.assertFalse(result['ok'])
+            self.assertIn('node is not installed where this host action can run it. Install Node.js from Agent tools', result['output'])

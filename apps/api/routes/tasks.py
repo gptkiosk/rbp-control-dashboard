@@ -17,6 +17,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 import approval
+import billing
 import cards as card_rules
 import live_status
 import projects
@@ -93,8 +94,23 @@ def _approval_view(cp: dict) -> dict | None:
     return {**request, "nonce": cp.get("approval_nonce")} if request else None
 
 
-def _run_dict(r: Run) -> dict:
-    return {
+def _derived(r: Run, rates: dict) -> dict:
+    """What a finished run did not report, worked out by MCD and labelled as such. Some CLIs (Codex) report tokens but no model or price:
+    the model is the one MCD asked for, and the cost is the tokens at the catalog's API rates for it. Never stored, so spending caps and
+    receipts still see only what was reported."""
+    if r.stage in {"running", "queued"}:
+        return {"model_derived": None, "cost_derived_usd": None, "cost_basis": None}
+    model = r.model_reported or r.model_requested
+    cost, basis = (None, None)
+    if r.cost_usd is None and r.input_tokens is not None and r.output_tokens is not None:
+        cost, basis = billing.price({"model": model, "ts": r.started_at, "input_tokens": r.input_tokens, "output_tokens": r.output_tokens,
+                                     "cached_input_tokens": r.cached_input_tokens, "cache_write_tokens": r.cache_write_tokens}, {"rates": rates})
+    return {"model_derived": r.model_requested if not r.model_reported else None,
+            "cost_derived_usd": round(cost, 4) if cost is not None else None, "cost_basis": basis if cost is not None else None}
+
+
+def _run_dict(r: Run, rates: dict | None = None) -> dict:
+    return {**(_derived(r, rates) if rates is not None else {}),
         "id": r.id, "card_id": r.card_id, "agent": r.agent, "stage": r.stage,
         "model_requested": r.model_requested, "model_reported": r.model_reported,
         "provider": r.provider, "started_at": r.started_at, "ended_at": r.ended_at,
@@ -318,7 +334,8 @@ def get_card(card_id: int, s: Session = Depends(get_session)):
     card = _get_card(s, card_id)
     runs = s.execute(select(Run).where(Run.card_id == card_id).order_by(Run.id.desc())).scalars().all()
     data = _card_dict(card, runs[0] if runs else None, _dependency_maps(s, [card_id]), projects.binding(s,card.id), projects.superseded_by(s, card), projects.closed_project(s, card) is not None, projects.superseded_story(s, card))
-    data["runs"] = [_run_dict(r) for r in runs]
+    rates = billing.config(s)["rates"]
+    data["runs"] = [_run_dict(r, rates) for r in runs]
     return data
 
 

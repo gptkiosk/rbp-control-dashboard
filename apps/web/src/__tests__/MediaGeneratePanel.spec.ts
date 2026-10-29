@@ -293,3 +293,37 @@ it('shows what was already made as a gallery with the storage it takes, hides Re
   expect(w.text()).toContain('Deleted 2 unused takes, freeing 2.0 MB.')
   w.unmount()
 })
+it('regenerates a published slot with the prompt revised, says outright it is a regenerate, and lets you accept the new take to replace it', async () => {
+  // Pilot 2026-10-29: the published fantasy scene needed a stronger prompt, and Regenerate was refused and new takes had nowhere to appear.
+  vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] })
+  let made = false
+  const { w, f } = setup(
+    () => [slot({ name: 'garden-fantasy', published: true, plan_sha256: 'a'.repeat(64), candidates: made ? ['garden-fantasy-2.png'] : [], unreviewed: made ? 1 : 0 })],
+    (u, init) => {
+      if (u === '/api/media/slots' && init?.method === 'PATCH') return { body: { slot: 'garden-fantasy', plan_sha256: 'b'.repeat(64), changed: ['prompt'] } }
+      if (u === '/api/media/generate' && init?.method === 'POST') return { status: 202, body: { jobs: ['j-g'], endpoint: 'e', estimate_usd_each: 0.08 } }
+      if (u === '/api/media/jobs/j-g') { made = true; return { body: { id: 'j-g', state: 'done', progress: 'done', slot: 'garden-fantasy', error: null, files: [] } } }
+      if (u === '/api/media/pick') return { body: { copied: 'x' } }
+      if (u === '/api/media/publish') return { body: { files: [{ path: 'assets/img/garden-fantasy.jpg', bytes: 4096 }], refreshed: ['assets/img/responsive/garden-fantasy-960.webp'], stale: [] } }
+    },
+  )
+  await flushPromises()
+  await w.get('button[aria-label="Revise the plan for garden-fantasy"]').trigger('click')
+  expect(w.text()).toContain('The published file stays on the site until you accept a new take')
+  await w.get('[data-slot=garden-fantasy] textarea').setValue('The garden half turned to fantasy.')
+  await w.get('[data-slot=garden-fantasy] form').trigger('submit'); await flushPromises()
+  expect(JSON.parse(String(calls(f, 'PATCH', '/api/media/slots')[0]![1]!.body))).toMatchObject({ slot: 'garden-fantasy', revise_published: true, prompt: 'The garden half turned to fantasy.' })
+  await w.get('input[type=checkbox]').setValue(true)
+  const ok = vi.spyOn(window, 'confirm').mockReturnValue(true)
+  await w.get('button[aria-label="Regenerate garden-fantasy"]').trigger('click')
+  await buttons(w, 'Generate', '[data-testid=gallery]')[0]!.trigger('click'); await flushPromises()
+  ok.mockRestore()
+  expect(JSON.parse(String(calls(f, 'POST', '/api/media/generate')[0]![1]!.body))).toMatchObject({ slot: 'garden-fantasy', regenerate: true })
+  await vi.advanceTimersByTimeAsync(3000); await flushPromises()
+  const waiting = w.findAll('[data-slot=garden-fantasy]').find(r => r.find('[data-testid=replaces]').exists())!
+  expect(waiting.text()).toContain('Accepting a new take replaces it')
+  expect(waiting.find('button[aria-label="Skip garden-fantasy"]').exists()).toBe(false)               // a published slot is not skipped
+  await waiting.get('button[aria-label="Accept garden-fantasy-2.png"]').trigger('click'); await flushPromises()
+  expect(w.text()).toContain("Re-made the site's copies: assets/img/responsive/garden-fantasy-960.webp")
+  w.unmount()
+})

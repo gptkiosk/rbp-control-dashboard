@@ -127,6 +127,7 @@ async function loadProjectMedia() {
 }
 watch(() => [project.value?.id, project.value?.revision, project.value?.state] as const, () => { void loadProjectMedia() }, { immediate: true })
 watch(() => route.query.view, v => { if (v === 'media' || v === 'workspace') tab.value = v })
+watch(tab, v => { if (v === 'media') void loadProjectMedia() })
 watch(projectMedia, () => { if (route.query.view === 'media') tab.value = 'media' })
 watch(selectedId, () => { routedNote.value = ''; project.value = null; draft.value = emptyProject(); baseline.value = ''; conflict.value = false; error.value = '' })
 // One route (and its backups) for every agent story, saved by the server as a new revision.
@@ -469,7 +470,7 @@ function planLabel() { return draft.value.planner_agent && draft.value.planner_a
 
         <nav class="tabs" aria-label="Project sections"><button v-for="t in ['map','work','workspace','media','memory'] as ('map' | 'memory' | 'work' | 'media' | 'workspace')[]" :key="t" class="btn" :class="{ active: tab === t }" :aria-pressed="tab === t" @click="tab = t">{{ t === 'map' ? (locked ? 'Live map' : 'Planning map') : t === 'workspace' ? 'Workspace' : t === 'memory' ? 'Shared memory' : t === 'media' ? 'Media studio' : 'Stories & runs' }}</button></nav>
         <p v-if="projectMedia?.available && projectMedia.summary && !projectMedia.summary.complete && tab !== 'media'" class="notice-warn media-banner" role="status" data-testid="media-banner">Media for this project: {{ projectMedia.summary.published }} of {{ projectMedia.summary.total }} published, {{ projectMedia.summary.pending }} waiting for your decision. <template v-if="projectMedia.cost"> · {{ costWords(projectMedia.cost).left }}.</template> <button type="button" class="btn" @click="tab = 'media'">Open media studio</button></p>
-        <div v-if="tab === 'media'" class="card media-tab"><ReferenceArtPanel :working-dir="project.document.working_dir" /><MediaGeneratePanel v-if="projectMedia?.available" :working-dir="project.document.working_dir" /><p v-else class="muted small" data-testid="no-media-slots">No media slots yet. Media to generate is listed in this project's <code>media/slots.json</code>, which its media story or setup creates; reference art works without it.</p></div>
+        <div v-if="tab === 'media'" class="card media-tab"><ReferenceArtPanel :working-dir="project.document.working_dir" /><MediaGeneratePanel v-if="projectMedia?.available" :working-dir="project.document.working_dir" /><p v-else-if="projectMedia?.error" class="error small" role="alert" data-testid="media-slots-invalid">This project's <code>media/slots.json</code> was found but cannot be used: {{ projectMedia.error }} Fix the file (or rerun the story that wrote it), then open this tab again.</p><p v-else class="muted small" data-testid="no-media-slots">No media slots yet. Media to generate is listed in this project's <code>media/slots.json</code>, which its media story or setup creates; reference art works without it.</p></div>
         <template v-if="tab === 'map'">
           <ProjectGitAccess v-if="project" :project-id="project.id" />
           <ProjectSchedule v-if="project?.schedule" :schedule="project.schedule" :titles="nodeTitles" :timing="project.timing" />

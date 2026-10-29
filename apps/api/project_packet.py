@@ -426,6 +426,7 @@ def _evidence_doc(rows, manifest):
 
 
 def _media_doc(refs, slots, error):
+    import media_generate
     lines = ['# Media and assets', '']
     lines += ['## Reference art (operator-chosen direction, not final assets)', '']
     lines += [f"- {r['path']}" + (f" · {r['bytes']} bytes" if r.get('bytes') else '') for r in refs] or ['- None.']
@@ -434,6 +435,7 @@ def _media_doc(refs, slots, error):
         lines.append(f'- Slots file is not valid: {error}')
     lines += [f"- {x['name']} · {x['kind']}" + (f" · batch {x['batch']}" if x['batch'] else '') + f" · {'published' if x['published'] else 'not published'}"
               + (f" · refs {', '.join(x['refs'])}" if x['refs'] else '') for x in slots] or ([] if error else ['- No media slots.'])
+    lines += ['', '## Format', '', media_generate.SLOTS_FORMAT]
     lines += ['', 'Generation and spending happen only in the dashboard Media Studio with operator approval.']
     return _redact('\n'.join(lines))
 

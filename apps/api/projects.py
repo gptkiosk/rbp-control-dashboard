@@ -1455,6 +1455,7 @@ def advance(s,settings):
             if run and run.stage=='succeeded' and not (grant and grant.get('run_id')==run.id) and project_outputs.incomplete_error(run):
                 on_finish(s,card,run,'succeeded')
         process_handoffs(s,active_project)
+        settle_media_stories(s,active_project)
         process_parallel_gates(s,active_project,settings)
     for p in s.scalars(select(Project).where(Project.state.in_(['planning','dispatching']))).all():
         if workspace_handoff.blocking(s,document(p)['working_dir']): continue
@@ -1845,6 +1846,9 @@ def context_payload(s,p,story=None,workspace=None):
         payload['host_setup']={'checks':[f"{r['id']}={r['status']}" for r in setup],
             'not_story_checks':'Membership quota is checked by the dashboard at dispatch (a usage limit reroutes the run) and is not readable from a story. '
                 'Preview and screenshot evidence come from the dashboard\'s fixed Verify/Start/Stop preview actions, not a host browser. Do not list either as a blocker.'}
+        if project_contract.generated_media(d):
+            import media_generate
+            payload['host_setup']['media_slots_format']=media_generate.SLOTS_FORMAT
         if (cost:=manifest.get('cost_retries',{}).get(story)):
             payload['current_story'].update(assignee=cost['route']['agent'],model=cost['route']['model'],agent_target=None)
             for summary in nodes:
@@ -2114,6 +2118,9 @@ def accept_story(s,p,card_id,data,actor):
             import media_plan
             try: media_plan.require_evidence(Path(c.working_dir or document(p)['working_dir']),node['media_stage'],node.get('media_batch'))
             except __import__('media_generate').MediaError as exc: fail(str(exc),exc.status)
+        import project_preview
+        if project_preview._kind(node)=='preview-verify' and not (last_host_verify(s,p,c.id) or {}).get('ok'):
+            fail('Run the verifier on this host and get a pass before accepting this story. The last run failed or none has run; its output is recorded on this story.',409)
     if not data.summary.strip(): fail('A verified handoff summary is required.',422)
     m=json.loads(p.approved_manifest);ws=m.get('workspaces',{}).get(link.node_key)
     if output:
@@ -2130,8 +2137,48 @@ def accept_story(s,p,card_id,data,actor):
     memory(s,p,'handoff',data.summary.strip(),actor,c.id,data.run_id)
     c.column='done';c.updated_at=now()
     s.flush()
+    complete_if_done(s,p)
+
+def complete_if_done(s,p):
     linked=list(s.scalars(select(ProjectTask.card_id).where(ProjectTask.project_id==p.id,ProjectTask.role=='story')))
     if all(s.get(Card,cid).column=='done' for cid in linked): p.state='complete'
+
+
+HOST_VERIFY='Dashboard host preview action `verify` '
+
+def last_host_verify(s,p,card_id):
+    """The latest host verifier result recorded on a story: {'ok', 'at', 'output'}, or None when it has never run."""
+    m=s.scalar(select(ProjectMemory).where(ProjectMemory.project_id==p.id,ProjectMemory.card_id==card_id,ProjectMemory.kind=='checkpoint',
+                                           ProjectMemory.text.startswith(HOST_VERIFY)).order_by(ProjectMemory.id.desc()).limit(1))
+    if not m: return None
+    head,_,output=m.text.partition('\n\n')
+    return {'ok':head.startswith(HOST_VERIFY+'passed'),'at':m.created_at,'summary':head,'output':output}
+
+
+def settle_media_stories(s,p):
+    """Record a human media story as done when Media studio already holds its evidence. The operator generated and published there before the story
+    came up, so asking again would only repeat a decision already made. Only unblocked stories are settled, and the handoff says MCD recorded it."""
+    if p.state!='active' or not p.approved_manifest: return
+    import media_generate
+    import media_plan
+    import workspace_handoff
+    nodes={n['key']:n for n in json.loads(p.approved_manifest)['document']['nodes']}
+    settled=True
+    while settled:                                   # settling the generate story can unblock its publish story
+        settled=False
+        for link in s.scalars(select(ProjectTask).where(ProjectTask.project_id==p.id,ProjectTask.role=='story',ProjectTask.revision==p.revision)).all():
+            c=s.get(Card,link.card_id);node=nodes.get(link.node_key,{})
+            if not c or c.column=='done' or c.assignee_type!='human' or node.get('media_stage') not in {'generate','publish'}: continue
+            folder=c.working_dir or document(p)['working_dir']
+            if dependency_blocks(s,c.id) or workspace_handoff.blocking(s,folder): continue
+            try: names=media_plan.require_evidence(Path(folder),node['media_stage'],node.get('media_batch'))
+            except (media_generate.MediaError,OSError,ValueError): continue
+            batch=(node.get('media_batch')+' ') if node.get('media_batch') else ''
+            memory(s,p,'handoff',f"Recorded by MCD: every required {batch}media slot was already {'made' if node['media_stage']=='generate' else 'published'} in Media studio "
+                   f"({', '.join(names)}). Those decisions were made there; nothing new was generated or spent.",'mcd',c.id)
+            c.column='done';c.updated_at=now();s.flush();settled=True
+    complete_if_done(s,p)
+
 
 def accept_despite_report(s,p,card_id,data,actor):
     """Accept a story whose latest run finished but reported unfinished work, on the operator's explicit say-so. The run stays failed in the history; the
@@ -2156,8 +2203,7 @@ def accept_despite_report(s,p,card_id,data,actor):
     memory(s,p,'handoff',summary,actor,c.id,r.id)
     c.column='done';c.updated_at=now()
     s.flush()
-    linked=list(s.scalars(select(ProjectTask.card_id).where(ProjectTask.project_id==p.id,ProjectTask.role=='story')))
-    if all(s.get(Card,cid).column=='done' for cid in linked): p.state='complete'
+    complete_if_done(s,p)
 
 def overlap(a,b):
     pa,pb=Path(a).resolve(),Path(b).resolve()

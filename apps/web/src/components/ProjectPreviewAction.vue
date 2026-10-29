@@ -4,7 +4,8 @@ import AppIcon from '@/components/AppIcon.vue'
 import { getJson, postJson, type Card } from '@/lib/api'
 
 interface State { pid:number; port:number; sha:string; started:string }
-interface Preview { available:boolean; kind?:'preview-verify'|'preview-review'; actions?:string[]; running?:boolean; state?:State|null; proxy_url?:string|null }
+interface Verify { ok:boolean; at:number; summary:string; output:string }
+interface Preview { last_verify?:Verify|null; available:boolean; kind?:'preview-verify'|'preview-review'; actions?:string[]; running?:boolean; state?:State|null; proxy_url?:string|null }
 interface Result { action:string; ok:boolean; exit_code:number; duration_s:number; output:string; state?:State|null; proxy_url?:string|null }
 const props=defineProps<{card:Card}>()
 const emit=defineEmits<{changed:[]}>()
@@ -43,7 +44,11 @@ watch(()=>[props.card.id,props.card.project?.id],load)
         <a v-if="preview.proxy_url" class="btn" :href="preview.proxy_url" target="_blank" rel="noopener noreferrer">Open remote preview</a>
       </div>
       <p v-if="preview.state" class="small muted">Running on the host: PID {{preview.state.pid}} · port {{preview.state.port}} · {{preview.state.sha.slice(0,7)}}.</p>
-      <pre v-if="output" class="log-window" aria-label="Host preview output">{{output}}</pre>
+      <template v-if="preview.kind==='preview-verify' && preview.last_verify">
+        <p v-if="preview.last_verify.ok" class="ok-text small" role="status" data-testid="verify-result">Last verifier run passed. You can accept this story.</p>
+        <p v-else class="error-text" role="alert" data-testid="verify-result">Last verifier run failed. This story cannot be accepted until it passes; the end of the output says why.</p>
+      </template>
+      <pre v-if="output || preview.last_verify?.output" class="log-window" aria-label="Host preview output">{{output || preview.last_verify?.output}}</pre>
     </template>
     <p v-if="error" class="error-text" role="alert">{{error}}</p>
   </section>
@@ -51,5 +56,5 @@ watch(()=>[props.card.id,props.card.project?.id],load)
 
 <style scoped>
 .host-preview{display:grid;gap:var(--gap-sm);padding:var(--gap);margin:var(--gap) 0;border:1px solid var(--accent);border-radius:var(--radius);background:var(--accent-soft)}
-.host-preview h3,.host-preview p{margin:0}.actions{display:flex;gap:var(--gap-sm);flex-wrap:wrap;align-items:center}.error-text{margin:0;color:var(--danger);font-size:var(--font-size-sm)}
+.host-preview h3,.host-preview p{margin:0}.actions{display:flex;gap:var(--gap-sm);flex-wrap:wrap;align-items:center}.error-text{margin:0;color:var(--danger);font-size:var(--font-size-sm)}.ok-text{margin:0;color:var(--ok)}
 </style>

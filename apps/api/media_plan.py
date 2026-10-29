@@ -16,7 +16,7 @@ def digest(root):
     return hashlib.sha256(path.read_bytes()).hexdigest() if path else None
 
 
-def update(root, name, expected, changes, jobs):
+def update(root, name, expected, changes, jobs, revise_published=False):
     raw_path = root / 'media/slots.json'
     path = mg.inside(root, 'media/slots.json')
     if not path or raw_path.is_symlink() or raw_path.parent.is_symlink():
@@ -30,8 +30,10 @@ def update(root, name, expected, changes, jobs):
     slot = slots.get(name)
     if not slot: raise mg.MediaError('Unknown media slot.')
     candidates = root / 'media/candidates'
-    waiting = candidates.is_dir() and any(mg.candidate_of(name, p.name) for p in candidates.iterdir())
-    if mg.is_published(root, slot) or waiting or jobs.active_for(root, name):
+    published = mg.is_published(root, slot)
+    # A published slot keeps old takes on disk; only takes made since its last decision are waiting for review.
+    waiting = media_state.unreviewed(root, name) > 0 if published else candidates.is_dir() and any(mg.candidate_of(name, p.name) for p in candidates.iterdir())
+    if (published and not revise_published) or waiting or jobs.active_for(root, name):
         raise mg.MediaError('This slot has generated, published or running work. Review it first; editing a paid take requires an explicit new inventory/retry decision.', 409)
     proposed = {**slot, **changes}
     if 'resolution' in changes and changes['resolution'] is None: proposed.pop('resolution',None)
@@ -56,11 +58,13 @@ def update(root, name, expected, changes, jobs):
         os.replace(tmp, path)
     finally:
         if tmp and tmp.exists(): tmp.unlink()
-    media_state.record(root, name, 'plan_edited', 'Ungenerated prompt/sizing updated; no generation or spend approved.')
+    media_state.record(root, name, 'plan_edited', 'Published slot revised; the published file stays until a new take is accepted.' if published
+                       else 'Ungenerated prompt/sizing updated; no generation or spend approved.')
     return {'slot': name, 'plan_sha256': hashlib.sha256(encoded).hexdigest(), 'changed': sorted(changes)}
 
 
 def require_evidence(root, stage, batch=None):
+    """Refuse unless every required slot (of the batch) is published, or for `generate` at least made. Returns the names of the slots checked."""
     slots=mg.load_slots(root)
     required=[slot for slot in slots.values() if slot.get('required',True)]
     if not required: raise mg.MediaError('The media inventory has no required assets to verify. Review the illustrated scope before approval.')
@@ -76,3 +80,4 @@ def require_evidence(root, stage, batch=None):
         made=candidates.is_dir() and any(mg.candidate_of(slot['name'],p.name) and p.is_file() and not p.is_symlink() and p.stat().st_size>0 for p in candidates.iterdir())
         if stage=='publish' or not made: missing.append(slot['name'])
     if missing: raise mg.MediaError('Finish dashboard media '+('generation' if stage=='generate' else 'publication')+' for required slots before accepting this story: '+', '.join(missing[:12]),409)
+    return [slot['name'] for slot in required]

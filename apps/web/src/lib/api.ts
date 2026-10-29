@@ -276,6 +276,10 @@ export interface Run {
   stage: RunStage
   model_requested: string | null
   model_reported: string | null
+  /** Worked out by MCD when the agent reports none: the configured model, and tokens at the catalog's API rates. Never stored. */
+  model_derived?: string | null
+  cost_derived_usd?: number | null
+  cost_basis?: string | null
   provider: string | null
   started_at: number
   ended_at: Num

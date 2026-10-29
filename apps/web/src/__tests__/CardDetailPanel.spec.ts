@@ -249,6 +249,24 @@ describe('CardDetailPanel', () => {
     w.unmount()
   })
 
+  it('labels a model and cost MCD worked out as derived, and keeps a reported cost as reported', async () => {
+    // Pilot 2026-10-29: Codex reports tokens but no model or price, so its runs read "not reported" beside Claude runs.
+    const detail: CardDetail = {
+      ...card({ id: 7, column: 'done' }),
+      runs: [run({ id: 72, card_id: 7, agent: 'codex', model_requested: 'gpt-6.1-sol', model_reported: null, model_derived: 'gpt-6.1-sol', cost_usd: null, cost_derived_usd: 0.0913, cost_basis: 'standard API estimate' })],
+    }
+    const { w } = mountPanel(detail)
+    await flushPromises()
+    expect(w.get('[data-testid="model-derived"]').text()).toBe('gpt-6.1-sol (derived)')
+    const cost = w.get('[data-testid="cost-derived"]')
+    expect(cost.text()).toContain('(derived)')
+    expect(cost.attributes('title')).toContain('standard API estimate')
+    w.unmount()
+    const reported = mountPanel({ ...card({ id: 8, column: 'done' }), runs: [run({ id: 73, card_id: 8, cost_usd: 0.2679, cost_derived_usd: null })] })
+    await flushPromises()
+    expect(reported.w.find('[data-testid="cost-derived"]').exists()).toBe(false)
+  })
+
   it('shows run metadata with "not reported" for null values', async () => {
     const detail: CardDetail = {
       ...card({ id: 7, column: 'done' }),

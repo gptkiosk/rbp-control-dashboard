@@ -147,6 +147,15 @@ it('offers the Media studio for reference art even without media slots, and says
  expect(w.get('[data-testid=no-media-slots]').text()).toContain('media/slots.json')
  w.unmount()
 })
+it('says why a slots file it found cannot be used, instead of claiming there are no slots',async()=>{
+ mediaProject={available:false,error:'Every slot needs a unique lowercase name.'}
+ const {w}=await setup('active')
+ await flushPromises()
+ await w.findAll('nav.tabs button').find(b=>b.text()==='Media studio')!.trigger('click'); await flushPromises()
+ expect(w.get('[data-testid=media-slots-invalid]').text()).toContain('Every slot needs a unique lowercase name.')
+ expect(w.find('[data-testid=no-media-slots]').exists()).toBe(false)
+ w.unmount()
+})
 it('asks for a missing key before creating the project, then creates it after the key is saved or skipped',async()=>{
  const {w,f}=await setup()
  const inner=globalThis.fetch

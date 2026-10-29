@@ -707,7 +707,8 @@ async function save(): Promise<void> {
               </div>
               <div>
                 <dt class="has-icon"><AppIcon name="model" size="sm" />Model reported</dt>
-                <dd class="wrap-any"><ReportedValue :value="selectedRun.model_reported" /></dd>
+                <dd v-if="!selectedRun.model_reported && selectedRun.model_derived" class="wrap-any" data-testid="model-derived" title="The agent did not report its model; this is the model MCD asked for.">{{ selectedRun.model_derived }} <span class="muted">(derived)</span></dd>
+                <dd v-else class="wrap-any"><ReportedValue :value="selectedRun.model_reported" /></dd>
               </div>
               <div>
                 <dt>Provider</dt>
@@ -727,7 +728,10 @@ async function save(): Promise<void> {
               </div>
               <div>
                 <dt class="has-icon"><AppIcon name="cost" size="sm" />Cost (USD)</dt>
-                <dd>
+                <dd v-if="selectedRun.cost_usd == null && selectedRun.cost_derived_usd != null" data-testid="cost-derived" :title="`Not reported by the agent. Worked out by MCD from the token counts at the published API rates (${selectedRun.cost_basis}); a membership plan may cost nothing extra.`">
+                  {{ formatUsd(selectedRun.cost_derived_usd) }} <span class="muted">(derived)</span>
+                </dd>
+                <dd v-else>
                   <ReportedValue :value="selectedRun.cost_usd" :format="formatUsd" />
                 </dd>
               </div>

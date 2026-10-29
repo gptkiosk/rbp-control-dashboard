@@ -467,3 +467,18 @@ def test_story_context_carries_setup_facts_and_the_read_story_deliverable(app):
     assert 'quota' in read['host_setup']['not_story_checks'] and 'Do not list either as a blocker' in read['host_setup']['not_story_checks']
     keys = list(read)
     assert keys.index('host_setup') < keys.index('current_story')
+    assert 'media_slots_format' not in read['host_setup']          # only projects that generate media
+
+
+def test_a_media_project_story_is_told_the_slots_format(app, monkeypatch):
+    """Pilot 2026-10-29: the media inventory story invented id/type keys and the studio rejected the whole file."""
+    from tests.test_projects import active, node
+    import media_generate, project_contract
+    c, sessions, wd, settings = app
+    repo(wd)
+    p = active(app, [node('a', mode='edit')])
+    monkeypatch.setattr(project_contract, 'generated_media', lambda document: True)
+    with sessions() as s:
+        story = json.loads(projects.context(s, s.get(Project, p['id']), 'a').rsplit('\n', 1)[1])
+    assert story['host_setup']['media_slots_format'] == media_generate.SLOTS_FORMAT
+    assert '## Format' in project_packet._media_doc([], [], None) and media_generate.SLOTS_FORMAT in project_packet._media_doc([], [], None)

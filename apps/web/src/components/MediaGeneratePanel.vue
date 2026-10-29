@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import NoteFold from '@/components/NoteFold.vue'
+import MediaPlanForm from '@/components/MediaPlanForm.vue'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { getJson, postJson, patchJson } from '@/lib/api'
 interface Plan { endpoint: string; estimate_usd: number | null }
-interface Slot { plan_sha256?: string; width?: number; height?: number; resolution?: string | null; seconds?: number[] | null; name: string; kind: 'image' | 'video'; world: string | null; purpose: string; prompt: string; published: boolean; published_bytes?: number; skipped?: boolean; history?: { ts: number; event: string; detail: string }[]; inbox?: string | null; candidates: string[]; waiting_for_stills: string[]; plans: Record<Tier, Plan> }
+interface Slot { plan_sha256?: string; width?: number; height?: number; resolution?: string | null; seconds?: number[] | null; name: string; kind: 'image' | 'video'; world: string | null; purpose: string; prompt: string; published: boolean; unreviewed?: number; published_bytes?: number; skipped?: boolean; history?: { ts: number; event: string; detail: string }[]; inbox?: string | null; candidates: string[]; waiting_for_stills: string[]; plans: Record<Tier, Plan> }
 interface Storage { published_bytes: number; unused_bytes: number; unused_count: number }
 interface Summary { published: number; skipped: number; pending: number; total: number; complete: boolean; text: string }
 interface Job { id: string; state: 'queued' | 'running' | 'done' | 'failed'; progress: string; slot: string; error: string | null; files: { path: string; bytes: number }[] }
@@ -21,7 +22,7 @@ async function savePlan(s: Slot) {
   savingPlan.value=true;error.value=''
   try {
     const {resolution,minSeconds,maxSeconds,...fields}=editPlan.value
-    await patchJson('/api/media/slots',{working_dir:folder.value,slot:s.name,expected_sha256:s.plan_sha256,...fields,resolution:resolution || null,...(s.kind==='video' ? {seconds:[minSeconds,maxSeconds]} : {})})
+    await patchJson('/api/media/slots',{working_dir:folder.value,slot:s.name,expected_sha256:s.plan_sha256,...(s.published ? {revise_published:true} : {}),...fields,resolution:resolution || null,...(s.kind==='video' ? {seconds:[minSeconds,maxSeconds]} : {})})
     editing.value=null;confirm.value=false
     note.value[s.name]={ok:true,text:'Asset plan saved. Review refreshed estimates and confirm spending again before generation.'}
     await loadSlots()
@@ -61,9 +62,10 @@ async function loadSlots() {
 }
 async function loadLedger() { try { ledger.value = await getJson('/api/media/ledger') } catch { ledger.value = null } }
 // Three states, so a finished slot is out of the way: published, candidates waiting for your decision, and not made yet.
+// A published slot you regenerated is also waiting: its new takes replace the published file only when you accept one.
 const published = computed(() => slots.value.filter(s => s.published))
 const skipped = computed(() => slots.value.filter(s => !s.published && s.skipped))
-const review = computed(() => slots.value.filter(s => !s.published && !s.skipped && s.candidates.length > 0))
+const review = computed(() => slots.value.filter(s => !s.skipped && s.candidates.length > 0 && (!s.published || (s.unreviewed ?? 0) > 0)))
 const todo = computed(() => slots.value.filter(s => !s.published && !s.skipped && s.candidates.length === 0))
 const eligible = computed(() => todo.value.filter(s => s.waiting_for_stills.length === 0))
 const stillWaiting = computed(() => todo.value.filter(s => s.waiting_for_stills.length > 0).length)
@@ -129,7 +131,7 @@ async function clearUnused() {
 const candidateUrl = (name: string) => `/api/media/candidate?working_dir=${encodeURIComponent(folder.value)}&name=${encodeURIComponent(name)}`
 const isVideo = (name: string) => /\.(mp4|webm)$/i.test(name)
 function estimate(s: Slot) { const e = s.plans[tier.value[s.name] || 'standard'].estimate_usd; return e === null ? null : e * (count.value[s.name] || 1) }
-async function generate(s: Slot, anotherTake = false) {
+async function generate(s: Slot, anotherTake = false, regenerate = false) {
   if (busy.value || savingPlan.value || editing.value) return
   if (!confirm.value) { needConfirm(s.name); return }
   const n = count.value[s.name] || 1, price = money(estimate(s))
@@ -137,7 +139,7 @@ async function generate(s: Slot, anotherTake = false) {
   busy.value = true; offerTake.value[s.name] = false
   note.value[s.name] = { ok: true, text: 'Requested. It appears here when fal finishes (about a minute for an image, a few for a clip).' }
   try {
-    queue(s.name, (await postJson<{ jobs: string[] }>('/api/media/generate', { working_dir: folder.value, slot: s.name, tier: tier.value[s.name] || 'standard', count: n, confirm_spend: true, expected_sha256:s.plan_sha256, ...(anotherTake ? { another_take: true } : {}) })).jobs)
+    queue(s.name, (await postJson<{ jobs: string[] }>('/api/media/generate', { working_dir: folder.value, slot: s.name, tier: tier.value[s.name] || 'standard', count: n, confirm_spend: true, expected_sha256:s.plan_sha256, ...(anotherTake ? { another_take: true } : {}), ...(regenerate || s.published ? { regenerate: true } : {}) })).jobs)
     more.value[s.name] = false
     poll()
   } catch (e) {
@@ -176,8 +178,10 @@ async function accept(s: Slot, candidate: string) {
   note.value[s.name] = { ok: true, text: `Accepting ${candidate}…` }
   try {
     await postJson('/api/media/pick', { working_dir: folder.value, slot: s.name, candidate })
-    const r = await postJson<{ files: { path: string; bytes: number }[] }>('/api/media/publish', { working_dir: folder.value, slot: s.name })
-    note.value[s.name] = { ok: true, text: `Published: ${r.files.map(f => `${f.path} (${Math.max(1, Math.round(f.bytes / 1024))} KB)`).join(', ')}` }
+    const r = await postJson<{ files: { path: string; bytes: number }[]; refreshed?: string[]; stale?: string[] }>('/api/media/publish', { working_dir: folder.value, slot: s.name })
+    const copies = r.refreshed?.length ? ` Re-made the site's copies: ${r.refreshed.join(', ')}.` : ''
+    const stale = r.stale?.length ? ` These copies still show the previous picture and need a story to rebuild them: ${r.stale.join(', ')}.` : ''
+    note.value[s.name] = { ok: !stale, text: `Published: ${r.files.map(f => `${f.path} (${Math.max(1, Math.round(f.bytes / 1024))} KB)`).join(', ')}.${copies}${stale}` }
     await loadSlots(); await loadLedger()
   } catch (e) { note.value[s.name] = { ok: false, text: e instanceof Error ? e.message : String(e) } } finally { working.value[s.name] = false }
 }
@@ -231,7 +235,8 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
 
     <h4 v-if="review.length" class="group">Waiting for your decision ({{ review.length }})</h4>
     <div v-for="s in review" :key="s.name" class="slot" :data-slot="s.name">
-      <div><strong>{{ s.name }}</strong> <span class="muted small">· {{ s.kind }}<template v-if="s.world"> · {{ s.world }}</template></span><p v-if="s.purpose" class="muted small">{{ s.purpose }}</p></div>
+      <div><strong>{{ s.name }}</strong> <span class="muted small">· {{ s.kind }}<template v-if="s.world"> · {{ s.world }}</template></span><p v-if="s.purpose" class="muted small">{{ s.purpose }}</p>
+        <p v-if="s.published" class="small" data-testid="replaces">Published now. Accepting a new take replaces it; None of these keeps it.</p></div>
       <ul class="candidates">
         <li v-for="c in s.candidates" :key="c" class="candidate">
           <video v-if="isVideo(c)" :src="candidateUrl(c)" class="thumb" controls muted loop preload="metadata" :aria-label="`Preview of ${c}`" />
@@ -242,7 +247,7 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
       </ul>
       <div class="controls">
         <button type="button" class="btn" :disabled="working[s.name]" :aria-label="`None of these for ${s.name}`" @click="decide(s, 'reject')">None of these: make another…</button>
-        <button type="button" class="btn" :disabled="working[s.name]" :aria-label="`Skip ${s.name}`" @click="decide(s, 'skip')">Skip: use the fallback</button>
+        <button v-if="!s.published" type="button" class="btn" :disabled="working[s.name]" :aria-label="`Skip ${s.name}`" @click="decide(s, 'skip')">Skip: use the fallback</button>
       </div>
       <div v-if="more[s.name]" class="controls">
         <select v-model="tier[s.name]" class="input" :aria-label="`${s.name} tier`"><option value="draft">draft (cheapest)</option><option value="standard">standard</option><option value="premium">premium</option></select>
@@ -265,16 +270,7 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
         <p v-if="s.waiting_for_stills.length" class="small">Waiting for the approved still: {{ s.waiting_for_stills.join(', ') }} (accept it first).</p>
       </div>
       <button v-if="s.plan_sha256 && editing !== s.name" class="btn" type="button" :disabled="busy || savingPlan || unfinished > 0" @click="openPlan(s)">Edit asset plan</button>
-      <form v-if="editing === s.name" class="asset-plan" @submit.prevent="savePlan(s)">
-        <p class="muted small">Refine this ungenerated asset. Names, types and references stay fixed; add/remove assets through a reviewed inventory amendment. Saving does not generate or approve spending.</p>
-        <label>Artwork prompt<textarea v-model="editPlan.prompt" class="input" maxlength="4000" rows="4" required /></label>
-        <label>Purpose<input v-model="editPlan.purpose" class="input" maxlength="500" /></label>
-        <label>World / theme<input v-model="editPlan.world" class="input" maxlength="80" /></label>
-        <div class="controls"><label>Width<input v-model.number="editPlan.width" class="input" type="number" min="128" max="4096" required /></label><label>Height<input v-model.number="editPlan.height" class="input" type="number" min="128" max="4096" required /></label><label>Resolution<select v-model="editPlan.resolution" class="input"><option value="">Use generation tier</option><template v-if="s.kind === 'image'"><option value="1K">1K</option><option value="2K">2K</option><option value="4K">4K</option></template><template v-else><option value="480P">480P</option><option value="768P">768P</option><option value="1080P">1080P</option></template></select></label></div>
-        <p class="muted small">Display dimensions choose the aspect ratio; resolution controls provider output and cost.</p>
-        <div v-if="s.kind === 'video'" class="controls"><label>Minimum seconds<input v-model.number="editPlan.minSeconds" class="input" type="number" min="2" max="10" /></label><label>Maximum seconds<input v-model.number="editPlan.maxSeconds" class="input" type="number" min="2" max="10" /></label></div>
-        <div class="controls"><button class="btn primary" :disabled="savingPlan || busy">{{ savingPlan ? 'Saving…' : 'Save asset plan' }}</button><button class="btn" type="button" :disabled="savingPlan" @click="editing=null">Cancel</button></div>
-      </form>
+      <MediaPlanForm v-if="editing === s.name" v-model="editPlan" :kind="s.kind" :saving="savingPlan" :busy="busy" @save="savePlan(s)" @cancel="editing = null" />
       <div class="controls">
         <select v-model="tier[s.name]" class="input" :aria-label="`${s.name} tier`"><option value="draft">draft (cheapest)</option><option value="standard">standard</option><option value="premium">premium</option></select>
         <input v-model.number="count[s.name]" class="input" type="number" min="1" max="4" :aria-label="`${s.name} how many`" />
@@ -308,18 +304,23 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
         <a v-else :href="publishedUrl(s.name)" target="_blank" rel="noopener" :aria-label="`Open ${s.name} full size`"><img :src="publishedUrl(s.name)" class="thumb" loading="lazy" :alt="`Published ${s.name}`" /></a>
         <figcaption>
           <strong>{{ s.name }}</strong>
-          <span class="muted small">{{ s.kind }}<template v-if="s.published_bytes"> · {{ bytes(s.published_bytes) }}</template> <span class="ok-text">✓ published</span></span>
+          <span class="muted small">{{ s.kind }}<template v-if="s.published_bytes"> · {{ bytes(s.published_bytes) }}</template> <span class="ok-text">✓ published</span><template v-if="s.unreviewed"> · new take waiting</template></span>
         </figcaption>
         <details class="more-actions">
           <summary class="small muted">More</summary>
           <p v-if="lastEvent(s)" class="muted small">Last: {{ lastEvent(s) }}</p>
-          <button type="button" class="btn" :aria-label="`Regenerate ${s.name}`" @click="more[s.name] = !more[s.name]">{{ more[s.name] ? 'Cancel' : 'Regenerate…' }}</button>
+          <div class="controls">
+            <button type="button" class="btn" :aria-label="`Regenerate ${s.name}`" @click="more[s.name] = !more[s.name]">{{ more[s.name] ? 'Cancel' : 'Regenerate…' }}</button>
+            <button v-if="s.plan_sha256 && editing !== s.name" type="button" class="btn" :aria-label="`Revise the plan for ${s.name}`" :disabled="busy || savingPlan || unfinished > 0 || (s.unreviewed ?? 0) > 0" @click="openPlan(s)">Revise prompt…</button>
+          </div>
+          <MediaPlanForm v-if="editing === s.name" v-model="editPlan" :kind="s.kind" published :saving="savingPlan" :busy="busy" @save="savePlan(s)" @cancel="editing = null" />
           <div v-if="more[s.name]" class="controls">
             <select v-model="tier[s.name]" class="input" :aria-label="`${s.name} tier`"><option value="draft">draft (cheapest)</option><option value="standard">standard</option><option value="premium">premium</option></select>
             <input v-model.number="count[s.name]" class="input" type="number" min="1" max="4" :aria-label="`${s.name} how many`" />
             <span class="small">{{ money(estimate(s)) }}</span>
-            <button type="button" class="btn primary" :disabled="!keyOk || busy || savingPlan || !!editing || activeFor(s.name)" @click="generate(s)">{{ activeFor(s.name) ? 'Generating…' : 'Generate' }}</button>
+            <button type="button" class="btn primary" :disabled="!keyOk || busy || savingPlan || !!editing || activeFor(s.name)" @click="generate(s, (s.unreviewed ?? 0) > 0, true)">{{ activeFor(s.name) ? 'Generating…' : 'Generate' }}</button>
           </div>
+          <p v-if="more[s.name]" class="muted small">New takes appear under Waiting for your decision. The published file stays until you accept one.</p>
         </details>
         <p v-if="note[s.name]" class="small" :class="note[s.name]!.ok ? 'ok-text' : 'error-text'" :role="note[s.name]!.ok ? 'status' : 'alert'" :data-note="s.name">{{ note[s.name]!.text }}</p>
         <p v-for="(j, i) in jobsFor(s.name)" :key="j.id" class="job small" :class="j.state === 'failed' ? 'error-text' : j.state === 'done' ? 'ok-text' : ''" :role="j.state === 'failed' ? 'alert' : 'status'" :data-job="s.name">
@@ -334,9 +335,6 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
   </section>
 </template>
 <style scoped>
-.asset-plan { display:grid; gap:var(--gap-sm); width:100%; min-width:0; padding:var(--gap); border:1px solid var(--surface-border); border-radius:var(--radius); }
-.asset-plan label { display:grid; gap:var(--gap-xs); min-width:0; }
-.asset-plan .controls label { flex:1; }
 .storage { display: flex; align-items: center; flex-wrap: wrap; gap: var(--gap-sm); padding: var(--gap-xs) var(--gap-sm); border: 1px solid var(--surface-border); border-radius: var(--radius); }
 .small-btn { padding: 0 var(--gap-sm); }
 .key-needed { display: flex; flex-wrap: wrap; align-items: center; gap: var(--gap-sm); }
