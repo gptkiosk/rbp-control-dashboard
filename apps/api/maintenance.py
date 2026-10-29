@@ -5,8 +5,8 @@ model's own tool call with write effect. A model proposes finding ids; the opera
 against live state, takes a consistent database backup when rows change, acts, and writes an audit trail.
 
 Kinds (each: scan, verify at apply time, apply):
-  stale_approval_wait   a run left in awaiting_approval on a story that is already done or failed, because a later run on that
-                        story succeeded. Nothing can be decided any more. Applied as stage 'cancelled' (superseded) with an
+  stale_approval_wait   a run left in awaiting_approval because a later run on that story succeeded (the story is done or failed,
+                        or an approved output continuation finished and the story waits in review). Nothing can be decided any more. Applied as stage 'cancelled' (superseded) with an
                         audit note; results, logs, usage and sessions are never touched.
   stale_update_helper   an update helper job still registered with launchd after its update finished (at least fifteen minutes old and no update
                         running). Applied by unloading the job (`launchctl remove`); nothing else changes.
@@ -41,7 +41,7 @@ STALE_SQL = text(
     'SELECT r.id AS run_id, r.card_id, r.agent, r.started_at, r.ended_at, c.title, c."column" AS col, '
     "(SELECT MIN(r2.id) FROM run r2 WHERE r2.card_id = r.card_id AND r2.id > r.id AND r2.stage = 'succeeded') AS later "
     "FROM run r JOIN card c ON c.id = r.card_id "
-    "WHERE r.stage = 'awaiting_approval' AND c.\"column\" IN ('done', 'failed') ORDER BY r.id")
+    "WHERE r.stage = 'awaiting_approval' AND c.\"column\" IN ('done', 'failed', 'review') ORDER BY r.id")
 
 
 class MaintenanceError(Exception):
@@ -197,7 +197,7 @@ def apply(s, data_dir: Path, finding_ids: list[str], actor: str, now: int | None
             run.error = f"Superseded: this run's output approval was never decided and run #{later} later completed the story. Resolved by housekeeping."
             s.add(RunEvent(run_id=run_id, ts=now, kind="stage", text="cancelled"))
             s.add(RunEvent(run_id=run_id, ts=now, kind="note", text=(
-                f"Housekeeping (approved by {actor}): run #{run_id} was left in awaiting_approval after its story was completed by run #{later}. "
+                f"Housekeeping (approved by {actor}): run #{run_id} was left in awaiting_approval after a later run, #{later}, finished its story's work. "
                 "The stage is now cancelled (superseded). The original result, logs, model, usage and session were not changed; "
                 "no model was resumed and nothing was written by this correction.")))
             outcomes.append({"id": finding_id, "status": "applied", "backup": str(backup)})

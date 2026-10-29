@@ -10,6 +10,10 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+### Fixed
+
+- An approved output plan kept blocking updates after its continuation run finished. The plan run still counted as "waiting on a human decision" while the story waited in review, and there was no control to clear it. The update check now ignores a wait that a later finished run of the same story replaced, and Housekeeping offers to mark such a run superseded. Seen on the pilot's readiness story.
+
 ## [0.6.82] - 2026-10-28
 
 ### Fixed
