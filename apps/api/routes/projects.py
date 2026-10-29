@@ -220,7 +220,7 @@ def host_preview_action(project_id:int,card_id:int,body:HostPreviewAction,reques
     base=f'/api/projects/{project_id}/stories/{card_id}/host-preview/content'
     result=project_preview.run(p,c,link,body.action,proxy_base=base)
     write(s)
-    outcome='passed' if result['ok'] else f"failed (exit {result['exit_code']})"
+    outcome='passed' if result['ok'] else (f"failed (exit {result['exit_code']})" if result['exit_code'] else 'failed (Start/Stop check)')
     projects.memory(s,p,'checkpoint',f"Dashboard host preview action `{body.action}` {outcome}.\n\n{result['output']}",identity,c.id)
     # A host verifier is an operator-started, exact-command run.  Replacing a
     # failed agent attempt with this successful receipt lets its normal handoff

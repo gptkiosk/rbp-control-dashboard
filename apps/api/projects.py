@@ -1855,6 +1855,10 @@ def context_payload(s,p,story=None,workspace=None):
         if project_contract.generated_media(d):
             import media_generate
             payload['host_setup']['media_slots_format']=media_generate.SLOTS_FORMAT
+        # A story that writes the preview script needs the exact actions and state file the dashboard drives; the pilot invented its own.
+        import project_preview
+        if any(project_preview._kind(n) for n in d['nodes']):
+            payload['host_setup']['preview_script_contract']=project_preview.SCRIPT_CONTRACT
         if (cost:=manifest.get('cost_retries',{}).get(story)):
             payload['current_story'].update(assignee=cost['route']['agent'],model=cost['route']['model'],agent_target=None)
             for summary in nodes:
