@@ -266,3 +266,25 @@ def test_the_planner_requires_verification_and_a_viewable_preview_before_a_visua
     assert 'PID-specific stop' in plan and 'on failure, and on cancellation' in plan and 'leave the preview running while approval waits' in plan
     assert 'automated preview-verification checkpoint' in (pack / 'review.txt').read_text()
     assert int((pack / 'VERSION').read_text().strip()) >= 9
+
+
+def test_playwright_from_agent_tools_reaches_stories_and_the_installation_summary(make_client, monkeypatch, tmp_path):
+    """Playwright is for visual polish: once Agent tools has it, agents and host actions can load it by name and the planner is told how."""
+    import host_readiness
+    import projects
+    import settings as S
+    from legacy_adapters import LegacyAgentAdapter
+    monkeypatch.setenv('MAC_CONTROL_AGENT_TOOLS_ROOT', str(tmp_path))
+    assert S.managed_playwright_env() == {}                                              # not installed: nothing changes
+    (tmp_path / 'tools/playwright/current/node_modules/playwright').mkdir(parents=True)
+    env = S.managed_playwright_env()
+    assert env == {'NODE_PATH': str(tmp_path / 'tools/playwright/current/node_modules'),
+                   'PLAYWRIGHT_BROWSERS_PATH': str(tmp_path / 'tools/playwright/current/browsers')}
+    assert {k: LegacyAgentAdapter.env()[k] for k in env} == env
+    real = host_readiness.check_tools
+    monkeypatch.setattr(host_readiness, 'check_tools', lambda settings=None: {**real(settings), 'tools': [{'id': 'playwright', 'installed': True}]})
+    client = make_client()
+    with client:
+        with client.app.state.sessions() as s:
+            text = projects.installation_text(s, S.get_settings())
+    assert 'playwright: available' in text and "createRequire(import.meta.url)('playwright')" in text

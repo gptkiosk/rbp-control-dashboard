@@ -186,7 +186,7 @@ def tree(path: Path) -> set:
 
 def test_the_shipped_catalog_is_valid_and_every_source_is_pinned():
     catalog = ti.load_catalog(API)
-    assert catalog.tool_ids() == ["claude-code", "codex", "openclaw", "hermes", "grok", "gh", "gitleaks", "css-check"] and list(catalog.raw["runtimes"]) == ["node"]
+    assert catalog.tool_ids() == ["claude-code", "codex", "openclaw", "hermes", "grok", "gh", "gitleaks", "css-check", "playwright"] and list(catalog.raw["runtimes"]) == ["node"]
     raw = catalog.raw
     for cid in ("claude-code", "codex", "openclaw"):
         folder = API / raw["tools"][cid]["lock_dir"]
@@ -693,7 +693,7 @@ def test_remove_is_allowed_even_on_a_full_disk(cfg, catalog):
 
 def test_inspect_lists_each_tool_with_what_its_buttons_would_do(cfg, catalog):
     view = ti.inspect(cfg, catalog, facts())
-    assert [t["id"] for t in view["tools"]] == ["claude-code", "codex", "openclaw", "hermes", "grok", "gh", "gitleaks", "css-check"]
+    assert [t["id"] for t in view["tools"]] == ["claude-code", "codex", "openclaw", "hermes", "grok", "gh", "gitleaks", "css-check", "playwright"]
     codex = view["tools"][1]
     assert codex["installed"] is False and codex["actions"]["install"] == [] and codex["actions"]["remove"] is None
     assert codex["actions"]["update"] is None and codex["actions"]["rollback"] is None
@@ -1258,3 +1258,30 @@ def test_a_verification_tool_installs_and_answers_its_version_check(cfg, catalog
     assert health[tool]["ok"] is True
     assert not any("Sign in yourself" in step for step in health[tool]["next"])
 
+
+
+def test_playwright_installs_its_pinned_chromium_inside_its_own_folder_and_its_wrapper_points_there(cfg, catalog):
+    """The browser is the one download outside npm ci: Playwright's own `install chromium`, run once with the browsers folder inside this version,
+    so Remove and a rollback take Chromium with them and nothing lands in the user's cache."""
+    run(cfg, catalog, "codex", "install")                                         # the shared Node.js runtime
+    steps = plan(cfg, catalog, "playwright", "install")["steps"]
+    script = next(s for s in steps if s.get("kind") == "script-step")
+    vdir = cfg.version_dir("playwright", catalog.vid("playwright", "linux-arm64"))
+    assert script["argv"][1:] == ["node_modules/playwright/cli.js", "install", "chromium"]
+    assert script["env"] == {"PLAYWRIGHT_BROWSERS_PATH": str(vdir / "browsers")}
+    ops = FakeOps(catalog)
+    assert run(cfg, catalog, "playwright", "install", ops=ops)["outcome"] == "done"
+    ran = [env for (label, _), env in zip(ops.ran, ops.envs) if label == "script-step"]
+    assert ran and ran[0]["PLAYWRIGHT_BROWSERS_PATH"].endswith("/browsers") and "/playwright/" in ran[0]["PLAYWRIGHT_BROWSERS_PATH"]
+    wrapper = (cfg.bin / "playwright").read_text()
+    assert 'PLAYWRIGHT_BROWSERS_PATH="' in wrapper and "/browsers\"; export PLAYWRIGHT_BROWSERS_PATH" in wrapper
+    health = {h["id"]: h for h in ti.health(cfg, catalog, facts())}
+    assert health["playwright"]["ok"] is True
+
+
+def test_an_install_script_may_take_plain_words_only(cfg, catalog):
+    raw = json.loads(json.dumps(catalog.raw))
+    raw["tools"]["playwright"]["allow_scripts"][0]["args"] = ["install", "--with-deps"]
+    assert any("allow_scripts needs package and script" in p for p in ti.catalog_problems(raw))
+    raw["tools"]["playwright"]["allow_scripts"][0]["args"] = ["install", "../../x"]
+    assert any("allow_scripts needs package and script" in p for p in ti.catalog_problems(raw))

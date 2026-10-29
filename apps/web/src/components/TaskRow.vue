@@ -292,6 +292,26 @@ const elapsed = computed(() => {
   font-variant-numeric: tabular-nums;
   color: var(--accent);
 }
+/* Matches the compact header in TaskGroup: the row sits inside its `tasks` container. */
+@media (min-width: 768px) {
+  @container tasks (max-width: 81.99rem) {
+    .row {
+      grid-template-columns: var(--task-grid-medium);
+    }
+    [data-col='due'] {
+      display: none;
+    }
+  }
+  @container tasks (max-width: 67.99rem) {
+    .row {
+      grid-template-columns: var(--task-grid-compact);
+    }
+    [data-col='estimate'],
+    [data-col='priority'] {
+      display: none;
+    }
+  }
+}
 @media (max-width: 767.98px) {
   .row {
     grid-template-columns: repeat(2, minmax(0, 1fr));

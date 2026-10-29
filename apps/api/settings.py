@@ -45,6 +45,17 @@ def tool_search_dirs() -> tuple[str, ...]:
                                            *os.environ.get("PATH", "").split(os.pathsep), *extra) if d))
 
 
+def managed_playwright_env() -> dict[str, str]:
+    """Where Playwright from Agent tools lives, for a project script that loads it by name: NODE_PATH lets
+    `require('playwright')` (or createRequire in an ES module) find it, and PLAYWRIGHT_BROWSERS_PATH points
+    at the Chromium it installed. Empty until it is installed, so nothing changes for hosts without it."""
+    managed = os.environ.get("MAC_CONTROL_AGENT_TOOLS_ROOT") or str(default_agent_tools_root(os.environ.get("MAC_CONTROL_PRODUCT_SHORT_NAME", "RCD")))
+    base = Path(managed) / "tools" / "playwright" / "current"
+    if not (base / "node_modules" / "playwright").is_dir():
+        return {}
+    return {"NODE_PATH": str(base / "node_modules"), "PLAYWRIGHT_BROWSERS_PATH": str(base / "browsers")}
+
+
 def find_tool(name: str) -> str:
     """First executable `name` on the search path, else the bare name.
 

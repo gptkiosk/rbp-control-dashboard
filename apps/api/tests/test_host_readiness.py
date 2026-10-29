@@ -542,7 +542,7 @@ def test_the_system_tools_panel_lists_versions_and_offers_install_all_only_with_
     rows = {r["id"]: r for r in body["tools"]}
     assert body["platform"] == "mac" and body["brew"]["installed"] and body["can_install_all"] and body["can_upgrade_all"]
     assert rows["colima"]["installed"] and rows["docker"]["installed"] is False and rows["docker"]["version"] is None
-    assert set(body["missing"]) == {"python3", "node", "ffmpeg", "docker", "gh", "gitleaks", "csstree-validator"}
+    assert set(body["missing"]) == {"python3", "node", "ffmpeg", "docker", "gh", "gitleaks", "csstree-validator", "playwright"}
     assert rows["gitleaks"]["formulae"] == [] and rows["csstree-validator"]["formulae"] == []          # they come from Agent tools, so Homebrew's Install (All) leaves them out
     present.discard("brew")
     nobrew = hr.system_tools(settings)

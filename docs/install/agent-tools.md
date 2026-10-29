@@ -34,9 +34,17 @@ Agent tools also installs two small tools that verification stories rely on, so 
 | Gitleaks | `gitleaks git --staged --redact` | The secret scan before a commit. `gitleaks git --redact` scans all history. |
 | CSS syntax check | `git ls-files '*.css' \| xargs -n1 csstree-validator` | Confirms stylesheets parse, and flags unknown properties and invalid values. It takes one file or folder per call, so pass the files one at a time; a bare project folder also scans `node_modules`. Exit code 1 means a problem was found. |
 
+### Playwright browser checks
+
+Playwright opens the site in a real browser so a story can take screenshots at phone, tablet and desktop sizes and compare the result with the project vision. It is the tool for the polishing pass after a site is built. Agent tools installs the pinned npm package with install scripts off, then runs one step, Playwright's own `install chromium`. That step downloads the Chromium build this version pins into the tool's folder, so Remove takes it away again. Expect about 600 MB on disk.
+
+- From a shell: `playwright screenshot --viewport-size=390,844 http://127.0.0.1:PORT/ shot.png`.
+- From a script: `createRequire(import.meta.url)('playwright')`. Dispatched agents and the dashboard's preview actions get `NODE_PATH` and `PLAYWRIGHT_BROWSERS_PATH` pointing at this copy. A bare ES `import 'playwright'` does not read `NODE_PATH`, so a project script must load it this way or install its own copy.
+- Chromium needs the desktop system libraries. Raspberry Pi OS with a desktop already has them. A host without them needs Playwright's `install-deps chromium` step, which asks for administrator rights, so you run it yourself.
+
 Install them from Settings, Agent tools (or the manual helper) like any other tool; the Optional tools row in Host readiness links there when one is missing. They land in the managed `bin` folder, which every dispatched agent already has on its PATH.
 
-**Put installed tools on my PATH** (Host readiness) adds the managed `bin` folder and, when installed, the managed Node.js folder to `~/.profile` and `~/.bashrc`, so `node`, `npm`, `gitleaks` and `csstree-validator` work by name in a new terminal.
+**Put installed tools on my PATH** (Host readiness) adds the managed `bin` folder and, when installed, the managed Node.js folder to `~/.profile` and `~/.bashrc`, so `node`, `npm`, `gitleaks`, `csstree-validator` and `playwright` work by name in a new terminal.
 
 A read-only story still cannot run `npm ci`, a build, `npm audit` or a preview server: it has no network, no loopback and no writes. The planner is told to give those to a human or CI with the exact commands. A check that needs the project's own dependencies runs in a normal environment, with the output pasted back as the evidence.
 

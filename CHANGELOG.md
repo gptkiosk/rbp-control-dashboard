@@ -10,6 +10,12 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+### Added
+- Playwright browser checks in Agent tools: the pinned Playwright package plus the Chromium build it pins, installed into the dashboard's own folder (about 600 MB). Stories can take screenshots at phone, tablet and desktop sizes for visual polish. Agents and preview actions get `NODE_PATH` and `PLAYWRIGHT_BROWSERS_PATH`, Claude stories may run `playwright screenshot` and `playwright pdf`, and the planner is told how to load it.
+
+### Fixed
+- On a laptop-width window the task list was wider than its panel, so the Last run column and its buttons (such as Record decision) were cut off at the edge. Narrower panels now drop Due date, then Estimate and Priority, which stay in the task's detail panel. Phones keep their own layout.
+
 ## [0.6.84] - 2026-10-29
 
 ### Fixed

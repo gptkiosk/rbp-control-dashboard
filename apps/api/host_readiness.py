@@ -229,11 +229,12 @@ def _how_to_get(tool, have_brew=True):
     """How a missing optional tool is obtained here. The dashboard installs the ones it can without administrator rights (Agent tools); for the rest it only
     shows the command for the person to run, and never runs it. On a Mac the commands use Homebrew, and when Homebrew itself is missing the first step is to install it."""
     mac = _is_mac()
-    if tool in ("gh", "node", "gitleaks", "csstree-validator"):
+    if tool in ("gh", "node", "gitleaks", "csstree-validator", "playwright"):
         why = {"gh": "Install the GitHub CLI from Agent tools: a pinned, checksum-verified download into the dashboard's own folder, no administrator rights.",
                "node": "Node.js arrives with Claude Code, Codex or OpenClaw in Agent tools (a pinned copy in the dashboard's own folder, no administrator rights).",
                "gitleaks": "Install Gitleaks from Agent tools: a pinned, checksum-verified download into the dashboard's own folder, no administrator rights. Stories run it as the secret scan before a commit.",
-               "csstree-validator": "Install CSS syntax check from Agent tools (a locked npm package, install scripts off, needs the managed Node.js). Verification stories run it to confirm stylesheets parse."}[tool]
+               "csstree-validator": "Install CSS syntax check from Agent tools (a locked npm package, install scripts off, needs the managed Node.js). Verification stories run it to confirm stylesheets parse.",
+               "playwright": "Install Playwright browser checks from Agent tools (a locked npm package plus the Chromium build it pins, in the dashboard's own folder, needs the managed Node.js). Stories use it for screenshots and visual polish."}[tool]
         return {"kind": "agent_tools", "tool": tool, "note": why}
     if tool == "brew":
         return {"kind": "command", "command": BREW_INSTALL, "note": "Run it yourself in Terminal (it asks for your password); the dashboard does not run it. Homebrew is how this Mac gets Docker (through Colima), ffmpeg and Python."}
@@ -257,7 +258,8 @@ def _how_to_get(tool, have_brew=True):
 def check_tools(settings=None):
     notes = {"python3": "tests and scripts", "node": "JavaScript tests and the Playwright screenshot script", "docker": "building and running container images (otherwise a person or the pipeline does it)",
              "gh": "opening pull requests from this host (optional: a person or the pipeline can)", "ffmpeg": "publishing generated media",
-             "gitleaks": "the secret scan before a commit and in verification stories (Agent tools installs it)", "csstree-validator": "checking that stylesheets parse in verification stories (Agent tools installs it)"}
+             "gitleaks": "the secret scan before a commit and in verification stories (Agent tools installs it)", "csstree-validator": "checking that stylesheets parse in verification stories (Agent tools installs it)",
+             "playwright": "browser screenshots for visual checks and polish (Agent tools installs it with its Chromium)"}
     mac = _is_mac()
     have_brew = bool(_tool("brew")) if mac else True
     if mac:
@@ -515,10 +517,11 @@ def colima_start(settings):
 
 # The system tools panel in Settings: every optional tool with its version, Install (All) and Upgrade (All), and a health check. Homebrew formulae per tool on a Mac.
 SYSTEM_TOOLS = {"python3": ("python",), "node": (), "ffmpeg": ("ffmpeg",), "docker": ("colima", "docker", "docker-compose"), "colima": ("colima",), "gh": ("gh",),
-                "gitleaks": (), "csstree-validator": ()}                # the last two, like node, arrive from Agent tools rather than Homebrew
+                "gitleaks": (), "csstree-validator": (), "playwright": ()}                # the last two, like node, arrive from Agent tools rather than Homebrew
 SYSTEM_TOOL_NOTES = {"python3": "tests and scripts", "node": "JavaScript tests and the Playwright screenshot script", "ffmpeg": "publishing generated media",
                      "docker": "building and running container images", "colima": "the Docker engine on a Mac", "gh": "pull requests from this host",
-                     "gitleaks": "the secret scan before a commit", "csstree-validator": "checking that stylesheets parse"}
+                     "gitleaks": "the secret scan before a commit", "csstree-validator": "checking that stylesheets parse",
+                     "playwright": "browser screenshots for visual checks"}
 APT_PACKAGES = {"python3": "python3", "ffmpeg": "ffmpeg", "docker": "docker.io docker-compose"}
 VERSION_ARGS = {"ffmpeg": ("-version",), "gitleaks": ("version",)}
 PRIMARY_FORMULA = {"python3": "python", "docker": "docker"}          # the formula whose version is the tool's own; docker also pulls colima and docker-compose

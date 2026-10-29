@@ -90,7 +90,8 @@ CATALOG_KEYS = {"schema", "checked", "requirements", "system_packages", "runtime
 REQUIREMENT_KEYS = {"platforms", "min_free_disk_mb", "disk_headroom_mb", "warn_ram_mb", "warn_available_ram_mb"}
 COMPONENT_KEYS = {"name", "installer", "version", "size_mb", "note", "archive", "bins", "check", "package",
                   "lock_dir", "lock", "allow_scripts", "requires", "login", "signin", "system_packages", "repository", "tag",
-                  "commit", "script", "script_args", "binary", "peak_ram_mb", "external_state", "system_packages_note"}
+                  "commit", "script", "script_args", "binary", "peak_ram_mb", "external_state", "system_packages_note", "browsers_dir"}
+SCRIPT_ARG = re.compile(r"^[a-z][a-z0-9-]{0,40}$")   # an allowed install script's arguments are plain words, never paths or options
 MAX_CATALOG_BYTES = 256 * 1024
 MAX_STATE_BYTES = 256 * 1024
 MAX_RECEIPT_BYTES = 64 * 1024
@@ -101,7 +102,7 @@ MAX_EXTRACT_MEMBERS = 200_000
 MAX_EXTRACT_BYTES = 2 * 1024 ** 3
 CHUNK = 64 * 1024
 KEEP_VERSIONS = 2  # current and previous
-RUN_TIMEOUTS = {"npm-ci": 1800, "script": 3000, "script-step": 600, "check": 90}
+RUN_TIMEOUTS = {"npm-ci": 1800, "script": 3000, "script-step": 1200, "check": 90}   # script-step: a pinned browser download on a slow link
 UNCHANGED = (
     "Dispatch routes and the free-only setting",
     "Billing mode and prices",
@@ -413,9 +414,11 @@ def catalog_problems(raw: object, catalog_dir: Path | None = None) -> list[str]:
                      and all(isinstance(v, str) and SHA256.match(v) for v in lock.values()), f"{where}: lock needs two sha256 values")
                 scripts = comp.get("allow_scripts")
                 need(isinstance(scripts, list) and all(
-                    isinstance(s, dict) and set(s) == {"package", "script"} and isinstance(s["package"], str)
-                    and _rel_ok(s["package"].replace("@", "a")) and _rel_ok(s["script"]) for s in scripts),
+                    isinstance(s, dict) and set(s) - {"args"} == {"package", "script"} and isinstance(s["package"], str)
+                    and _rel_ok(s["package"].replace("@", "a")) and _rel_ok(s["script"])
+                    and (isinstance(s.get("args", []), list) and all(isinstance(a, str) and SCRIPT_ARG.match(a) for a in s.get("args", []))) for s in scripts),
                     f"{where}: allow_scripts needs package and script")
+                need(comp.get("browsers_dir") is None or _rel_ok(comp["browsers_dir"]), f"{where}: bad browsers_dir")
                 if catalog_dir is not None and isinstance(lock, dict) and _rel_ok(comp.get("lock_dir")):
                     folder = catalog_dir / comp["lock_dir"]
                     for fname, key in (("package.json", "package_json_sha256"), ("package-lock.json", "package_lock_sha256")):
@@ -871,9 +874,11 @@ def _component_install_steps(cfg: ToolsConfig, catalog: Catalog, cid: str, actio
                       "argv": [str(node_bin / "npm"), "ci", "--ignore-scripts", "--no-audit", "--no-fund", "--no-progress",
                                "--loglevel=error"]})
         for script in comp["allow_scripts"]:
+            # A browser the package downloads lands inside this version's folder, so Remove and a rollback take it with them.
             steps.append({"op": "run", "c": cid, "kind": "script-step", "cwd": str(vdir),
                           "timeout": RUN_TIMEOUTS["script-step"],
-                          "argv": [str(node_bin / "node"), f"node_modules/{script['package']}/{script['script']}"]})
+                          "argv": [str(node_bin / "node"), f"node_modules/{script['package']}/{script['script']}", *script.get("args", [])],
+                          **({"env": {"PLAYWRIGHT_BROWSERS_PATH": str(vdir / comp["browsers_dir"])}} if comp.get("browsers_dir") else {})})
     elif installer == "binary":
         entry = comp["binary"][plat]
         name = entry["url"].rsplit("/", 1)[1]
@@ -1455,6 +1460,8 @@ def render_wrapper(cfg: ToolsConfig, catalog: Catalog, cid: str, bin_entry: dict
     lines = ["#!/bin/sh", f"{WRAPPER_MARK} {cid}/{bin_entry['name']}. Written by the dashboard's Agent tools; Remove deletes it."]
     if "node" in comp.get("requires", []):
         lines.append(f'PATH="{node}:$PATH"; export PATH')
+    if comp.get("browsers_dir"):
+        lines.append(f'PLAYWRIGHT_BROWSERS_PATH="{base / comp["browsers_dir"]}"; export PLAYWRIGHT_BROWSERS_PATH')
     for var in bin_entry.get("env_unset", []):
         lines.append(f"unset {var}")
     if cid == "hermes":
@@ -1723,6 +1730,7 @@ class Executor:
         home = self.sandbox_home(cid, vdir)
         comp = self.catalog.component(cid)
         env = child_env(self.cfg, home, hermes=(cid == "hermes"), node="node" in comp["requires"])
+        env.update({k: v for k, v in step.get("env", {}).items() if k == "PLAYWRIGHT_BROWSERS_PATH" and Path(v).is_relative_to(vdir)})
         before = self.external_names(comp)
         if sys.platform == "darwin" and step["kind"] == "script":
             # BSD mktemp -d without a template ignores TMPDIR. Keep the pinned installer

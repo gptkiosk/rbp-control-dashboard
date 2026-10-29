@@ -32,7 +32,7 @@ from adapter_contract import (AdapterError, LEGACY_STAGE, SCHEMA_VERSION, digest
 from models import Card, Run
 from profiles import SAVED_KEY_AGENTS, saved_openrouter_key
 from operator_boundary import runner_env
-from settings import tool_search_dirs
+from settings import tool_search_dirs, managed_playwright_env
 from db import durable_sessions
 
 LINE_LIMIT = 16 * 1024 * 1024
@@ -497,6 +497,7 @@ class LegacyAgentAdapter:
         # Run-specific RCD_RUN_ID and RCD_IDEMPOTENCY_KEY are added after this.
         env = runner_env()
         env["PATH"] = ":".join((*EXTRA_PATH, env.get("PATH", "/usr/bin:/bin")))
+        env.update(managed_playwright_env())       # browser checks from Agent tools, once installed
         # Codex invokes shell commands as `bash -lc`; a login profile can
         # overwrite PATH. BASH_ENV restores this tool-only path afterwards.
         env["DASHBOARD_AGENT_RUNTIME_PATH"] = env["PATH"]
