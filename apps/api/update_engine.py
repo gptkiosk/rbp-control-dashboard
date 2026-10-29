@@ -667,9 +667,11 @@ DRAIN_COUNTS = (
     ("SELECT count(*) FROM run WHERE ended_at IS NULL", "agent runs",
      "{n} agent or chat run(s) still running: let them finish or cancel them"),
     # A run left in awaiting_approval on a story that is already done or failed has nothing left to decide
-    # (a later run completed it); only waits on stories still open, or on no story at all, block an update.
+    # (a later run completed it), and neither has one superseded by a later finished run of the same story (an approved
+    # output continuation): only the newest run of a story can be decided. Other waits, or waits on no story, block an update.
     ("SELECT count(*) FROM run r LEFT JOIN card c ON c.id = r.card_id WHERE r.stage = 'awaiting_approval' "
-     "AND (c.id IS NULL OR c.\"column\" NOT IN ('done', 'failed'))", "approval waits",
+     "AND (c.id IS NULL OR (c.\"column\" NOT IN ('done', 'failed') AND NOT EXISTS "
+     "(SELECT 1 FROM run r2 WHERE r2.card_id = r.card_id AND r2.id > r.id AND r2.ended_at IS NOT NULL)))", "approval waits",
      "{n} run(s) waiting on a human decision: decide or reject them first"),
     # A queued project story starts only while its project is active (projects.claim_context), so a queued story of a project in any
     # other state (paused, closed, complete, waiting for review, failed) is not work an update would interrupt. Project stories cannot be

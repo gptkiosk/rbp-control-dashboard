@@ -145,6 +145,7 @@ it('offers Accept anyway on the board for a story whose run reported unfinished 
   const ask=vi.spyOn(window,'prompt').mockReturnValueOnce('short').mockReturnValueOnce('The missing files are made by the media step, not this story.')
   await btn.trigger('click');await flushPromises()
   expect(calls(f,'POST','/api/')).toHaveLength(0)                                            // a reason under ten characters sends nothing
+  expect(w.text()).toContain('at least ten characters')                                     // and says why
   await btn.trigger('click');await flushPromises()
   const writes=calls(f,'POST','/api/');expect(writes).toHaveLength(1)
   expect(writes[0]![0]).toBe('/api/projects/2/stories/50/accept-despite-report')
@@ -154,8 +155,12 @@ it('offers Accept anyway on the board for a story whose run reported unfinished 
 it('offers Accept anyway on a reviewed story whose succeeded run still reports unfinished work',async()=>{
   const p=project();Object.assign(p.tasks[0]!,{column:'review',run_stage:'succeeded',incomplete_reason:'The agent explicitly reported unfinished work.'})
   const reviewed=card({id:50,column:'review',agent:'claude',model:'claude-haiku-5-5',project:{id:2,node_key:'durable',role:'story'},last_run:run({id:51,card_id:50,stage:'succeeded'})})
-  const {w}=setup(p,reviewed);await flushPromises()
-  expect(w.find('[data-testid=accept-anyway]').exists()).toBe(true);w.unmount()
+  const {w,f}=setup(p,reviewed);await flushPromises()
+  const ask=vi.spyOn(window,'prompt').mockReturnValueOnce('Quota and preview capture are dashboard-owned.')
+  await w.find('[data-testid=accept-anyway]').trigger('click');await flushPromises()
+  const writes=calls(f,'POST','/api/');expect(writes).toHaveLength(1)                       // the fresh re-check accepts a reviewed story too
+  expect(writes[0]![0]).toBe('/api/projects/2/stories/50/accept-despite-report')
+  expect(w.text()).toContain('Accepted');ask.mockRestore();w.unmount()
 })
 it('does not offer Accept anyway for a crash or timeout, which left no report to accept',async()=>{
   const {w}=setup();await flushPromises()

@@ -1597,6 +1597,7 @@ def test_the_operator_can_accept_a_story_whose_agent_reported_it_unfinished_with
     with s() as db: assert db.get(Run,rid).stage=='failed'                                              # the run history is not rewritten
     advance(app)
     assert c.get(f'/api/cards/{ids["b"]}').json()['column']=='queued'                                    # the dependent is released
+    with s() as db: assert projects.dependency_blocks(db,ids['b'])==[]                                  # and the dispatcher may start it
     assert c.post(path,json={'run_id':rid,'reason':'Already accepted, so this changes nothing.'}).status_code==200
 
 def test_only_a_run_that_finished_and_reported_unfinished_work_can_be_accepted_this_way(app):
@@ -1628,7 +1629,9 @@ def test_a_reviewed_continuation_that_still_reports_unfinished_work_can_be_accep
     r=c.post(f'/api/projects/{p["id"]}/stories/{ids["a"]}/accept-despite-report',json={'run_id':rid,'reason':'Quota and preview are dashboard-owned; the report is enough.'})
     assert r.status_code==200,r.text
     assert c.get(f'/api/cards/{ids["a"]}').json()['column']=='done'
-    with s() as db: assert db.get(Run,rid).stage=='succeeded'
+    with s() as db:
+        assert db.get(Run,rid).stage=='succeeded'
+        assert projects.dependency_blocks(db,ids['b'])==[]      # pilot story 16 stayed queued: the prerequisite check ignored Accept anyway
 
 
 @pytest.mark.parametrize('state,column', [('active','queued'),('active','backlog'),('paused','queued')])

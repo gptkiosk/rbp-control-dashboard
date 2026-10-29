@@ -497,6 +497,12 @@ def test_a_settled_story_with_a_stale_approval_wait_does_not_block_an_update(tmp
     assert ue.drain_blockers(db_path) == []                                   # both stories are settled
     waiting("review")
     assert any("1 run(s) waiting on a human decision" in b for b in ue.drain_blockers(db_path))   # an open story still blocks
+    with sessions() as s:     # an approved output continuation finished after the plan run: only the newest run can be decided
+        card = s.query(Card).filter_by(column="review").one()
+        s.add(Run(card_id=card.id, agent="claude", stage="succeeded", started_at=2, ended_at=3,
+                  working_dir="/tmp", command="[]", log_path="/tmp/c"))
+        s.commit()
+    assert ue.drain_blockers(db_path) == []
     engine.dispose()
 
 

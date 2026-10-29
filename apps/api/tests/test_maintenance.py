@@ -45,14 +45,16 @@ def incident(s):
 
 # --------------------------------------------------------------------------------------- scan
 
-def test_a_stale_approval_wait_is_a_finding_only_when_its_story_is_settled_and_a_later_run_succeeded(sessions, tmp_path):
+def test_a_stale_approval_wait_is_a_finding_only_when_a_later_run_succeeded_and_the_story_is_not_running(sessions, tmp_path):
     with sessions() as s:
         card, stale = incident(s)
-        open_story = story(s, "review", "still open"); run(s, open_story, "awaiting_approval"); run(s, open_story, "succeeded")
+        # An approved output continuation that finished: the plan run still says awaiting_approval, the story waits in review.
+        reviewed = story(s, "review", "continued"); continued = run(s, reviewed, "awaiting_approval"); run(s, reviewed, "succeeded")
+        queued = story(s, "queued", "requeued"); run(s, queued, "awaiting_approval"); run(s, queued, "succeeded")
         no_later = story(s, "done", "no later success"); run(s, no_later, "awaiting_approval")
         s.commit()
         findings = mt.scan(s, tmp_path, NOW)
-    assert [f["id"] for f in findings] == [f"stale_approval_wait:{stale.id}"]
+    assert [f["id"] for f in findings] == [f"stale_approval_wait:{stale.id}", f"stale_approval_wait:{continued.id}"]
     ev = findings[0]["evidence"]
     assert ev["story_state"] == "done" and ev["completed_by_run"] == stale.id + 1 and ev["age_hours"] > 90
 
