@@ -10,6 +10,8 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.6.86] - 2026-10-29
+
 ### Fixed
 - Start preview on host could run the project's verifier instead, which stops its own server, so Open remote preview never appeared. The dashboard now says when Start leaves no running preview and quotes the script contract, reads a JSON `.preview/preview.state` (with a 40- or 64-character `sha` or `source_sha`, and `status`), and treats a stopped status as not running. Stories in a plan with preview actions are given the exact `verify`/`serve`/`stop` contract, and a passing verify in such a plan also runs Start and Stop once, so a script that cannot serve fails at verify instead of at review. Script output now goes to files, so a server left running in the background cannot hang the action.
 
@@ -1199,7 +1201,7 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 
 [0.3.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.0
 [0.6.72]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.70...v0.6.72
-[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.85...HEAD
+[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.86...HEAD
 [0.6.67]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.66...v0.6.67
 [0.6.66]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.65...v0.6.66
 [0.6.65]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.64...v0.6.65
@@ -1312,6 +1314,7 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 [0.6.71]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.70...v0.6.71
 [0.6.70]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.69...v0.6.70
 
+[0.6.86]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.85...v0.6.86
 [0.6.85]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.84...v0.6.85
 [0.6.84]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.83...v0.6.84
 [0.6.83]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.82...v0.6.83
