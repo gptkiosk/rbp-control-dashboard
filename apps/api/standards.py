@@ -204,12 +204,16 @@ GUIDES = ('practices.md', 'security.md', 'web-app-delivery.md', 'packaged-app-de
 
 
 def guide_text(name: str, data_dir=None, limit: int = 2200) -> str:
-    """One shipped guide (or the user's own copy of it in <data>/standards/), flattened to plain text and bounded. Empty if unreadable."""
-    if name not in GUIDES:
-        return ''
-    mine, _ = _starter_paths(data_dir)
+    """One shipped guide (or the user's own copy of it in <data>/standards/), or a guide an installed pipeline pack declares, flattened to plain
+    text and bounded. Empty if unreadable."""
     from settings import REPO_ROOT
-    for path in ((Path(data_dir) / 'standards' / name) if data_dir else None, Path(REPO_ROOT) / 'packs' / 'standards' / name):
+    if name in GUIDES:
+        paths = ((Path(data_dir) / 'standards' / name) if data_dir else None, Path(REPO_ROOT) / 'packs' / 'standards' / name)
+    else:
+        import pipeline_packs
+        from types import SimpleNamespace
+        paths = (pipeline_packs.guide_path(name, SimpleNamespace(data_dir=data_dir)) if data_dir else None,)
+    for path in paths:
         try:
             if path is None or not path.is_file() or path.is_symlink() or path.stat().st_size > MAX_BYTES:
                 continue

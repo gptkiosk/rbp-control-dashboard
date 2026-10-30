@@ -601,6 +601,11 @@ def plan_schedule(p):
     except ValueError:
         return None
 
+def _totals(s,p):
+    import project_totals
+    try: return project_totals.totals(s,p,get_settings(),document(p).get('working_dir'))
+    except Exception: return None   # a totals problem must never hide the project
+
 def detail(s, p):
     bindings = []
     approved_routes = json.loads(p.approved_manifest) if p.approved_manifest else {}
@@ -643,7 +648,7 @@ def detail(s, p):
         'pipeline':json.loads(p.pipeline) if p.pipeline else None, 'error':p.error,
         'route_reliability':recovery.payload(s,get_settings(),p.created_by) if p.state in {'planning_failed','dispatch_failed','active','paused'} else None,
         'handoff_approval':handoff_approval(s,p), 'model_lock':model_locked(p),
-        'schedule':plan_schedule(p), 'timing':plan_timing(s,p), 'standards_check':standards_check(p,None,s),'amendments':amendments(s,p),
+        'schedule':plan_schedule(p), 'timing':plan_timing(s,p), 'totals':_totals(s,p), 'standards_check':standards_check(p,None,s),'amendments':amendments(s,p),
         'workspaces':json.loads(p.approved_manifest).get('workspaces',{}) if p.approved_manifest else {},
         'artifacts':json.loads(p.approved_manifest).get('artifacts',{}) if p.approved_manifest else {},
         'created_by':p.created_by, 'created_at':p.created_at, 'updated_at':p.updated_at,
@@ -2132,6 +2137,7 @@ def accept_story(s,p,card_id,data,actor):
         if project_preview._kind(node)=='preview-verify' and not (last_host_verify(s,p,c.id) or {}).get('ok'):
             fail('Run the verifier on this host and get a pass before accepting this story. The last run failed or none has run; its output is recorded on this story.',409)
     if not data.summary.strip(): fail('A verified handoff summary is required.',422)
+    course_package_gate(p,c,link)
     m=json.loads(p.approved_manifest);ws=m.get('workspaces',{}).get(link.node_key)
     if output:
         m['output_continuations'][link.node_key]['state']='accepted'
@@ -2148,6 +2154,21 @@ def accept_story(s,p,card_id,data,actor):
     c.column='done';c.updated_at=now()
     s.flush()
     complete_if_done(s,p)
+
+def course_package_gate(p,c,link):
+    """A pipeline pack that names the course-package check makes its project's static verification story pass it before acceptance."""
+    import pipeline_packs
+    import project_contract
+    if 'course-package' not in pipeline_packs.checks_for(document(p).get('project_type') or '',get_settings()): return
+    node=next((n for n in json.loads(p.approved_manifest)['document']['nodes'] if n['key']==link.node_key),{})
+    if not project_contract.static_verification(node): return
+    import course_package
+    result=course_package.check(Path(c.working_dir or document(p)['working_dir']))
+    if not result['ok']:
+        shown=result['problems'][:15];more=len(result['problems'])-len(shown)
+        fail('The course package check found '+str(len(result['problems']))+' problem(s); fix them and run this story again:\n- '+'\n- '.join(shown)
+             +(f'\n…and {more} more.' if more else ''),409)
+
 
 def complete_if_done(s,p):
     linked=list(s.scalars(select(ProjectTask.card_id).where(ProjectTask.project_id==p.id,ProjectTask.role=='story')))

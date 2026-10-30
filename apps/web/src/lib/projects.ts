@@ -31,11 +31,19 @@ export interface Project {
   can_cancel_replan?: boolean
   standards_check?: { source?: string | null; property?: string | null; problems: string[]; areas: string[]; fixable?: number } | null
   timing?: { runs: number; busy_minutes: number; elapsed_minutes: number; overlap: number } | null
+  totals?: ProjectTotals | null
   schedule?: { stories: number; total_minutes: number; critical_minutes: number; speedup: number; width: number; critical_path: string[]; problems: string[]; max_concurrent_runs: number } | null
   pipeline: { step: string; card_id: number; delegator?: {agent:string;model:string} } | null; error: string | null; updated_at: number
   deliveries?: { kind: string; revision: number; status: string; error: string | null; message_id: string | null }[]
   tasks: ProjectTask[]; memory: Memory[]
   workspaces: Record<string, { path: string; branch: string; integration_error?: string | null }>; artifacts: Record<string, { branch: string; head: string; files: string[] }>
+}
+export interface TotalsBucket { runs: number; succeeded: number; duration_s: number; input_tokens: number; output_tokens: number; cached_input_tokens: number; api_usd: number; api_unpriced: number; actual_usd: number; actual_unpriced: number }
+export interface ProjectTotals extends TotalsBucket {
+  planning: TotalsBucket; stories: TotalsBucket; elapsed_s: number | null
+  models: (TotalsBucket & { agent: string; model: string; billed: 'membership' | 'free' | 'api'; model_derived: boolean })[]
+  media: { images: number; estimate_usd: number; unpriced: number }
+  total_api_usd: number; total_actual_usd: number; billing_note: string
 }
 export interface ProjectSummary { id: number; title: string; state: string; revision: number; updated_at: number }
 export function emptyProject(working_dir = ''): ProjectDocument {

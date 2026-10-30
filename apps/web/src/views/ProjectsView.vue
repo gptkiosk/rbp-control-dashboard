@@ -22,6 +22,7 @@ import PlanningBiasSlider from '@/components/PlanningBiasSlider.vue'
 import StandardsLine from '@/components/StandardsLine.vue'
 import ProjectGitAccess from '@/components/ProjectGitAccess.vue'
 import ProjectSchedule from '@/components/ProjectSchedule.vue'
+import ProjectTotals from '@/components/ProjectTotals.vue'
 import RouteForAllStories from '@/components/RouteForAllStories.vue'
 import LoadingCard from '@/components/LoadingCard.vue'
 import BriefAmendments from '@/components/BriefAmendments.vue'
@@ -468,6 +469,7 @@ function planLabel() { return draft.value.planner_agent && draft.value.planner_a
         <p v-if="project.error" class="notice-warn" role="status">{{ project.error }}</p>
         <section v-if="project.state === 'paused' && repairableTasks.length" class="notice-warn" role="status"><strong>{{ repairableTasks.length }} read-only {{ repairableTasks.length === 1 ? 'story reports' : 'stories report' }} unfinished execution.</strong> Its result is retained as evidence and has not been accepted. <button class="btn" :disabled="busy" @click="showRepair(repairableTasks[0]!)">Repair first assignment…</button></section>
 
+        <ProjectTotals v-if="project.totals && ['active','paused','complete'].includes(project.state)" :totals="project.totals" :complete="project.state === 'complete'" />
         <nav class="tabs" aria-label="Project sections"><button v-for="t in ['map','work','workspace','media','memory'] as ('map' | 'memory' | 'work' | 'media' | 'workspace')[]" :key="t" class="btn" :class="{ active: tab === t }" :aria-pressed="tab === t" @click="tab = t">{{ t === 'map' ? (locked ? 'Live map' : 'Planning map') : t === 'workspace' ? 'Workspace' : t === 'memory' ? 'Shared memory' : t === 'media' ? 'Media studio' : 'Stories & runs' }}</button></nav>
         <p v-if="projectMedia?.available && projectMedia.summary && !projectMedia.summary.complete && tab !== 'media'" class="notice-warn media-banner" role="status" data-testid="media-banner">Media for this project: {{ projectMedia.summary.published }} of {{ projectMedia.summary.total }} published, {{ projectMedia.summary.pending }} waiting for your decision. <template v-if="projectMedia.cost"> · {{ costWords(projectMedia.cost).left }}.</template> <button type="button" class="btn" @click="tab = 'media'">Open media studio</button></p>
         <div v-if="tab === 'media'" class="card media-tab"><ReferenceArtPanel :working-dir="project.document.working_dir" /><MediaGeneratePanel v-if="projectMedia?.available" :working-dir="project.document.working_dir" /><p v-else-if="projectMedia?.error" class="error small" role="alert" data-testid="media-slots-invalid">This project's <code>media/slots.json</code> was found but cannot be used: {{ projectMedia.error }} Fix the file (or rerun the story that wrote it), then open this tab again.</p><p v-else class="muted small" data-testid="no-media-slots">No media slots yet. Media to generate is listed in this project's <code>media/slots.json</code>, which its media story or setup creates; reference art works without it.</p></div>

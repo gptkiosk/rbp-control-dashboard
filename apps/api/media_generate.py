@@ -621,6 +621,83 @@ def refresh_derived(root, slot, source):
     return refreshed, stale
 
 
+# Records a project keeps about its own media (the pilot's media/derivatives.json, written by its optimise script) hold the hashes of the
+# published still and its copies; a republish left them stale and the project's own check failed. These files are the dashboard's own.
+OWN_RECORDS = {"provenance.json", "slots.json", "decisions.json", "state.json"}
+PATH_KEYS = ("file", "path", "src", "source")
+
+
+def file_facts(root, rels):
+    """sha256, size and, for a picture, width and height of project files, by relative path; a missing file is left out."""
+    import hashlib
+    facts = {}
+    for rel in rels:
+        path = inside(root, rel)
+        if path is None or not path.is_file():
+            continue
+        fact = {"sha256": hashlib.sha256(path.read_bytes()).hexdigest(), "bytes": path.stat().st_size}
+        try:
+            from PIL import Image
+            with Image.open(path) as opened:
+                fact["width"], fact["height"] = opened.size
+        except (ImportError, OSError, ValueError):
+            pass
+        facts[rel] = fact
+    return facts
+
+
+def update_hash_records(root, before, after, source_change=None):
+    """Bring the project's own JSON media records in media/ up to date after a republish: an entry naming a changed file gets its new sha256, size and
+    dimensions, and any old hash of those files (or of the generation source, `source_change` = (old, new)) is replaced wherever it appears.
+    Only values that were exactly the old ones change. Returns the record files rewritten."""
+    swaps = {before[rel]["sha256"]: after[rel]["sha256"] for rel in before if rel in after and before[rel]["sha256"] != after[rel]["sha256"]}
+    if source_change and all(source_change) and source_change[0] != source_change[1]:
+        swaps[source_change[0]] = source_change[1]
+    changed = {rel: fact for rel, fact in after.items() if rel in before and before[rel] != fact}
+    if not swaps and not changed:
+        return []
+
+    def walk(node):
+        hit = False
+        if isinstance(node, dict):
+            named = next((node[k] for k in PATH_KEYS if isinstance(node.get(k), str) and node[k] in changed), None)
+            for key, value in list(node.items()):
+                if isinstance(value, str) and value in swaps:
+                    node[key] = swaps[value]
+                    hit = True
+                elif isinstance(value, (dict, list)):
+                    hit = walk(value) or hit
+            if named is not None:
+                fact = changed[named]
+                for key, alias in (("sha256", "sha256"), ("bytes", "bytes"), ("size", "bytes"), ("width", "width"), ("height", "height")):
+                    if key in node and alias in fact and isinstance(node[key], (int, str)) and not isinstance(node[key], bool) and node[key] != fact[alias]:
+                        node[key] = fact[alias]
+                        hit = True
+        elif isinstance(node, list):
+            for item in node:
+                hit = walk(item) or hit
+        return hit
+
+    rewritten = []
+    folder = root / "media"
+    for path in sorted(folder.glob("*.json")) if folder.is_dir() else []:
+        if path.name in OWN_RECORDS or path.is_symlink() or not path.is_file():
+            continue
+        try:
+            text = path.read_text()
+            data = json.loads(text)
+        except (OSError, ValueError):
+            continue
+        if not walk(data):
+            continue
+        indent = 2 if "\n  " in text else None
+        tmp = path.with_name(path.name + ".refresh")
+        tmp.write_text(json.dumps(data, indent=indent, ensure_ascii=False) + ("\n" if text.endswith("\n") else ""))
+        os.replace(tmp, path)
+        rewritten.append(str(path.relative_to(root)))
+    return rewritten
+
+
 def _fit_video(src, slot, info, out_dir, fade=0.6):
     lo, hi = slot.get("seconds", [4, 8])
     fade = min(fade, info["seconds"] / 4) if fade else 0

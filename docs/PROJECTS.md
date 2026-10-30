@@ -311,6 +311,16 @@ Open a task to inspect its definition of done and latest result, then use its bl
 
 The full artifact review remains available under Projects → Stories & runs. Failed and dependency-blocked stories do not offer these approval shortcuts.
 
+## Pipeline packs
+
+Optional project types for one kind of deliverable (a upubhub class, for example) can be added from **Settings → Installs & updates → Pipeline packs**. A pack is planner guidance, plan checks and format guides; it never runs code. See [Pipeline packs](configuration/pipeline-packs.md).
+
+## Project totals
+
+Once any of a project's tasks has run, the project page shows its totals above the tabs ("Totals so far" while it runs, "Project totals" when it is complete). They cover every run of every task, planning included: agent time and elapsed time, tokens in, out and cached, and one row per agent and model with how it was billed.
+
+Cost is shown two ways. **Actual cost** is what was charged: membership and free-model runs count as $0, and API runs count at the cost the agent reported or, when it reported only tokens (Codex), the tokens at catalog API rates. **API-rate cost** prices every run at published API rates, so membership use can be compared with paying per token. Both include the Media studio's fal estimate for images generated in the project folder. Billing modes are the ones saved for each agent now, and runs with no published rate are counted and left out. The totals are worked out from the run records and the media ledger each time and never stored.
+
 ## Closing a project without finishing it
 
 **Close project…** (Projects, in the project heading) ends a project that will not be finished, for example

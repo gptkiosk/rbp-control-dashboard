@@ -304,7 +304,7 @@ it('regenerates a published slot with the prompt revised, says outright it is a 
       if (u === '/api/media/generate' && init?.method === 'POST') return { status: 202, body: { jobs: ['j-g'], endpoint: 'e', estimate_usd_each: 0.08 } }
       if (u === '/api/media/jobs/j-g') { made = true; return { body: { id: 'j-g', state: 'done', progress: 'done', slot: 'garden-fantasy', error: null, files: [] } } }
       if (u === '/api/media/pick') return { body: { copied: 'x' } }
-      if (u === '/api/media/publish') return { body: { files: [{ path: 'assets/img/garden-fantasy.jpg', bytes: 4096 }], refreshed: ['assets/img/responsive/garden-fantasy-960.webp'], stale: [] } }
+      if (u === '/api/media/publish') return { body: { files: [{ path: 'assets/img/garden-fantasy.jpg', bytes: 4096 }], refreshed: ['assets/img/responsive/garden-fantasy-960.webp'], stale: [], records: ['media/derivatives.json'] } }
     },
   )
   await flushPromises()
@@ -325,5 +325,6 @@ it('regenerates a published slot with the prompt revised, says outright it is a 
   expect(waiting.find('button[aria-label="Skip garden-fantasy"]').exists()).toBe(false)               // a published slot is not skipped
   await waiting.get('button[aria-label="Accept garden-fantasy-2.png"]').trigger('click'); await flushPromises()
   expect(w.text()).toContain("Re-made the site's copies: assets/img/responsive/garden-fantasy-960.webp")
+  expect(w.text()).toContain('Updated the hashes in media/derivatives.json')
   w.unmount()
 })

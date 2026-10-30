@@ -11,10 +11,11 @@ const props = defineProps<{ credentials: { provider: string; hint: string }[]; s
 const emit = defineEmits<{ secret: [provider: string, value: string]; save: [provider: string]; remove: [provider: string]; share: [on: boolean]; spend: [] }>()
 const data = ref<{ keys: KeyRow[]; basic_use_ready: boolean } | null>(null)
 const LEVEL = { required: 'Required', recommended: 'Recommended', optional: 'Optional' }
-// The three keys RCD stores. They show even when the guide cannot be read, so a key can always be saved.
+// The keys RCD stores. They show even when the guide cannot be read, so a key can always be saved.
 const SAVED = [
   { id: 'openrouter', provider: 'openrouter', label: 'OpenRouter', level: 'recommended', purpose: 'Spending, shared agent routes and image generation.' },
   { id: 'fal', provider: 'fal', label: 'fal.ai (media)', level: 'optional', purpose: 'Video and image generation. Agents never receive it.' },
+  { id: 'upubhub', provider: 'upubhub', label: 'upubhub.com', level: 'optional', purpose: 'Publish token from upubhub Dashboard → Connections, for upubhub pipeline packs. Agents never receive it.' },
   { id: 'discord', provider: 'discord', label: 'Discord bot', level: 'optional', purpose: 'Notifications from your own bot. Empty uses this installation’s Hermes bot.' },
 ] as const
 const guide = (id: string) => data.value?.keys.find(k => k.id === id)

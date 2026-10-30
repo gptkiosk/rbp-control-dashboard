@@ -715,3 +715,52 @@ def test_republishing_a_still_remakes_the_sites_width_named_copies(env):
     assert not list(copies.glob("*.refresh.*")) and old
     with Image.open(copies / "hero-still-480.webp") as made:
         assert made.width == 480
+
+
+@needs_ffmpeg
+def test_republishing_a_still_updates_the_projects_own_hash_records(env):
+    """Pilot 2026-10-29: a republish re-made the copies but the project's media/derivatives.json kept the old hashes, so its own check failed."""
+    import hashlib
+    from PIL import Image
+    client, folder = env
+    small_slots(folder)
+    sha = lambda p: hashlib.sha256(p.read_bytes()).hexdigest()
+    img, copies = folder / "assets" / "img", folder / "assets" / "img" / "responsive"
+    copies.mkdir(parents=True)
+    Image.new("RGB", (1200, 675), "red").save(img / "hero-still.jpg")
+    Image.new("RGB", (480, 270), "red").save(copies / "hero-still-480.webp")
+    (folder / "media" / "provenance.json").write_text(json.dumps({"hero-still": {"files": "assets/img/hero-still.jpg", "source_sha256": "a" * 64}}))
+    record = {"hero-still": {"source": "assets/img/hero-still.jpg", "published_sha256": sha(img / "hero-still.jpg"), "generation_source_sha256": "a" * 64,
+                             "derivatives": [{"file": "assets/img/responsive/hero-still-480.webp", "width": 480, "height": 270, "bytes": 1, "sha256": sha(copies / "hero-still-480.webp")}]},
+              "other": {"source": "assets/img/other.jpg", "published_sha256": "b" * 64}}
+    (folder / "media" / "derivatives.json").write_text(json.dumps(record, indent=2) + "\n")
+    run_and_wait(client, {"working_dir": str(folder), "slot": "hero-still"})
+    client.post("/api/media/pick", json={"working_dir": str(folder), "slot": "hero-still", "candidate": "hero-still-1.png"})
+    r = client.post("/api/media/publish", json={"working_dir": str(folder), "slot": "hero-still"})
+    assert r.status_code == 200, r.text
+    assert r.json()["records"] == ["media/derivatives.json"]
+    text = (folder / "media" / "derivatives.json").read_text()
+    after = json.loads(text)["hero-still"]
+    provenance = json.loads((folder / "media" / "provenance.json").read_text())["hero-still"]
+    assert after["published_sha256"] == sha(img / "hero-still.jpg")
+    assert after["generation_source_sha256"] == provenance["source_sha256"] != "a" * 64
+    copy = after["derivatives"][0]
+    assert copy["sha256"] == sha(copies / "hero-still-480.webp") and copy["bytes"] == (copies / "hero-still-480.webp").stat().st_size
+    with Image.open(copies / "hero-still-480.webp") as made:
+        assert (copy["width"], copy["height"]) == made.size
+    assert json.loads(text)["other"] == record["other"] and text.endswith("}\n") and '\n  "hero-still"' in text
+    assert not list((folder / "media").glob("*.refresh"))
+
+
+def test_hash_records_skip_the_dashboards_own_files_and_change_only_exact_old_values(tmp_path):
+    import media_generate as mg
+    (tmp_path / "media").mkdir()
+    (tmp_path / "media" / "slots.json").write_text(json.dumps({"note": "a" * 64}))
+    (tmp_path / "media" / "notes.json").write_text(json.dumps({"x": "a" * 64, "y": "a" * 63, "list": [{"path": "p.jpg", "size": 1, "sha256": "a" * 64}]}))
+    before = {"p.jpg": {"sha256": "a" * 64, "bytes": 1}}
+    after = {"p.jpg": {"sha256": "c" * 64, "bytes": 9}}
+    assert mg.update_hash_records(tmp_path, before, after) == ["media/notes.json"]
+    notes = json.loads((tmp_path / "media" / "notes.json").read_text())
+    assert notes == {"x": "c" * 64, "y": "a" * 63, "list": [{"path": "p.jpg", "size": 9, "sha256": "c" * 64}]}
+    assert json.loads((tmp_path / "media" / "slots.json").read_text())["note"] == "a" * 64
+    assert mg.update_hash_records(tmp_path, before, before) == []
