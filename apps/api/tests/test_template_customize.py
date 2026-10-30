@@ -47,6 +47,7 @@ def test_a_typed_template_is_usable():
     {"customize": FIELDS + [{"id": "audience", "label": "Audience", "type": "text"}]},   # clashes with a general question
     {"customize": [{"id": "n", "label": "N", "type": "integer", "min": 5, "max": 1}]},
     {"customize": [{"id": "c", "label": "C", "type": "choice", "options": ["only"]}]},
+    {"customize": [{"id": "c", "label": "C", "type": "choice", "options": [f"O{i}" for i in range(41)]}]},
     {"customize": [{"id": "c", "label": "C", "type": "multi", "options": ["a,b", "c"]}]},
     {"customize": [{"id": f"t{i}", "label": "T", "type": "text"} for i in range(5)]},
     {"customize": [{"id": "c", "label": "C", "type": "choice", "options": ["a", "b"], "run": "rm -rf /"}]},

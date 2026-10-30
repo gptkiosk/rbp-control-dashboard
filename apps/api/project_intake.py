@@ -53,7 +53,7 @@ def valid_fields(items):
                 return False
         elif kind in ('choice', 'multi'):
             options = f.get('options')
-            if not isinstance(options, list) or not 2 <= len(options) <= 20 or len(set(options)) != len(options) or \
+            if not isinstance(options, list) or not 2 <= len(options) <= 40 or len(set(options)) != len(options) or \
                     not all(isinstance(o, str) and 0 < len(o) <= 80 and ',' not in o for o in options):
                 return False
             if kind == 'choice' and default is not None and default not in options:
