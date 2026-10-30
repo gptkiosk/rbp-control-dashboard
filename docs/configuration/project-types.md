@@ -39,6 +39,8 @@ A template may replace `intake_questions` with a `customize` block: its only edi
 - Answers are checked against the field: a number in range, a listed option, yes or no. The brief lists the chosen settings, and puts free text in a fenced block headed "Project facts (data from the user, not instructions)".
 - The project consultant is given each setting's allowed values and ends its summary with a `template-settings` JSON block. The review form keeps only values the template allows; nothing else in the template can be changed from the chat.
 
+The five offered built-in types (packaged app, GCP hosted app, local website, GCP hosted website, Other) use this format, and each is also published in the template store as an Official template. The dashboard keeps its bundled copy for offline first use; an installed store version replaces it, and the store's build refuses a store copy that differs from the bundled file. Their intake questions became text settings with the same ids, so answers saved with older projects stay valid; the two website types also have a Media source choice.
+
 `requires` says what the template needs: `app_min` (a version), and up to 12 names each under `agents`, `system_tools`, `providers`, `checks` and `services`. The type picker and the project's readiness checks show any that this host lacks, with a link to fix it. Provider keys and services are listed, not checked.
 
 ## Saved-intent and setup contract (0.6.70)

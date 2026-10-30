@@ -32,7 +32,8 @@ def installed(tmp_path):
     folder.mkdir()
     def put(t):
         (folder / f"{t['id']}.json").write_text(json.dumps(t))
-        return type("S", (), {"data_dir": tmp_path})()
+        from settings import get_settings
+        return get_settings().model_copy(update={"data_dir": tmp_path})
     return put
 
 
