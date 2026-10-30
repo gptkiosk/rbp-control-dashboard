@@ -750,7 +750,11 @@ def _requeue_planning_card(card, agent, model):
     return card
 
 def _brief(p, include_nodes=False):
-    d=document(p)
+    return brief_payload(document(p), include_nodes)
+
+
+def brief_payload(d, include_nodes=False):
+    """The project as the planner sees it, from a saved document. Template rehearsal builds the same payload from an example."""
     payload={k:d[k] for k in (('title','brief','constraints','nodes') if include_nodes else ('title','brief','constraints'))}
     import project_intake
     payload['brief'] = project_intake.brief(d, get_settings())
