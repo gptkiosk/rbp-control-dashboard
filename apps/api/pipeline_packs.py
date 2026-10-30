@@ -40,7 +40,7 @@ MAX_INDEX_BYTES = 256 * 1024
 RELEASE_SIGNER = ('dashboard-release namespaces="dashboard-release" ssh-ed25519 '
                   'AAAAC3NzaC1lZDI1NTE5AAAAINrWOiSyq/L4xNRGHAf7s8ZujXlun9TnuRHJ9X25Ef2z dashboard-release')
 RELEASE_IDENTITY = "dashboard-release"
-KNOWN_CHECKS: frozenset[str] = frozenset()
+KNOWN_CHECKS: frozenset[str] = frozenset({"course-package"})
 KNOWN_CONNECTORS: frozenset[str] = frozenset()
 
 
@@ -193,6 +193,15 @@ def general_guides_for(type_id: str, settings) -> list[str] | None:
         if type_id in m.get("project_types", []) and isinstance(m.get("general_guides"), list):
             return list(m["general_guides"])
     return None
+
+
+def checks_for(type_id: str, settings) -> list[str]:
+    """The named checks an installed pack runs for one of its project types (for example course-package)."""
+    for pack in installed(settings):
+        m = pack["manifest"]
+        if type_id in m.get("project_types", []):
+            return [c for c in m.get("checks", []) if c in KNOWN_CHECKS]
+    return []
 
 
 def install(settings, files: dict[str, bytes], app_version: str) -> dict:

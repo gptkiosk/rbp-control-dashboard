@@ -41,12 +41,12 @@ def settings(tmp_path):
 
 def test_a_valid_pack_passes_and_every_problem_is_listed_together():
     assert pp.validate(pack_files(), "0.6.86")[1] == []
-    files = pack_files(checks=["course-package"], app_min="9.0.0", service={"id": "x", "label": "X", "credential": "nope"})
+    files = pack_files(checks=["course-package", "future-check"], app_min="9.0.0", service={"id": "x", "label": "X", "credential": "nope"})
     files["tools/run.sh"] = b"echo hi"
     files["guides/security.md"] = b"x"
     problems = " ".join(pp.validate({**files, "pack.json": json.dumps({**json.loads(files["pack.json"]), "guides": ["course-format.md", "security.md"]}).encode()}, "0.6.86")[1])
     for expected in ("tools/run.sh is not a file a pack may contain", "needs dashboard 9.0.0", "nope credential",
-                     "does not have yet (course-package)", "security.md would replace a shipped guide"):
+                     "does not have yet (future-check)", "security.md would replace a shipped guide"):
         assert expected in problems
 
 

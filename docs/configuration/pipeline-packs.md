@@ -12,6 +12,10 @@ A pack never runs code on this host. Checks and service connectors are part of t
 
 Your own copy of a project type in `<data>/project-types/` still replaces a pack's.
 
+## Checks a pack can name
+
+- `course-package`: for course packs such as upubhub-class. When you accept the project's static verification story ("Verify course package files"), the dashboard checks the project's `course/` folder and refuses the acceptance with every problem listed until it passes. It checks that each lesson in `course/course.json` has its textbook, lesson plan and assessment settings; textbook `## ` headings match the outline; discussion-topic anchors occur exactly once on a plain prose line; each lesson stays within upubhub's 12 topics and 60,000 characters; assessment settings are within upubhub's ranges; credits carry an allowed open licence and an https source; images exist, have alt text and are published in Media studio or credited; AI provenance is declared; and `UPLOAD.md` exists. The rules match what upubhub accepts on import and in class setup.
+
 ## Where packs come from
 
 Packs are published as GitHub releases of `gptkiosk/dashboard-pipeline-packs`. The dashboard reads the latest release without a GitHub token, so the list is cached for 15 minutes; **Check for packs** reads it again.

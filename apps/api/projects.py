@@ -2137,6 +2137,7 @@ def accept_story(s,p,card_id,data,actor):
         if project_preview._kind(node)=='preview-verify' and not (last_host_verify(s,p,c.id) or {}).get('ok'):
             fail('Run the verifier on this host and get a pass before accepting this story. The last run failed or none has run; its output is recorded on this story.',409)
     if not data.summary.strip(): fail('A verified handoff summary is required.',422)
+    course_package_gate(p,c,link)
     m=json.loads(p.approved_manifest);ws=m.get('workspaces',{}).get(link.node_key)
     if output:
         m['output_continuations'][link.node_key]['state']='accepted'
@@ -2153,6 +2154,21 @@ def accept_story(s,p,card_id,data,actor):
     c.column='done';c.updated_at=now()
     s.flush()
     complete_if_done(s,p)
+
+def course_package_gate(p,c,link):
+    """A pipeline pack that names the course-package check makes its project's static verification story pass it before acceptance."""
+    import pipeline_packs
+    import project_contract
+    if 'course-package' not in pipeline_packs.checks_for(document(p).get('project_type') or '',get_settings()): return
+    node=next((n for n in json.loads(p.approved_manifest)['document']['nodes'] if n['key']==link.node_key),{})
+    if not project_contract.static_verification(node): return
+    import course_package
+    result=course_package.check(Path(c.working_dir or document(p)['working_dir']))
+    if not result['ok']:
+        shown=result['problems'][:15];more=len(result['problems'])-len(shown)
+        fail('The course package check found '+str(len(result['problems']))+' problem(s); fix them and run this story again:\n- '+'\n- '.join(shown)
+             +(f'\n…and {more} more.' if more else ''),409)
+
 
 def complete_if_done(s,p):
     linked=list(s.scalars(select(ProjectTask.card_id).where(ProjectTask.project_id==p.id,ProjectTask.role=='story')))

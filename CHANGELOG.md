@@ -12,6 +12,7 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ### Added
 - Pipeline packs in Settings → Installs & updates: optional, data-only project types and format guides for one kind of deliverable, added from a dropdown. Packs come from the signed `gptkiosk/dashboard-pipeline-packs` release (index signed with the dashboard release key, each archive checked against it) and never run code. A pack for a service waits for that service's credential, and a upubhub.com token can now be saved in Private credentials.
+- The `course-package` check for pipeline packs: a pack's course project must pass it before its "Verify course package files" story is accepted. It checks the course/ folder against upubhub's own limits (section headings, topic anchors, 12 topics and 60,000 characters per lesson, assessment settings, credits and licences, published images, UPLOAD.md) and lists every problem at once.
 - Project totals on the project page: agent and elapsed time, tokens in, out and cached, and every agent and model used, across all of a project's tasks including planning. Cost is shown as actual (membership and free-model runs at $0, API runs at their reported or derived cost) next to the same work at API rates, and both include the Media studio's fal estimate for the project's images.
 
 ### Fixed
