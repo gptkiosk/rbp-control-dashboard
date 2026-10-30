@@ -78,7 +78,7 @@ it('opens AI & models for every model link, old ones included, within the same s
   const router=createRouter({history:createMemoryHistory(),routes:[{path:'/profile',component:ProfileView},{path:'/:pathMatch(.*)*',component:{template:'<div />'}}]})
   await router.push('/profile#route-recovery');await router.isReady()
   const w=mount(ProfileView,{global:{plugins:[createPinia(),router]}});await flushPromises()
-  expect(w.findAll('[role="tab"]').map(b=>b.text())).toEqual(['General','AI & models','Installs & updates','Maintenance'])
+  expect(w.findAll('[aria-label="Settings sections"] [role="tab"]').map(b=>b.text())).toEqual(['General','AI & models','Installs & updates','Maintenance'])
   expect(w.get('[data-tab="ai"]').attributes('aria-selected')).toBe('true')
   await w.get('[data-tab="settings"]').trigger('click');await flushPromises()
   expect(router.currentRoute.value.hash).toBe('')

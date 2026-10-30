@@ -11,6 +11,8 @@ import json
 import re
 from pathlib import Path
 
+from pipeline_packs import NAME_RE, REQUIRE_KINDS
+
 CHECK_KINDS = {"has_story", "order", "not_agent_for", "requires_story"}
 ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,39}$")
 MAX_BYTES = 40_000
@@ -68,8 +70,6 @@ def _valid(t):
         return False
 
 
-REQUIRE_KINDS = ('agents', 'system_tools', 'providers', 'checks', 'services')
-NAME_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{0,39}$")
 PLACEHOLDER = re.compile(r"\{\{([a-z0-9_]+)\}\}")
 
 
@@ -82,38 +82,54 @@ def _valid_requires(r):
                for k in REQUIRE_KINDS)
 
 
-def requirements(t, settings=None):
-    """What a template says it needs and whether this host has it. Local reads only; provider keys and services are listed, not checked,
-    because they belong to the user who plans the project."""
+LINKS = {'app': '/profile#updates', 'agents': '/profile#agent-tools', 'system_tools': '/profile#system-tools', 'checks': '/profile#updates',
+         'providers': '/profile#credentials-profile', 'services': ''}
+
+
+def tool_status(kind, name, settings=None, saved=None):
+    """(status, detail) for one approved tool on this host: ready, missing, unknown (this dashboard does not know it) or info.
+    Local reads only. Provider keys are checked only when the caller passes the user's saved credential names."""
     import host_readiness
+    import pipeline_packs
+    if kind == 'agents':
+        from agents import REGISTRY
+        if name not in REGISTRY:
+            return 'unknown', f'{name} is not an agent this dashboard version runs; update the dashboard.'
+        have = settings is not None and REGISTRY[name].available(settings)
+        return ('ready', f'{name} is installed.') if have else ('missing', f'{name} is not installed; add it in Agent tools.')
+    if kind == 'system_tools':
+        if name not in host_readiness.SYSTEM_TOOLS:
+            return 'unknown', f'{name} is not a tool this dashboard version manages; update the dashboard.'
+        return ('ready', f'{name} is installed.') if host_readiness._tool(name, settings) else ('missing', f'Needs {name}: install it in System tools.')
+    if kind == 'checks':
+        return ('ready', f'The dashboard runs the {name} check.') if name in pipeline_packs.KNOWN_CHECKS else \
+            ('unknown', f'Needs a dashboard that knows the {name} check.')
+    if kind == 'providers':
+        if saved is None:
+            return 'info', f'Uses a {name} key saved in Private credentials when a story needs it.'
+        return ('ready', f'Your {name} key is saved.') if name in saved else ('missing', f'Needs your {name} key in Private credentials.')
+    return 'info', f'Delivers to {name}; uploading stays your step unless a connector says otherwise.'
+
+
+def requirements(t, settings=None, saved=None):
+    """What a template says it needs and whether this host has it. A template's `agents` are alternatives: one installed is enough."""
     import pipeline_packs
     from version import __version__
     req = t.get('requires', {})
     rows = []
-    def add(kind, id_, status, detail, link):
-        rows.append({'kind': kind, 'id': id_, 'status': status, 'detail': detail, 'link': link})
+    def add(kind, id_, status, detail):
+        rows.append({'kind': kind, 'id': id_, 'status': status, 'detail': detail, 'link': LINKS[kind]})
     if req.get('app_min'):
         newer = pipeline_packs._version_tuple(req['app_min']) > pipeline_packs._version_tuple(__version__)
-        add('app', req['app_min'], 'missing' if newer else 'ready', f"Needs dashboard {req['app_min']} or newer." if newer else 'Dashboard version fits.', '/profile#updates')
+        add('app', req['app_min'], 'missing' if newer else 'ready', f"Needs dashboard {req['app_min']} or newer." if newer else 'Dashboard version fits.')
     if req.get('agents'):
-        from agents import REGISTRY
-        known = [a for a in req['agents'] if a in REGISTRY]
-        have = [a for a in known if settings is not None and REGISTRY[a].available(settings)]
-        add('agents', ', '.join(req['agents']), 'ready' if have else 'missing' if known else 'unknown',
-            f"Runs on {', '.join(have)}." if have else f"Needs one of {', '.join(req['agents'])} installed.", '/profile#agent-tools')
-    for name in req.get('system_tools', []):
-        if name not in host_readiness.SYSTEM_TOOLS:
-            add('system_tools', name, 'unknown', f'{name} is not a tool this dashboard version manages; update the dashboard.', '/profile#updates')
-        else:
-            found = bool(host_readiness._tool(name, settings))
-            add('system_tools', name, 'ready' if found else 'missing', f'{name} is installed.' if found else f'Needs {name}: install it in System tools.', '/profile#system-tools')
-    for name in req.get('checks', []):
-        known = name in pipeline_packs.KNOWN_CHECKS
-        add('checks', name, 'ready' if known else 'unknown', f'The dashboard runs the {name} check.' if known else f'Needs a dashboard that knows the {name} check.', '/profile#updates')
-    for name in req.get('providers', []):
-        add('providers', name, 'info', f'Uses a {name} key saved in Private credentials when a story needs it.', '/profile#credentials-profile')
-    for name in req.get('services', []):
-        add('services', name, 'info', f'Delivers to {name}; uploading stays your step unless a connector says otherwise.', '')
+        found = [tool_status('agents', a, settings) for a in req['agents']]
+        status = 'ready' if any(f[0] == 'ready' for f in found) else 'missing' if any(f[0] == 'missing' for f in found) else 'unknown'
+        have = [a for a, f in zip(req['agents'], found) if f[0] == 'ready']
+        add('agents', ', '.join(req['agents']), status, f"Runs on {', '.join(have)}." if have else f"Needs one of {', '.join(req['agents'])} installed.")
+    for kind in ('system_tools', 'checks', 'providers', 'services'):
+        for name in req.get(kind, []):
+            add(kind, name, *tool_status(kind, name, settings, saved))
     return rows
 
 

@@ -1,6 +1,8 @@
 # Pipeline packs
 
-Pipeline packs are optional project types for one kind of deliverable, such as a upubhub class. They are offered in **Settings → Installs & updates → Pipeline packs**: choose a pack in **Add a pack** and press **Install**. An installed pack shows its version, offers **Update** when the packs release has a newer one, and can be removed. Removing a pack does not change projects already planned with it; new projects can no longer pick its type.
+Pipeline packs carry optional project templates for one kind of deliverable, such as a upubhub class. They are offered in **Settings → Installs & updates → Template store**: choose a template in **Add a template** and press **Add**. Under the choice the store shows whether the template is **Official** (from the store's maintainers) or **Community** (accepted from a contributor) and by whom, the settings you choose when you start a project, and anything this host lacks with a link to fix it. A missing tool does not stop you adding a template; a template that needs a newer dashboard cannot be added until you update. An installed pack shows its version, offers **Update** when the store has a newer one, and can be removed. Removing a pack does not change projects already planned with it; new projects can no longer pick its type.
+
+The **Tools** tab lists the agents, system tools, providers, checks and services a template may require, from the same signed release, and whether this host has each one.
 
 A pack for a service (for example upubhub.com) needs that service's credential first. Until it is saved in **General → Private credentials**, the pack's **Install** button is disabled and the reason is shown next to it.
 

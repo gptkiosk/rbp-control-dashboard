@@ -44,5 +44,5 @@ const label = (id: string | null) => types.value.find(t => t.id === id)?.label ?
 .type-picker { display: flex; flex-direction: column; gap: var(--gap-xs); }
 label { display: flex; flex-direction: column; gap: var(--gap-xs); color: var(--text-muted); font-size: var(--font-size-sm); }
 p { margin: 0; }
-.needs { margin: 0; padding-left: var(--gap); color: var(--warning, var(--text)); }
+.needs { margin: 0; padding-left: var(--gap); color: var(--warn); }
 </style>
