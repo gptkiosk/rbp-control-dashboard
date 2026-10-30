@@ -2164,7 +2164,7 @@ def course_package_gate(p,c,link):
     node=next((n for n in json.loads(p.approved_manifest)['document']['nodes'] if n['key']==link.node_key),{})
     if not project_contract.static_verification(node): return
     import course_package
-    result=course_package.check(Path(c.working_dir or document(p)['working_dir']))
+    result=course_package.check(Path(c.working_dir or document(p)['working_dir']),course_package.expected_code(document(p).get('intake_answers') or {}))
     if not result['ok']:
         shown=result['problems'][:15];more=len(result['problems'])-len(shown)
         fail('The course package check found '+str(len(result['problems']))+' problem(s); fix them and run this story again:\n- '+'\n- '.join(shown)

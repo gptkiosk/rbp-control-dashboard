@@ -12,6 +12,7 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ### Added
 - Template settings (template format 1.0): a project type can declare typed `customize` fields (numbers, choices, yes/no and short text) as its only editable part. The intake form shows them as controls, the consultant chat fills only them, and free text reaches the planner as labelled data, never as instructions. A type can also list what it `requires`; the type picker and readiness checks name anything this host lacks.
+- Class codes for course packs: the `course-package` check accepts a `code` in `course.json` only in the form `SUBJ:LL-Class name` (for example `MATH:07-Forces and Motion`), and only the code the project's subject, level and class name settings give.
 
 ## [0.6.87] - 2026-10-30
 

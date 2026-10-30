@@ -5,7 +5,7 @@ verification story, listing every problem at once. The limits mirror upubhub's o
 routes/textbook_imports.py, assessment settings as in routes/class_learning.py, 12 topics and 60,000 characters per assessed lesson).
 
 Layout (relative to the project folder):
-  course/course.json                 title, audience, level, objectives, lessons[{id, title, objectives, sections}], credits, ai_provenance, tool
+  course/course.json                 code?, title, audience, level, objectives, lessons[{id, title, objectives, sections}], credits, ai_provenance, tool
   course/textbook/<lesson>.md        one "## " heading per section, in course.json order
   course/topics.json                 {lesson: [{section, label, kind, prompt, objective, anchor, source_url?}]}
   course/lesson-plans/<lesson>.md
@@ -29,6 +29,25 @@ MAX_TOPICS = 12
 IMAGE_RE = re.compile(r"!\[([^\]]*)\]\(\s*<?([^)\s>]+)>?(?:\s+\"[^\"]*\")?\s*\)")
 TOP_FILES = {"course.json", "topics.json"}
 FOLDERS = {"textbook": ".md", "lesson-plans": ".md", "assessments": ".json"}
+# Class code SUBJ:LL-name: a 3 to 5 letter subject code, a two-digit level (00 kindergarten, 01 to 12 grades, 13 to 16 college years)
+# and the teacher's class name. The colon form is for display; files and links use slug().
+CODE_RE = re.compile(r"^([A-Z]{3,5}):(\d{2})-(\S(?:.{0,78}\S)?)$")
+
+
+def class_code(subject: str, level, name: str) -> str:
+    return f"{subject}:{int(level):02d}-{' '.join(str(name).split())}"
+
+
+def slug(code: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", code.lower()).strip("-")[:100]
+
+
+def expected_code(answers: dict) -> str | None:
+    """The class code a project's template settings call for, when it has all three parts."""
+    try:
+        return class_code(answers["subject_code"], answers["level"], answers["class_name"]) if all(answers.get(k) for k in ("subject_code", "level", "class_name")) else None
+    except (TypeError, ValueError):
+        return None
 
 
 def _text(value, low=1, high=10_000):
@@ -129,8 +148,8 @@ def _assessment(a, lesson: str, labels: set[str], problems: list[str]) -> None:
         problems.append(f"{where}: rubric_notes must be text of at most 2,000 characters.")
 
 
-def check(root: Path) -> dict:
-    """{'ok', 'problems', 'counts'} for the course package in a project folder."""
+def check(root: Path, code: str | None = None) -> dict:
+    """{'ok', 'problems', 'counts'} for the course package in a project folder. `code` is the class code the project's settings call for."""
     root = Path(root)
     course_dir = root / "course"
     problems: list[str] = []
@@ -144,6 +163,10 @@ def check(root: Path) -> dict:
     for key in ("title", "audience", "level", "tool"):
         if not _text(course.get(key), 1, 300):
             problems.append(f"course.json: {key} is required.")
+    if code and course.get("code") != code:
+        problems.append(f"course.json: code must be {code!r}, from the project's settings.")
+    elif "code" in course and not (isinstance(course["code"], str) and CODE_RE.match(course["code"]) and int(CODE_RE.match(course["code"]).group(2)) <= 16):
+        problems.append("course.json: code must look like MATH:07-Forces and Motion (3 to 5 capital letters, a colon, a level from 00 to 16, a dash, the class name).")
     if not isinstance(course.get("objectives"), list) or not course["objectives"] or not all(_text(o, 10, 1000) for o in course["objectives"]):
         problems.append("course.json: objectives must be a non-empty list of measurable objectives (10 to 1,000 characters each).")
     if course.get("ai_provenance") not in PROVENANCE:
