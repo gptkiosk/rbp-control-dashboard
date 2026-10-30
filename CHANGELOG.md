@@ -10,6 +10,8 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.6.87] - 2026-10-30
+
 ### Added
 - Pipeline packs in Settings → Installs & updates: optional, data-only project types and format guides for one kind of deliverable, added from a dropdown. Packs come from the signed `gptkiosk/dashboard-pipeline-packs` release (index signed with the dashboard release key, each archive checked against it) and never run code. A pack for a service waits for that service's credential, and a upubhub.com token can now be saved in Private credentials.
 - The `course-package` check for pipeline packs: a pack's course project must pass it before its "Verify course package files" story is accepted. It checks the course/ folder against upubhub's own limits (section headings, topic anchors, 12 topics and 60,000 characters per lesson, assessment settings, credits and licences, published images, UPLOAD.md) and lists every problem at once.
@@ -1209,7 +1211,7 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 
 [0.3.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.0
 [0.6.72]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.70...v0.6.72
-[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.86...HEAD
+[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.87...HEAD
 [0.6.67]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.66...v0.6.67
 [0.6.66]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.65...v0.6.66
 [0.6.65]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.64...v0.6.65
@@ -1322,6 +1324,7 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 [0.6.71]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.70...v0.6.71
 [0.6.70]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.69...v0.6.70
 
+[0.6.87]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.86...v0.6.87
 [0.6.86]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.85...v0.6.86
 [0.6.85]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.84...v0.6.85
 [0.6.84]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.83...v0.6.84
