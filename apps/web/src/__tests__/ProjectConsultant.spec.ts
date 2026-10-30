@@ -107,3 +107,15 @@ it('asks for the project type before starting, with Other for what does not fit,
  expect(w.emitted('review')![0]![0]).toMatchObject({project_type:'other'})
  w.unmount()
 })
+
+it('takes the template settings block out of the brief and hands only the settings on for the form to check',async()=>{
+ const text='Goal\nPhases\n\n```template-settings\n{"lessons": 4, "pictures": false, "extras": ["quiz"], "Bad Key": "x", "nested": {"a": 1}}\n```\n'
+ stubFetch(url=> url==='/api/chat/threads'?{body:{id:9}}:url.startsWith('/api/routes?feature=chat')?{body:{feature:'chat',label:'Chat',default:{runtime:'codex',model:'gpt-6-luna'},default_note:null,allowed:[],hidden:[],empty_reason:null,scope:{managed:false,managed_error:null,app_saved:true,project:null}}}:url==='/api/chat/threads/9'?{body:{title:'Project consultant: Goal',working_dir:'/workspace',busy:false,messages:[{role:'assistant',status:'done',text}]}}:{body:{id:1}})
+ const w=mount(ProjectConsultant,options)
+ await w.get('button').trigger('click');await w.get('input').setValue('Goal');await w.get('textarea').setValue('Idea');await w.get('form').trigger('submit');await flushPromises()
+ await w.findAll('button').find(b=>b.text().includes('Review existing brief'))!.trigger('click');await flushPromises()
+ const draft=w.emitted('review')![0]![0] as {brief:string;intake_answers:Record<string,string>}
+ expect(draft.brief).toBe('Goal\nPhases')
+ expect(draft.intake_answers).toEqual({lessons:'4',pictures:'no',extras:'quiz'})
+ w.unmount()
+})

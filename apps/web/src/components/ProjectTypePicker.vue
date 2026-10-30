@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { getJson, postJson } from '@/lib/api'
-interface PType { id: string; label: string; summary: string; failure_points: string[]; human_signoffs: string[]; visual_checks: string }
+interface Need { kind: string; id: string; status: string; detail: string; link: string }
+interface PType { id: string; label: string; summary: string; failure_points: string[]; human_signoffs: string[]; visual_checks: string; needs?: Need[] }
 const props = defineProps<{ modelValue: string | null | undefined; text: string; disabled?: boolean; required?: boolean; concise?: boolean }>()
 const emit = defineEmits<{ 'update:modelValue': [value: string | null]; loaded: [count: number] }>()
 const types = ref<PType[]>([])
@@ -33,6 +34,9 @@ const label = (id: string | null) => types.value.find(t => t.id === id)?.label ?
       <button type="button" class="btn" @click="emit('update:modelValue', suggested)">Use that type</button>
     </p>
     <p v-if="current()" class="muted small">{{ current()!.summary }}<template v-if="!concise"> The planner is told this type's known failure points, and the plan is checked against where a person should look and sign off.</template></p>
+    <ul v-if="current()?.needs?.length" class="needs small" role="status" aria-label="This template needs">
+      <li v-for="n in current()!.needs" :key="n.kind + n.id">{{ n.detail }} <RouterLink v-if="n.link" :to="n.link">Fix this</RouterLink></li>
+    </ul>
     <p v-if="required && !modelValue" class="muted small">Pick the closest fit. Choose <strong>Other</strong> if nothing fits exactly: the plan then says which type it resembles and which gates it keeps.</p>
   </div>
 </template>
@@ -40,4 +44,5 @@ const label = (id: string | null) => types.value.find(t => t.id === id)?.label ?
 .type-picker { display: flex; flex-direction: column; gap: var(--gap-xs); }
 label { display: flex; flex-direction: column; gap: var(--gap-xs); color: var(--text-muted); font-size: var(--font-size-sm); }
 p { margin: 0; }
+.needs { margin: 0; padding-left: var(--gap); color: var(--warning, var(--text)); }
 </style>

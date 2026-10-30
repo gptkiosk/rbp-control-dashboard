@@ -1292,7 +1292,8 @@ def _planner_prompt(p,catalog=None,s=None,fresh=False,replan=None):
     # Appended after substitution, so a user's own plan.txt keeps working without a new placeholder.
     extra=model_profiles.guidance_text(s,settings.data_dir,catalog) if s is not None else ''
     where=installation_text(s,settings) if s is not None else ''
-    typed=project_types.planner_section(document(p).get('project_type'),settings)
+    import project_intake
+    typed=project_types.planner_section(document(p).get('project_type'),settings,project_intake.values(document(p),settings))
     methods=project_types.guidance_packet(document(p).get('project_type'),settings)['text']
     text+='\n\nGeneral and selected-type methods:\n'+methods
     text+='\n\nSaved-intent contract:\n'+project_contract.prompt(document(p))

@@ -175,7 +175,7 @@ function startNew() {
   newDraft.value = { ...emptyProject(defaultDir()), planning_bias: profile.value?.preferences.planning_bias ?? 50, planner_agent: 'auto', planner_model: '' }
   newReferences.value = []; referenceProgress.value = ''; newCoordination.value = false; newApiPlanning.value = false; completeBrief.value = false; newIntakeReady.value = false; newDraft.value.intake_answers = {}; newDialog.value = true
 }
-function reviewConsultant(value: {title:string;brief:string;working_dir:string;project_type?:string|null}) {
+function reviewConsultant(value: {title:string;brief:string;working_dir:string;project_type?:string|null;intake_answers?:Record<string,string>}) {
   if (roleStatus.value?.delegator !== 'hermes') { error.value='Install Hermes, then preview and apply its Coordinator guidance in Settings → AI & models → Coordinator before submitting the consultant brief.'; return }
   startNew()
   newDraft.value = {...newDraft.value,...value}
