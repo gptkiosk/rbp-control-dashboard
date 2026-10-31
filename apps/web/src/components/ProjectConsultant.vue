@@ -8,7 +8,18 @@ import { getJson, postJson, type ChatThread, type ChatThreadDetail } from '@/lib
 import type { Preferences } from '@/lib/profile'
 import { useRoutes } from '@/lib/routes'
 const props = defineProps<{ preferences?: Preferences; workdirs: {path:string;branch:string|null}[]; scratchRoot?: string | null; available?: boolean; resumeId?: number }>()
-const emit = defineEmits<{ review: [draft:{title:string;brief:string;working_dir:string;project_type?:string|null}]; started:[id:number] }>()
+const emit = defineEmits<{ review: [draft:{title:string;brief:string;working_dir:string;project_type?:string|null;intake_answers?:Record<string,string>}]; started:[id:number] }>()
+/** The consultant fills only the template's settings, in a fenced block the intake form then checks against the allowed values. */
+function templateSettings(text:string):{settings:Record<string,string>;brief:string} {
+  const m=/```template-settings\s*\n([\s\S]*?)\n```/.exec(text)
+  if(!m) return {settings:{},brief:text}
+  let given:unknown={}
+  try{given=JSON.parse(m[1]!)}catch{given={}}
+  const settings=Object.fromEntries(Object.entries(given&&typeof given==='object'&&!Array.isArray(given)?given:{})
+    .filter(([k,v])=>/^[a-z][a-z0-9_]{0,39}$/.test(k)&&(['string','number','boolean'].includes(typeof v)||Array.isArray(v)))
+    .map(([k,v])=>[k,Array.isArray(v)?v.map(String).join(', '):typeof v==='boolean'?(v?'yes':'no'):String(v)]))
+  return {settings,brief:(text.slice(0,m.index)+text.slice(m.index+m[0].length)).trim()}
+}
 const typeKey=(id:number)=>`mcd-consultant-type-${id}`
 // The type is remembered per conversation so a resumed consultant still hands it to the plan. Browser storage is only a convenience here.
 const savedType=(id:number)=>{try{return localStorage.getItem(typeKey(id))||null}catch{return null}}
@@ -19,7 +30,7 @@ const agent=computed(()=>chatRoutes.data.value?.default?.runtime || 'hermes')
 const model=computed(()=>chatRoutes.data.value?.default?.model || '')
 const available=computed(()=>props.available !== false && (!chatRoutes.data.value || !!chatRoutes.data.value.default))
 const guidance='Help the owner shape a project through a read-only conversation. Use the shared intake questions for the selected template from installation context; do not mix other templates into it. Answer their question first, then ask only the missing facts that would change the outcome, two or three at a time. Reuse facts already given and accept Help me decide. Suggest sensible defaults, clearly marked as assumptions. Do not require a prewritten brief, technical commands, credentials or a story list from the person. Ask about visual direction and real media for a website; distinguish reference art from final assets. Media/cloud spending preferences do not grant approval. Keep routine tools/access readiness in the eventual plan. When asked to write up, return a compact summary of the goal, confirmed template answers, exclusions, proposed assumptions and genuine unresolved decisions. The dashboard planner will create the stories, prerequisites and verification gates later. No operational actions or provider calls are authorized by this conversation.'
-const draftAsk=()=>`That is enough. Please write the project intake summary now from what we discussed. Project type: ${projectType.value||savedType(threadId.value)||'not chosen'}. Include confirmed template answers and clearly labelled assumptions. Do not repeat answered questions or generate the story plan. Keep it under 8000 characters.`
+const draftAsk=()=>`That is enough. Please write the project intake summary now from what we discussed. Project type: ${projectType.value||savedType(threadId.value)||'not chosen'}. Include confirmed template answers and clearly labelled assumptions. Do not repeat answered questions or generate the story plan. If the template has settings, end with the template-settings block. Keep it under 8000 characters.`
 const draftBackground='Reply with the Markdown intake summary only. Preserve user requirements, required final media, theme states and delivery target. State undecided matters as assumptions or decisions; never invent access, completed work or spending approval. This summary opens for operator review before planning.'
 const drafting=ref(false);let timer:ReturnType<typeof setTimeout>|undefined
 onBeforeUnmount(()=>{if(timer)clearTimeout(timer)})
@@ -65,7 +76,8 @@ async function review() {
     if(t.busy || t.messages.some(m=>m.status==='running'||m.status==='pending_approval')) throw Error('Wait for the conversation to finish and resolve any pending approval first.')
     const response=[...t.messages].reverse().find(m=>m.role==='assistant'&&m.status==='done'&&m.text.trim())
     if(!response) throw Error('Ask the consultant to write the project summary first.')
-    emit('review',{title:title.value.trim() || t.title.replace(/^Project consultant: /,''),brief:response.text,working_dir:t.working_dir,project_type:projectType.value||savedType(threadId.value)})
+    const {settings,brief}=templateSettings(response.text)
+    emit('review',{title:title.value.trim() || t.title.replace(/^Project consultant: /,''),brief,working_dir:t.working_dir,project_type:projectType.value||savedType(threadId.value),...(Object.keys(settings).length?{intake_answers:settings}:{})})
   } catch(e) {error.value=e instanceof Error?e.message:String(e)} finally {busy.value=false}
 }
 </script>

@@ -311,9 +311,9 @@ Open a task to inspect its definition of done and latest result, then use its bl
 
 The full artifact review remains available under Projects → Stories & runs. Failed and dependency-blocked stories do not offer these approval shortcuts.
 
-## Pipeline packs
+## Template store
 
-Optional project types for one kind of deliverable (a upubhub class, for example) can be added from **Settings → Installs & updates → Pipeline packs**. A pack is planner guidance, plan checks and format guides; it never runs code. See [Pipeline packs](configuration/pipeline-packs.md).
+Optional project templates for one kind of deliverable (a upubhub class, for example) can be added from **Settings → Installs & updates → Template store**. A template is planner guidance, plan checks and format guides, published in a pack; it never runs code. You choose only its settings when you start a project. See [Pipeline packs](configuration/pipeline-packs.md).
 
 ## Project totals
 

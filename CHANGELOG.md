@@ -10,6 +10,15 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.6.88] - 2026-10-31
+
+### Added
+- Template settings (template format 1.0): a project type can declare typed `customize` fields (numbers, choices, yes/no and short text) as its only editable part. The intake form shows them as controls, the consultant chat fills only them, and free text reaches the planner as labelled data, never as instructions. A type can also list what it `requires`; the type picker and readiness checks name anything this host lacks.
+- Template store in Settings → Installs & updates (was Pipeline packs): the chosen template shows whether it is Official or Community and by whom, the settings you choose, and anything this host lacks with a link to fix it; a template that needs a newer dashboard cannot be added. A new Tools tab lists the agents, system tools, providers, checks and services a template may require, from the signed store release, and whether this host has each.
+- The five offered built-in project types now use template settings and list their requirements, and are also published in the template store as Official templates (the bundled copy stays for offline use). Their questions keep the same ids, so saved answers stay valid; the website types gain a Media source choice.
+- Template rehearsal (`apps/api/rehearsal.py`): builds the planner's real prompt for a template example without a project, and judges a planner's answer with the dashboard's own plan validation, the template's plan checks and the example's expectations. The template store's rehearsal gate runs it; it never calls a model itself.
+- Class codes for course packs: the `course-package` check accepts a `code` in `course.json` only in the form `SUBJ:LL-Class name` (for example `MATH:07-Forces and Motion`), and only the code the project's subject, level and class name settings give.
+
 ## [0.6.87] - 2026-10-30
 
 ### Added
@@ -1211,7 +1220,7 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 
 [0.3.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.0
 [0.6.72]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.70...v0.6.72
-[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.87...HEAD
+[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.88...HEAD
 [0.6.67]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.66...v0.6.67
 [0.6.66]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.65...v0.6.66
 [0.6.65]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.64...v0.6.65
@@ -1324,6 +1333,7 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 [0.6.71]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.70...v0.6.71
 [0.6.70]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.69...v0.6.70
 
+[0.6.88]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.87...v0.6.88
 [0.6.87]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.86...v0.6.87
 [0.6.86]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.85...v0.6.86
 [0.6.85]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.84...v0.6.85
