@@ -1,5 +1,13 @@
 # Raspberry Pi Control Dashboard (RCD)
 
+## Functionality at a glance
+
+A separate Linux/Raspberry Pi control dashboard for host monitoring, reviewed agent work, task/project planning, media workflows, and release/update management.
+
+- Runtime: FastAPI and Vue with a Linux platform layer; local access is private by default. Provider/agent connections depend on the operator's installed tools and credentials.
+- Connectivity: the same signed [pipeline-pack catalog](https://github.com/gptkiosk/dashboard-pipeline-packs) contract as MCD, with separate application state and host setup. upubhub packages are prepared for operator import, not automatically published by a pack.
+- Acceptance limits: application source and release tooling are present; Linux VM checks do not establish physical Raspberry Pi or live-provider acceptance. ZeroClaw/PicoClaw remains experimental. See the release and support qualifications below.
+
 RCD is the Linux/Raspberry Pi port of [Mac Control Dashboard (MCD)](https://github.com/gptkiosk/mac-control-dashboard). It is a separate product and repository; MCD project 2 recorded its planning and implementation work.
 
 ## Why use a project dashboard?
