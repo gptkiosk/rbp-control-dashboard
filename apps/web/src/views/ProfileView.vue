@@ -39,11 +39,11 @@ const router = useRouter()
 if (router) useGuideAction('billing', () => { tab.value = 'ai'; void openBilling() })   // ?action=billing opens Accounts, rates & limits
 const bootstrapReadiness = ref<{ ready: boolean; checks: {id:string;label:string;ready:boolean;link:string}[] } | null>(null)
 // Keep coordinator bootstrap choices in their own profile section; old hash links still open the right group.
-// Four tabs: personal settings, everything about models (one page, top to bottom), installs, and maintenance. Older hash links still open the
+// Five tabs: personal settings, everything about models (one page, top to bottom), installs, the template store, and maintenance. Older hash links still open the
 // right tab (HOME).
-const TABS = [{ id: 'settings', label: 'General' }, { id: 'ai', label: 'AI & models' }, { id: 'updates', label: 'Installs & updates' }, { id: 'maintenance', label: 'Maintenance' }] as const
+const TABS = [{ id: 'settings', label: 'General' }, { id: 'ai', label: 'AI & models' }, { id: 'updates', label: 'Installs & updates' }, { id: 'templates', label: 'Template store' }, { id: 'maintenance', label: 'Maintenance' }] as const
 type Tab = typeof TABS[number]['id']
-const HOME: Record<string, Tab> = { 'models-providers': 'ai', 'ai-settings': 'ai', accounts: 'ai', 'coordinator-bootstrap': 'ai', 'route-recovery': 'ai', 'agent-roles': 'ai', roles: 'ai', updates: 'updates', 'agent-tools': 'updates', 'system-tools': 'updates', 'pipeline-packs': 'updates', housekeeping: 'maintenance', 'github-settings': 'maintenance', 'github-actions': 'maintenance', 'bug-intake': 'maintenance', 'issue-tasks': 'maintenance', reports: 'maintenance' }
+const HOME: Record<string, Tab> = { 'models-providers': 'ai', 'ai-settings': 'ai', accounts: 'ai', 'coordinator-bootstrap': 'ai', 'route-recovery': 'ai', 'agent-roles': 'ai', roles: 'ai', updates: 'updates', 'agent-tools': 'updates', 'system-tools': 'updates', 'pipeline-packs': 'templates', templates: 'templates', housekeeping: 'maintenance', 'github-settings': 'maintenance', 'github-actions': 'maintenance', 'bug-intake': 'maintenance', 'issue-tasks': 'maintenance', reports: 'maintenance' }
 const THEMES = [{ id: 'system', label: 'Device' }, { id: 'light', label: 'Light' }, { id: 'dark', label: 'Dark' }] as const
 const tab = ref<Tab>('settings')
 function fromHash() {
@@ -131,10 +131,13 @@ async function importPreferences(event: Event) { await action(async () => {
     <p v-if="error" class="notice-warn" role="alert">{{ error }}</p><p v-if="notice" class="card" role="status">{{ notice }}</p>
 
     <div v-show="tab === 'updates'" class="group" role="tabpanel" aria-label="Updates and installs">
-      <p class="muted small">Dashboard releases, agent tools, optional system tools and the template store. Each shows its version and status, runs with a progress bar and log, and ends with a health check. <RouterLink to="/help?topic=app-updates">How-to</RouterLink></p>
+      <p class="muted small">Dashboard releases, agent tools and optional system tools. Project templates have their own Template store tab. Each shows its version and status, runs with a progress bar and log, and ends with a health check. <RouterLink to="/help?topic=app-updates">How-to</RouterLink></p>
       <UpdatePanel />
       <AgentToolsPanel />
       <SystemToolsPanel />
+    </div>
+
+    <div v-show="tab === 'templates'" class="group" role="tabpanel" aria-label="Template store">
       <PipelinePacksPanel />
     </div>
 

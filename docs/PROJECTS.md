@@ -313,7 +313,7 @@ The full artifact review remains available under Projects → Stories & runs. Fa
 
 ## Template store
 
-Optional project templates for one kind of deliverable (a upubhub class, for example) can be added from **Settings → Installs & updates → Template store**. A template is planner guidance, plan checks and format guides, published in a pack; it never runs code. You choose only its settings when you start a project. See [Pipeline packs](configuration/pipeline-packs.md).
+Optional project templates for one kind of deliverable (a upubhub class, for example) can be added from **Settings → Template store**. A template is planner guidance, plan checks and format guides, published in a pack; it never runs code. You choose only its settings when you start a project. See [Pipeline packs](configuration/pipeline-packs.md).
 
 ## Project totals
 

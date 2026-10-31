@@ -143,6 +143,8 @@
   --focus-ring-width: 2px;
   --focus-ring-offset: 2px;
   --tile-min-width: 12rem;
+  --store-icon-size: 3rem;          /* template store card icons */
+  --store-card-min-width: 17rem;
   --card-min-width: 22rem;
   --chart-height: 220px;
   --severity-bar-width: 4px;
