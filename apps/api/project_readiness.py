@@ -51,6 +51,11 @@ def _report(s, project, settings):
                 allowed=branch not in {'','main','master'} and any(c.repo.lower()==target.lower() and c.branch==branch for c in grant.clones)
             except (OSError,subprocess.SubprocessError): allowed=False
         add('repository', allowed, 'The named repository needs an app-registered clone and a project branch grant. Naming it alone neither proves access nor approves creation.', f'/projects?project={project.id}')
+    import project_types
+    template = project_types.load(settings).get(d.get('project_type') or '')
+    for need in project_types.requirements(template, settings) if template else []:
+        if need['status'] in ('missing', 'unknown'):
+            add(f"template-{need['kind']}-{need['id']}", False, need['detail'], need['link'])
     if d.get('project_type') in project_contract.WEBSITES:
         script = root / 'tools/verify-preview.sh' if root else None
         prepared = bool(script and script.is_file() and not script.is_symlink() and script.stat().st_size > 0)

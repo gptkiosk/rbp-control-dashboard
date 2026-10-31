@@ -131,7 +131,7 @@ async function importPreferences(event: Event) { await action(async () => {
     <p v-if="error" class="notice-warn" role="alert">{{ error }}</p><p v-if="notice" class="card" role="status">{{ notice }}</p>
 
     <div v-show="tab === 'updates'" class="group" role="tabpanel" aria-label="Updates and installs">
-      <p class="muted small">Dashboard releases, agent tools, optional system tools and pipeline packs. Each shows its version and status, runs with a progress bar and log, and ends with a health check. <RouterLink to="/help?topic=app-updates">How-to</RouterLink></p>
+      <p class="muted small">Dashboard releases, agent tools, optional system tools and the template store. Each shows its version and status, runs with a progress bar and log, and ends with a health check. <RouterLink to="/help?topic=app-updates">How-to</RouterLink></p>
       <UpdatePanel />
       <AgentToolsPanel />
       <SystemToolsPanel />

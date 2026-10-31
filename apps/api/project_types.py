@@ -11,6 +11,8 @@ import json
 import re
 from pathlib import Path
 
+from pipeline_packs import NAME_RE, REQUIRE_KINDS
+
 CHECK_KINDS = {"has_story", "order", "not_agent_for", "requires_story"}
 ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,39}$")
 MAX_BYTES = 40_000
@@ -34,9 +36,19 @@ def _valid(t):
             if not isinstance(t.get(key, []), list) or not all(isinstance(x, str) for x in t.get(key, [])):
                 return False
         tiers = t.get("media_default_tiers", {})
-        from project_intake import valid_questions
+        from project_intake import valid_fields, valid_questions
         if not valid_questions(t.get('intake_questions', [])):
             return False
+        if 'customize' in t and (not valid_fields(t['customize']) or 'intake_questions' in t):
+            return False
+        if not _valid_requires(t.get('requires', {})):
+            return False
+        # A placeholder names a setting with a closed value set; free text never enters the plan text.
+        closed = {f['id'] for f in t.get('customize', []) if f['type'] != 'text'}
+        for text in (t['planner_text'], t.get('visual_checks', ''), *t.get('failure_points', []), *t.get('human_signoffs', [])):
+            if not isinstance(text, str) or text.count('{{') != len(re.findall(r'\{\{([a-z0-9_]+)\}\}', text)) or \
+                    set(re.findall(r'\{\{([a-z0-9_]+)\}\}', text)) - closed:
+                return False
         if not isinstance(tiers, dict) or not all(k in {"image", "video"} and v in {"draft", "standard", "premium"} for k, v in tiers.items()):
             return False
         for pattern in t.get("suggest", []):
@@ -56,6 +68,69 @@ def _valid(t):
         return True
     except (KeyError, TypeError, re.error):
         return False
+
+
+PLACEHOLDER = re.compile(r"\{\{([a-z0-9_]+)\}\}")
+
+
+def _valid_requires(r):
+    if not isinstance(r, dict) or set(r) - {'app_min', *REQUIRE_KINDS}:
+        return False
+    if 'app_min' in r and not (isinstance(r['app_min'], str) and re.fullmatch(r"\d{1,4}\.\d{1,4}\.\d{1,6}", r['app_min'])):
+        return False
+    return all(isinstance(r.get(k, []), list) and len(r.get(k, [])) <= 12 and all(isinstance(x, str) and NAME_RE.fullmatch(x) for x in r.get(k, []))
+               for k in REQUIRE_KINDS)
+
+
+LINKS = {'app': '/profile#updates', 'agents': '/profile#agent-tools', 'system_tools': '/profile#system-tools', 'checks': '/profile#updates',
+         'providers': '/profile#credentials-profile', 'services': ''}
+
+
+def tool_status(kind, name, settings=None, saved=None):
+    """(status, detail) for one approved tool on this host: ready, missing, unknown (this dashboard does not know it) or info.
+    Local reads only. Provider keys are checked only when the caller passes the user's saved credential names."""
+    import host_readiness
+    import pipeline_packs
+    if kind == 'agents':
+        from agents import REGISTRY
+        if name not in REGISTRY:
+            return 'unknown', f'{name} is not an agent this dashboard version runs; update the dashboard.'
+        have = settings is not None and REGISTRY[name].available(settings)
+        return ('ready', f'{name} is installed.') if have else ('missing', f'{name} is not installed; add it in Agent tools.')
+    if kind == 'system_tools':
+        if name not in host_readiness.SYSTEM_TOOLS:
+            return 'unknown', f'{name} is not a tool this dashboard version manages; update the dashboard.'
+        return ('ready', f'{name} is installed.') if host_readiness._tool(name, settings) else ('missing', f'Needs {name}: install it in System tools.')
+    if kind == 'checks':
+        return ('ready', f'The dashboard runs the {name} check.') if name in pipeline_packs.KNOWN_CHECKS else \
+            ('unknown', f'Needs a dashboard that knows the {name} check.')
+    if kind == 'providers':
+        if saved is None:
+            return 'info', f'Uses a {name} key saved in Private credentials when a story needs it.'
+        return ('ready', f'Your {name} key is saved.') if name in saved else ('missing', f'Needs your {name} key in Private credentials.')
+    return 'info', f'Delivers to {name}; uploading stays your step unless a connector says otherwise.'
+
+
+def requirements(t, settings=None, saved=None):
+    """What a template says it needs and whether this host has it. A template's `agents` are alternatives: one installed is enough."""
+    import pipeline_packs
+    from version import __version__
+    req = t.get('requires', {})
+    rows = []
+    def add(kind, id_, status, detail):
+        rows.append({'kind': kind, 'id': id_, 'status': status, 'detail': detail, 'link': LINKS[kind]})
+    if req.get('app_min'):
+        newer = pipeline_packs._version_tuple(req['app_min']) > pipeline_packs._version_tuple(__version__)
+        add('app', req['app_min'], 'missing' if newer else 'ready', f"Needs dashboard {req['app_min']} or newer." if newer else 'Dashboard version fits.')
+    if req.get('agents'):
+        found = [tool_status('agents', a, settings) for a in req['agents']]
+        status = 'ready' if any(f[0] == 'ready' for f in found) else 'missing' if any(f[0] == 'missing' for f in found) else 'unknown'
+        have = [a for a, f in zip(req['agents'], found) if f[0] == 'ready']
+        add('agents', ', '.join(req['agents']), status, f"Runs on {', '.join(have)}." if have else f"Needs one of {', '.join(req['agents'])} installed.")
+    for kind in ('system_tools', 'checks', 'providers', 'services'):
+        for name in req.get(kind, []):
+            add(kind, name, *tool_status(kind, name, settings, saved))
+    return rows
 
 
 def load(settings=None):
@@ -78,8 +153,11 @@ def load(settings=None):
 
 def listing(settings=None):
     """Types offered for new plans. Legacy type ids remain readable for existing projects."""
+    def needs(t):
+        return [r for r in requirements(t, settings) if r['status'] in ('missing', 'unknown')]
     return [{"id": t["id"], "label": t["label"], "summary": t["summary"], "keys": t.get("keys", []), "failure_points": t.get("failure_points", []),
-             "human_signoffs": t.get("human_signoffs", []), "visual_checks": t.get("visual_checks", "")} for t in sorted(load(settings).values(), key=lambda t: ({'packaged-app':0,'gcp-hosted-app':1,'local-website':2,'gcp-hosted-website':3,'other':99}.get(t['id'],50),t['label'])) if t["id"] not in LEGACY_TYPES]
+             "human_signoffs": t.get("human_signoffs", []), "visual_checks": t.get("visual_checks", ""),
+             "customize": [f["label"] for f in t.get("customize", [])], "needs": needs(t)} for t in sorted(load(settings).values(), key=lambda t: ({'packaged-app':0,'gcp-hosted-app':1,'local-website':2,'gcp-hosted-website':3,'other':99}.get(t['id'],50),t['label'])) if t["id"] not in LEGACY_TYPES]
 
 
 GENERAL_GUIDES = ('practices.md', 'security.md', 'readme-and-docs.md')
@@ -187,11 +265,20 @@ def suggest(text, settings=None):
     return best if score >= 2 else None
 
 
-def planner_section(type_id, settings=None):
+def fill(text, values):
+    """Put the project's closed-set settings into template text. A setting with no answer and no default stays visible as unset."""
+    return PLACEHOLDER.sub(lambda m: values.get(m.group(1), f"(unset: {m.group(1)})"), text)
+
+
+def planner_section(type_id, settings=None, values=None):
     """The text added to the planner prompt for a typed project: how to plan it, where it fails, where a person looks and signs off."""
     t = load(settings).get(type_id or "")
     if not t:
         return ""
+    if t.get("customize"):
+        t = {**t, "planner_text": fill(t["planner_text"], values or {}), "visual_checks": fill(t.get("visual_checks", ""), values or {}),
+             "failure_points": [fill(x, values or {}) for x in t.get("failure_points", [])],
+             "human_signoffs": [fill(x, values or {}) for x in t.get("human_signoffs", [])]}
     lines = [f"Project type: {t['label']}.", t["planner_text"],
              "Execution readiness is part of the plan. Use the installation facts supplied with this request before assigning a story. An agent story may require only tools available inside its sandbox and may only use the checked-out project workspace. When a repository is selected, the dashboard creates the private repository, clone and setup branch before dispatch; every agent story works in that clone, never in a scratch folder. Split file creation and static checks from runtime verification. Docker/Compose engines, browsers, target hardware, signing, credentials, billing, cloud applies and other host-only actions are human or CI work with a clear prerequisite and acceptance check. Do not put an unavailable tool or privileged host access in an agent story's definition of done.",
              "Known failure points for this type; plan around each one:"]

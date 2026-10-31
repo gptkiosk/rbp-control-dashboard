@@ -128,30 +128,61 @@
   "media_default_tiers": {
     "video": "draft"
   },
-  "intake_questions": [
+  "customize": [
     {
       "id": "pages",
       "label": "Pages and interactions",
       "prompt": "Which pages and features should visitors use? Include any theme or world switching.",
+      "type": "text",
+      "max": 1200,
       "required": true
     },
     {
       "id": "visual_style",
       "label": "Look and references",
       "prompt": "Describe the visual style, brand and theme states. What should uploaded references guide or avoid?",
+      "type": "text",
+      "max": 1200,
       "required": true
     },
     {
+      "id": "media_source",
+      "label": "Media source",
+      "type": "choice",
+      "options": [
+        "existing assets only",
+        "generate in Media studio",
+        "both"
+      ],
+      "prompt": "Where the artwork comes from. Generating in Media studio always waits for your spending approval."
+    },
+    {
       "id": "media",
-      "label": "Artwork and media",
+      "label": "Artwork and media details",
       "prompt": "Use existing assets, generate with fal.ai, or both? Describe the required images/clips, placement and budget preference. Generation requires separate approval.",
+      "type": "text",
+      "max": 1200,
       "required": true
     },
     {
       "id": "hosting",
       "label": "Google Cloud hosting",
       "prompt": "Existing GCP project/domain or new setup? Describe region, access and budget preferences. Leave unknowns for readiness checks; never paste credentials.",
+      "type": "text",
+      "max": 1200,
       "required": false
     }
-  ]
+  ],
+  "requires": {
+    "app_min": "0.6.88",
+    "agents": [
+      "claude",
+      "codex",
+      "grok",
+      "openclaw"
+    ],
+    "system_tools": [
+      "node"
+    ]
+  }
 }

@@ -750,7 +750,11 @@ def _requeue_planning_card(card, agent, model):
     return card
 
 def _brief(p, include_nodes=False):
-    d=document(p)
+    return brief_payload(document(p), include_nodes)
+
+
+def brief_payload(d, include_nodes=False):
+    """The project as the planner sees it, from a saved document. Template rehearsal builds the same payload from an example."""
     payload={k:d[k] for k in (('title','brief','constraints','nodes') if include_nodes else ('title','brief','constraints'))}
     import project_intake
     payload['brief'] = project_intake.brief(d, get_settings())
@@ -1292,7 +1296,8 @@ def _planner_prompt(p,catalog=None,s=None,fresh=False,replan=None):
     # Appended after substitution, so a user's own plan.txt keeps working without a new placeholder.
     extra=model_profiles.guidance_text(s,settings.data_dir,catalog) if s is not None else ''
     where=installation_text(s,settings) if s is not None else ''
-    typed=project_types.planner_section(document(p).get('project_type'),settings)
+    import project_intake
+    typed=project_types.planner_section(document(p).get('project_type'),settings,project_intake.values(document(p),settings))
     methods=project_types.guidance_packet(document(p).get('project_type'),settings)['text']
     text+='\n\nGeneral and selected-type methods:\n'+methods
     text+='\n\nSaved-intent contract:\n'+project_contract.prompt(document(p))
@@ -2163,7 +2168,7 @@ def course_package_gate(p,c,link):
     node=next((n for n in json.loads(p.approved_manifest)['document']['nodes'] if n['key']==link.node_key),{})
     if not project_contract.static_verification(node): return
     import course_package
-    result=course_package.check(Path(c.working_dir or document(p)['working_dir']))
+    result=course_package.check(Path(c.working_dir or document(p)['working_dir']),course_package.expected_code(document(p).get('intake_answers') or {}))
     if not result['ok']:
         shown=result['problems'][:15];more=len(result['problems'])-len(shown)
         fail('The course package check found '+str(len(result['problems']))+' problem(s); fix them and run this story again:\n- '+'\n- '.join(shown)

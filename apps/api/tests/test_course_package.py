@@ -112,6 +112,20 @@ def test_a_long_lesson_and_too_many_topics_are_refused(tmp_path):
     assert "13 topics; an assessed upubhub activity takes at most 12" in found
 
 
+def test_the_class_code_follows_the_standard_and_the_projects_settings(tmp_path):
+    assert course_package.class_code("MATH", "7", " Forces  and Motion ") == "MATH:07-Forces and Motion"
+    assert course_package.slug("MATH:07-Forces and Motion") == "math-07-forces-and-motion"
+    assert course_package.expected_code({"subject_code": "MATH", "level": "7", "class_name": "Forces"}) == "MATH:07-Forces"
+    assert course_package.expected_code({"subject_code": "MATH", "level": "7"}) is None
+    write(tmp_path, code="MATH:07-Forces")
+    root = tmp_path
+    assert course_package.check(root)["ok"] and course_package.check(root, "MATH:07-Forces")["ok"]
+    assert "from the project's settings" in course_package.check(root, "MATH:08-Forces")["problems"][0]
+    for bad in ("MA:07-Forces", "MATHEM:07-Forces", "math:07-Forces", "MATH:7-Forces", "MATH:17-Forces", "MATH:07-", "MATH:07- Forces"):
+        write(tmp_path, code=bad)
+        assert any("code must look like" in p for p in course_package.check(tmp_path)["problems"]), bad
+
+
 def test_no_course_folder_is_one_clear_problem(tmp_path):
     assert course_package.check(tmp_path) == {"ok": False, "problems": ["There is no course/ folder."],
                                               "counts": {"lessons": 0, "sections": 0, "topics": 0, "images": 0}}

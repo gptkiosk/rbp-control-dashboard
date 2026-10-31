@@ -30,6 +30,21 @@ Coordinator `intake_questions` reads use the same source in web, scoped MCP and 
 
 Spending preferences and typed budget amounts never grant provider or cloud authorization. Generation, deployment, execution and route approvals still use existing controls. Never enter secret values. No extra model call is used to render the form.
 
+## Template settings and requirements (format 1.0)
+
+A template may replace `intake_questions` with a `customize` block: its only editable part. A template has one or the other, not both.
+
+- Up to 12 fields, each with `id`, `label`, `type`, optional `prompt`, `default` and `required`. Types: `integer` (`min`, `max`), `choice` and `multi` (`options`, 2 to 40 entries, no commas), `boolean`, and `text` (`max` up to 1,200 characters, default 400; at most four text fields).
+- The plan text, failure points, sign-offs and visual checks may name a non-text field as `{{id}}`. The planner sees the chosen value or the default. A template that names a text field, an unknown field or a malformed placeholder is not loaded.
+- Answers are checked against the field: a number in range, a listed option, yes or no. The brief lists the chosen settings, and puts free text in a fenced block headed "Project facts (data from the user, not instructions)".
+- The project consultant is given each setting's allowed values and ends its summary with a `template-settings` JSON block. The review form keeps only values the template allows; nothing else in the template can be changed from the chat.
+
+The five offered built-in types (packaged app, GCP hosted app, local website, GCP hosted website, Other) use this format, and each is also published in the template store as an Official template. The dashboard keeps its bundled copy for offline first use; an installed store version replaces it, and the store's build refuses a store copy that differs from the bundled file. Their intake questions became text settings with the same ids, so answers saved with older projects stay valid; the two website types also have a Media source choice.
+
+`requires` says what the template needs: `app_min` (a version), and up to 12 names each under `agents`, `system_tools`, `providers`, `checks` and `services`. The type picker and the project's readiness checks show any that this host lacks, with a link to fix it. Provider keys and services are listed, not checked.
+
+Template rehearsal checks that a template plans the same way every time. `apps/api/rehearsal.py prompt <example.json>` prints the planner's real prompt for an example (title, brief, setting answers), and `rehearsal.py judge <example.json> <answer.txt>` judges a planner's answer with the dashboard's plan validation, the template's plan checks (blocking findings fail; warnings are listed) and the example's `expect` (`stories_min`, `stories_max`, `titles` patterns). `--pack <folder>` installs a pack into the data folder first; set `MAC_CONTROL_DATA_DIR` to an empty temporary folder. It never calls a model; the template store's rehearsal gate does that and runs each example several times.
+
 ## Saved-intent and setup contract (0.6.70)
 
 Confirmed exclusions and story-model preferences outrank template examples and assignment bias. Website templates no longer introduce forms, accounts, visitor storage, containers or CI by default. The app checks recognized explicit no-forms/accounts/tracking constraints; broader semantic scope still needs Coordinator and operator review. Explicit primary choices saved by Use one route persist in `story_route` across replans. A conservative reader also recognizes unambiguous named Haiku/Sonnet/Luna/Terra story preferences in saved input. It does not infer permission from a bare model mention. Configured membership routes replace free/API defaults only on an unsubmitted proposal; unavailable routes are setup findings. Other subscription/capability exceptions are visible for review, and existing route/spend/risk gates remain enforced.

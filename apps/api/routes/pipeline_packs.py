@@ -1,4 +1,5 @@
-"""Pipeline packs in Installs & updates: list the signed packs release, install, update and remove. Operator only; packs are data, never code."""
+"""The template store in Installs & updates: list the signed packs release (templates and approved tools), install, update and remove.
+Operator only; packs are data, never code."""
 from __future__ import annotations
 
 import time
@@ -9,6 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 import pipeline_packs as pp
+import project_types
 from deps import get_session
 from models import UserCredential
 from routes.agent_tools import operator
@@ -54,12 +56,20 @@ def packs(request: Request, refresh: bool = False, s: Session = Depends(get_sess
     listing, error = _listing(refresh)
     installed = {p["manifest"]["id"]: p for p in pp.installed(get_settings())}
     offered = []
+    settings = get_settings()
     for entry in (listing or {}).get("packs", []):
         current = installed.get(entry["id"])
+        needs = [r for r in project_types.requirements({"requires": {**(entry.get("requires") or {}), "app_min": entry.get("app_min") or "0.0.0"}}, settings, saved)
+                 if r["status"] in ("missing", "unknown")]
         offered.append({"id": entry["id"], "label": entry.get("label") or entry["id"], "summary": entry.get("summary") or "", "version": entry["pack_version"],
                         "service": _service(entry, saved), "installed": current["version"] if current else None,
-                        "update": bool(current and pp._version_tuple(entry["pack_version"]) > pp._version_tuple(current["version"]))})
-    return {"repository": pp.PACKS_REPOSITORY, "release": (listing or {}).get("release"), "error": error, "available": offered,
+                        "update": bool(current and pp._version_tuple(entry["pack_version"]) > pp._version_tuple(current["version"])),
+                        "author": entry.get("author"), "trust": entry.get("trust"), "settings": entry.get("settings") or [], "needs": needs,
+                        "too_new": any(r["kind"] == "app" for r in needs)})
+    tools = {kind: [{**t, "status": status, "detail": detail, "link": project_types.LINKS[kind]}
+                    for t in rows for status, detail in [project_types.tool_status(kind, t["id"], settings, saved)]]
+             for kind, rows in ((listing or {}).get("tools") or {}).items()}
+    return {"repository": pp.PACKS_REPOSITORY, "release": (listing or {}).get("release"), "error": error, "available": offered, "tools": tools,
             "installed": [{"id": m["id"], "label": m.get("label") or m["id"], "version": p["version"], "project_types": m.get("project_types", []),
                            "service": _service(m, saved)} for p in installed.values() for m in [p["manifest"]]]}
 

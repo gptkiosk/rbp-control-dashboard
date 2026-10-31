@@ -156,3 +156,47 @@ def test_routes_offer_packs_and_hold_a_service_pack_until_its_credential_is_save
     monkeypatch.setattr(route.pp, "download_and_install", lambda settings, entry, version: calls.append(entry["id"]) or {"id": entry["id"], "pack_version": "0.1.0", "project_types": ["upubhub-class"]})
     assert client.post("/api/pipeline-packs/install", json={"id": "upubhub-class"}).status_code == 200 and calls == ["upubhub-class"]
     assert client.delete("/api/pipeline-packs/nothing-here").status_code == 404
+
+
+def test_the_index_keeps_store_fields_and_tools_in_their_expected_shapes():
+    entry = {"id": "course-pack", "pack_version": "0.2.0", "label": "Course pack", "archive": "course-pack-0.2.0.tar.gz", "sha256": "a" * 64,
+             "author": "a-teacher", "trust": "community", "settings": ["Lessons", 5], "app_min": "0.6.88",
+             "requires": {"system_tools": ["ffmpeg", "Bad Name"], "checks": ["course-package"], "anything": ["x"]}}
+    odd = {**entry, "id": "odd-pack", "archive": "odd-pack-0.2.0.tar.gz", "author": "<b>me</b>", "trust": "verified", "requires": "all"}
+    tools = {"system_tools": [{"id": "ffmpeg", "name": "FFmpeg", "description": "Converts video.", "app_min": "0.6.0"}, {"id": "../x", "name": "x"}],
+             "agents": "nope"}
+    data = json.dumps({"format": "dashboard-pipeline-pack-index", "version": "0.1", "packs": [entry, odd], "tools": tools}).encode()
+    first, second = pp.parse_index(data)
+    assert (first["author"], first["trust"], first["settings"]) == ("a-teacher", "community", ["Lessons"])
+    assert first["requires"] == {"system_tools": ["ffmpeg"], "checks": ["course-package"]}
+    assert (second["author"], second["trust"], second["requires"]) == (None, None, {})
+    listed = pp.parse_tools(data)
+    assert listed["system_tools"] == [{"id": "ffmpeg", "name": "FFmpeg", "description": "Converts video.", "app_min": "0.6.0"}]
+    assert listed["agents"] == [] and pp.parse_tools(b"not json") == {}
+
+
+def test_the_store_listing_names_what_this_host_lacks_and_shows_the_tools(make_client, monkeypatch):
+    import routes.pipeline_packs as route
+    client = make_client()
+
+    @client.app.middleware("http")
+    async def operator_session(request, call_next):
+        request.state.user = {"email": "operator@example.invalid"}
+        return await call_next(request)
+
+    offered = {"release": "packs-2", "packs": [
+        {"id": "course-pack", "pack_version": "0.2.0", "label": "Course pack", "summary": "", "service": None, "archive": "x", "sha256": "0" * 64, "url": "u",
+         "app_min": "0.6.0", "author": "gptkiosk", "trust": "official", "settings": ["Lessons"], "requires": {"checks": ["course-package", "future-check"], "providers": ["fal"]}},
+        {"id": "next-pack", "pack_version": "1.0.0", "label": "Next", "summary": "", "service": None, "archive": "y", "sha256": "0" * 64, "url": "v",
+         "app_min": "99.0.0", "author": None, "trust": None, "settings": [], "requires": {}}],
+        "tools": {"checks": [{"id": "course-package", "name": "Course package check", "description": "Checks a course.", "app_min": "0.6.87"}],
+                  "providers": [{"id": "fal", "name": "fal", "description": "Media.", "app_min": "0.6.13"}]}}
+    monkeypatch.setattr(route.pp, "available", lambda: offered)
+    route._CACHE.update(at=0.0, listing=None, error=None)
+    body = client.get("/api/pipeline-packs").json()
+    course, later = body["available"]
+    assert (course["trust"], course["author"], course["settings"], course["too_new"]) == ("official", "gptkiosk", ["Lessons"], False)
+    assert {(n["kind"], n["id"], n["status"]) for n in course["needs"]} == {("checks", "future-check", "unknown"), ("providers", "fal", "missing")}
+    assert later["too_new"] is True and later["needs"][0]["detail"] == "Needs dashboard 99.0.0 or newer."
+    assert body["tools"]["checks"][0]["status"] == "ready" and body["tools"]["providers"][0]["status"] == "missing"
+    assert body["tools"]["providers"][0]["link"] == "/profile#credentials-profile"

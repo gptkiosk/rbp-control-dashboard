@@ -30,6 +30,8 @@ FORMAT = ("dashboard-pipeline-pack", "0.1")
 INDEX_FORMAT = ("dashboard-pipeline-pack-index", "0.1")
 ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,39}$")
 VERSION_RE = re.compile(r"^\d{1,4}\.\d{1,4}\.\d{1,4}$")
+NAME_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{0,39}$")            # a tool a template requires, as in the store's platform/tools.json
+REQUIRE_KINDS = ("agents", "system_tools", "providers", "checks", "services")
 GUIDE_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,60}\.md$")
 MAX_FILE_BYTES = 40_000
 MAX_FILES = 40
@@ -285,8 +287,31 @@ def parse_index(data: bytes) -> list[dict]:
         if not isinstance(entry, dict) or not ID_RE.fullmatch(str(entry.get("id", ""))) or not VERSION_RE.fullmatch(str(entry.get("pack_version", ""))) \
                 or not re.fullmatch(r"[0-9a-f]{64}", str(entry.get("sha256", ""))) or entry.get("archive") != f"{entry.get('id')}-{entry.get('pack_version')}.tar.gz":
             continue
-        packs.append({k: entry.get(k) for k in ("id", "pack_version", "label", "summary", "service", "archive", "sha256", "app_min")})
+        item = {k: entry.get(k) for k in ("id", "pack_version", "label", "summary", "service", "archive", "sha256", "app_min")}
+        # Store fields (template store 1.0). The index is signed, but keep only the expected shapes so the page shows nothing else.
+        item["author"] = entry["author"] if isinstance(entry.get("author"), str) and re.fullmatch(r"[A-Za-z0-9-]{1,39}", entry["author"]) else None
+        item["trust"] = entry.get("trust") if entry.get("trust") in ("official", "community") else None
+        requires = entry.get("requires") if isinstance(entry.get("requires"), dict) else {}
+        item["requires"] = {k: [x for x in v if isinstance(x, str) and NAME_RE.fullmatch(x)][:12] for k, v in requires.items()
+                            if k in REQUIRE_KINDS and isinstance(v, list)}
+        item["settings"] = [x[:100] for x in entry.get("settings", []) if isinstance(x, str)][:40] if isinstance(entry.get("settings"), list) else []
+        packs.append(item)
     return packs
+
+
+def parse_tools(data: bytes) -> dict[str, list[dict]]:
+    """The approved tools the signed index lists, by kind, as the store's Tools tab shows them."""
+    try:
+        tools = json.loads(data.decode("utf-8")).get("tools")
+    except (ValueError, UnicodeError, AttributeError):
+        return {}
+    out = {}
+    for kind in REQUIRE_KINDS:
+        rows = tools.get(kind) if isinstance(tools, dict) and isinstance(tools.get(kind), list) else []
+        out[kind] = [{"id": t["id"], "name": str(t.get("name") or t["id"])[:80], "description": str(t.get("description") or "")[:400],
+                      "app_min": t.get("app_min") if VERSION_RE.fullmatch(str(t.get("app_min", ""))) else None}
+                     for t in rows if isinstance(t, dict) and isinstance(t.get("id"), str) and NAME_RE.fullmatch(t["id"])][:60]
+    return out
 
 
 def verify_archive(entry: dict, data: bytes) -> dict[str, bytes]:
@@ -348,7 +373,7 @@ def available(opener=None, signer: str = RELEASE_SIGNER, **overrides) -> dict:
     packs = parse_index(index)
     for entry in packs:
         entry["url"] = assets.get(entry["archive"])
-    return {"release": str(release.get("tag_name") or ""), "packs": [p for p in packs if p["url"]]}
+    return {"release": str(release.get("tag_name") or ""), "packs": [p for p in packs if p["url"]], "tools": parse_tools(index)}
 
 
 def download_and_install(settings, entry: dict, app_version: str, opener=None, **overrides) -> dict:
