@@ -11,6 +11,10 @@ Layout (relative to the project folder):
   course/lesson-plans/<lesson>.md
   course/assessments/<lesson>.json   upubhub class activity settings
   UPLOAD.md                          the upload and class-setup checklist
+
+course.json `kind` says which package it is: `class` (the default; everything above), `textbook` (textbook and topics only) or
+`lesson_plan` (one lesson plan only). With `provided` (the template's content source is the teacher's own files), the text is the
+teacher's, so ai_provenance may also be hand_crafted or mixed; pipeline-written text is never declared human-written.
 """
 from __future__ import annotations
 
@@ -22,6 +26,8 @@ from pathlib import Path
 LESSON_RE = re.compile(r"^\d{2}-[a-z0-9][a-z0-9-]{0,60}$")
 LICENCES = {"CC-BY-4.0", "CC-BY-SA-4.0", "CC0-1.0", "public-domain"}
 PROVENANCE = {"ai_assisted", "ai_generated"}
+PROVIDED_PROVENANCE = PROVENANCE | {"hand_crafted", "mixed"}
+PACKAGE_KINDS = {"class": {"textbook", "lesson-plans", "assessments"}, "textbook": {"textbook"}, "lesson_plan": {"lesson-plans"}}
 KINDS = {"person", "historic_figure", "place", "subject"}
 STRICTNESS = {"lenient", "balanced", "strict"}
 MAX_LESSON_CHARS = 60_000
@@ -148,8 +154,17 @@ def _assessment(a, lesson: str, labels: set[str], problems: list[str]) -> None:
         problems.append(f"{where}: rubric_notes must be text of at most 2,000 characters.")
 
 
-def check(root: Path, code: str | None = None) -> dict:
-    """{'ok', 'problems', 'counts'} for the course package in a project folder. `code` is the class code the project's settings call for."""
+def _lesson_plan_file(course_dir: Path, lid: str, problems: list[str]) -> None:
+    try:
+        if not (course_dir / "lesson-plans" / f"{lid}.md").read_text("utf-8").strip():
+            problems.append(f"course/lesson-plans/{lid}.md is empty.")
+    except (OSError, UnicodeError):
+        problems.append(f"course/lesson-plans/{lid}.md is missing.")
+
+
+def check(root: Path, code: str | None = None, provided: bool = False) -> dict:
+    """{'ok', 'problems', 'counts'} for the course package in a project folder. `code` is the class code the project's settings call for;
+    `provided` says the text is the teacher's own (see the module notes)."""
     root = Path(root)
     course_dir = root / "course"
     problems: list[str] = []
@@ -169,7 +184,14 @@ def check(root: Path, code: str | None = None) -> dict:
         problems.append("course.json: code must look like MATH:07-Forces and Motion (3 to 5 capital letters, a colon, a level from 00 to 16, a dash, the class name).")
     if not isinstance(course.get("objectives"), list) or not course["objectives"] or not all(_text(o, 10, 1000) for o in course["objectives"]):
         problems.append("course.json: objectives must be a non-empty list of measurable objectives (10 to 1,000 characters each).")
-    if course.get("ai_provenance") not in PROVENANCE:
+    kind = course.get("kind", "class")
+    if kind not in PACKAGE_KINDS:
+        problems.append(f"course.json: kind must be one of {', '.join(sorted(PACKAGE_KINDS))}.")
+        kind = "class"
+    folders = PACKAGE_KINDS[kind]
+    if provided and course.get("ai_provenance") not in PROVIDED_PROVENANCE:
+        problems.append("course.json: ai_provenance must be hand_crafted for your own text (or mixed, ai_assisted or ai_generated if AI helped write it).")
+    elif not provided and course.get("ai_provenance") not in PROVENANCE:
         problems.append("course.json: ai_provenance must be ai_assisted or ai_generated; pipeline-written text is never declared human-written.")
     credits = course.get("credits", [])
     credited: set[str] = set()
@@ -191,7 +213,9 @@ def check(root: Path, code: str | None = None) -> dict:
     if not isinstance(lessons, list) or not lessons:
         problems.append("course.json: lessons must list at least one lesson.")
         lessons = []
-    topics_all = _read_json(course_dir / "topics.json", problems, "course/topics.json") if lessons else {}
+    if kind == "lesson_plan" and len(lessons) > 1:
+        problems.append("course.json: a lesson plan package holds exactly one lesson.")
+    topics_all = _read_json(course_dir / "topics.json", problems, "course/topics.json") if lessons and "textbook" in folders else {}
     if topics_all is not None and not isinstance(topics_all, dict):
         problems.append("course/topics.json must be an object keyed by lesson id.")
         topics_all = {}
@@ -212,6 +236,9 @@ def check(root: Path, code: str | None = None) -> dict:
             problems.append(f"course.json {lid}: title is required.")
         if not isinstance(lesson.get("objectives"), list) or not lesson["objectives"] or not all(_text(o, 10, 1000) for o in lesson["objectives"]):
             problems.append(f"course.json {lid}: objectives must be a non-empty list (10 to 1,000 characters each).")
+        if "textbook" not in folders:
+            _lesson_plan_file(course_dir, lid, problems)
+            continue
         wanted = lesson.get("sections")
         if not isinstance(wanted, list) or not wanted or not all(_text(x, 1, 200) for x in wanted):
             problems.append(f"course.json {lid}: sections must list the lesson's \"## \" section headings.")
@@ -257,25 +284,24 @@ def check(root: Path, code: str | None = None) -> dict:
         for t in lesson_topics:
             counts["topics"] += 1
             _topic(t, lid, titles, used, problems)
-        try:
-            if not (course_dir / "lesson-plans" / f"{lid}.md").read_text("utf-8").strip():
-                problems.append(f"course/lesson-plans/{lid}.md is empty.")
-        except (OSError, UnicodeError):
-            problems.append(f"course/lesson-plans/{lid}.md is missing.")
-        labels = {t.get("label") for t in lesson_topics if isinstance(t, dict)}
-        assessment = _read_json(course_dir / "assessments" / f"{lid}.json", problems, f"course/assessments/{lid}.json")
-        if assessment is not None:
-            _assessment(assessment, lid, labels, problems)
+        if "lesson-plans" in folders:
+            _lesson_plan_file(course_dir, lid, problems)
+        if "assessments" in folders:
+            labels = {t.get("label") for t in lesson_topics if isinstance(t, dict)}
+            assessment = _read_json(course_dir / "assessments" / f"{lid}.json", problems, f"course/assessments/{lid}.json")
+            if assessment is not None:
+                _assessment(assessment, lid, labels, problems)
 
     for stray in sorted(set(topics_all) - set(ids)):
         problems.append(f"topics.json has topics for {stray}, which is not a lesson in course.json.")
+    top_files = TOP_FILES if "textbook" in folders else {"course.json"}
     for path in sorted(course_dir.iterdir()):
-        if path.is_file() and path.name not in TOP_FILES:
-            problems.append(f"course/{path.name} is not part of the package layout.")
-        elif path.is_dir() and path.name not in FOLDERS:
-            problems.append(f"course/{path.name}/ is not part of the package layout.")
+        if path.is_file() and path.name not in top_files:
+            problems.append(f"course/{path.name} is not part of the {kind.replace('_', ' ')} package layout.")
+        elif path.is_dir() and path.name not in folders:
+            problems.append(f"course/{path.name}/ is not part of the {kind.replace('_', ' ')} package layout.")
     for folder, suffix in FOLDERS.items():
-        if (course_dir / folder).is_dir():
+        if folder in folders and (course_dir / folder).is_dir():
             for path in sorted((course_dir / folder).iterdir()):
                 if path.suffix != suffix or path.stem not in ids:
                     problems.append(f"course/{folder}/{path.name} does not belong to a lesson in course.json.")

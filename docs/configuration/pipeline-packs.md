@@ -40,6 +40,35 @@ To share a template with everyone, follow `CONTRIBUTING.md` in
 template**, then open a pull request. It is scanned, rehearsed and reviewed, and appears as **Community** with your name once a
 signed release includes it.
 
+## Pushing to upubhub (`upubhub-push`)
+
+The upubhub class, textbook and lesson-plan templates name the `upubhub-push` connector (`apps/api/upubhub_push.py`). It sends the
+project's course package to upubhub.com through its publish API (upubhub 1.41 or newer) as **private drafts**: the textbook and
+lesson plans are private works, and a class is created **invite-only and free**. Nothing is published; you review and publish on
+upubhub. Pushing again updates the same textbook, plans and class (they are keyed by the course's class code, or its title), and
+never changes visibility, entry or anything else you set on upubhub.
+
+1. In upubhub, open **Connections** and create a token with **Also allow pushing classes** ticked (Teacher plan).
+2. In the dashboard, save it in **Settings → General → Private credentials** as **upubhub**.
+3. Run the project. The **Push to upubhub** panel appears on the push story (titled like *Push the course to upubhub*). It stays
+   off until every earlier story, including your final sign-off, is done, the token is saved and the course package check passes;
+   it lists anything still missing.
+4. Press **Push to upubhub**. The panel links to the textbook, plans and class on upubhub. An assessment whose lesson is still in
+   upubhub's moderation shows as waiting; push again once the lesson is published.
+
+What is sent, in order: images the lessons use (uploaded once, then reused), the textbook (`kind: textbook`, one chapter per
+lesson), each lesson plan (`kind: lesson_plan`), the textbook's chat-out topics, then the class with one assignment per lesson and
+its assessment settings. A textbook package stops after the topics; a lesson-plan package sends one lesson plan.
+
+- **Labels.** Written by the pipeline, the work is labelled AI-assisted on upubhub (upubhub has no separate "AI generated"). With the
+  template's content source set to your own files, `course.json` says `hand_crafted` and the work is labelled hand-crafted.
+- **The token** is read only when you press Push, sent only to upubhub as a bearer header, and never written to the project, the
+  receipt or the project notes. Agents never see it.
+- **The receipt** (ids and links only) is kept in the dashboard's data folder, `upubhub-push/project-<id>.json`, and a note is
+  added to the project.
+- `MAC_CONTROL_UPUBHUB_URL` points the connector at another upubhub, for example `http://127.0.0.1:8000` for a local test stack
+  (https otherwise).
+
 ## What a pack can and cannot do
 
 A pack is data: JSON and Markdown. It gives the planner a project type (planner text, failure points, sign-offs, plan checks, intake questions) and short format guides. A pack may replace the general software guides (development practice, security) for its own types, so a course plan does not spend its guidance budget on deployment advice; it can only choose among shipped guides for that.

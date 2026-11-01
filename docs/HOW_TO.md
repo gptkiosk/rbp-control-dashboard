@@ -462,6 +462,20 @@ Templates are data only and never run code here. An imported template is marked 
 
 [Open Template store](http://127.0.0.1:8800/profile#pipeline-packs) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=template-store)
 
+## Push a class, textbook or lesson plan to upubhub
+
+The upubhub templates can send the finished package to upubhub.com as private drafts and an invite-only class, after your final sign-off.
+
+1. In upubhub, open Connections and create a token with Also allow pushing classes ticked (Teacher plan). Copy it; it is shown once.
+2. In the dashboard, open Settings, General, Private credentials and save it as upubhub.
+3. Start a project from the upubhub class, textbook or lesson plan template. To use your own writing, set the content source to your own files and put inputs/textbook.md (and inputs/lesson-plans/*.md) in the project folder.
+4. Run the project to the push story. Its Push to upubhub panel stays off until your final sign-off is done, the token is saved and the package check passes, and lists anything missing.
+5. Press Push to upubhub, then open the links to review the drafts on upubhub, publish the lessons and open the class when you are ready. Pushing again updates the same items.
+
+Nothing is published by a push: works arrive private and a class invite-only and free. The token is read only when you press Push and goes only to upubhub.
+
+[Open Projects](http://127.0.0.1:8800/projects) · [Private credentials](http://127.0.0.1:8800/profile#credentials-profile) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=upubhub-push)
+
 ## Make site art and video for a project (fal)
 
 Open the Media studio from the project (or from a human media story), see what it will cost, generate stills and clips, review them and publish the ones you choose.

@@ -292,6 +292,14 @@ export const helpGuides: HelpGuide[] = [
     note: 'Templates are data only and never run code here. An imported template is marked Local, unvetted: the store\u2019s scan, model review and rehearsal did not run on it, and its text goes to your AI models as planning guidance.',
   },
   {
+    id: 'upubhub-push', title: 'Push a class, textbook or lesson plan to upubhub', area: 'Projects',
+    summary: 'The upubhub templates can send the finished package to upubhub.com as private drafts and an invite-only class, after your final sign-off.',
+    keywords: ['upubhub','push','publish','class','textbook','lesson plan','teacher','private draft','token','connections','api'],
+    steps: ['In upubhub, open Connections and create a token with Also allow pushing classes ticked (Teacher plan). Copy it; it is shown once.', 'In the dashboard, open Settings, General, Private credentials and save it as upubhub.', 'Start a project from the upubhub class, textbook or lesson plan template. To use your own writing, set the content source to your own files and put inputs/textbook.md (and inputs/lesson-plans/*.md) in the project folder.', 'Run the project to the push story. Its Push to upubhub panel stays off until your final sign-off is done, the token is saved and the package check passes, and lists anything missing.', 'Press Push to upubhub, then open the links to review the drafts on upubhub, publish the lessons and open the class when you are ready. Pushing again updates the same items.'],
+    links: [{ label: 'Open Projects', to: '/projects' }, { label: 'Private credentials', to: '/profile#credentials-profile' }],
+    note: 'Nothing is published by a push: works arrive private and a class invite-only and free. The token is read only when you press Push and goes only to upubhub.',
+  },
+  {
     id: 'project-media', title: 'Make site art and video for a project (fal)', area: 'Projects',
     summary: 'Open the Media studio from the project (or from a human media story), see what it will cost, generate stills and clips, review them and publish the ones you choose.',
     keywords: ['media','fal','image','video','clip','still','art','reference art','upload','concept art','space','disk','generate','publish','candidate','another take','tier','minimax','veo','nano banana','spending acknowledgement'],

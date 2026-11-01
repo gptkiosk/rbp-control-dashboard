@@ -52,7 +52,7 @@ RELEASE_SIGNER = ('dashboard-release namespaces="dashboard-release" ssh-ed25519 
                   'AAAAC3NzaC1lZDI1NTE5AAAAINrWOiSyq/L4xNRGHAf7s8ZujXlun9TnuRHJ9X25Ef2z dashboard-release')
 RELEASE_IDENTITY = "dashboard-release"
 KNOWN_CHECKS: frozenset[str] = frozenset({"course-package"})
-KNOWN_CONNECTORS: frozenset[str] = frozenset()
+KNOWN_CONNECTORS: frozenset[str] = frozenset({"upubhub-push"})   # upubhub_push.py
 
 
 class PackError(Exception):
@@ -249,6 +249,15 @@ def general_guides_for(type_id: str, settings) -> list[str] | None:
         if type_id in m.get("project_types", []) and isinstance(m.get("general_guides"), list):
             return list(m["general_guides"])
     return None
+
+
+def connectors_for(type_id: str, settings) -> list[str]:
+    """The app connectors an installed pack enables for one of its project types (for example upubhub-push)."""
+    for pack in installed(settings):
+        m = pack["manifest"]
+        if type_id in m.get("project_types", []):
+            return [c for c in m.get("connectors", []) if c in KNOWN_CONNECTORS]
+    return []
 
 
 def checks_for(type_id: str, settings) -> list[str]:
