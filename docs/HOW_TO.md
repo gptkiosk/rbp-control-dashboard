@@ -448,6 +448,20 @@ Types guide planning. Required gates block incomplete plans; checks never run mo
 
 [Start a project](http://127.0.0.1:8800/projects?action=new) · [Open Projects](http://127.0.0.1:8800/projects) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=project-types)
 
+## Add, update and make project templates
+
+Project templates come from the signed Template store and update on their own, without a dashboard update. You can also import a template you made, unvetted, to try it.
+
+1. Open Settings, then Template store. Installed templates are on top, available ones below. Choose Add on a card; anything this host still lacks is named on the card with a link to fix it.
+2. When a newer version exists, the tab says how many updates are waiting, each card shows What’s new, and Update all updates every template one after another. Projects already planned keep their plans.
+3. To go back after an update, pick an earlier version under Version on the installed card. Earlier versions stay on this host until you remove the template.
+4. To try a template you made, choose Import a template, read the notice, tick that you accept the risk and choose a .zip or .tar.gz of the template folder (pack.json, project-types/, guides/). It must use its own id, not a store or built-in one. Import a higher pack_version to replace it.
+5. To share a template with everyone, follow CONTRIBUTING.md in the gptkiosk/dashboard-pipeline-packs repository: test it here with Import a template, then open a pull request. It is scanned, rehearsed and reviewed, and appears in the store as Community with your name once a signed release includes it.
+
+Templates are data only and never run code here. An imported template is marked Local, unvetted: the store’s scan, model review and rehearsal did not run on it, and its text goes to your AI models as planning guidance.
+
+[Open Template store](http://127.0.0.1:8800/profile#pipeline-packs) · [Bookmark this how-to](http://127.0.0.1:8800/help?topic=template-store)
+
 ## Make site art and video for a project (fal)
 
 Open the Media studio from the project (or from a human media story), see what it will cost, generate stills and clips, review them and publish the ones you choose.
@@ -461,6 +475,7 @@ Open the Media studio from the project (or from a human media story), see what i
 7. Review each candidate as a thumbnail or video. Accept and publish the one you want (RCD converts and records it), choose None of these to make another, or Skip to keep the site’s drawn fallback.
 8. To keep the bill small, give each slot in media/slots.json only the resolution it needs: "resolution": "1K" for a picture shown small, "480P" for a retro or VHS-look clip (it costs 0.625 of 768p). The estimate on the slot follows it.
 9. A slot with generations still waiting for review is not generated again unless you choose Another take, so a double click never pays twice. A published slot is only regenerated when you choose Regenerate.
+10. To change a published picture, open More on it: Revise prompt… edits its prompt, and Regenerate… makes new takes. They wait under Waiting for your decision, and the published file is replaced only when you accept one. The site’s width-named copies (such as responsive/garden-fantasy-960.webp) are re-made from it; any that cannot be are named so a story can rebuild them.
 
 A clip starts from a published, approved still. A draft still is too small to publish; make stills at standard or premium. Agents never receive the fal key and cannot generate media.
 

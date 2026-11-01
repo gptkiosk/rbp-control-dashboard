@@ -46,6 +46,7 @@ type Tab = typeof TABS[number]['id']
 const HOME: Record<string, Tab> = { 'models-providers': 'ai', 'ai-settings': 'ai', accounts: 'ai', 'coordinator-bootstrap': 'ai', 'route-recovery': 'ai', 'agent-roles': 'ai', roles: 'ai', updates: 'updates', 'agent-tools': 'updates', 'system-tools': 'updates', 'pipeline-packs': 'templates', templates: 'templates', housekeeping: 'maintenance', 'github-settings': 'maintenance', 'github-actions': 'maintenance', 'bug-intake': 'maintenance', 'issue-tasks': 'maintenance', reports: 'maintenance' }
 const THEMES = [{ id: 'system', label: 'Device' }, { id: 'light', label: 'Light' }, { id: 'dark', label: 'Dark' }] as const
 const tab = ref<Tab>('settings')
+const templateUpdates = ref(0)   // shown on the Template store tab; the panel reports it after each store check
 function fromHash() {
   const id = (router ? router.currentRoute.value.hash : window.location.hash).replace('#', '')
   if (!id) return
@@ -126,7 +127,7 @@ async function importPreferences(event: Event) { await action(async () => {
       <RouterLink to="/setup" class="btn">Setup wizard</RouterLink>
     </header>
     <nav class="tabs" role="tablist" aria-label="Settings sections">
-      <button v-for="t in TABS" :key="t.id" type="button" role="tab" class="tab" :class="{ on: tab === t.id }" :aria-selected="tab === t.id" :data-tab="t.id" @click="pick(t.id)">{{ t.label }}</button>
+      <button v-for="t in TABS" :key="t.id" type="button" role="tab" class="tab" :class="{ on: tab === t.id }" :aria-selected="tab === t.id" :data-tab="t.id" @click="pick(t.id)">{{ t.label }}<span v-if="t.id === 'templates' && templateUpdates" class="tab-count" :aria-label="`${templateUpdates} template updates`"> · {{ templateUpdates }}</span></button>
     </nav>
     <p v-if="error" class="notice-warn" role="alert">{{ error }}</p><p v-if="notice" class="card" role="status">{{ notice }}</p>
 
@@ -138,7 +139,7 @@ async function importPreferences(event: Event) { await action(async () => {
     </div>
 
     <div v-show="tab === 'templates'" class="group" role="tabpanel" aria-label="Template store">
-      <PipelinePacksPanel />
+      <PipelinePacksPanel @updates="(n) => (templateUpdates = n)" />
     </div>
 
     <div v-show="tab === 'maintenance'" class="group" role="tabpanel" aria-label="Maintenance and access">
@@ -248,6 +249,7 @@ async function importPreferences(event: Event) { await action(async () => {
 .tabs { display:flex; gap:var(--gap-xs); flex-wrap:nowrap; overflow-x:auto; margin:var(--gap) 0; border-bottom:1px solid var(--surface-border); }
 .tab { white-space:nowrap; padding:var(--gap-sm) var(--gap); border:0; border-bottom:2px solid transparent; background:none; color:var(--text-muted); font:inherit; cursor:pointer; }
 .tab.on { color:var(--text); border-bottom-color:var(--accent); font-weight:var(--font-weight-strong); }
+.tab-count { color:var(--accent); font-weight:var(--font-weight-strong); }
 .group { display:grid; gap:var(--gap-lg); margin-top:var(--gap); } .group > :deep(.card), .group > :deep(section) { margin:0; }
 .profile-grid { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.2fr); gap:var(--gap-lg); align-items:start; margin-top:var(--gap-lg); }
 .profile-stack { display:grid; gap:var(--gap-lg); min-width:0; } .card { background:var(--agent-glass); min-width:0; display:grid; gap:var(--gap); align-content:start; }

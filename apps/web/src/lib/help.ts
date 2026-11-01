@@ -284,6 +284,14 @@ export const helpGuides: HelpGuide[] = [
     note: 'Types guide planning. Required gates block incomplete plans; checks never run model output. A Website property also starts its background clips on the cheapest video tier in the media panel.',
   },
   {
+    id: 'template-store', title: 'Add, update and make project templates', area: 'Projects',
+    summary: 'Project templates come from the signed Template store and update on their own, without a dashboard update. You can also import a template you made, unvetted, to try it.',
+    keywords: ['template','template store','pack','pipeline pack','update template','what is new','rollback','previous version','import template','own template','custom template','unvetted','submit template','community'],
+    steps: ['Open Settings, then Template store. Installed templates are on top, available ones below. Choose Add on a card; anything this host still lacks is named on the card with a link to fix it.', 'When a newer version exists, the tab says how many updates are waiting, each card shows What\u2019s new, and Update all updates every template one after another. Projects already planned keep their plans.', 'To go back after an update, pick an earlier version under Version on the installed card. Earlier versions stay on this host until you remove the template.', 'To try a template you made, choose Import a template, read the notice, tick that you accept the risk and choose a .zip or .tar.gz of the template folder (pack.json, project-types/, guides/). It must use its own id, not a store or built-in one. Import a higher pack_version to replace it.', 'To share a template with everyone, follow CONTRIBUTING.md in the gptkiosk/dashboard-pipeline-packs repository: test it here with Import a template, then open a pull request. It is scanned, rehearsed and reviewed, and appears in the store as Community with your name once a signed release includes it.'],
+    links: [{ label: 'Open Template store', to: '/profile#pipeline-packs' }],
+    note: 'Templates are data only and never run code here. An imported template is marked Local, unvetted: the store\u2019s scan, model review and rehearsal did not run on it, and its text goes to your AI models as planning guidance.',
+  },
+  {
     id: 'project-media', title: 'Make site art and video for a project (fal)', area: 'Projects',
     summary: 'Open the Media studio from the project (or from a human media story), see what it will cost, generate stills and clips, review them and publish the ones you choose.',
     keywords: ['media','fal','image','video','clip','still','art','reference art','upload','concept art','space','disk','generate','publish','candidate','another take','tier','minimax','veo','nano banana','spending acknowledgement'],

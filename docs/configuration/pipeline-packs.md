@@ -6,6 +6,40 @@ The **Tools** tab lists the agents, system tools, providers, checks and services
 
 A pack for a service (for example upubhub.com) needs that service's credential first. Until it is saved in **General → Private credentials**, the pack's **Install** button is disabled and the reason is shown next to it.
 
+## Updating templates
+
+Templates update apart from the dashboard, so a template can be improved and tested without waiting for a dashboard release.
+
+- **Check the store** reads the latest signed release (the list is otherwise cached for 15 minutes). The **Template store** tab
+  shows how many updates are waiting, for example *Template store · 2*.
+- An installed card with a newer version shows **What's new** (the version's `changes` text) and **Update to x.y.z**.
+  **Update all** updates every template that has one, one after another, and reports each result. A template that needs a
+  newer dashboard is left out until you update the dashboard.
+- Earlier versions stay on this host. Pick one under **Version** on the installed card to switch back
+  (`POST /api/pipeline-packs/<id>/activate`); the stored files are checked again before they are used. Removing a template
+  deletes every version.
+- Projects already planned keep their plans. A new plan uses the version that is active when you plan.
+
+## Importing your own template (unvetted)
+
+**Import a template** installs a template from a `.zip` or `.tar.gz` of its folder (`pack.json`, `project-types/`,
+`guides/`; macOS **Compress** works). Use it to try a template you are writing before you submit it, or one someone sent you.
+
+- You must tick that you accept the risk. An imported template is **not vetted**: the store's security scan, model review and
+  rehearsal did not run, nothing checked who made it, and its text goes to your AI models as planning guidance.
+- It must still be data only, within the same limits as store templates, and pass the same checks (`POST
+  /api/pipeline-packs/import?accept_risk=true`, the archive as the request body).
+- It can never use a store or built-in id, or a project type id another template already provides, so store and local copies
+  never mix. Give it your own id, for example `my-geology-class`.
+- It is marked **Local, unvetted** in the store and in the project type picker, and never receives store updates. Import a
+  higher `pack_version` to replace it; the earlier one stays available under **Version**.
+- A store template with the same id cannot be added while your own is installed; remove yours first.
+
+To share a template with everyone, follow `CONTRIBUTING.md` in
+[gptkiosk/dashboard-pipeline-packs](https://github.com/gptkiosk/dashboard-pipeline-packs): test it here with **Import a
+template**, then open a pull request. It is scanned, rehearsed and reviewed, and appears as **Community** with your name once a
+signed release includes it.
+
 ## What a pack can and cannot do
 
 A pack is data: JSON and Markdown. It gives the planner a project type (planner text, failure points, sign-offs, plan checks, intake questions) and short format guides. A pack may replace the general software guides (development practice, security) for its own types, so a course plan does not spend its guidance budget on deployment advice; it can only choose among shipped guides for that.
@@ -35,6 +69,7 @@ An install then checks the archive against the sha256 the signed index gives it,
   "format": "dashboard-pipeline-pack", "version": "0.1",
   "id": "upubhub-class", "pack_version": "0.1.0",
   "label": "upubhub class (textbook, lesson plans, assessments)",
+  "changes": "What changed in this version, shown as What's new (optional, at most 600 characters).",
   "service": {"id": "upubhub", "label": "upubhub.com", "credential": "upubhub"},
   "app_min": "0.6.87",
   "project_types": ["upubhub-class"],
@@ -44,7 +79,7 @@ An install then checks the archive against the sha256 the signed index gives it,
 }
 ```
 
-An archive `<id>-<pack_version>.tar.gz` holds `pack.json`, `project-types/<id>.json` for every listed type and `guides/<name>.md` for every listed guide, optionally under one top folder. Nothing else is allowed: no links, no other files, at most 40 files of 40 KB each. A pack guide may not reuse a shipped guide's name.
+An archive `<id>-<pack_version>.tar.gz` holds `pack.json`, `project-types/<id>.json` for every listed type and `guides/<name>.md` for every listed guide, optionally under one top folder. Nothing else is allowed: no links, no other files, at most 40 files of 40 KB each. A pack guide may not reuse a shipped guide's name. An own import may also be a `.zip` with the same contents; Finder's `__MACOSX` and `.DS_Store` entries are ignored.
 
 `pipeline-packs.json`:
 

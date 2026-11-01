@@ -98,3 +98,54 @@ it('lists the approved tools with whether this host has them', async () => {
   expect(w.get('[data-tool=ffmpeg]').text()).toContain('Needs ffmpeg: install it in System tools. Fix this')
   w.unmount()
 })
+
+it('updates every template that has a newer version, shows what is new, and reports the count', async () => {
+  const installed = (id: string, version: string, over: Record<string, unknown> = {}) => ({ id, label: id, version, project_types: [id], service: null, versions: [version], ...over })
+  const posted: string[] = []
+  stubFetch((url, init) => {
+    if (url === '/api/pipeline-packs/install') { posted.push(JSON.parse(String(init!.body)).id); return { body: { installed: 'x', version: '2.0.0', project_types: [] } } }
+    if (url.startsWith('/api/pipeline-packs')) return { body: listing({ available: [
+      offered({ id: 'a', label: 'a', installed: '1.0.0', update: true, version: '2.0.0', changes: 'Faster plans.' }),
+      offered({ id: 'b', label: 'b', installed: '1.0.0', update: true, version: '2.0.0' }),
+      offered({ id: 'c', label: 'c', installed: '1.0.0', update: false, version: '1.0.0' })],
+      installed: [installed('a', '1.0.0'), installed('b', '1.0.0'), installed('c', '1.0.0')] }) }
+    return undefined
+  })
+  const w = mount(PipelinePacksPanel, stubs); await flushPromises()
+  expect(w.emitted('updates')![0]).toEqual([2])
+  expect(w.get('[data-pack=a] [data-testid=packs-changes]').text()).toBe("What's new in 2.0.0: Faster plans.")
+  await w.get('[data-action=update-all]').trigger('click'); await flushPromises()
+  expect(posted).toEqual(['a', 'b'])                                                // one after another, only those with an update
+  expect(w.text()).toContain('Updated a 2.0.0, b 2.0.0.')
+  w.unmount()
+})
+
+it('switches an installed template back to a version kept on this host', async () => {
+  const f = stubFetch(url => url.endsWith('/activate') ? { body: { id: 'upubhub-class', version: '0.1.0' } }
+    : url.startsWith('/api/pipeline-packs') ? { body: listing({ available: [offered({ installed: '0.2.0' })],
+      installed: [{ id: 'upubhub-class', label: 'upubhub class', version: '0.2.0', project_types: ['upubhub-class'], service: service(true), versions: ['0.2.0', '0.1.0'] }] }) } : undefined)
+  const w = mount(PipelinePacksPanel, stubs); await flushPromises()
+  await w.get('[data-testid=packs-version]').setValue('0.1.0'); await flushPromises()
+  expect(JSON.parse(String(calls(f, 'POST', '/api/pipeline-packs/upubhub-class/activate')[0]![1]!.body))).toEqual({ version: '0.1.0' })
+  expect(w.text()).toContain('upubhub class now uses version 0.1.0.')
+  w.unmount()
+})
+
+it('imports an own template only after the risk is accepted, and marks it local', async () => {
+  let imported = false
+  const f = stubFetch(url => url.startsWith('/api/pipeline-packs/import') ? (imported = true, { body: { installed: 'my-class', version: '0.1.0', project_types: ['my-class'] } })
+    : url.startsWith('/api/pipeline-packs') ? { body: listing({ available: [], installed: imported ? [{ id: 'my-class', label: 'My class', version: '0.1.0', project_types: ['my-class'], service: null, versions: ['0.1.0'], local: true, imported_at: '2026-11-01T10:00:00Z' }] : [] }) } : undefined)
+  const w = mount(PipelinePacksPanel, stubs); await flushPromises()
+  await w.get('[data-action=import-open]').trigger('click')
+  expect(w.get('[data-testid=packs-import]').text()).toContain('not vetted')
+  expect(w.get('[data-action=import]').attributes('disabled')).toBeDefined()           // nothing until the risk is accepted
+  await w.get('[data-testid=packs-accept-risk]').setValue(true)
+  expect(w.get('[data-action=import]').attributes('disabled')).toBeUndefined()
+  const input = w.get('[data-testid=packs-import-file]').element as HTMLInputElement
+  Object.defineProperty(input, 'files', { value: [new File(['zip'], 'my-class.zip', { type: 'application/zip' })] })
+  await w.get('[data-testid=packs-import-file]').trigger('change'); await flushPromises()
+  expect(calls(f, 'POST', '/api/pipeline-packs/import?accept_risk=true')).toHaveLength(1)
+  expect(w.text()).toContain('Imported your template my-class 0.1.0.')
+  expect(w.get('[data-pack=my-class] [data-test=local]').text()).toBe('Local · unvetted')
+  w.unmount()
+})

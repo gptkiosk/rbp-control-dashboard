@@ -200,3 +200,90 @@ def test_the_store_listing_names_what_this_host_lacks_and_shows_the_tools(make_c
     assert later["too_new"] is True and later["needs"][0]["detail"] == "Needs dashboard 99.0.0 or newer."
     assert body["tools"]["checks"][0]["status"] == "ready" and body["tools"]["providers"][0]["status"] == "missing"
     assert body["tools"]["providers"][0]["link"] == "/profile#credentials-profile"
+
+
+def zip_archive(files, top="my-course/"):
+    import zipfile
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        for name, data in files.items():
+            z.writestr(top + name, data)
+        z.writestr("__MACOSX/._pack.json", b"finder metadata")              # what macOS Compress adds
+    return buf.getvalue()
+
+
+def test_an_earlier_version_stays_and_can_be_made_active_again(tmp_path):
+    s = settings(tmp_path)
+    pp.install(s, pack_files(), "0.6.86")
+    pp.install(s, pack_files(pack_version="0.2.0", changes="Two lessons per week."), "0.6.86")
+    pack = pp.installed(s)[0]
+    assert (pack["version"], pack["versions"], pack["manifest"]["changes"]) == ("0.2.0", ["0.2.0", "0.1.0"], "Two lessons per week.")
+    pp.activate(s, "course-pack", "0.1.0", "0.6.86")
+    assert pp.installed(s)[0]["version"] == "0.1.0"
+    with pytest.raises(pp.PackError):
+        pp.activate(s, "course-pack", "9.9.9", "0.6.86")                       # not on disk
+    (tmp_path / "packs" / "course-pack" / "0.2.0" / "tools.sh").write_text("echo hi")
+    with pytest.raises(pp.PackError, match="no longer checks out"):
+        pp.activate(s, "course-pack", "0.2.0", "0.6.86")                       # a stored version is checked again before use
+    assert pp.validate(pack_files(changes="x" * 601), "0.6.86")[1] == ["changes must be text of at most 600 characters."]
+
+
+def test_an_own_template_imports_from_a_zip_or_tar_unsigned_and_is_marked_local(tmp_path):
+    s = settings(tmp_path)
+    m = pp.import_local(s, zip_archive(pack_files()), "0.6.86", reserved={"upubhub-class", "local-website"})
+    pack = pp.installed(s)[0]
+    assert m["id"] == "course-pack" and pack["source"]["kind"] == "local" and len(pack["source"]["sha256"]) == 64
+    pp.import_local(s, archive(pack_files(pack_version="0.2.0")), "0.6.86", reserved=set())    # a newer own version replaces it
+    assert pp.installed(s)[0]["version"] == "0.2.0" and pp.installed(s)[0]["source"]["kind"] == "local"
+    pp.install(s, pack_files(pack_version="0.3.0"), "0.6.86")                                  # a store install clears the local mark
+    assert pp.installed(s)[0]["source"] is None
+
+
+def test_an_own_template_may_not_take_a_store_or_built_in_id_or_anothers_types(tmp_path):
+    s = settings(tmp_path)
+    with pytest.raises(pp.PackError, match="its own id") as exc:
+        pp.import_local(s, archive(pack_files()), "0.6.86", reserved={"course-pack"})
+    assert exc.value.status == 409
+    with pytest.raises(pp.PackError, match="course-test"):
+        pp.import_local(s, archive(pack_files()), "0.6.86", reserved={"course-test"})          # a type id that is built in
+    pp.install(s, pack_files(), "0.6.86")                                                       # the store copy is installed
+    with pytest.raises(pp.PackError, match="installed from the store"):
+        pp.import_local(s, archive(pack_files(pack_version="0.9.0")), "0.6.86", reserved=set())
+    with pytest.raises(pp.PackError, match="already used: course-test"):
+        pp.import_local(s, archive(pack_files(id="other-pack")), "0.6.86", reserved=set())      # another pack's type
+    with pytest.raises(pp.PackError, match="not a file a pack may contain"):
+        pp.import_local(s, zip_archive({**pack_files(id="third"), "run.sh": b"echo"}), "0.6.86", reserved=set())   # same data-only rules
+
+
+def test_routes_import_needs_the_risk_accepted_refuse_store_ids_and_switch_versions(make_client, monkeypatch):
+    import routes.pipeline_packs as route
+    client = make_client()
+
+    @client.app.middleware("http")
+    async def operator_session(request, call_next):
+        request.state.user = {"email": "operator@example.invalid"}
+        return await call_next(request)
+
+    offered = {"release": "packs-3", "packs": [{"id": "store-pack", "pack_version": "1.0.0", "label": "Store", "summary": "", "service": None,
+                                                "archive": "x", "sha256": "0" * 64, "url": "u", "changes": "New checks."}]}
+    monkeypatch.setattr(route.pp, "available", lambda: offered)
+    route._CACHE.update(at=0.0, listing=None, error=None)
+    data = zip_archive(pack_files())
+    assert client.post("/api/pipeline-packs/import", content=data).status_code == 422                    # risk not accepted
+    r = client.post("/api/pipeline-packs/import?accept_risk=true", content=data)
+    assert r.status_code == 201, r.text
+    assert r.json() == {"installed": "course-pack", "version": "0.1.0", "project_types": ["course-test"], "local": True}
+    r = client.post("/api/pipeline-packs/import?accept_risk=true", content=zip_archive(pack_files(id="store-pack")))
+    assert r.status_code == 409 and "store or built-in template id" in r.json()["detail"]
+    r = client.post("/api/pipeline-packs/import?accept_risk=true", content=zip_archive(pack_files(id="mine", project_types=["local-website"])))
+    assert r.status_code in (409, 422)                                                                    # a shipped type id
+    client.post("/api/pipeline-packs/import?accept_risk=true", content=zip_archive(pack_files(pack_version="0.2.0", changes="More.")))
+    body = client.get("/api/pipeline-packs").json()
+    mine = body["installed"][0]
+    assert (mine["local"], mine["version"], mine["versions"], mine["changes"]) == (True, "0.2.0", ["0.2.0", "0.1.0"], "More.")
+    assert body["available"][0]["changes"] == "New checks."
+    types = {t["id"]: t for t in client.get("/api/project-types").json()["types"]}
+    assert types["course-test"]["local"] is True and types["local-website"]["local"] is False   # the picker marks own templates
+    r = client.post("/api/pipeline-packs/course-pack/activate", json={"version": "0.1.0"})
+    assert r.status_code == 200 and r.json() == {"id": "course-pack", "version": "0.1.0"}
+    assert client.post("/api/pipeline-packs/course-pack/activate", json={"version": "bad"}).status_code == 422
