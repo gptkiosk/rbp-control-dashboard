@@ -81,13 +81,30 @@ class PreviewHostPathTest(unittest.TestCase):
             self.assertIn('node is not installed where this host action can run it. Install Node.js from Agent tools', result['output'])
 
 
+LOOPBACK_SERVER = """from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
+from socketserver import TCPServer
+
+
+class LoopbackHTTPServer(ThreadingHTTPServer):
+    def server_bind(self):
+        # HTTPServer resolves a cosmetic server_name through reverse DNS.
+        # A loopback-only fixture must not depend on the runner's DNS service.
+        TCPServer.server_bind(self)
+        self.server_name, self.server_port = self.server_address[:2]
+
+
+with LoopbackHTTPServer(('127.0.0.1', 41390), SimpleHTTPRequestHandler) as server:
+    server.serve_forever()
+"""
+
+
 SERVE_SCRIPT = r"""#!/usr/bin/env bash
 set -eu
 mkdir -p .preview
 case "$1" in
   verify) echo verified ;;
   serve)
-    nohup python3 -m http.server 41390 --bind 127.0.0.1 > .preview/server.log 2>&1 < /dev/null &
+    nohup python3 tools/fixture_http_server.py > .preview/server.log 2>&1 < /dev/null &
     pid=$!
     for _ in $(seq 50); do python3 -c "import socket;socket.create_connection(('127.0.0.1',41390),1)" 2>/dev/null && break; sleep 0.1; done
     printf '{"pid": %s, "port": 41390, "source_sha": "%s", "status": "running"}' "$pid" "$(printf x | shasum -a 256 | cut -c1-64)" > .preview/preview.state ;;
@@ -140,9 +157,12 @@ class PreviewServeContractTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary); (root / 'tools').mkdir()
             (root / 'tools' / 'verify-preview.sh').write_text(SERVE_SCRIPT)
+            (root / 'tools' / 'fixture_http_server.py').write_text(LOOPBACK_SERVER)
             (root / 'index.html').write_text('<h1>hi</h1>')
             result = project_preview.run(review_project(root), SimpleNamespace(), SimpleNamespace(node_key='verify'), 'verify', proxy_base='/p')
-            self.assertTrue(result['ok'], result['output'])
+            server_log = root / '.preview' / 'server.log'
+            diagnostics = server_log.read_text(errors='replace') if server_log.exists() else '(no synthetic server log)'
+            self.assertTrue(result['ok'], result['output'] + '\nSynthetic server log:\n' + diagnostics)
             self.assertIn('Start/Stop check passed', result['output'])
             self.assertIsNone(project_preview._state(root))
             started = project_preview.run(review_project(root), SimpleNamespace(), SimpleNamespace(node_key='review'), 'serve', proxy_base='/p')
