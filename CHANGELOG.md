@@ -10,6 +10,14 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.6.89] - 2026-10-31
+
+### Changed
+- The template store has its own Settings tab, **Template store**, laid out like an app store: installed templates on top, available ones below as cards with an icon, a category, the summary, Official or Community and the version, and Add, Update or Remove on the card. What a template needs and the settings you choose show on its card; nothing opens a pop-up. A search box filters both lists, and the tools templates use are listed underneath. Old links to the store open the new tab.
+
+### Added
+- Icons for the six built-in templates. Icons are image files named after the template id; a template without one, such as a new community template, shows a two-letter placeholder. See `docs/configuration/template-store-icons.md`.
+
 ## [0.6.88] - 2026-10-31
 
 ### Added
@@ -1220,7 +1228,7 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 
 [0.3.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.0
 [0.6.72]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.70...v0.6.72
-[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.88...HEAD
+[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.89...HEAD
 [0.6.67]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.66...v0.6.67
 [0.6.66]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.65...v0.6.66
 [0.6.65]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.64...v0.6.65
@@ -1333,6 +1341,7 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 [0.6.71]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.70...v0.6.71
 [0.6.70]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.69...v0.6.70
 
+[0.6.89]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.88...v0.6.89
 [0.6.88]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.87...v0.6.88
 [0.6.87]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.86...v0.6.87
 [0.6.86]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.85...v0.6.86

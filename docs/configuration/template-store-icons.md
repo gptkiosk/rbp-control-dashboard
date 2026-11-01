@@ -1,23 +1,25 @@
 # Template store icons
 
-Each template in **Settings → Template store** shows a square icon at the top left of its card. Until an icon file exists the
-card shows a monogram placeholder (two letters on a dashed tile, for example **UC** for upubhub class). Hovering the placeholder
-names the file it is waiting for.
+Each template in **Settings → Template store** shows a square icon at the top left of its card. The six built-in templates
+have icons (512 × 512 WebP, added 2026-10-31). A template without an icon file, such as a new community
+template, shows a monogram placeholder (two letters on a dashed tile). Hovering the placeholder names the file it is waiting
+for.
 
 ## Where the files go
 
 Put one file per template in `apps/web/src/assets/template-icons/`, named after the template id. PNG, WebP, SVG or JPG all
-work; the build picks the file up by name, so there is nothing else to edit. Copy the same files into the other dashboard
+work; the build picks the file up by name, so there is nothing else to edit. Keep one file per id: two files for the same id
+(say `other.png` and `other.webp`) leave it unclear which one shows. Copy the same files into the other dashboard
 (MCD and RCD each carry their own copy).
 
-| Template | Category on the card | File | Placeholder now |
+| Template | Category on the card | File | Monogram without a file |
 | --- | --- | --- | --- |
-| GCP hosted app | Cloud app | `gcp-hosted-app.png` | GA |
-| GCP hosted website | Cloud website | `gcp-hosted-website.png` | GW |
-| Local website | Website | `local-website.png` | LW |
-| Other | General | `other.png` | O |
-| Packaged app | Desktop app | `packaged-app.png` | PA |
-| upubhub class | Teaching | `upubhub-class.png` | UC |
+| GCP hosted app | Cloud app | `gcp-hosted-app.webp` | GA |
+| GCP hosted website | Cloud website | `gcp-hosted-website.webp` | GW |
+| Local website | Website | `local-website.webp` | LW |
+| Other | General | `other.webp` | O |
+| Packaged app | Desktop app | `packaged-app.webp` | PA |
+| upubhub class | Teaching | `upubhub-class.webp` | UC |
 
 A community template with no file keeps its monogram, so a missing icon is never an error. Category words live in
 `apps/web/src/lib/templateStore.ts`; an id not listed there shows **Template**.

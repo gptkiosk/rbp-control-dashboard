@@ -11,7 +11,7 @@ const seriesSoft = computed(() => `var(--series-${seriesFor(props.id)}-soft)`)
 
 <template>
   <img v-if="src" class="ticon" :src="src" alt="" aria-hidden="true" data-test="icon" />
-  <span v-else class="ticon placeholder" aria-hidden="true" data-test="icon-placeholder" :title="`Icon placeholder: assets/template-icons/${id}.png`"
+  <span v-else class="ticon placeholder" aria-hidden="true" data-test="icon-placeholder" :title="`Icon placeholder: add assets/template-icons/${id}.webp`"
     :style="{ color: series, background: seriesSoft, borderColor: series }">{{ monogram(title) }}</span>
 </template>
 
