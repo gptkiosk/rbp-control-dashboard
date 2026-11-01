@@ -155,9 +155,11 @@ def listing(settings=None):
     """Types offered for new plans. Legacy type ids remain readable for existing projects."""
     def needs(t):
         return [r for r in requirements(t, settings) if r['status'] in ('missing', 'unknown')]
+    import pipeline_packs
+    local = {tid for p in pipeline_packs.installed(settings) if p["source"] for tid in p["manifest"].get("project_types", [])} if settings is not None else set()
     return [{"id": t["id"], "label": t["label"], "summary": t["summary"], "keys": t.get("keys", []), "failure_points": t.get("failure_points", []),
              "human_signoffs": t.get("human_signoffs", []), "visual_checks": t.get("visual_checks", ""),
-             "customize": [f["label"] for f in t.get("customize", [])], "needs": needs(t)} for t in sorted(load(settings).values(), key=lambda t: ({'packaged-app':0,'gcp-hosted-app':1,'local-website':2,'gcp-hosted-website':3,'other':99}.get(t['id'],50),t['label'])) if t["id"] not in LEGACY_TYPES]
+             "customize": [f["label"] for f in t.get("customize", [])], "needs": needs(t), "local": t["id"] in local} for t in sorted(load(settings).values(), key=lambda t: ({'packaged-app':0,'gcp-hosted-app':1,'local-website':2,'gcp-hosted-website':3,'other':99}.get(t['id'],50),t['label'])) if t["id"] not in LEGACY_TYPES]
 
 
 GENERAL_GUIDES = ('practices.md', 'security.md', 'readme-and-docs.md')

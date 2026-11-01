@@ -10,6 +10,18 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.6.90] - 2026-11-01
+
+### Added
+- **Push to upubhub.** The upubhub class, textbook and lesson-plan templates can send their finished package to upubhub.com (1.41 or newer) through its publish API, from the project's push story once your final sign-off is done. The textbook and lesson plans arrive as private works and a class as an invite-only, free class with one assignment per lesson, its discussion topics and assessment settings. Nothing is published; pushing again updates the same items. It needs a upubhub token with **Also allow pushing classes**, saved in Private credentials as upubhub; the token goes only to upubhub and never into the project, its notes or the push record. `MAC_CONTROL_UPUBHUB_URL` points it at a local upubhub for testing.
+- **Import a template** in the Template store: try a template you made, or one someone sent you, from a `.zip` or `.tar.gz`. It is unvetted (the store's scan and review did not run), you accept the risk first, and it must still be data only within the store's limits. It cannot use a store or built-in id, is marked **Local, unvetted** in the store and the project type picker, and never gets store updates.
+- **Update all** in the Template store, **What's new** on each update (a template's new optional `changes` text), and a count of waiting updates on the Template store tab.
+- **Switch versions:** earlier versions of a template stay on this host; pick one under Version on its card to go back after an update.
+- Help topics for the Template store and for pushing to upubhub.
+
+### Changed
+- The course package check knows a textbook-only and a lesson-plan-only package (`kind` in course.json), and accepts `hand_crafted` when the template's content source is your own files, so your writing is not labelled as AI-made.
+
 ## [0.6.89] - 2026-10-31
 
 ### Changed
@@ -1228,7 +1240,7 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 
 [0.3.0]: https://github.com/gptkiosk/rbp-control-dashboard/releases/tag/v0.3.0
 [0.6.72]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.70...v0.6.72
-[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.89...HEAD
+[Unreleased]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.90...HEAD
 [0.6.67]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.66...v0.6.67
 [0.6.66]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.65...v0.6.66
 [0.6.65]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.64...v0.6.65
@@ -1341,6 +1353,7 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 [0.6.71]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.70...v0.6.71
 [0.6.70]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.69...v0.6.70
 
+[0.6.90]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.89...v0.6.90
 [0.6.89]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.88...v0.6.89
 [0.6.88]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.87...v0.6.88
 [0.6.87]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.86...v0.6.87

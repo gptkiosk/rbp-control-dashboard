@@ -1,5 +1,6 @@
 """Operator-only project review and planning. Agent tokens cannot approve or dispatch."""
 import json
+from pathlib import Path
 import re
 import time
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -244,6 +245,61 @@ def host_preview_content(project_id:int,card_id:int,request:Request,s:Session=De
     root=project_preview._root(p,c,link)
     status,body,content_type=project_preview.proxy(root,asset_path,request.method)
     return Response(content=body,status_code=status,media_type=content_type.split(';',1)[0],headers={'Cache-Control':'no-store'})
+
+def _upubhub_story(s,project_id,card_id):
+    """The project, story and node of a push story: a human story whose title says push and upubhub (not approve), in a project whose
+    template enables the upubhub-push connector. Anything else is a 404, so the panel never appears on another story."""
+    import pipeline_packs
+    p=projects.get(s,project_id);link=projects.binding(s,card_id);c=s.get(Card,card_id)
+    if not link or link.project_id!=p.id or link.role!='story' or not c: raise HTTPException(404,'Story not found in this project.')
+    doc=projects.document(p)
+    if 'upubhub-push' not in pipeline_packs.connectors_for(doc.get('project_type') or '',get_settings()):
+        raise HTTPException(404,'This project’s template does not push to upubhub.')
+    node=next((n for n in json.loads(p.approved_manifest or '{}').get('document',{}).get('nodes',[]) if n['key']==link.node_key),{})
+    title=str(node.get('title','')).lower()
+    # The push story ("Push the course to upubhub"), never the sign-off before it ("Approve the course for upubhub"): the push must
+    # wait for that sign-off, which the dependency check below enforces.
+    if c.assignee_type!='human' or 'upubhub' not in title or 'push' not in title or 'approve' in title:
+        raise HTTPException(404,'Push to upubhub is on the project’s upubhub push story.')
+    return p,c,doc
+
+@router.get('/{project_id}/stories/{card_id}/upubhub-push')
+def upubhub_push_status(project_id:int,card_id:int,request:Request,s:Session=Depends(get_session)):
+    """What a push would send and whether it can run now: prerequisites (the final sign-off), the saved token and the package check."""
+    import course_package, profiles, upubhub_push
+    identity=actor(request);p,c,doc=_upubhub_story(s,project_id,card_id);settings=get_settings()
+    root=Path(c.working_dir or doc['working_dir']);answers=doc.get('intake_answers') or {}
+    try: info=upubhub_push.plan(root)
+    except upubhub_push.PushError as exc: info={'error':str(exc)}
+    check=course_package.check(root,course_package.expected_code(answers),provided=answers.get('content_source')=='provided')
+    return {'plan':info,'blocked_by':[b['reason'] for b in projects.dependency_blocks(s,c.id)],
+            'token_saved':profiles.credential(s,identity,'upubhub',settings) is not None,'target':settings.upubhub_url,
+            'problems':check['problems'],'last':upubhub_push.last_receipt(settings,p.id)}
+
+@router.post('/{project_id}/stories/{card_id}/upubhub-push')
+def upubhub_push_action(project_id:int,card_id:int,request:Request,s:Session=Depends(get_session)):
+    """Push the course package to upubhub as private drafts. Operator only, after every earlier story (the final sign-off) is done.
+    The token is read here and goes only to upubhub; the receipt (ids and links, never the token) is kept in the dashboard's data."""
+    import course_package, profiles, upubhub_push
+    identity=actor(request);p,c,doc=_upubhub_story(s,project_id,card_id);settings=get_settings()
+    if projects.dependency_blocks(s,c.id): raise HTTPException(409,'Finish the earlier stories, including the final sign-off, before pushing to upubhub.')
+    token=profiles.credential(s,identity,'upubhub',settings)
+    if not token: raise HTTPException(409,'Save a upubhub token in General → Private credentials first. Create it in upubhub Connections and tick Also allow pushing classes.')
+    answers=doc.get('intake_answers') or {}
+    try:
+        receipt=upubhub_push.push(Path(c.working_dir or doc['working_dir']),token,base=settings.upubhub_url,expected_code=course_package.expected_code(answers),
+                                  provided=answers.get('content_source')=='provided',tool=settings.product_name,previous=upubhub_push.last_receipt(settings,p.id))
+    except upubhub_push.PushError as exc:
+        raise HTTPException(exc.status,str(exc)) from None
+    finally:
+        token=None
+    upubhub_push.save_receipt(settings,p.id,receipt)
+    write(s)
+    made=[x for x in (receipt.get('textbook'),*(receipt.get('lesson_plans') or []),receipt.get('class')) if x]
+    projects.memory(s,p,'checkpoint',f"Pushed the {receipt['kind'].replace('_',' ')} to {settings.upubhub_url} as private drafts: "
+                    +'; '.join(f"{x.get('external_id')} → {x.get('url_path')}" for x in made)+'.',identity,c.id)
+    s.commit()
+    return receipt
 
 @router.post('/{project_id}/stories/{card_id}/accept')
 def accept(project_id:int,card_id:int,body:Accept,request:Request,s:Session=Depends(get_session)):

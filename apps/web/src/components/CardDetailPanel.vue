@@ -6,6 +6,7 @@ import TaskFields, { type TaskFieldValues } from '@/components/TaskFields.vue'
 import TagPill from '@/components/TagPill.vue'
 import TaskApprovalAction from '@/components/TaskApprovalAction.vue'
 import ProjectPreviewAction from '@/components/ProjectPreviewAction.vue'
+import ProjectUpubhubPush from '@/components/ProjectUpubhubPush.vue'
 import QueuedTaskRouteAction from '@/components/QueuedTaskRouteAction.vue'
 import TaskRetryAction from '@/components/TaskRetryAction.vue'
 import ProjectPlanningRetryAction from '@/components/ProjectPlanningRetryAction.vue'
@@ -405,6 +406,7 @@ async function save(): Promise<void> {
         <p v-if="card.superseded" class="hint" data-testid="superseded-card">This untouched task belongs to an earlier project revision. Its scope and history are preserved in the project record; current work is in the replacement revision.</p>
         <MediaCallout v-if="card.project && !card.superseded" :media="projectMedia" :link="mediaLink" />
         <ProjectPreviewAction v-if="card.project && !card.superseded" :card="card" @changed="afterChange" />
+        <ProjectUpubhubPush v-if="card.project && !card.superseded" :card="card" @changed="afterChange" />
         <TaskApprovalAction v-if="card.project && !card.superseded" :card="card" hide-media-link @changed="afterChange" />
         <QueuedTaskRouteAction v-if="card.project && !card.superseded" :card="card" @changed="afterChange" />
         <TaskRetryAction v-if="card.project && !card.superseded" :card="card" @changed="afterChange" />

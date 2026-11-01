@@ -10,6 +10,11 @@ against the release public key below, then the archive digest, then every file, 
 file, which the installed dashboard already verified, so packs check the same way on an install that pins release digests (MCD) as on
 one that checks signatures (RCD). Installed packs live
 in <data>/packs/<id>/<version>/ with <data>/packs/<id>/active naming the version in use; the operator's own project types still win.
+Earlier versions stay on disk, so the store can switch back to one (activate).
+
+An operator can also import a pack of their own from a file (import_local): the same data-only checks and limits, but no signature,
+no store review and no scan. Its provenance is recorded in <data>/packs/<id>/source; it never takes a store or bundled id, never
+receives store updates, and the store marks it Local, unvetted.
 """
 from __future__ import annotations
 
@@ -22,6 +27,8 @@ import re
 import shutil
 import tarfile
 import tempfile
+import time
+import zipfile
 from pathlib import Path
 
 PACKS_REPOSITORY = "gptkiosk/dashboard-pipeline-packs"
@@ -37,13 +44,15 @@ MAX_FILE_BYTES = 40_000
 MAX_FILES = 40
 MAX_ARCHIVE_BYTES = 1_000_000
 MAX_INDEX_BYTES = 256 * 1024
+MAX_CHANGES = 600                                              # "what's new" text per version
+SOURCE_FILE = "source"
 # What a pack may name. Grows as the app learns checks and connectors; a pack naming anything else waits for a newer dashboard.
 # packaging/allowed_signers; a test keeps the two identical.
 RELEASE_SIGNER = ('dashboard-release namespaces="dashboard-release" ssh-ed25519 '
                   'AAAAC3NzaC1lZDI1NTE5AAAAINrWOiSyq/L4xNRGHAf7s8ZujXlun9TnuRHJ9X25Ef2z dashboard-release')
 RELEASE_IDENTITY = "dashboard-release"
 KNOWN_CHECKS: frozenset[str] = frozenset({"course-package"})
-KNOWN_CONNECTORS: frozenset[str] = frozenset()
+KNOWN_CONNECTORS: frozenset[str] = frozenset({"upubhub-push"})   # upubhub_push.py
 
 
 class PackError(Exception):
@@ -88,6 +97,9 @@ def validate(files: dict[str, bytes], app_version: str) -> tuple[dict, list[str]
         problems.append("pack_version must look like 1.2.3.")
     if not isinstance(manifest.get("label"), str) or not manifest.get("label", "").strip():
         problems.append("The pack needs a label.")
+    changes = manifest.get("changes")
+    if changes is not None and (not isinstance(changes, str) or len(changes) > MAX_CHANGES):
+        problems.append(f"changes must be text of at most {MAX_CHANGES} characters.")
     app_min = str(manifest.get("app_min", "0.0.0"))
     if not VERSION_RE.fullmatch(app_min):
         problems.append("app_min must look like 1.2.3.")
@@ -170,8 +182,50 @@ def installed(settings) -> list[dict]:
         except (OSError, ValueError, UnicodeError):
             continue
         if isinstance(manifest, dict) and manifest.get("id") == folder.name and manifest.get("pack_version") == version:
-            out.append({"manifest": manifest, "path": path, "version": version})
+            out.append({"manifest": manifest, "path": path, "version": version, "versions": versions(folder), "source": source(folder)})
     return out
+
+
+def versions(folder: Path) -> list[str]:
+    """Every version of a pack kept on disk, newest first."""
+    found = [p.name for p in folder.iterdir() if p.is_dir() and not p.is_symlink() and VERSION_RE.fullmatch(p.name)] if folder.is_dir() else []
+    return sorted(found, key=_version_tuple, reverse=True)
+
+
+def source(folder: Path) -> dict | None:
+    """How a pack got here: None for the signed store, or {"kind": "local", "imported_at": ..., "sha256": ...} for an own import."""
+    try:
+        value = json.loads((folder / SOURCE_FILE).read_text("utf-8"))
+    except (OSError, ValueError, UnicodeError):
+        return None
+    return value if isinstance(value, dict) and value.get("kind") == "local" else None
+
+
+def _read_folder(path: Path) -> dict[str, bytes]:
+    files = {}
+    for item in path.rglob("*"):
+        if item.is_symlink():
+            raise PackError(f"{item.relative_to(path)} is a link; the stored pack was changed outside the dashboard.")
+        if item.is_file():
+            files[item.relative_to(path).as_posix()] = item.read_bytes()
+    return files
+
+
+def activate(settings, pack_id: str, version: str, app_version: str) -> dict:
+    """Switch an installed pack to another version kept on disk, after checking its files again."""
+    if not ID_RE.fullmatch(pack_id) or not VERSION_RE.fullmatch(version):
+        raise PackError("Unknown pack version.", 404)
+    folder = root(settings) / pack_id
+    path = folder / version
+    if not path.is_dir() or path.is_symlink():
+        raise PackError("That version is not on this host.", 404)
+    manifest, problems = validate(_read_folder(path), app_version)
+    if problems or manifest.get("id") != pack_id or manifest.get("pack_version") != version:
+        raise PackError("That stored version no longer checks out: " + " ".join(problems or ["its manifest does not match its folder."]))
+    tmp = folder / "active.tmp"
+    tmp.write_text(version + "\n", "utf-8")
+    os.replace(tmp, folder / "active")
+    return manifest
 
 
 def type_dirs(settings) -> list[Path]:
@@ -197,6 +251,15 @@ def general_guides_for(type_id: str, settings) -> list[str] | None:
     return None
 
 
+def connectors_for(type_id: str, settings) -> list[str]:
+    """The app connectors an installed pack enables for one of its project types (for example upubhub-push)."""
+    for pack in installed(settings):
+        m = pack["manifest"]
+        if type_id in m.get("project_types", []):
+            return [c for c in m.get("connectors", []) if c in KNOWN_CONNECTORS]
+    return []
+
+
 def checks_for(type_id: str, settings) -> list[str]:
     """The named checks an installed pack runs for one of its project types (for example course-package)."""
     for pack in installed(settings):
@@ -206,8 +269,9 @@ def checks_for(type_id: str, settings) -> list[str]:
     return []
 
 
-def install(settings, files: dict[str, bytes], app_version: str) -> dict:
-    """Validate and install one pack version, then make it active. The previous version stays on disk for a rollback."""
+def install(settings, files: dict[str, bytes], app_version: str, origin: dict | None = None) -> dict:
+    """Validate and install one pack version, then make it active. The previous version stays on disk for a rollback.
+    origin is None for the signed store, or the local-import record to keep beside the pack."""
     manifest, problems = validate(files, app_version)
     if problems:
         raise PackError(" ".join(problems))
@@ -228,7 +292,35 @@ def install(settings, files: dict[str, bytes], app_version: str) -> dict:
     tmp = folder / "active.tmp"
     tmp.write_text(manifest["pack_version"] + "\n", "utf-8")
     os.replace(tmp, folder / "active")
+    if origin is None:
+        (folder / SOURCE_FILE).unlink(missing_ok=True)
+    else:
+        (folder / SOURCE_FILE).write_text(json.dumps(origin) + "\n", "utf-8")
     return manifest
+
+
+def import_local(settings, data: bytes, app_version: str, reserved: set[str]) -> dict:
+    """Install a pack of the operator's own from a .tar.gz or .zip: same data-only checks, no signature, no store review.
+    reserved is every id it may not take (store packs and the shipped project types); it may not take another pack's types either."""
+    files = read_archive(data)
+    manifest, problems = validate(files, app_version)
+    if problems:
+        raise PackError(" ".join(problems))
+    pack_id = manifest["id"]
+    if pack_id in reserved:
+        raise PackError(f"{pack_id} is a store or built-in template id. Give your template its own id (for example my-{pack_id}).", 409)
+    taken = set(reserved)
+    for other in installed(settings):
+        if other["manifest"].get("id") != pack_id:
+            taken |= set(other["manifest"].get("project_types", []))
+    clash = sorted(set(manifest.get("project_types", [])) & taken)
+    if clash:
+        raise PackError("Your template's project type ids are already used: " + ", ".join(clash) + ". Rename them in your template.", 409)
+    current = next((p for p in installed(settings) if p["manifest"].get("id") == pack_id), None)
+    if current is not None and current["source"] is None:
+        raise PackError(f"{pack_id} is installed from the store. Remove it first, or give your template its own id.", 409)
+    origin = {"kind": "local", "imported_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "sha256": hashlib.sha256(data).hexdigest()}
+    return install(settings, files, app_version, origin)
 
 
 def remove(settings, pack_id: str) -> None:
@@ -247,6 +339,8 @@ def read_archive(data: bytes) -> dict[str, bytes]:
     """A pack archive's files. Regular files only, no links or absolute or parent paths, within the size limits; one top folder allowed."""
     if len(data) > MAX_ARCHIVE_BYTES:
         raise PackError("The pack archive is too large.")
+    if data[:4] == b"PK\x03\x04":
+        return _strip_top(_read_zip(data))
     try:
         raw = gzip.decompress(data)
     except (OSError, EOFError):
@@ -268,10 +362,37 @@ def read_archive(data: bytes) -> dict[str, bytes]:
                 files[name] = handle.read(MAX_FILE_BYTES + 1) if handle else b""
     except tarfile.TarError:
         raise PackError("The pack archive could not be read.") from None
+    return _strip_top(files)
+
+
+def _strip_top(files: dict[str, bytes]) -> dict[str, bytes]:
     tops = {n.split("/", 1)[0] for n in files if "/" in n} | {n for n in files if "/" not in n}
     if "pack.json" not in files and len(tops) == 1:
         prefix = tops.pop() + "/"
         files = {n.removeprefix(prefix): d for n, d in files.items()}
+    return files
+
+
+def _read_zip(data: bytes) -> dict[str, bytes]:
+    """A zip of pack files, for own imports (macOS "Compress" makes these). Same rules as the tar: regular files, no escaping paths."""
+    files: dict[str, bytes] = {}
+    try:
+        with zipfile.ZipFile(io.BytesIO(data)) as z:
+            members = [m for m in z.infolist() if not m.is_dir()]
+            if sum(m.file_size for m in members) > 4 * MAX_ARCHIVE_BYTES:
+                raise PackError("The pack archive expands too far.")
+            for m in members:
+                name = m.filename
+                if name.startswith("__MACOSX/") or name.rsplit("/", 1)[-1] == ".DS_Store":
+                    continue                                        # Finder adds these; they are not part of the pack
+                if (m.external_attr >> 16) & 0o170000 == 0o120000:
+                    raise PackError(f"{name} is not a regular file.")
+                if name.startswith("/") or ".." in name.split("/"):
+                    raise PackError(f"{name} is outside the pack.")
+                with z.open(m) as handle:
+                    files[name] = handle.read(MAX_FILE_BYTES + 1)
+    except zipfile.BadZipFile:
+        raise PackError("The pack archive could not be read.") from None
     return files
 
 
@@ -295,6 +416,7 @@ def parse_index(data: bytes) -> list[dict]:
         item["requires"] = {k: [x for x in v if isinstance(x, str) and NAME_RE.fullmatch(x)][:12] for k, v in requires.items()
                             if k in REQUIRE_KINDS and isinstance(v, list)}
         item["settings"] = [x[:100] for x in entry.get("settings", []) if isinstance(x, str)][:40] if isinstance(entry.get("settings"), list) else []
+        item["changes"] = entry["changes"][:MAX_CHANGES] if isinstance(entry.get("changes"), str) else ""
         packs.append(item)
     return packs
 

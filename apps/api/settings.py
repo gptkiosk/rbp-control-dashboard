@@ -82,6 +82,8 @@ class Settings(BaseSettings):
     organization_name: str = Field(default="Bamcio LLC")
     product_name: str = Field(default="Raspberry Pi Control Dashboard")
     product_short_name: str = Field(default="RCD")
+    upubhub_url: str = Field(default="https://upubhub.com", pattern=r"^(https://[a-z0-9.-]+|http://(127\.0\.0\.1|localhost)(:\d+)?)$",
+                             description="Where the upubhub-push connector sends course packages; http only for a local upubhub.")
     host: str = Field(
         default="127.0.0.1",
         description="Bind address. Stays 127.0.0.1 until Phase 4 auth is enforced.",

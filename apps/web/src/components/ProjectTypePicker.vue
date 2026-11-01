@@ -2,7 +2,7 @@
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { getJson, postJson } from '@/lib/api'
 interface Need { kind: string; id: string; status: string; detail: string; link: string }
-interface PType { id: string; label: string; summary: string; failure_points: string[]; human_signoffs: string[]; visual_checks: string; needs?: Need[] }
+interface PType { id: string; label: string; summary: string; failure_points: string[]; human_signoffs: string[]; visual_checks: string; needs?: Need[]; local?: boolean }
 const props = defineProps<{ modelValue: string | null | undefined; text: string; disabled?: boolean; required?: boolean; concise?: boolean }>()
 const emit = defineEmits<{ 'update:modelValue': [value: string | null]; loaded: [count: number] }>()
 const types = ref<PType[]>([])
@@ -26,7 +26,7 @@ const label = (id: string | null) => types.value.find(t => t.id === id)?.label ?
     <label>Project type<template v-if="required"> (required)</template>
       <select class="input" :value="modelValue || ''" :disabled="disabled" :required="required" aria-label="Project type" @change="emit('update:modelValue', ($event.target as HTMLSelectElement).value || null)">
         <option value="">{{ required ? 'Choose a project type…' : 'General (no template)' }}</option>
-        <option v-for="t in types" :key="t.id" :value="t.id">{{ t.label }}</option>
+        <option v-for="t in types" :key="t.id" :value="t.id">{{ t.label }}{{ t.local ? ' · Local, unvetted' : '' }}</option>
       </select>
     </label>
     <p v-if="suggested && !modelValue" class="small" role="status">
@@ -34,6 +34,7 @@ const label = (id: string | null) => types.value.find(t => t.id === id)?.label ?
       <button type="button" class="btn" @click="emit('update:modelValue', suggested)">Use that type</button>
     </p>
     <p v-if="current()" class="muted small">{{ current()!.summary }}<template v-if="!concise"> The planner is told this type's known failure points, and the plan is checked against where a person should look and sign off.</template></p>
+    <p v-if="current()?.local" class="local small" role="note" data-testid="type-local">Your own template, imported without the store's review. Check its plan before you start.</p>
     <ul v-if="current()?.needs?.length" class="needs small" role="status" aria-label="This template needs">
       <li v-for="n in current()!.needs" :key="n.kind + n.id">{{ n.detail }} <RouterLink v-if="n.link" :to="n.link">Fix this</RouterLink></li>
     </ul>
@@ -45,4 +46,5 @@ const label = (id: string | null) => types.value.find(t => t.id === id)?.label ?
 label { display: flex; flex-direction: column; gap: var(--gap-xs); color: var(--text-muted); font-size: var(--font-size-sm); }
 p { margin: 0; }
 .needs { margin: 0; padding-left: var(--gap); color: var(--warn); }
+.local { margin: 0; color: var(--warn); }
 </style>

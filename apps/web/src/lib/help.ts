@@ -284,6 +284,22 @@ export const helpGuides: HelpGuide[] = [
     note: 'Types guide planning. Required gates block incomplete plans; checks never run model output. A Website property also starts its background clips on the cheapest video tier in the media panel.',
   },
   {
+    id: 'template-store', title: 'Add, update and make project templates', area: 'Projects',
+    summary: 'Project templates come from the signed Template store and update on their own, without a dashboard update. You can also import a template you made, unvetted, to try it.',
+    keywords: ['template','template store','pack','pipeline pack','update template','what is new','rollback','previous version','import template','own template','custom template','unvetted','submit template','community'],
+    steps: ['Open Settings, then Template store. Installed templates are on top, available ones below. Choose Add on a card; anything this host still lacks is named on the card with a link to fix it.', 'When a newer version exists, the tab says how many updates are waiting, each card shows What\u2019s new, and Update all updates every template one after another. Projects already planned keep their plans.', 'To go back after an update, pick an earlier version under Version on the installed card. Earlier versions stay on this host until you remove the template.', 'To try a template you made, choose Import a template, read the notice, tick that you accept the risk and choose a .zip or .tar.gz of the template folder (pack.json, project-types/, guides/). It must use its own id, not a store or built-in one. Import a higher pack_version to replace it.', 'To share a template with everyone, follow CONTRIBUTING.md in the gptkiosk/dashboard-pipeline-packs repository: test it here with Import a template, then open a pull request. It is scanned, rehearsed and reviewed, and appears in the store as Community with your name once a signed release includes it.'],
+    links: [{ label: 'Open Template store', to: '/profile#pipeline-packs' }],
+    note: 'Templates are data only and never run code here. An imported template is marked Local, unvetted: the store\u2019s scan, model review and rehearsal did not run on it, and its text goes to your AI models as planning guidance.',
+  },
+  {
+    id: 'upubhub-push', title: 'Push a class, textbook or lesson plan to upubhub', area: 'Projects',
+    summary: 'The upubhub templates can send the finished package to upubhub.com as private drafts and an invite-only class, after your final sign-off.',
+    keywords: ['upubhub','push','publish','class','textbook','lesson plan','teacher','private draft','token','connections','api'],
+    steps: ['In upubhub, open Connections and create a token with Also allow pushing classes ticked (Teacher plan). Copy it; it is shown once.', 'In the dashboard, open Settings, General, Private credentials and save it as upubhub.', 'Start a project from the upubhub class, textbook or lesson plan template. To use your own writing, set the content source to your own files and put inputs/textbook.md (and inputs/lesson-plans/*.md) in the project folder.', 'Run the project to the push story. Its Push to upubhub panel stays off until your final sign-off is done, the token is saved and the package check passes, and lists anything missing.', 'Press Push to upubhub, then open the links to review the drafts on upubhub, publish the lessons and open the class when you are ready. Pushing again updates the same items.'],
+    links: [{ label: 'Open Projects', to: '/projects' }, { label: 'Private credentials', to: '/profile#credentials-profile' }],
+    note: 'Nothing is published by a push: works arrive private and a class invite-only and free. The token is read only when you press Push and goes only to upubhub.',
+  },
+  {
     id: 'project-media', title: 'Make site art and video for a project (fal)', area: 'Projects',
     summary: 'Open the Media studio from the project (or from a human media story), see what it will cost, generate stills and clips, review them and publish the ones you choose.',
     keywords: ['media','fal','image','video','clip','still','art','reference art','upload','concept art','space','disk','generate','publish','candidate','another take','tier','minimax','veo','nano banana','spending acknowledgement'],

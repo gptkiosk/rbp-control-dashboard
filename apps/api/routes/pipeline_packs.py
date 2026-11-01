@@ -1,8 +1,9 @@
-"""The template store in Installs & updates: list the signed packs release (templates and approved tools), install, update and remove.
-Operator only; packs are data, never code."""
+"""The template store (Settings → Template store): list the signed packs release (templates and approved tools), install, update,
+switch back to a kept version, import an own template at the operator's risk, and remove. Operator only; packs are data, never code."""
 from __future__ import annotations
 
 import time
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field
@@ -25,6 +26,17 @@ CACHE_SECONDS = 900   # GitHub allows 60 unauthenticated requests an hour; a lis
 class InstallIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
     id: str = Field(pattern=pp.ID_RE.pattern)
+
+
+class ActivateIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    version: str = Field(pattern=pp.VERSION_RE.pattern)
+
+
+def _bundled_ids() -> set[str]:
+    from settings import REPO_ROOT
+    folder = Path(REPO_ROOT) / "packs" / "project-types"
+    return {p.stem for p in folder.glob("*.json")} if folder.is_dir() else set()
 
 
 def _listing(refresh: bool):
@@ -65,13 +77,16 @@ def packs(request: Request, refresh: bool = False, s: Session = Depends(get_sess
                         "service": _service(entry, saved), "installed": current["version"] if current else None,
                         "update": bool(current and pp._version_tuple(entry["pack_version"]) > pp._version_tuple(current["version"])),
                         "author": entry.get("author"), "trust": entry.get("trust"), "settings": entry.get("settings") or [], "needs": needs,
-                        "too_new": any(r["kind"] == "app" for r in needs)})
+                        "too_new": any(r["kind"] == "app" for r in needs), "changes": entry.get("changes") or "",
+                        "local_conflict": bool(current and current["source"])})
     tools = {kind: [{**t, "status": status, "detail": detail, "link": project_types.LINKS[kind]}
                     for t in rows for status, detail in [project_types.tool_status(kind, t["id"], settings, saved)]]
              for kind, rows in ((listing or {}).get("tools") or {}).items()}
     return {"repository": pp.PACKS_REPOSITORY, "release": (listing or {}).get("release"), "error": error, "available": offered, "tools": tools,
             "installed": [{"id": m["id"], "label": m.get("label") or m["id"], "version": p["version"], "project_types": m.get("project_types", []),
-                           "service": _service(m, saved)} for p in installed.values() for m in [p["manifest"]]]}
+                           "service": _service(m, saved), "versions": p["versions"], "local": p["source"] is not None,
+                           "imported_at": (p["source"] or {}).get("imported_at"), "summary": m.get("summary") or "",
+                           "changes": m.get("changes") or ""} for p in installed.values() for m in [p["manifest"]]]}
 
 
 @router.post("/install")
@@ -81,6 +96,9 @@ def install(body: InstallIn, request: Request, s: Session = Depends(get_session)
     entry = next((p for p in (listing or {}).get("packs", []) if p["id"] == body.id), None)
     if entry is None:
         raise HTTPException(409 if error else 404, error or "That pack is not in the latest packs release.")
+    current = next((p for p in pp.installed(get_settings()) if p["manifest"].get("id") == body.id), None)
+    if current is not None and current["source"] is not None:
+        raise HTTPException(409, f"Your own template {body.id} uses this id. Remove it before adding the store version.")
     service = _service(entry, _saved(s, identity))
     if service and not service["ready"]:
         raise HTTPException(409, f"Save your {service['label']} credential in General → Private credentials first; this pack works with that service.")
@@ -99,3 +117,38 @@ def remove(pack_id: str, request: Request):
     except pp.PackError as exc:
         raise HTTPException(exc.status, str(exc)) from None
     return {"removed": pack_id}
+
+
+@router.post("/{pack_id}/activate")
+def activate(pack_id: str, body: ActivateIn, request: Request):
+    """Switch a template to another version still on this host (a rollback after an update, or forward again)."""
+    operator(request)
+    try:
+        manifest = pp.activate(get_settings(), pack_id, body.version, __version__)
+    except pp.PackError as exc:
+        raise HTTPException(exc.status, str(exc)) from None
+    return {"id": manifest["id"], "version": manifest["pack_version"]}
+
+
+@router.post("/import", status_code=201)
+async def import_own(request: Request):
+    """Import an own template from a .tar.gz or .zip sent as the raw request body. Unvetted and unsigned: the operator accepted the
+    risk in the store first (accept_risk=true). Store and built-in ids are refused so the two never mix."""
+    operator(request)
+    if request.query_params.get("accept_risk") != "true":
+        raise HTTPException(422, "Confirm that you accept the risk of an unvetted template first.")
+    declared = request.headers.get("content-length")
+    if declared and declared.isdigit() and int(declared) > pp.MAX_ARCHIVE_BYTES:
+        raise HTTPException(413, f"A template archive can be at most {pp.MAX_ARCHIVE_BYTES // 1000} KB.")
+    data = bytearray()
+    async for chunk in request.stream():
+        data += chunk
+        if len(data) > pp.MAX_ARCHIVE_BYTES:
+            raise HTTPException(413, f"A template archive can be at most {pp.MAX_ARCHIVE_BYTES // 1000} KB.")
+    listing, _ = _listing(False)
+    reserved = _bundled_ids() | {p["id"] for p in (listing or {}).get("packs", [])}
+    try:
+        manifest = pp.import_local(get_settings(), bytes(data), __version__, reserved)
+    except pp.PackError as exc:
+        raise HTTPException(exc.status, str(exc)) from None
+    return {"installed": manifest["id"], "version": manifest["pack_version"], "project_types": manifest.get("project_types", []), "local": True}
