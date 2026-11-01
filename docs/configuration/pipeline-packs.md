@@ -1,6 +1,6 @@
 # Pipeline packs
 
-Pipeline packs carry optional project templates for one kind of deliverable, such as a upubhub class. They are offered in **Settings → Installs & updates → Template store**: choose a template in **Add a template** and press **Add**. Under the choice the store shows whether the template is **Official** (from the store's maintainers) or **Community** (accepted from a contributor) and by whom, the settings you choose when you start a project, and anything this host lacks with a link to fix it. A missing tool does not stop you adding a template; a template that needs a newer dashboard cannot be added until you update. An installed pack shows its version, offers **Update** when the store has a newer one, and can be removed. Removing a pack does not change projects already planned with it; new projects can no longer pick its type.
+Pipeline packs carry optional project templates for one kind of deliverable, such as a upubhub class. They are offered in **Settings → Template store**, laid out like an app store: **Installed** templates on top, **Available** templates below as cards (an icon, a category, the summary and an **Add** button on each), then the tools templates use. A search box filters both lists. Each available card shows whether the template is **Official** (from the store's maintainers) or **Community** (accepted from a contributor) and by whom, the settings you choose when you start a project, and anything this host lacks with a link to fix it. A missing tool does not stop you adding a template; a template that needs a newer dashboard cannot be added until you update. An installed pack shows its version, offers **Update** when the store has a newer one, and can be removed. Removing a pack does not change projects already planned with it; new projects can no longer pick its type. Card icons are files in the web app named after the template id; see [Template store icons](template-store-icons.md).
 
 The **Tools** tab lists the agents, system tools, providers, checks and services a template may require, from the same signed release, and whether this host has each one.
 
@@ -20,7 +20,7 @@ Your own copy of a project type in `<data>/project-types/` still replaces a pack
 
 ## Where packs come from
 
-Packs are published as GitHub releases of `gptkiosk/dashboard-pipeline-packs`. The dashboard reads the latest release without a GitHub token, so the list is cached for 15 minutes; **Check for packs** reads it again.
+Packs are published as GitHub releases of `gptkiosk/dashboard-pipeline-packs`. The dashboard reads the latest release without a GitHub token, so the list is cached for 15 minutes; **Check the store** reads it again.
 
 A release holds one index, `pipeline-packs.json`, with its detached signature `pipeline-packs.json.sig`, plus one archive per pack. The index is signed with the same `dashboard-release` key as dashboard releases. The dashboard checks it against that public key, which ships inside the dashboard's own verified code, so MCD (which pins release digests) and RCD (which checks release signatures) verify packs the same way.
 
