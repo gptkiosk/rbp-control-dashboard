@@ -144,7 +144,11 @@ it('switches an installed template back to a version kept on this host', async (
     : url.startsWith('/api/pipeline-packs') ? { body: listing({ available: [offered({ installed: '0.2.0' })],
       installed: [{ id: 'upubhub-class', label: 'upubhub class', version: '0.2.0', project_types: ['upubhub-class'], service: service(true), versions: ['0.2.0', '0.1.0'] }] }) } : undefined)
   const w = mount(PipelinePacksPanel, stubs); await flushPromises()
-  await w.get('[data-testid=packs-version]').setValue('0.1.0'); await flushPromises()
+  const picker = w.get('[data-testid=packs-version]')
+  expect(picker.classes()).toContain('store-version-select')
+  expect(picker.attributes('aria-label')).toBe('Version of upubhub class to use')
+  expect(picker.findAll('option').map(o => o.text())).toEqual(['0.2.0 (in use)', '0.1.0'])
+  await picker.setValue('0.1.0'); await flushPromises()
   expect(JSON.parse(String(calls(f, 'POST', '/api/pipeline-packs/upubhub-class/activate')[0]![1]!.body))).toEqual({ version: '0.1.0' })
   expect(w.text()).toContain('upubhub class now uses version 0.1.0.')
   w.unmount()

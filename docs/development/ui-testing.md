@@ -1,5 +1,21 @@
 # Standard UI preview and sign-off
 
+## Compact template version controls (2026-11-02, unreleased)
+
+Branch `codex/compact-template-selects`, based on 0.6.91. Use the same isolated
+template-store fixture/start/stop commands below. It now provides earlier
+synthetic versions on all five installed cards and a light/dark preview button;
+all activation/install/import requests still return 403. No real template,
+project or host state is read or changed.
+
+Checked desktop controls at 2rem (30 CSS pixels with the fixture's root type),
+light/dark surfaces, native menu open/Escape dismissal and a 390px layout with
+no horizontal overflow. The coarse-pointer CSS retains the standard larger
+touch target; a narrow Mac viewport is not a physical touchscreen test.
+Screenshots are task-local `compact-template-selects-*-2026-11-02.png`.
+No API, provider, prompt or runtime policy change; prompt-size impact is zero.
+Paired source/tests/builds and signed release/installation are separate gates.
+
 ## 0.6.91 template-store preview (2026-11-02)
 
 Branch `codex/textbook-template-icons`, based on fetched main. From `apps/web`

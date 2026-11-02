@@ -13,6 +13,12 @@ then the catalog and finally the label tagline. Keeping an older template does
 not silently display a newer version's capabilities as installed. Summary edits
 ship in the signed pack release; icon assets ship with dashboard 0.6.91.
 
+Version pickers on installed cards use a compact `--store-select-height`
+(2rem) on desktop, the smaller form font and standard small corner radius.
+They grow to the existing touch-target minimum for coarse pointers, wrap with
+their Version label on narrow cards and retain the native menu and focus/
+keyboard behavior. This does not change which versions can be activated.
+
 Put one file per template in `apps/web/src/assets/template-icons/`, named after the template id. PNG, WebP, SVG or JPG all
 work; the build picks the file up by name, so there is nothing else to edit. Keep one file per id: two files for the same id
 (say `other.png` and `other.webp`) leave it unclear which one shows. Copy the same files into the other dashboard

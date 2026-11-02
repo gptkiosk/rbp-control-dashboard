@@ -158,7 +158,7 @@ onMounted(() => load())
               <strong>What's new in {{ offerFor(p.id)!.version }}:</strong> {{ offerFor(p.id)!.changes }}
             </div>
             <label v-if="older(p).length" class="older small">Version
-              <select class="input" :value="p.version" :disabled="!!busy" :aria-label="`Version of ${p.label} to use`" data-testid="packs-version" @change="useVersion(p, ($event.target as HTMLSelectElement).value)">
+              <select class="input store-version-select" :value="p.version" :disabled="!!busy" :aria-label="`Version of ${p.label} to use`" data-testid="packs-version" @change="useVersion(p, ($event.target as HTMLSelectElement).value)">
                 <option :value="p.version">{{ p.version }} (in use)</option>
                 <option v-for="v in older(p)" :key="v" :value="v">{{ v }}</option>
               </select>
@@ -245,8 +245,12 @@ h4 { font-size: var(--font-size); }
 .risk { display: flex; align-items: center; gap: var(--gap-xs); }
 .local-badge { color: var(--warn); font-weight: var(--font-weight-strong); }
 .whats-new { padding: var(--gap-xs) var(--gap-sm); border-radius: var(--radius-sm); background: var(--accent-soft); }
-.older { display: flex; align-items: center; gap: var(--gap-xs); color: var(--text-muted); }
-.older .input { inline-size: auto; }
+.older { display: flex; flex-wrap: wrap; align-items: center; gap: var(--gap-xs) var(--gap-sm); color: var(--text-muted); }
+/* These are short card-level choices, not full-sized form fields. Keep native
+   keyboard/menu behavior, and let touch users retain the standard hit target. */
+.older .store-version-select { inline-size: auto; max-inline-size: 100%; min-block-size: var(--store-select-height); min-height: var(--store-select-height); padding: var(--gap-xs) var(--gap-sm); border-radius: var(--radius-sm); background: var(--select-bg); font-size: var(--font-size-sm); line-height: var(--line-height); }
+.store-version-select:hover:not(:disabled) { border-color: var(--accent); }
+@media (any-pointer: coarse) { .older .store-version-select { min-block-size: var(--touch-target); min-height: var(--touch-target); } }
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--store-card-min-width)), 1fr)); gap: var(--gap); padding: 0; margin: 0; list-style: none; }
 .tcard { position: relative; display: flex; flex-direction: column; gap: var(--gap-xs); min-width: 0; overflow: hidden; }
 .tcard.working { opacity: var(--disabled-opacity); }
