@@ -1,7 +1,7 @@
 {
   "id": "other",
   "label": "Other (does not exactly fit)",
-  "summary": "A project that does not exactly fit a listed type. It is planned from the brief and the general practices, and the plan says which listed type it resembles and which of that type's gates still apply.",
+  "summary": "Plan a deliverable that does not fit the listed templates. The project brief identifies the closest workflow, the differences, required checks and human decisions before work starts. Choose this for an unusual project; the normal safety and approval gates still apply.",
   "suggest": [],
   "keys": [],
   "guides": [

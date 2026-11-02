@@ -87,6 +87,25 @@ it('filters both shelves with the search box', async () => {
   w.unmount()
 })
 
+it('shows full installed descriptions and supports offline summary search', async () => {
+  const summary = 'A complete local demonstration with browser checks. Public hosting is outside this installed template.'
+  stubFetch(url => url.startsWith('/api/pipeline-packs') ? { body: listing({ available: [], installed: [
+    { id: 'local-website', label: 'Local website (short tagline)', version: '1.0.1', project_types: ['local-website'], service: null, summary },
+  ] }) } : undefined)
+  const w = mount(PipelinePacksPanel, stubs); await flushPromises()
+  expect(w.get('[data-testid=packs-installed-summary]').text()).toBe(summary)
+  await w.get('[data-testid=packs-search]').setValue('public hosting'); await flushPromises()
+  expect(w.find('[data-pack=local-website]').exists()).toBe(true)
+  w.unmount()
+  stubFetch(url => url.startsWith('/api/pipeline-packs') ? { body: listing({ available: [offered({ installed: '0.1.0', summary: 'A newer feature not installed.' })], installed: [
+    { id: 'upubhub-class', label: 'upubhub class', version: '0.1.0', project_types: ['upubhub-class'], service: null, summary: 'The installed class description.' },
+  ] }) } : undefined)
+  const old = mount(PipelinePacksPanel, stubs); await flushPromises()
+  expect(old.get('[data-testid=packs-installed-summary]').text()).toBe('The installed class description.')
+  expect(old.get('[data-pack=upubhub-class]').text()).not.toContain('A newer feature not installed.')
+  old.unmount()
+})
+
 it('lists the approved tools with whether this host has them', async () => {
   const tool = (id: string, status: string, detail = '') => ({ id, name: id.toUpperCase(), description: `${id} does a thing.`, app_min: '0.6.0', status, detail, link: '/profile#system-tools' })
   stubFetch(url => url.startsWith('/api/pipeline-packs') ? { body: listing({ tools: { system_tools: [tool('python3', 'ready'), tool('ffmpeg', 'missing', 'Needs ffmpeg: install it in System tools.')], agents: [] } }) } : undefined)

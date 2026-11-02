@@ -1,11 +1,17 @@
 # Template store icons
 
-Each template in **Settings → Template store** shows a square icon at the top left of its card. The six built-in templates
+Each template in **Settings → Template store** shows a square icon at the top left of its card. The eight official templates
 have icons (512 × 512 WebP, added 2026-10-31). A template without an icon file, such as a new community
 template, shows a monogram placeholder (two letters on a dashed tile). Hovering the placeholder names the file it is waiting
 for.
 
 ## Where the files go
+
+Cards show the full summary, not a three-line clipped description. Installed
+cards prefer their installed manifest summary (also used for search offline),
+then the catalog and finally the label tagline. Keeping an older template does
+not silently display a newer version's capabilities as installed. Summary edits
+ship in the signed pack release; icon assets ship with dashboard 0.6.91.
 
 Put one file per template in `apps/web/src/assets/template-icons/`, named after the template id. PNG, WebP, SVG or JPG all
 work; the build picks the file up by name, so there is nothing else to edit. Keep one file per id: two files for the same id
@@ -20,6 +26,8 @@ work; the build picks the file up by name, so there is nothing else to edit. Kee
 | Other | General | `other.webp` | O |
 | Packaged app | Desktop app | `packaged-app.webp` | PA |
 | upubhub class | Teaching | `upubhub-class.webp` | UC |
+| upubhub textbook | Teaching | `upubhub-textbook.webp` | UT |
+| upubhub lesson plan | Teaching | `upubhub-lesson-plan.webp` | UP |
 
 A community template with no file keeps its monogram, so a missing icon is never an error. Category words live in
 `apps/web/src/lib/templateStore.ts`; an id not listed there shows **Template**.
@@ -66,6 +74,18 @@ A community template with no file keeps its monogram, so a missing icon is never
 > suggesting lessons and discussion. Background gradient deep purple to rose. Accent colour gold on the cap tassel.
 
 ## After adding the files
+
+The textbook and lesson-plan images were generated with the built-in image tool
+on 2026-11-02 using the class icon as a style reference, then resized to 512 × 512
+WebP. Both dashboards carry byte-identical copies. They depict an open textbook
+with a chart/chat bubble, and a lesson clipboard with a clock, respectively.
+They contain no lettering; the card label supplies the accessible name.
+
+Generation prompts used the shared style above. Textbook subject: an open
+teal-bound textbook with ivory pages, a blue chart, an ivory speech bubble and
+a gold bookmark, on deep-blue-to-cyan background. Lesson-plan subject: an ivory
+clipboard with teal checks and a gold clock, on indigo-to-violet background.
+Neither icon uses a graduation cap, keeping it distinct from the class icon.
 
 Run `npm run build` in `apps/web` (or the dev server) and open Settings → Template store: each card should show its image and
 no dashed placeholder. The web test `PipelinePacksPanel.spec.ts` checks the placeholder for an id without a file, so it keeps

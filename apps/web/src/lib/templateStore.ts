@@ -14,6 +14,8 @@ const CATEGORIES: Record<string, string> = {
   'local-website': 'Website',
   'packaged-app': 'Desktop app',
   'upubhub-class': 'Teaching',
+  'upubhub-textbook': 'Teaching',
+  'upubhub-lesson-plan': 'Teaching',
   other: 'General',
 }
 
