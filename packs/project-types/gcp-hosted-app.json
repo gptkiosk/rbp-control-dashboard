@@ -1,7 +1,7 @@
 {
   "id": "gcp-hosted-app",
   "label": "GCP hosted app (containerized application on Google Cloud)",
-  "summary": "A containerized application deployed to an explicitly named Google Cloud target such as Cloud Run, with runtime verification and delivery evidence.",
+  "summary": "Build a working web application or API with its own workflows, data and tests, then prepare a container for an explicitly chosen Google Cloud target. Choose this for interactive software, not a content-only website. Cloud deployment follows your review and approval.",
   "suggest": [
     "gcp",
     "google cloud",

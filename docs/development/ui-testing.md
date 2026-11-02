@@ -1,5 +1,23 @@
 # Standard UI preview and sign-off
 
+## 0.6.91 template-store preview (2026-11-02)
+
+Branch `codex/textbook-template-icons`, based on fetched main. From `apps/web`
+with Node 22, run `npm run dev -- --host 127.0.0.1 --port 5194 --strictPort`.
+Open `http://127.0.0.1:5194/tests/fixtures/template-store.html`; stop only its
+foreground process with Ctrl-C. This development-only entry renders the actual
+store component and packaged icons, not a separate mockup. It supplies eight
+synthetic catalog entries and five synthetic installed manifests. Fetch is
+restricted to the fixture inventory; installation and every mutation return
+403. No API process, auth/native identities, credentials, production database,
+collectors, dispatchers or provider calls. Nothing is installed on the host.
+
+Checked: all eight full descriptions, installed-manifest precedence, searching,
+distinct textbook/lesson-plan icons and 390px no-sideways-scroll layout. Paired
+web suites/type checks/builds and pack validation cover source parity; this is
+Mac browser fixture evidence, not physical Pi or signed-package acceptance.
+Final merged source and package receipts remain release gates.
+
 For every story that changes a user interface, provide the reviewer a reachable isolated preview as part of the handoff. Do not merely report that a build passed.
 
 Record:

@@ -27,7 +27,7 @@ const emit = defineEmits<{ updates: [number] }>()
 const matches = (label: string, summary = '') => !query.value.trim() || `${label} ${summary}`.toLowerCase().includes(query.value.trim().toLowerCase())
 const addable = computed(() => (body.value?.available ?? []).filter(p => !p.installed))
 const shownAvailable = computed(() => addable.value.filter(p => matches(p.label, p.summary)))
-const shownInstalled = computed(() => (body.value?.installed ?? []).filter(p => matches(p.label, offerFor(p.id)?.summary)))
+const shownInstalled = computed(() => (body.value?.installed ?? []).filter(p => matches(p.label, description(p))))
 const offerFor = (id: string) => body.value?.available.find(p => p.id === id) ?? null
 const needs = (s: Service | null) => (s && !s.ready ? `Needs your ${s.label} credential. Save it in General → Private credentials first.` : '')
 const trustWord = (p: Offered) => (p.trust === 'official' ? 'Official' : p.trust === 'community' ? 'Community' : 'Unlabelled') + (p.author ? `, by ${p.author}` : '')
@@ -36,6 +36,9 @@ const lacking = (p: Offered | null) => (p?.needs ?? []).filter(n => n.kind !== '
 const linkFor = (n: { link: string }) => (n.link.startsWith('/profile') ? n.link : '')
 const title = (label: string) => splitLabel(label).title
 const tagline = (label: string) => splitLabel(label).tagline
+// Prefer the installed manifest, so a newer catalog cannot describe a feature
+// as installed when the user deliberately keeps an earlier pack version.
+const description = (p: Installed) => p.summary?.trim() || offerFor(p.id)?.summary || tagline(p.label)
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`
 const updates = computed(() => (body.value?.installed ?? []).filter(p => offerFor(p.id)?.update && !offerFor(p.id)!.too_new && !p.local))
 const older = (p: Installed) => (p.versions ?? []).filter(v => v !== p.version)
@@ -144,7 +147,7 @@ onMounted(() => load())
               <span class="category"><span v-if="p.local" class="local-badge" data-test="local">Local · unvetted</span><template v-else>{{ categoryFor(p.id) }}</template></span>
             </div>
             <h4>{{ title(p.label) }}</h4>
-            <p v-if="tagline(p.label)" class="muted small">{{ tagline(p.label) }}</p>
+            <p v-if="description(p)" class="muted small summary" data-testid="packs-installed-summary">{{ description(p) }}</p>
             <p v-if="p.local" class="muted small">Imported {{ p.imported_at?.slice(0, 10) ?? '' }}. Never updated from the store.</p>
             <p class="meta small">
               <span data-test="version"><template v-if="offerFor(p.id)?.update">{{ p.version }} → {{ offerFor(p.id)!.version }}</template><template v-else>{{ p.version }}</template></span>
@@ -249,7 +252,7 @@ h4 { font-size: var(--font-size); }
 .tcard.working { opacity: var(--disabled-opacity); }
 .top { display: flex; align-items: start; justify-content: space-between; gap: var(--gap-sm); margin-bottom: var(--gap-xs); }
 .category { font-size: var(--font-size-xs); letter-spacing: var(--nav-letter-spacing); text-transform: uppercase; color: var(--text-muted); text-align: right; }
-.summary { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.summary { overflow-wrap: anywhere; }
 .meta { color: var(--text-muted); }
 .ok { color: var(--ok); }
 .warn { color: var(--warn); }

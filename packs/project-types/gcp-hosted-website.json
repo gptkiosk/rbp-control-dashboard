@@ -1,7 +1,7 @@
 {
   "id": "gcp-hosted-website",
   "label": "GCP hosted website (illustrated site deployed to Google Cloud)",
-  "summary": "An original illustrated website with themed pages and generated media, delivered through an explicitly planned Google Cloud deployment and dashboard-managed preview review.",
+  "summary": "Create an illustrated, multi-page website and prepare it for your chosen Google Cloud hosting target. Includes page design, reviewed media and browser checks. Choose this when the site must be publicly hosted; domain, spending and deployment decisions remain yours.",
   "suggest": [
     "gcp.{0,30}(website|site|landing)",
     "cloud run.{0,30}(website|site|landing)",

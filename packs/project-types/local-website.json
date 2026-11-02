@@ -1,7 +1,7 @@
 {
   "id": "local-website",
   "label": "Local website (illustrated site reviewed on this host)",
-  "summary": "An original, illustrated static website with themed pages, generated media, and dashboard-managed local preview review. It is not cloud hosted by this project.",
+  "summary": "Create an illustrated static website and review it in an isolated preview on this computer. Includes themed pages, reviewed media and browser checks. Choose this for a local demonstration or prototype; public hosting and deployment are outside this template.",
   "suggest": [
     "static (web)?site",
     "landing page",

@@ -10,6 +10,18 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+## [0.6.91] - 2026-11-02
+
+### Added
+- Dedicated textbook and lesson-plan icons in the Template store, matching the
+  existing illustrated class icon. All three use the Teaching category.
+
+### Changed
+- Installed template cards show their full descriptions, preferring the installed
+  manifest rather than implying a newer pack is already in use. Descriptions
+  remain searchable when the catalog is offline; available descriptions are no
+  longer cut off after three lines. Packs supply their own updated copy.
+
 ## [0.6.90] - 2026-11-01
 
 ### Added
@@ -1353,6 +1365,7 @@ code base on a Mac; nothing in this release was tested on Raspberry Pi hardware.
 [0.6.71]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.70...v0.6.71
 [0.6.70]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.69...v0.6.70
 
+[0.6.91]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.90...v0.6.91
 [0.6.90]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.89...v0.6.90
 [0.6.89]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.88...v0.6.89
 [0.6.88]: https://github.com/gptkiosk/rbp-control-dashboard/compare/v0.6.87...v0.6.88
