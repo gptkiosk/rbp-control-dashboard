@@ -125,10 +125,14 @@ const available = [
     "changes": "Shared teaching guidance: source-linked textbook/lesson-plan/class workflows, editable chat-out background, bounded assessment and teacher review. Visual requests stay reviewed specifications until the app and connector support them. The class pack adds GEOL for geology."
   }
 ]
-const installed = available.filter(p => !['gcp-hosted-app', 'upubhub-textbook', 'upubhub-lesson-plan'].includes(p.id)).map(p => ({ id: p.id, label: p.label, version: p.version, project_types: [p.id], service: null, summary: p.summary }))
+const installed = available.filter(p => !['gcp-hosted-app', 'upubhub-textbook', 'upubhub-lesson-plan'].includes(p.id)).map(p => ({ id: p.id, label: p.label, version: p.version, versions: [p.version, p.version.startsWith('1.') ? '1.0.0' : '0.1.0'], project_types: [p.id], service: null, summary: p.summary }))
 const offers = available.map(p => ({ ...p, installed: installed.some(i => i.id === p.id) ? p.version : null }))
 window.fetch = async (input, init) => {
   if (String(input).split('?')[0] !== '/api/pipeline-packs' || (init?.method && init.method !== 'GET')) return new Response(JSON.stringify({ detail: 'Fixture only: installation and mutations are disabled.' }), { status: 403 })
   return new Response(JSON.stringify({ repository: 'gptkiosk/dashboard-pipeline-packs', release: 'synthetic-unreleased-preview', error: null, available: offers, installed, tools: {} }), { status: 200 })
 }
-createApp({ render: () => h('main', { style: 'max-width:1440px;margin:auto;padding:24px' }, [h('p', { class: 'muted small' }, 'Isolated UI fixture. All descriptions and icons are local; no installation, production data or provider calls.'), h(PipelinePacksPanel)]) }).use(createRouter({ history: createMemoryHistory(), routes: [] })).mount('#app')
+createApp({ render: () => h('main', { style: 'max-width:1440px;margin:auto;padding:24px' }, [
+  h('p', { class: 'muted small' }, 'Isolated UI fixture. All descriptions and icons are local; no installation, production data or provider calls.'),
+  h('button', { type: 'button', class: 'btn', onClick: () => { document.documentElement.dataset.theme = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light' } }, 'Toggle light/dark preview'),
+  h(PipelinePacksPanel),
+]) }).use(createRouter({ history: createMemoryHistory(), routes: [] })).mount('#app')
