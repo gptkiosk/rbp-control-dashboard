@@ -3,7 +3,8 @@
 ## 0.6.91 template-store preview (2026-11-02)
 
 Branch `codex/textbook-template-icons`, based on fetched main. From `apps/web`
-with Node 22, run `npm run dev -- --host 127.0.0.1 --port 5194 --strictPort`.
+with Node 22, run `npm run dev -- --config vite.fixtures.config.ts`.
+The fixture server has no API proxy and refuses API/health routes with 403.
 Open `http://127.0.0.1:5194/tests/fixtures/template-store.html`; stop only its
 foreground process with Ctrl-C. This development-only entry renders the actual
 store component and packaged icons, not a separate mockup. It supplies eight
