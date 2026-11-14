@@ -145,6 +145,7 @@
   --tile-min-width: 12rem;
   --store-icon-size: 3rem;          /* template store card icons */
   --store-card-min-width: 17rem;
+  --store-select-height: 2rem;     /* compact version picker; touch targets stay larger */
   --card-min-width: 22rem;
   --chart-height: 220px;
   --severity-bar-width: 4px;

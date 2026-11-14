@@ -10,6 +10,11 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+### Changed
+- Template-store version pickers use compact card-level spacing and corners
+  instead of full-size form styling. Native keyboard behavior and the larger
+  coarse-pointer touch target stay unchanged.
+
 ## [0.6.91] - 2026-11-02
 
 ### Added
