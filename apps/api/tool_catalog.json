@@ -178,7 +178,7 @@
       "lock_dir": "tool_locks/openclaw",
       "lock": {
         "package_json_sha256": "8b1d6375533057376f0a5cf8eb5ed60da97ec307c341686d6c9aae797f140791",
-        "package_lock_sha256": "1a32e8ffb84c2065a03c1ac3524601c54ea0a0cf2a65c5c0803d255060f7689b"
+        "package_lock_sha256": "7884d87df379d364694d15cd9be1ed1a26b00b6981950d4998c81c3349ca69ea"
       },
       "allow_scripts": [],
       "requires": [
