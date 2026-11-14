@@ -105,7 +105,7 @@ def test_the_checker_proposes_bumps_without_changing_anything(repo, tmp_path, ca
     out = capsys.readouterr().out
     assert code == 1
     assert re.search(r"codex\s+pinned 0.162.1\s+latest 0.163.0\s+newer release", out)
-    assert re.search(r"node\s+pinned 24.21.0\s+latest 24.99.1\s+newer release", out)       # same major line only: v25 is not proposed
+    assert re.search(r"node\s+pinned 24.22.1\s+latest 24.99.1\s+newer release", out)       # same major line only: v25 is not proposed
     assert "scripts/tools/check.py --apply" in out
     assert (repo / "tool_catalog.json").read_bytes() == before
 
@@ -170,7 +170,7 @@ def test_a_node_release_missing_from_its_own_shasums_is_not_adopted(repo, tmp_pa
     answers["https://nodejs.org/dist/v24.30.0/SHASUMS256.txt"] = b"dddd  something-else.tar.xz\n"
     with pytest.raises(SystemExit, match="does not list"):
         check.main(["--apply", "node"], src=saved(tmp_path, answers))
-    assert json.loads((repo / "tool_catalog.json").read_text())["runtimes"]["node"]["version"] == "24.21.0"
+    assert json.loads((repo / "tool_catalog.json").read_text())["runtimes"]["node"]["version"] == "24.22.1"
 
 
 # --- the release package -----------------------------------------------------------------------------------------
