@@ -30,7 +30,7 @@ describe('Authentication gate', () => {
     const calls:string[]=[]
     vi.stubGlobal('fetch',vi.fn((p:string)=>{calls.push(p); return Promise.resolve(reply(p==='/auth/status' ? {enabled:true,user:null,local_recovery:false} : {status:'ok'}))}))
     const {w}=await mounted()
-    expect(w.get('a.btn.primary').attributes('href')).toBe('/auth/login?next=%2Fagents')
+    expect(w.get('[data-testid="google-signin-button"]').attributes('href')).toBe('/auth/login?next=%2Fagents')
     expect(w.text()).toContain('Continue with Google')
     expect(w.find('details').exists()).toBe(false)
     expect(calls).not.toContain('/api/agents')
@@ -52,6 +52,7 @@ describe('Authentication gate', () => {
     const {w,auth}=await mounted(LoginGate,'/login?error=signin_failed')
     auth.enabled=true; auth.localRecovery=true; await flushPromises()
     expect(w.text()).toContain('Sign-in did not complete')
+    expect(w.get('footer').text()).toBe(`© ${new Date().getFullYear()} Raspberry Pi Control Dashboard · Bamcio LLC`)
     await w.get('input').setValue('private-token')
     await w.get('form').trigger('submit'); await flushPromises()
     expect((w.get('input').element as HTMLInputElement).value).toBe('')
