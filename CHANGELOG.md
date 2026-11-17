@@ -11,9 +11,14 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 ## [Unreleased]
 
 ### Changed
+- The sign-in page has a centered layout with the standard "Continue with Google"
+  button, so it is clear a Google account is used before leaving the dashboard.
 - Template-store version pickers use compact card-level spacing and corners
   instead of full-size form styling. Native keyboard behavior and the larger
   coarse-pointer touch target stay unchanged.
+
+### Fixed
+- The sign-in page footer shows the current year instead of unrendered template text.
 
 ## [0.6.91] - 2026-11-02
 
