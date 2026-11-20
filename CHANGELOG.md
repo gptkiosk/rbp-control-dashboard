@@ -10,6 +10,8 @@ Internal operator notes, private hostnames and personal identifiers are omitted 
 
 ## [Unreleased]
 
+- Docs: a proposal for PEA companion access (`docs/development/pea-companion.md`). No application change.
+
 ## [0.6.92] - 2026-11-17
 
 ### Changed
